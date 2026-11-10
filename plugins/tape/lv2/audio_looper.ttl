@@ -1,0 +1,2083 @@
+@prefix lv2:    <http://lv2plug.in/ns/lv2core#> .
+@prefix atom:   <http://lv2plug.in/ns/ext/atom#> .
+@prefix midi:   <http://lv2plug.in/ns/ext/midi#> .
+@prefix time:   <http://lv2plug.in/ns/ext/time#> .
+@prefix urid:   <http://lv2plug.in/ns/ext/urid#> .
+@prefix pg:     <http://lv2plug.in/ns/ext/port-groups#> .
+@prefix pprops: <http://lv2plug.in/ns/ext/port-props#> .
+@prefix doap:   <http://usefulinc.com/ns/doap#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix work:   <http://lv2plug.in/ns/ext/worker#> .
+@prefix state:  <http://lv2plug.in/ns/ext/state#> .
+@prefix patch:  <http://lv2plug.in/ns/ext/patch#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+<urn:audiolooper:looper#g_rec> a pg:Group ; lv2:symbol "g_rec" ; lv2:name "Record" ; lv2:index 0 ; lv2:displayPriority 60 .
+<urn:audiolooper:looper#g_track> a pg:Group ; lv2:symbol "g_track" ; lv2:name "Track" ; lv2:index 1 ; lv2:displayPriority 50 .
+<urn:audiolooper:looper#g_nav> a pg:Group ; lv2:symbol "g_nav" ; lv2:name "Navigate" ; lv2:index 2 ; lv2:displayPriority 40 .
+<urn:audiolooper:looper#g_screens> a pg:Group ; lv2:symbol "g_screens" ; lv2:name "Screens" ; lv2:index 3 ; lv2:displayPriority 30 .
+<urn:audiolooper:looper#g_mix> a pg:Group ; lv2:symbol "g_mix" ; lv2:name "Mix" ; lv2:index 4 ; lv2:displayPriority 20 .
+
+<urn:audiolooper:looper>
+    a lv2:Plugin , lv2:UtilityPlugin ;
+    doap:name "Audio Looper" ;
+    lv2:minorVersion 0 ;
+    lv2:microVersion 1 ;
+    lv2:requiredFeature urid:map , work:schedule ;
+    lv2:optionalFeature lv2:hardRTCapable ;
+    lv2:extensionData work:interface , state:interface ;
+    patch:writable
+        <urn:audiolooper:looper#grid> ,
+        <urn:audiolooper:looper#rec_order> ,
+        <urn:audiolooper:looper#mode> ,
+        <urn:audiolooper:looper#len1> ,
+        <urn:audiolooper:looper#len2> ,
+        <urn:audiolooper:looper#len3> ,
+        <urn:audiolooper:looper#len4> ,
+        <urn:audiolooper:looper#len5> ,
+        <urn:audiolooper:looper#len6> ,
+        <urn:audiolooper:looper#fade_out> ,
+        <urn:audiolooper:looper#fade_in> ,
+        <urn:audiolooper:looper#rev_time> ,
+        <urn:audiolooper:looper#mute_q> ,
+        <urn:audiolooper:looper#part_q> ,
+        <urn:audiolooper:looper#lev1> ,
+        <urn:audiolooper:looper#lev2> ,
+        <urn:audiolooper:looper#lev3> ,
+        <urn:audiolooper:looper#lev4> ,
+        <urn:audiolooper:looper#lev5> ,
+        <urn:audiolooper:looper#lev6> ,
+        <urn:audiolooper:looper#lev7> ,
+        <urn:audiolooper:looper#lev8> ,
+        <urn:audiolooper:looper#lev9> ,
+        <urn:audiolooper:looper#lev10> ,
+        <urn:audiolooper:looper#lev11> ,
+        <urn:audiolooper:looper#lev12> ,
+        <urn:audiolooper:looper#lev13> ,
+        <urn:audiolooper:looper#lev14> ,
+        <urn:audiolooper:looper#lev15> ,
+        <urn:audiolooper:looper#lev16> ,
+        <urn:audiolooper:looper#lev17> ,
+        <urn:audiolooper:looper#lev18> ,
+        <urn:audiolooper:looper#lev19> ,
+        <urn:audiolooper:looper#lev20> ,
+        <urn:audiolooper:looper#lev21> ,
+        <urn:audiolooper:looper#lev22> ,
+        <urn:audiolooper:looper#lev23> ,
+        <urn:audiolooper:looper#lev24> ,
+        <urn:audiolooper:looper#lev25> ,
+        <urn:audiolooper:looper#lev26> ,
+        <urn:audiolooper:looper#lev27> ,
+        <urn:audiolooper:looper#lev28> ,
+        <urn:audiolooper:looper#lev29> ,
+        <urn:audiolooper:looper#lev30> ,
+        <urn:audiolooper:looper#lev31> ,
+        <urn:audiolooper:looper#lev32> ,
+        <urn:audiolooper:looper#lev33> ,
+        <urn:audiolooper:looper#lev34> ,
+        <urn:audiolooper:looper#lev35> ,
+        <urn:audiolooper:looper#lev36> ,
+        <urn:audiolooper:looper#pan1> ,
+        <urn:audiolooper:looper#pan2> ,
+        <urn:audiolooper:looper#pan3> ,
+        <urn:audiolooper:looper#pan4> ,
+        <urn:audiolooper:looper#pan5> ,
+        <urn:audiolooper:looper#pan6> ,
+        <urn:audiolooper:looper#pan7> ,
+        <urn:audiolooper:looper#pan8> ,
+        <urn:audiolooper:looper#pan9> ,
+        <urn:audiolooper:looper#pan10> ,
+        <urn:audiolooper:looper#pan11> ,
+        <urn:audiolooper:looper#pan12> ,
+        <urn:audiolooper:looper#pan13> ,
+        <urn:audiolooper:looper#pan14> ,
+        <urn:audiolooper:looper#pan15> ,
+        <urn:audiolooper:looper#pan16> ,
+        <urn:audiolooper:looper#pan17> ,
+        <urn:audiolooper:looper#pan18> ,
+        <urn:audiolooper:looper#pan19> ,
+        <urn:audiolooper:looper#pan20> ,
+        <urn:audiolooper:looper#pan21> ,
+        <urn:audiolooper:looper#pan22> ,
+        <urn:audiolooper:looper#pan23> ,
+        <urn:audiolooper:looper#pan24> ,
+        <urn:audiolooper:looper#pan25> ,
+        <urn:audiolooper:looper#pan26> ,
+        <urn:audiolooper:looper#pan27> ,
+        <urn:audiolooper:looper#pan28> ,
+        <urn:audiolooper:looper#pan29> ,
+        <urn:audiolooper:looper#pan30> ,
+        <urn:audiolooper:looper#pan31> ,
+        <urn:audiolooper:looper#pan32> ,
+        <urn:audiolooper:looper#pan33> ,
+        <urn:audiolooper:looper#pan34> ,
+        <urn:audiolooper:looper#pan35> ,
+        <urn:audiolooper:looper#pan36> ,
+        <urn:audiolooper:looper#chm1> ,
+        <urn:audiolooper:looper#chm2> ,
+        <urn:audiolooper:looper#chm3> ,
+        <urn:audiolooper:looper#chm4> ,
+        <urn:audiolooper:looper#chm5> ,
+        <urn:audiolooper:looper#chm6> ,
+        <urn:audiolooper:looper#chm7> ,
+        <urn:audiolooper:looper#chm8> ,
+        <urn:audiolooper:looper#chm9> ,
+        <urn:audiolooper:looper#chm10> ,
+        <urn:audiolooper:looper#chm11> ,
+        <urn:audiolooper:looper#chm12> ,
+        <urn:audiolooper:looper#chm13> ,
+        <urn:audiolooper:looper#chm14> ,
+        <urn:audiolooper:looper#chm15> ,
+        <urn:audiolooper:looper#chm16> ,
+        <urn:audiolooper:looper#chm17> ,
+        <urn:audiolooper:looper#chm18> ,
+        <urn:audiolooper:looper#chm19> ,
+        <urn:audiolooper:looper#chm20> ,
+        <urn:audiolooper:looper#chm21> ,
+        <urn:audiolooper:looper#chm22> ,
+        <urn:audiolooper:looper#chm23> ,
+        <urn:audiolooper:looper#chm24> ,
+        <urn:audiolooper:looper#chm25> ,
+        <urn:audiolooper:looper#chm26> ,
+        <urn:audiolooper:looper#chm27> ,
+        <urn:audiolooper:looper#chm28> ,
+        <urn:audiolooper:looper#chm29> ,
+        <urn:audiolooper:looper#chm30> ,
+        <urn:audiolooper:looper#chm31> ,
+        <urn:audiolooper:looper#chm32> ,
+        <urn:audiolooper:looper#chm33> ,
+        <urn:audiolooper:looper#chm34> ,
+        <urn:audiolooper:looper#chm35> ,
+        <urn:audiolooper:looper#chm36> ,
+        <urn:audiolooper:looper#mst_db> ,
+        <urn:audiolooper:looper#limiter> ,
+        <urn:audiolooper:looper#tmute> ,
+        <urn:audiolooper:looper#tempo_glide> ,
+        <urn:audiolooper:looper#spd_snap> ,
+        <urn:audiolooper:looper#spd_glide> ,
+        <urn:audiolooper:looper#spd1> ,
+        <urn:audiolooper:looper#spd2> ,
+        <urn:audiolooper:looper#spd3> ,
+        <urn:audiolooper:looper#spd4> ,
+        <urn:audiolooper:looper#spd5> ,
+        <urn:audiolooper:looper#spd6> ,
+        <urn:audiolooper:looper#spd7> ,
+        <urn:audiolooper:looper#spd8> ,
+        <urn:audiolooper:looper#spd9> ,
+        <urn:audiolooper:looper#spd10> ,
+        <urn:audiolooper:looper#spd11> ,
+        <urn:audiolooper:looper#spd12> ,
+        <urn:audiolooper:looper#spd13> ,
+        <urn:audiolooper:looper#spd14> ,
+        <urn:audiolooper:looper#spd15> ,
+        <urn:audiolooper:looper#spd16> ,
+        <urn:audiolooper:looper#spd17> ,
+        <urn:audiolooper:looper#spd18> ,
+        <urn:audiolooper:looper#spd19> ,
+        <urn:audiolooper:looper#spd20> ,
+        <urn:audiolooper:looper#spd21> ,
+        <urn:audiolooper:looper#spd22> ,
+        <urn:audiolooper:looper#spd23> ,
+        <urn:audiolooper:looper#spd24> ,
+        <urn:audiolooper:looper#spd25> ,
+        <urn:audiolooper:looper#spd26> ,
+        <urn:audiolooper:looper#spd27> ,
+        <urn:audiolooper:looper#spd28> ,
+        <urn:audiolooper:looper#spd29> ,
+        <urn:audiolooper:looper#spd30> ,
+        <urn:audiolooper:looper#spd31> ,
+        <urn:audiolooper:looper#spd32> ,
+        <urn:audiolooper:looper#spd33> ,
+        <urn:audiolooper:looper#spd34> ,
+        <urn:audiolooper:looper#spd35> ,
+        <urn:audiolooper:looper#spd36> ,
+        <urn:audiolooper:looper#sreset> ,
+        <urn:audiolooper:looper#hold_ms> ,
+        <urn:audiolooper:looper#reset_ms> ,
+        <urn:audiolooper:looper#latency> ,
+        <urn:audiolooper:looper#pool_mb> ;
+    lv2:port
+    [
+        a lv2:InputPort , lv2:AudioPort ; lv2:index 18 ; lv2:symbol "in_l" ; lv2:name "In L" ;
+    ] , [
+        a lv2:InputPort , lv2:AudioPort ; lv2:index 19 ; lv2:symbol "in_r" ; lv2:name "In R" ;
+    ] , [
+        a lv2:OutputPort , lv2:AudioPort ; lv2:index 20 ; lv2:symbol "out_l" ; lv2:name "Out L" ;
+    ] , [
+        a lv2:OutputPort , lv2:AudioPort ; lv2:index 21 ; lv2:symbol "out_r" ; lv2:name "Out R" ;
+    ] , [
+        a lv2:InputPort , atom:AtomPort ;
+        atom:bufferType atom:Sequence ;
+        atom:supports midi:MidiEvent , time:Position , patch:Message ;
+        lv2:designation lv2:control ;
+        lv2:index 22 ; lv2:symbol "events_in" ; lv2:name "MIDI In" ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 0 ; lv2:symbol "rec" ; lv2:name "Rec/Dub" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 40 ; pg:group <urn:audiolooper:looper#g_rec> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 1 ; lv2:symbol "undo" ; lv2:name "Undo" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 30 ; pg:group <urn:audiolooper:looper#g_rec> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 2 ; lv2:symbol "redo" ; lv2:name "Redo" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 20 ; pg:group <urn:audiolooper:looper#g_rec> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 3 ; lv2:symbol "reset" ; lv2:name "Reset" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 10 ; pg:group <urn:audiolooper:looper#g_rec> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 4 ; lv2:symbol "mute" ; lv2:name "Mute" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 40 ; pg:group <urn:audiolooper:looper#g_track> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 5 ; lv2:symbol "reverse" ; lv2:name "Reverse" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 30 ; pg:group <urn:audiolooper:looper#g_track> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 6 ; lv2:symbol "lock" ; lv2:name "Lock" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 20 ; pg:group <urn:audiolooper:looper#g_track> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 7 ; lv2:symbol "trk_next" ; lv2:name "Next Trk" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 10 ; pg:group <urn:audiolooper:looper#g_track> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 8 ; lv2:symbol "trk_prev" ; lv2:name "Prev Trk" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 40 ; pg:group <urn:audiolooper:looper#g_nav> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 9 ; lv2:symbol "part_next" ; lv2:name "Next Part" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 30 ; pg:group <urn:audiolooper:looper#g_nav> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 10 ; lv2:symbol "part_prev" ; lv2:name "Prev Part" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 20 ; pg:group <urn:audiolooper:looper#g_nav> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 11 ; lv2:symbol "play" ; lv2:name "Play/Stop" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 10 ; pg:group <urn:audiolooper:looper#g_nav> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 12 ; lv2:symbol "w_loop" ; lv2:name "Loop" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 40 ; pg:group <urn:audiolooper:looper#g_screens> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 13 ; lv2:symbol "w_mixer" ; lv2:name "Mixer" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 30 ; pg:group <urn:audiolooper:looper#g_screens> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 14 ; lv2:symbol "level" ; lv2:name "Level" ;
+        lv2:default 75 ; lv2:minimum 0 ; lv2:maximum 100 ;
+        lv2:displayPriority 40 ; pg:group <urn:audiolooper:looper#g_mix> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 15 ; lv2:symbol "pan" ; lv2:name "Pan" ;
+        lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+        lv2:displayPriority 30 ; pg:group <urn:audiolooper:looper#g_mix> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 16 ; lv2:symbol "master" ; lv2:name "Master" ;
+        lv2:default 75 ; lv2:minimum 0 ; lv2:maximum 100 ;
+        lv2:displayPriority 20 ; pg:group <urn:audiolooper:looper#g_mix> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 17 ; lv2:symbol "speed" ; lv2:name "Speed" ;
+        lv2:default 1 ; lv2:minimum 0.25 ; lv2:maximum 2 ; lv2:portProperty pprops:logarithmic ;
+        lv2:displayPriority 10 ; pg:group <urn:audiolooper:looper#g_mix> ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 23 ; lv2:symbol "o_track" ; lv2:name "Out: Track" ;
+        lv2:minimum 0 ; lv2:maximum 3 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 24 ; lv2:symbol "o_part" ; lv2:name "Out: Part" ;
+        lv2:minimum 0 ; lv2:maximum 3 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 25 ; lv2:symbol "o_pend" ; lv2:name "Out: Pending" ;
+        lv2:minimum -1 ; lv2:maximum 3 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 26 ; lv2:symbol "o_widget" ; lv2:name "Out: Widget" ;
+        lv2:minimum 0 ; lv2:maximum 1 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 27 ; lv2:symbol "o_action" ; lv2:name "Out: Action" ;
+        lv2:minimum 0 ; lv2:maximum 15 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 28 ; lv2:symbol "o_act_cnt" ; lv2:name "Out: Act Count" ;
+        lv2:minimum 0 ; lv2:maximum 1000000 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 29 ; lv2:symbol "o_held" ; lv2:name "Out: Held" ;
+        lv2:minimum 0 ; lv2:maximum 65535 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 30 ; lv2:symbol "o_bpm" ; lv2:name "Out: BPM" ;
+        lv2:minimum 0 ; lv2:maximum 400 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 31 ; lv2:symbol "o_bar" ; lv2:name "Out: Bar" ;
+        lv2:minimum 0 ; lv2:maximum 1000000 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 32 ; lv2:symbol "o_beat" ; lv2:name "Out: Beat" ;
+        lv2:minimum 0 ; lv2:maximum 16 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 33 ; lv2:symbol "o_bpb" ; lv2:name "Out: BPB" ;
+        lv2:minimum 1 ; lv2:maximum 16 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 34 ; lv2:symbol "o_rolling" ; lv2:name "Out: Rolling" ;
+        lv2:minimum 0 ; lv2:maximum 1 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 35 ; lv2:symbol "o_tsrc" ; lv2:name "Out: Tempo Src" ;
+        lv2:minimum 0 ; lv2:maximum 2 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 36 ; lv2:symbol "o_clk_bpm" ; lv2:name "Out: Clock BPM" ;
+        lv2:minimum 0 ; lv2:maximum 400 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 37 ; lv2:symbol "o_pos_cnt" ; lv2:name "Out: Pos Msgs" ;
+        lv2:minimum 0 ; lv2:maximum 1000000 ;
+    ] , [
+        a lv2:OutputPort , atom:AtomPort ;
+        atom:bufferType atom:Sequence ;
+        atom:supports patch:Message ;
+        lv2:index 38 ; lv2:symbol "events_out" ; lv2:name "Events Out" ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 39 ; lv2:symbol "o_st1" ; lv2:name "Out: State 1" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 40 ; lv2:symbol "o_st2" ; lv2:name "Out: State 2" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 41 ; lv2:symbol "o_st3" ; lv2:name "Out: State 3" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 42 ; lv2:symbol "o_st4" ; lv2:name "Out: State 4" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 43 ; lv2:symbol "o_pos1" ; lv2:name "Out: Pos 1" ;
+        lv2:minimum 0 ; lv2:maximum 1 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 44 ; lv2:symbol "o_pos2" ; lv2:name "Out: Pos 2" ;
+        lv2:minimum 0 ; lv2:maximum 1 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 45 ; lv2:symbol "o_pos3" ; lv2:name "Out: Pos 3" ;
+        lv2:minimum 0 ; lv2:maximum 1 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 46 ; lv2:symbol "o_pos4" ; lv2:name "Out: Pos 4" ;
+        lv2:minimum 0 ; lv2:maximum 1 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 47 ; lv2:symbol "o_len1" ; lv2:name "Out: Len 1" ;
+        lv2:minimum 0 ; lv2:maximum 100000 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 48 ; lv2:symbol "o_len2" ; lv2:name "Out: Len 2" ;
+        lv2:minimum 0 ; lv2:maximum 100000 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 49 ; lv2:symbol "o_len3" ; lv2:name "Out: Len 3" ;
+        lv2:minimum 0 ; lv2:maximum 100000 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 50 ; lv2:symbol "o_len4" ; lv2:name "Out: Len 4" ;
+        lv2:minimum 0 ; lv2:maximum 100000 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 51 ; lv2:symbol "o_flags" ; lv2:name "Out: Flags" ;
+        lv2:minimum 0 ; lv2:maximum 33554431 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 52 ; lv2:symbol "o_pool" ; lv2:name "Out: Pool" ;
+        lv2:minimum 0 ; lv2:maximum 1 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 53 ; lv2:symbol "o_parts" ; lv2:name "Out: Parts" ;
+        lv2:minimum 0 ; lv2:maximum 63 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 54 ; lv2:symbol "o_pk1" ; lv2:name "Out: Peak 1" ;
+        lv2:minimum 0 ; lv2:maximum 2 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 55 ; lv2:symbol "o_pk2" ; lv2:name "Out: Peak 2" ;
+        lv2:minimum 0 ; lv2:maximum 2 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 56 ; lv2:symbol "o_pk3" ; lv2:name "Out: Peak 3" ;
+        lv2:minimum 0 ; lv2:maximum 2 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 57 ; lv2:symbol "o_pk4" ; lv2:name "Out: Peak 4" ;
+        lv2:minimum 0 ; lv2:maximum 2 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 58 ; lv2:symbol "o_mpk_l" ; lv2:name "Out: Master Peak L" ;
+        lv2:minimum 0 ; lv2:maximum 2 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 59 ; lv2:symbol "o_mpk_r" ; lv2:name "Out: Master Peak R" ;
+        lv2:minimum 0 ; lv2:maximum 2 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 60 ; lv2:symbol "o_spd1" ; lv2:name "Out: Speed 1" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 61 ; lv2:symbol "o_spd2" ; lv2:name "Out: Speed 2" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 62 ; lv2:symbol "o_spd3" ; lv2:name "Out: Speed 3" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 63 ; lv2:symbol "o_spd4" ; lv2:name "Out: Speed 4" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 64 ; lv2:symbol "o_espd1" ; lv2:name "Out: Eff Speed 1" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 65 ; lv2:symbol "o_espd2" ; lv2:name "Out: Eff Speed 2" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 66 ; lv2:symbol "o_espd3" ; lv2:name "Out: Eff Speed 3" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 67 ; lv2:symbol "o_espd4" ; lv2:name "Out: Eff Speed 4" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 68 ; lv2:symbol "o_st5" ; lv2:name "Out: State 5" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 69 ; lv2:symbol "o_st6" ; lv2:name "Out: State 6" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 70 ; lv2:symbol "o_pos5" ; lv2:name "Out: Pos 5" ;
+        lv2:minimum 0 ; lv2:maximum 1 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 71 ; lv2:symbol "o_pos6" ; lv2:name "Out: Pos 6" ;
+        lv2:minimum 0 ; lv2:maximum 1 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 72 ; lv2:symbol "o_len5" ; lv2:name "Out: Len 5" ;
+        lv2:minimum 0 ; lv2:maximum 100000 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 73 ; lv2:symbol "o_len6" ; lv2:name "Out: Len 6" ;
+        lv2:minimum 0 ; lv2:maximum 100000 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 74 ; lv2:symbol "o_pk5" ; lv2:name "Out: Peak 5" ;
+        lv2:minimum 0 ; lv2:maximum 2 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 75 ; lv2:symbol "o_pk6" ; lv2:name "Out: Peak 6" ;
+        lv2:minimum 0 ; lv2:maximum 2 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 76 ; lv2:symbol "o_spd5" ; lv2:name "Out: Speed 5" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 77 ; lv2:symbol "o_spd6" ; lv2:name "Out: Speed 6" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 78 ; lv2:symbol "o_espd5" ; lv2:name "Out: Eff Speed 5" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 79 ; lv2:symbol "o_espd6" ; lv2:name "Out: Eff Speed 6" ;
+        lv2:minimum 0 ; lv2:maximum 4 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 80 ; lv2:symbol "o_mutes" ; lv2:name "Out: Mute Mask" ;
+        lv2:minimum 0 ; lv2:maximum 63 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 81 ; lv2:symbol "o_revs" ; lv2:name "Out: Reverse Mask" ;
+        lv2:minimum 0 ; lv2:maximum 63 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 82 ; lv2:symbol "o_stops" ; lv2:name "Out: Stopped Mask" ;
+        lv2:minimum 0 ; lv2:maximum 63 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 83 ; lv2:symbol "o_locks" ; lv2:name "Out: Lock Mask" ;
+        lv2:minimum 0 ; lv2:maximum 63 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 84 ; lv2:symbol "o_grid" ; lv2:name "Out: Grid" ;
+        lv2:minimum 2 ; lv2:maximum 6 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 85 ; lv2:symbol "o_pool_mb" ; lv2:name "Out: Pool MB" ;
+        lv2:minimum 0 ; lv2:maximum 4096 ;
+    ] .
+
+# Настройки: LV2-параметры (patch:Set), скрыты со страниц, меняются на вкладке настроек виджета.
+# Сетка партов и дорожек: 0 — 2×2, 1 — 4×4, 2 — 6×6. Смена стирает лупы (этап 7).
+<urn:audiolooper:looper#grid>
+    a lv2:Parameter ;
+    lv2:symbol "grid" ;
+    rdfs:label "Grid" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#rec_order>
+    a lv2:Parameter ;
+    lv2:symbol "rec_order" ;
+    rdfs:label "Rec Order" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#mode>
+    a lv2:Parameter ;
+    lv2:symbol "mode" ;
+    rdfs:label "Mode" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 1 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#len1>
+    a lv2:Parameter ;
+    lv2:symbol "len1" ;
+    rdfs:label "Length 1" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 16 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#len2>
+    a lv2:Parameter ;
+    lv2:symbol "len2" ;
+    rdfs:label "Length 2" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 16 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#len3>
+    a lv2:Parameter ;
+    lv2:symbol "len3" ;
+    rdfs:label "Length 3" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 16 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#len4>
+    a lv2:Parameter ;
+    lv2:symbol "len4" ;
+    rdfs:label "Length 4" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 16 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#len5>
+    a lv2:Parameter ;
+    lv2:symbol "len5" ;
+    rdfs:label "Length 5" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 16 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#len6>
+    a lv2:Parameter ;
+    lv2:symbol "len6" ;
+    rdfs:label "Length 6" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 16 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#fade_out>
+    a lv2:Parameter ;
+    lv2:symbol "fade_out" ;
+    rdfs:label "Fade Out" ;
+    rdfs:range atom:Int ;
+    lv2:default 200 ; lv2:minimum 10 ; lv2:maximum 4000 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#fade_in>
+    a lv2:Parameter ;
+    lv2:symbol "fade_in" ;
+    rdfs:label "Fade In" ;
+    rdfs:range atom:Int ;
+    lv2:default 200 ; lv2:minimum 10 ; lv2:maximum 4000 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#rev_time>
+    a lv2:Parameter ;
+    lv2:symbol "rev_time" ;
+    rdfs:label "Reverse Time" ;
+    rdfs:range atom:Int ;
+    lv2:default 50 ; lv2:minimum 5 ; lv2:maximum 1000 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#mute_q>
+    a lv2:Parameter ;
+    lv2:symbol "mute_q" ;
+    rdfs:label "Mute Quant" ;
+    rdfs:range atom:Int ;
+    lv2:default 2 ; lv2:minimum 0 ; lv2:maximum 3 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#part_q>
+    a lv2:Parameter ;
+    lv2:symbol "part_q" ;
+    rdfs:label "Part Quant" ;
+    rdfs:range atom:Int ;
+    lv2:default 3 ; lv2:minimum 0 ; lv2:maximum 3 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+# Микшер: уровень, панорама и режим канала 16 дорожек, Dry, Master, ограничитель.
+<urn:audiolooper:looper#lev1>
+    a lv2:Parameter ;
+    lv2:symbol "lev1" ;
+    rdfs:label "Level 1" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev2>
+    a lv2:Parameter ;
+    lv2:symbol "lev2" ;
+    rdfs:label "Level 2" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev3>
+    a lv2:Parameter ;
+    lv2:symbol "lev3" ;
+    rdfs:label "Level 3" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev4>
+    a lv2:Parameter ;
+    lv2:symbol "lev4" ;
+    rdfs:label "Level 4" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev5>
+    a lv2:Parameter ;
+    lv2:symbol "lev5" ;
+    rdfs:label "Level 5" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev6>
+    a lv2:Parameter ;
+    lv2:symbol "lev6" ;
+    rdfs:label "Level 6" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev7>
+    a lv2:Parameter ;
+    lv2:symbol "lev7" ;
+    rdfs:label "Level 7" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev8>
+    a lv2:Parameter ;
+    lv2:symbol "lev8" ;
+    rdfs:label "Level 8" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev9>
+    a lv2:Parameter ;
+    lv2:symbol "lev9" ;
+    rdfs:label "Level 9" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev10>
+    a lv2:Parameter ;
+    lv2:symbol "lev10" ;
+    rdfs:label "Level 10" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev11>
+    a lv2:Parameter ;
+    lv2:symbol "lev11" ;
+    rdfs:label "Level 11" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev12>
+    a lv2:Parameter ;
+    lv2:symbol "lev12" ;
+    rdfs:label "Level 12" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev13>
+    a lv2:Parameter ;
+    lv2:symbol "lev13" ;
+    rdfs:label "Level 13" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev14>
+    a lv2:Parameter ;
+    lv2:symbol "lev14" ;
+    rdfs:label "Level 14" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev15>
+    a lv2:Parameter ;
+    lv2:symbol "lev15" ;
+    rdfs:label "Level 15" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev16>
+    a lv2:Parameter ;
+    lv2:symbol "lev16" ;
+    rdfs:label "Level 16" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev17>
+    a lv2:Parameter ;
+    lv2:symbol "lev17" ;
+    rdfs:label "Level 17" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev18>
+    a lv2:Parameter ;
+    lv2:symbol "lev18" ;
+    rdfs:label "Level 18" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev19>
+    a lv2:Parameter ;
+    lv2:symbol "lev19" ;
+    rdfs:label "Level 19" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev20>
+    a lv2:Parameter ;
+    lv2:symbol "lev20" ;
+    rdfs:label "Level 20" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev21>
+    a lv2:Parameter ;
+    lv2:symbol "lev21" ;
+    rdfs:label "Level 21" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev22>
+    a lv2:Parameter ;
+    lv2:symbol "lev22" ;
+    rdfs:label "Level 22" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev23>
+    a lv2:Parameter ;
+    lv2:symbol "lev23" ;
+    rdfs:label "Level 23" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev24>
+    a lv2:Parameter ;
+    lv2:symbol "lev24" ;
+    rdfs:label "Level 24" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev25>
+    a lv2:Parameter ;
+    lv2:symbol "lev25" ;
+    rdfs:label "Level 25" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev26>
+    a lv2:Parameter ;
+    lv2:symbol "lev26" ;
+    rdfs:label "Level 26" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev27>
+    a lv2:Parameter ;
+    lv2:symbol "lev27" ;
+    rdfs:label "Level 27" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev28>
+    a lv2:Parameter ;
+    lv2:symbol "lev28" ;
+    rdfs:label "Level 28" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev29>
+    a lv2:Parameter ;
+    lv2:symbol "lev29" ;
+    rdfs:label "Level 29" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev30>
+    a lv2:Parameter ;
+    lv2:symbol "lev30" ;
+    rdfs:label "Level 30" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev31>
+    a lv2:Parameter ;
+    lv2:symbol "lev31" ;
+    rdfs:label "Level 31" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev32>
+    a lv2:Parameter ;
+    lv2:symbol "lev32" ;
+    rdfs:label "Level 32" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev33>
+    a lv2:Parameter ;
+    lv2:symbol "lev33" ;
+    rdfs:label "Level 33" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev34>
+    a lv2:Parameter ;
+    lv2:symbol "lev34" ;
+    rdfs:label "Level 34" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev35>
+    a lv2:Parameter ;
+    lv2:symbol "lev35" ;
+    rdfs:label "Level 35" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#lev36>
+    a lv2:Parameter ;
+    lv2:symbol "lev36" ;
+    rdfs:label "Level 36" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan1>
+    a lv2:Parameter ;
+    lv2:symbol "pan1" ;
+    rdfs:label "Pan 1" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan2>
+    a lv2:Parameter ;
+    lv2:symbol "pan2" ;
+    rdfs:label "Pan 2" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan3>
+    a lv2:Parameter ;
+    lv2:symbol "pan3" ;
+    rdfs:label "Pan 3" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan4>
+    a lv2:Parameter ;
+    lv2:symbol "pan4" ;
+    rdfs:label "Pan 4" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan5>
+    a lv2:Parameter ;
+    lv2:symbol "pan5" ;
+    rdfs:label "Pan 5" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan6>
+    a lv2:Parameter ;
+    lv2:symbol "pan6" ;
+    rdfs:label "Pan 6" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan7>
+    a lv2:Parameter ;
+    lv2:symbol "pan7" ;
+    rdfs:label "Pan 7" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan8>
+    a lv2:Parameter ;
+    lv2:symbol "pan8" ;
+    rdfs:label "Pan 8" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan9>
+    a lv2:Parameter ;
+    lv2:symbol "pan9" ;
+    rdfs:label "Pan 9" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan10>
+    a lv2:Parameter ;
+    lv2:symbol "pan10" ;
+    rdfs:label "Pan 10" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan11>
+    a lv2:Parameter ;
+    lv2:symbol "pan11" ;
+    rdfs:label "Pan 11" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan12>
+    a lv2:Parameter ;
+    lv2:symbol "pan12" ;
+    rdfs:label "Pan 12" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan13>
+    a lv2:Parameter ;
+    lv2:symbol "pan13" ;
+    rdfs:label "Pan 13" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan14>
+    a lv2:Parameter ;
+    lv2:symbol "pan14" ;
+    rdfs:label "Pan 14" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan15>
+    a lv2:Parameter ;
+    lv2:symbol "pan15" ;
+    rdfs:label "Pan 15" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan16>
+    a lv2:Parameter ;
+    lv2:symbol "pan16" ;
+    rdfs:label "Pan 16" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan17>
+    a lv2:Parameter ;
+    lv2:symbol "pan17" ;
+    rdfs:label "Pan 17" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan18>
+    a lv2:Parameter ;
+    lv2:symbol "pan18" ;
+    rdfs:label "Pan 18" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan19>
+    a lv2:Parameter ;
+    lv2:symbol "pan19" ;
+    rdfs:label "Pan 19" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan20>
+    a lv2:Parameter ;
+    lv2:symbol "pan20" ;
+    rdfs:label "Pan 20" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan21>
+    a lv2:Parameter ;
+    lv2:symbol "pan21" ;
+    rdfs:label "Pan 21" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan22>
+    a lv2:Parameter ;
+    lv2:symbol "pan22" ;
+    rdfs:label "Pan 22" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan23>
+    a lv2:Parameter ;
+    lv2:symbol "pan23" ;
+    rdfs:label "Pan 23" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan24>
+    a lv2:Parameter ;
+    lv2:symbol "pan24" ;
+    rdfs:label "Pan 24" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan25>
+    a lv2:Parameter ;
+    lv2:symbol "pan25" ;
+    rdfs:label "Pan 25" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan26>
+    a lv2:Parameter ;
+    lv2:symbol "pan26" ;
+    rdfs:label "Pan 26" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan27>
+    a lv2:Parameter ;
+    lv2:symbol "pan27" ;
+    rdfs:label "Pan 27" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan28>
+    a lv2:Parameter ;
+    lv2:symbol "pan28" ;
+    rdfs:label "Pan 28" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan29>
+    a lv2:Parameter ;
+    lv2:symbol "pan29" ;
+    rdfs:label "Pan 29" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan30>
+    a lv2:Parameter ;
+    lv2:symbol "pan30" ;
+    rdfs:label "Pan 30" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan31>
+    a lv2:Parameter ;
+    lv2:symbol "pan31" ;
+    rdfs:label "Pan 31" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan32>
+    a lv2:Parameter ;
+    lv2:symbol "pan32" ;
+    rdfs:label "Pan 32" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan33>
+    a lv2:Parameter ;
+    lv2:symbol "pan33" ;
+    rdfs:label "Pan 33" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan34>
+    a lv2:Parameter ;
+    lv2:symbol "pan34" ;
+    rdfs:label "Pan 34" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan35>
+    a lv2:Parameter ;
+    lv2:symbol "pan35" ;
+    rdfs:label "Pan 35" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pan36>
+    a lv2:Parameter ;
+    lv2:symbol "pan36" ;
+    rdfs:label "Pan 36" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm1>
+    a lv2:Parameter ;
+    lv2:symbol "chm1" ;
+    rdfs:label "Ch Mode 1" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm2>
+    a lv2:Parameter ;
+    lv2:symbol "chm2" ;
+    rdfs:label "Ch Mode 2" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm3>
+    a lv2:Parameter ;
+    lv2:symbol "chm3" ;
+    rdfs:label "Ch Mode 3" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm4>
+    a lv2:Parameter ;
+    lv2:symbol "chm4" ;
+    rdfs:label "Ch Mode 4" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm5>
+    a lv2:Parameter ;
+    lv2:symbol "chm5" ;
+    rdfs:label "Ch Mode 5" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm6>
+    a lv2:Parameter ;
+    lv2:symbol "chm6" ;
+    rdfs:label "Ch Mode 6" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm7>
+    a lv2:Parameter ;
+    lv2:symbol "chm7" ;
+    rdfs:label "Ch Mode 7" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm8>
+    a lv2:Parameter ;
+    lv2:symbol "chm8" ;
+    rdfs:label "Ch Mode 8" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm9>
+    a lv2:Parameter ;
+    lv2:symbol "chm9" ;
+    rdfs:label "Ch Mode 9" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm10>
+    a lv2:Parameter ;
+    lv2:symbol "chm10" ;
+    rdfs:label "Ch Mode 10" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm11>
+    a lv2:Parameter ;
+    lv2:symbol "chm11" ;
+    rdfs:label "Ch Mode 11" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm12>
+    a lv2:Parameter ;
+    lv2:symbol "chm12" ;
+    rdfs:label "Ch Mode 12" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm13>
+    a lv2:Parameter ;
+    lv2:symbol "chm13" ;
+    rdfs:label "Ch Mode 13" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm14>
+    a lv2:Parameter ;
+    lv2:symbol "chm14" ;
+    rdfs:label "Ch Mode 14" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm15>
+    a lv2:Parameter ;
+    lv2:symbol "chm15" ;
+    rdfs:label "Ch Mode 15" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm16>
+    a lv2:Parameter ;
+    lv2:symbol "chm16" ;
+    rdfs:label "Ch Mode 16" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm17>
+    a lv2:Parameter ;
+    lv2:symbol "chm17" ;
+    rdfs:label "Ch Mode 17" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm18>
+    a lv2:Parameter ;
+    lv2:symbol "chm18" ;
+    rdfs:label "Ch Mode 18" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm19>
+    a lv2:Parameter ;
+    lv2:symbol "chm19" ;
+    rdfs:label "Ch Mode 19" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm20>
+    a lv2:Parameter ;
+    lv2:symbol "chm20" ;
+    rdfs:label "Ch Mode 20" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm21>
+    a lv2:Parameter ;
+    lv2:symbol "chm21" ;
+    rdfs:label "Ch Mode 21" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm22>
+    a lv2:Parameter ;
+    lv2:symbol "chm22" ;
+    rdfs:label "Ch Mode 22" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm23>
+    a lv2:Parameter ;
+    lv2:symbol "chm23" ;
+    rdfs:label "Ch Mode 23" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm24>
+    a lv2:Parameter ;
+    lv2:symbol "chm24" ;
+    rdfs:label "Ch Mode 24" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm25>
+    a lv2:Parameter ;
+    lv2:symbol "chm25" ;
+    rdfs:label "Ch Mode 25" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm26>
+    a lv2:Parameter ;
+    lv2:symbol "chm26" ;
+    rdfs:label "Ch Mode 26" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm27>
+    a lv2:Parameter ;
+    lv2:symbol "chm27" ;
+    rdfs:label "Ch Mode 27" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm28>
+    a lv2:Parameter ;
+    lv2:symbol "chm28" ;
+    rdfs:label "Ch Mode 28" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm29>
+    a lv2:Parameter ;
+    lv2:symbol "chm29" ;
+    rdfs:label "Ch Mode 29" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm30>
+    a lv2:Parameter ;
+    lv2:symbol "chm30" ;
+    rdfs:label "Ch Mode 30" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm31>
+    a lv2:Parameter ;
+    lv2:symbol "chm31" ;
+    rdfs:label "Ch Mode 31" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm32>
+    a lv2:Parameter ;
+    lv2:symbol "chm32" ;
+    rdfs:label "Ch Mode 32" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm33>
+    a lv2:Parameter ;
+    lv2:symbol "chm33" ;
+    rdfs:label "Ch Mode 33" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm34>
+    a lv2:Parameter ;
+    lv2:symbol "chm34" ;
+    rdfs:label "Ch Mode 34" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm35>
+    a lv2:Parameter ;
+    lv2:symbol "chm35" ;
+    rdfs:label "Ch Mode 35" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#chm36>
+    a lv2:Parameter ;
+    lv2:symbol "chm36" ;
+    rdfs:label "Ch Mode 36" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#mst_db>
+    a lv2:Parameter ;
+    lv2:symbol "mst_db" ;
+    rdfs:label "Master dB" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -60.0 ; lv2:maximum 6.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#limiter>
+    a lv2:Parameter ;
+    lv2:symbol "limiter" ;
+    rdfs:label "Limiter" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 1 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#tmute>
+    a lv2:Parameter ;
+    lv2:symbol "tmute" ;
+    rdfs:label "Track Mute" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+# Скорость (этап 5): ручная скорость 36 дорожек (сетка до 6×6), плавная смена темпа, привязка, плавный ход, сброс.
+<urn:audiolooper:looper#tempo_glide>
+    a lv2:Parameter ;
+    lv2:symbol "tempo_glide" ;
+    rdfs:label "Tempo Glide" ;
+    rdfs:range atom:Int ;
+    lv2:default 500 ; lv2:minimum 100 ; lv2:maximum 4000 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd_snap>
+    a lv2:Parameter ;
+    lv2:symbol "spd_snap" ;
+    rdfs:label "Speed Snap" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd_glide>
+    a lv2:Parameter ;
+    lv2:symbol "spd_glide" ;
+    rdfs:label "Speed Glide" ;
+    rdfs:range atom:Int ;
+    lv2:default 150 ; lv2:minimum 0 ; lv2:maximum 2000 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd1>
+    a lv2:Parameter ;
+    lv2:symbol "spd1" ;
+    rdfs:label "Speed 1" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd2>
+    a lv2:Parameter ;
+    lv2:symbol "spd2" ;
+    rdfs:label "Speed 2" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd3>
+    a lv2:Parameter ;
+    lv2:symbol "spd3" ;
+    rdfs:label "Speed 3" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd4>
+    a lv2:Parameter ;
+    lv2:symbol "spd4" ;
+    rdfs:label "Speed 4" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd5>
+    a lv2:Parameter ;
+    lv2:symbol "spd5" ;
+    rdfs:label "Speed 5" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd6>
+    a lv2:Parameter ;
+    lv2:symbol "spd6" ;
+    rdfs:label "Speed 6" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd7>
+    a lv2:Parameter ;
+    lv2:symbol "spd7" ;
+    rdfs:label "Speed 7" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd8>
+    a lv2:Parameter ;
+    lv2:symbol "spd8" ;
+    rdfs:label "Speed 8" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd9>
+    a lv2:Parameter ;
+    lv2:symbol "spd9" ;
+    rdfs:label "Speed 9" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd10>
+    a lv2:Parameter ;
+    lv2:symbol "spd10" ;
+    rdfs:label "Speed 10" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd11>
+    a lv2:Parameter ;
+    lv2:symbol "spd11" ;
+    rdfs:label "Speed 11" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd12>
+    a lv2:Parameter ;
+    lv2:symbol "spd12" ;
+    rdfs:label "Speed 12" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd13>
+    a lv2:Parameter ;
+    lv2:symbol "spd13" ;
+    rdfs:label "Speed 13" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd14>
+    a lv2:Parameter ;
+    lv2:symbol "spd14" ;
+    rdfs:label "Speed 14" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd15>
+    a lv2:Parameter ;
+    lv2:symbol "spd15" ;
+    rdfs:label "Speed 15" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd16>
+    a lv2:Parameter ;
+    lv2:symbol "spd16" ;
+    rdfs:label "Speed 16" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd17>
+    a lv2:Parameter ;
+    lv2:symbol "spd17" ;
+    rdfs:label "Speed 17" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd18>
+    a lv2:Parameter ;
+    lv2:symbol "spd18" ;
+    rdfs:label "Speed 18" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd19>
+    a lv2:Parameter ;
+    lv2:symbol "spd19" ;
+    rdfs:label "Speed 19" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd20>
+    a lv2:Parameter ;
+    lv2:symbol "spd20" ;
+    rdfs:label "Speed 20" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd21>
+    a lv2:Parameter ;
+    lv2:symbol "spd21" ;
+    rdfs:label "Speed 21" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd22>
+    a lv2:Parameter ;
+    lv2:symbol "spd22" ;
+    rdfs:label "Speed 22" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd23>
+    a lv2:Parameter ;
+    lv2:symbol "spd23" ;
+    rdfs:label "Speed 23" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd24>
+    a lv2:Parameter ;
+    lv2:symbol "spd24" ;
+    rdfs:label "Speed 24" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd25>
+    a lv2:Parameter ;
+    lv2:symbol "spd25" ;
+    rdfs:label "Speed 25" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd26>
+    a lv2:Parameter ;
+    lv2:symbol "spd26" ;
+    rdfs:label "Speed 26" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd27>
+    a lv2:Parameter ;
+    lv2:symbol "spd27" ;
+    rdfs:label "Speed 27" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd28>
+    a lv2:Parameter ;
+    lv2:symbol "spd28" ;
+    rdfs:label "Speed 28" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd29>
+    a lv2:Parameter ;
+    lv2:symbol "spd29" ;
+    rdfs:label "Speed 29" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd30>
+    a lv2:Parameter ;
+    lv2:symbol "spd30" ;
+    rdfs:label "Speed 30" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd31>
+    a lv2:Parameter ;
+    lv2:symbol "spd31" ;
+    rdfs:label "Speed 31" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd32>
+    a lv2:Parameter ;
+    lv2:symbol "spd32" ;
+    rdfs:label "Speed 32" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd33>
+    a lv2:Parameter ;
+    lv2:symbol "spd33" ;
+    rdfs:label "Speed 33" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd34>
+    a lv2:Parameter ;
+    lv2:symbol "spd34" ;
+    rdfs:label "Speed 34" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd35>
+    a lv2:Parameter ;
+    lv2:symbol "spd35" ;
+    rdfs:label "Speed 35" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#spd36>
+    a lv2:Parameter ;
+    lv2:symbol "spd36" ;
+    rdfs:label "Speed 36" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.00 ; lv2:minimum 0.25 ; lv2:maximum 2.00 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#sreset>
+    a lv2:Parameter ;
+    lv2:symbol "sreset" ;
+    rdfs:label "Speed Reset" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+# Этап 6: пороги жестов, компенсация задержки (мс).
+<urn:audiolooper:looper#hold_ms>
+    a lv2:Parameter ;
+    lv2:symbol "hold_ms" ;
+    rdfs:label "Hold Time" ;
+    rdfs:range atom:Int ;
+    lv2:default 500 ; lv2:minimum 200 ; lv2:maximum 2000 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#reset_ms>
+    a lv2:Parameter ;
+    lv2:symbol "reset_ms" ;
+    rdfs:label "Reset Hold Time" ;
+    rdfs:range atom:Int ;
+    lv2:default 1000 ; lv2:minimum 500 ; lv2:maximum 3000 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#latency>
+    a lv2:Parameter ;
+    lv2:symbol "latency" ;
+    rdfs:label "Latency Comp" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:audiolooper:looper#pool_mb>
+    a lv2:Parameter ;
+    lv2:symbol "pool_mb" ;
+    rdfs:label "Memory Pool MB" ;
+    rdfs:range atom:Int ;
+    lv2:default 2048 ; lv2:minimum 256 ; lv2:maximum 4096 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
