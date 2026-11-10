@@ -1,0 +1,957 @@
+@prefix lv2:  <http://lv2plug.in/ns/lv2core#> .
+@prefix atom: <http://lv2plug.in/ns/ext/atom#> .
+@prefix midi: <http://lv2plug.in/ns/ext/midi#> .
+@prefix time: <http://lv2plug.in/ns/ext/time#> .
+@prefix urid: <http://lv2plug.in/ns/ext/urid#> .
+@prefix doap: <http://usefulinc.com/ns/doap#> .
+@prefix pprops: <http://lv2plug.in/ns/ext/port-props#> .
+@prefix patch: <http://lv2plug.in/ns/ext/patch#> .
+@prefix pg:   <http://lv2plug.in/ns/ext/port-groups#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix state: <http://lv2plug.in/ns/ext/state#> .
+
+<urn:generativearp:arp#g_arp> a pg:Group ; lv2:symbol "g_arp" ; lv2:name "Arp" ; lv2:index 0 ; lv2:displayPriority 60 .
+<urn:generativearp:arp#g_pattern> a pg:Group ; lv2:symbol "g_pattern" ; lv2:name "Pattern" ; lv2:index 1 ; lv2:displayPriority 50 .
+<urn:generativearp:arp#g_groove> a pg:Group ; lv2:symbol "g_groove" ; lv2:name "Groove" ; lv2:index 5 ; lv2:displayPriority 10 .
+<urn:generativearp:arp#g_lengths> a pg:Group ; lv2:symbol "g_lengths" ; lv2:name "Lengths" ; lv2:index 2 ; lv2:displayPriority 40 .
+<urn:generativearp:arp#g_scale> a pg:Group ; lv2:symbol "g_scale" ; lv2:name "Scale" ; lv2:index 3 ; lv2:displayPriority 30 .
+<urn:generativearp:arp#g_mutate> a pg:Group ; lv2:symbol "g_mutate" ; lv2:name "Mutate" ; lv2:index 4 ; lv2:displayPriority 20 .
+
+<urn:generativearp:arp>
+    a lv2:Plugin , lv2:UtilityPlugin ;
+    doap:name "Generative Arp" ;
+    lv2:minorVersion 18 ;
+    lv2:microVersion 0 ;
+    lv2:requiredFeature urid:map ;
+    lv2:extensionData state:interface ;   # pattern steps go into presets
+    patch:writable
+        <urn:generativearp:arp#prob1> , <urn:generativearp:arp#shift1> , <urn:generativearp:arp#vel1> , <urn:generativearp:arp#gate1> ,
+        <urn:generativearp:arp#prob2> , <urn:generativearp:arp#shift2> , <urn:generativearp:arp#vel2> , <urn:generativearp:arp#gate2> ,
+        <urn:generativearp:arp#prob3> , <urn:generativearp:arp#shift3> , <urn:generativearp:arp#vel3> , <urn:generativearp:arp#gate3> ,
+        <urn:generativearp:arp#prob4> , <urn:generativearp:arp#shift4> , <urn:generativearp:arp#vel4> , <urn:generativearp:arp#gate4> ,
+        <urn:generativearp:arp#prob5> , <urn:generativearp:arp#shift5> , <urn:generativearp:arp#vel5> , <urn:generativearp:arp#gate5> ,
+        <urn:generativearp:arp#prob6> , <urn:generativearp:arp#shift6> , <urn:generativearp:arp#vel6> , <urn:generativearp:arp#gate6> ,
+        <urn:generativearp:arp#prob7> , <urn:generativearp:arp#shift7> , <urn:generativearp:arp#vel7> , <urn:generativearp:arp#gate7> ,
+        <urn:generativearp:arp#prob8> , <urn:generativearp:arp#shift8> , <urn:generativearp:arp#vel8> , <urn:generativearp:arp#gate8> ,
+        <urn:generativearp:arp#prob9> , <urn:generativearp:arp#shift9> , <urn:generativearp:arp#vel9> , <urn:generativearp:arp#gate9> ,
+        <urn:generativearp:arp#prob10> , <urn:generativearp:arp#shift10> , <urn:generativearp:arp#vel10> , <urn:generativearp:arp#gate10> ,
+        <urn:generativearp:arp#prob11> , <urn:generativearp:arp#shift11> , <urn:generativearp:arp#vel11> , <urn:generativearp:arp#gate11> ,
+        <urn:generativearp:arp#prob12> , <urn:generativearp:arp#shift12> , <urn:generativearp:arp#vel12> , <urn:generativearp:arp#gate12> ,
+        <urn:generativearp:arp#prob13> , <urn:generativearp:arp#shift13> , <urn:generativearp:arp#vel13> , <urn:generativearp:arp#gate13> ,
+        <urn:generativearp:arp#prob14> , <urn:generativearp:arp#shift14> , <urn:generativearp:arp#vel14> , <urn:generativearp:arp#gate14> ,
+        <urn:generativearp:arp#prob15> , <urn:generativearp:arp#shift15> , <urn:generativearp:arp#vel15> , <urn:generativearp:arp#gate15> ,
+        <urn:generativearp:arp#prob16> , <urn:generativearp:arp#shift16> , <urn:generativearp:arp#vel16> , <urn:generativearp:arp#gate16> ;
+    # Control input ports MUST be indices 0..N-1 (before atom ports): Zynthian numbers LV2 parameters
+    # from len(control ports)+1 and would overwrite a control port with a higher index.
+    lv2:port
+    [
+        a lv2:InputPort , atom:AtomPort ;
+        atom:bufferType atom:Sequence ;
+        atom:supports midi:MidiEvent , time:Position , patch:Message ;
+        lv2:designation lv2:control ;
+        lv2:index 24 ; lv2:symbol "midi_in" ; lv2:name "MIDI In" ;
+    ] , [
+        a lv2:OutputPort , atom:AtomPort ;
+        atom:bufferType atom:Sequence ;
+        atom:supports midi:MidiEvent , patch:Message ;
+        lv2:index 25 ; lv2:symbol "midi_out" ; lv2:name "MIDI Out" ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 0 ; lv2:symbol "rate" ; lv2:name "Rate" ;
+        lv2:default 3 ; lv2:minimum 0 ; lv2:maximum 5 ;
+        lv2:portProperty lv2:integer , lv2:enumeration ;
+        lv2:scalePoint [ rdfs:label "1/4" ; rdf:value 0 ] , [ rdfs:label "1/8" ; rdf:value 1 ] ,
+                       [ rdfs:label "1/8T" ; rdf:value 2 ] , [ rdfs:label "1/16" ; rdf:value 3 ] ,
+                       [ rdfs:label "1/16T" ; rdf:value 4 ] , [ rdfs:label "1/32" ; rdf:value 5 ] ;
+        lv2:displayPriority 40 ; pg:group <urn:generativearp:arp#g_arp> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 1 ; lv2:symbol "gate" ; lv2:name "Gate %" ;
+        lv2:default 50 ; lv2:minimum 5 ; lv2:maximum 100 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 30 ; pg:group <urn:generativearp:arp#g_arp> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 2 ; lv2:symbol "order" ; lv2:name "Order" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
+        lv2:portProperty lv2:integer , lv2:enumeration ;
+        lv2:scalePoint [ rdfs:label "Up" ; rdf:value 0 ] , [ rdfs:label "Down" ; rdf:value 1 ] ,
+                       [ rdfs:label "Up-Down" ; rdf:value 2 ] , [ rdfs:label "Down-Up" ; rdf:value 3 ] ,
+                       [ rdfs:label "As played" ; rdf:value 4 ] , [ rdfs:label "Random" ; rdf:value 5 ] ,
+                       [ rdfs:label "Loop" ; rdf:value 6 ] ;
+        lv2:displayPriority 20 ; pg:group <urn:generativearp:arp#g_arp> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 3 ; lv2:symbol "octaves" ; lv2:name "Octaves" ;
+        lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 10 ; pg:group <urn:generativearp:arp#g_arp> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 4 ; lv2:symbol "latch" ; lv2:name "Latch" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 40 ; pg:group <urn:generativearp:arp#g_pattern> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 15 ; lv2:symbol "transpose" ; lv2:name "Transpose" ;
+        lv2:default 0 ; lv2:minimum -2 ; lv2:maximum 2 ;
+        lv2:portProperty lv2:integer , lv2:enumeration ;
+        lv2:scalePoint [ rdfs:label "-2 oct" ; rdf:value -2 ] , [ rdfs:label "-1 oct" ; rdf:value -1 ] , [ rdfs:label "0" ; rdf:value 0 ] ,
+                       [ rdfs:label "+1 oct" ; rdf:value 1 ] , [ rdfs:label "+2 oct" ; rdf:value 2 ] ;
+        lv2:displayPriority 30 ; pg:group <urn:generativearp:arp#g_pattern> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 16 ; lv2:symbol "rpt" ; lv2:name "Repeats" ;
+        lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 7 ;
+        lv2:portProperty lv2:integer , lv2:enumeration ;
+        lv2:scalePoint [ rdfs:label "1" ; rdf:value 1 ] , [ rdfs:label "2" ; rdf:value 2 ] , [ rdfs:label "3" ; rdf:value 3 ] ,
+                       [ rdfs:label "4" ; rdf:value 4 ] , [ rdfs:label "5" ; rdf:value 5 ] ,
+                       [ rdfs:label "Rnd 3" ; rdf:value 6 ] , [ rdfs:label "Rnd 5" ; rdf:value 7 ] ;
+        lv2:displayPriority 20 ; pg:group <urn:generativearp:arp#g_pattern> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 17 ; lv2:symbol "rpt_mode" ; lv2:name "Rpt mode" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 4 ;
+        lv2:portProperty lv2:integer , lv2:enumeration ;
+        lv2:scalePoint [ rdfs:label "Same" ; rdf:value 0 ] , [ rdfs:label "Run up" ; rdf:value 1 ] ,
+                       [ rdfs:label "Run down" ; rdf:value 2 ] , [ rdfs:label "Octave" ; rdf:value 3 ] ,
+                       [ rdfs:label "Echo" ; rdf:value 4 ] ;
+        lv2:displayPriority 10 ; pg:group <urn:generativearp:arp#g_pattern> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 18 ; lv2:symbol "swing" ; lv2:name "Swing %" ;
+        lv2:default 50 ; lv2:minimum 50 ; lv2:maximum 75 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 40 ; pg:group <urn:generativearp:arp#g_groove> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 19 ; lv2:symbol "swing_feel" ; lv2:name "Swing feel" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3 ;
+        lv2:portProperty lv2:integer , lv2:enumeration ;
+        lv2:scalePoint [ rdfs:label "Pairs" ; rdf:value 0 ] , [ rdfs:label "Fours" ; rdf:value 1 ] ,
+                       [ rdfs:label "Drag" ; rdf:value 2 ] , [ rdfs:label "Threes" ; rdf:value 3 ] ;
+        lv2:displayPriority 30 ; pg:group <urn:generativearp:arp#g_groove> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 20 ; lv2:symbol "drunk" ; lv2:name "Drunk %" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 20 ; pg:group <urn:generativearp:arp#g_groove> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 21 ; lv2:symbol "accent" ; lv2:name "Accent %" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 10 ; pg:group <urn:generativearp:arp#g_groove> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 5 ; lv2:symbol "len_prob" ; lv2:name "Prob len" ;
+        lv2:default 16 ; lv2:minimum 1 ; lv2:maximum 16 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 40 ; pg:group <urn:generativearp:arp#g_lengths> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 6 ; lv2:symbol "len_shift" ; lv2:name "Shift len" ;
+        lv2:default 16 ; lv2:minimum 1 ; lv2:maximum 16 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 30 ; pg:group <urn:generativearp:arp#g_lengths> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 7 ; lv2:symbol "len_vel" ; lv2:name "Vel len" ;
+        lv2:default 16 ; lv2:minimum 1 ; lv2:maximum 16 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 20 ; pg:group <urn:generativearp:arp#g_lengths> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 8 ; lv2:symbol "len_gate" ; lv2:name "Gate len" ;
+        lv2:default 16 ; lv2:minimum 1 ; lv2:maximum 16 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 10 ; pg:group <urn:generativearp:arp#g_lengths> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 9 ; lv2:symbol "key" ; lv2:name "Key" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 12 ;
+        lv2:portProperty lv2:integer , lv2:enumeration ;
+        lv2:scalePoint [ rdfs:label "C" ; rdf:value 0 ] , [ rdfs:label "C#" ; rdf:value 1 ] , [ rdfs:label "D" ; rdf:value 2 ] , [ rdfs:label "D#" ; rdf:value 3 ] ,
+                       [ rdfs:label "E" ; rdf:value 4 ] , [ rdfs:label "F" ; rdf:value 5 ] , [ rdfs:label "F#" ; rdf:value 6 ] , [ rdfs:label "G" ; rdf:value 7 ] ,
+                       [ rdfs:label "G#" ; rdf:value 8 ] , [ rdfs:label "A" ; rdf:value 9 ] , [ rdfs:label "A#" ; rdf:value 10 ] , [ rdfs:label "B" ; rdf:value 11 ] ,
+                       [ rdfs:label "Auto" ; rdf:value 12 ] ;
+        lv2:displayPriority 40 ; pg:group <urn:generativearp:arp#g_scale> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 10 ; lv2:symbol "scale" ; lv2:name "Scale" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 11 ;
+        lv2:portProperty lv2:integer , lv2:enumeration ;
+        lv2:scalePoint [ rdfs:label "Chromatic" ; rdf:value 0 ] , [ rdfs:label "Major" ; rdf:value 1 ] , [ rdfs:label "Minor" ; rdf:value 2 ] , [ rdfs:label "Dorian" ; rdf:value 3 ] ,
+                       [ rdfs:label "Phrygian" ; rdf:value 4 ] , [ rdfs:label "Lydian" ; rdf:value 5 ] , [ rdfs:label "Mixolydian" ; rdf:value 6 ] , [ rdfs:label "Harm minor" ; rdf:value 7 ] ,
+                       [ rdfs:label "Mel minor" ; rdf:value 8 ] , [ rdfs:label "Major pent" ; rdf:value 9 ] , [ rdfs:label "Minor pent" ; rdf:value 10 ] , [ rdfs:label "Blues" ; rdf:value 11 ] ;
+        lv2:displayPriority 30 ; pg:group <urn:generativearp:arp#g_scale> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 22 ; lv2:symbol "passing" ; lv2:name "Passing %" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 20 ; pg:group <urn:generativearp:arp#g_scale> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 23 ; lv2:symbol "pass_style" ; lv2:name "Pass style" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3 ;
+        lv2:portProperty lv2:integer , lv2:enumeration ;
+        lv2:scalePoint [ rdfs:label "Neighbor" ; rdf:value 0 ] , [ rdfs:label "Leap" ; rdf:value 1 ] ,
+                       [ rdfs:label "Approach" ; rdf:value 2 ] , [ rdfs:label "Mixed" ; rdf:value 3 ] ;
+        lv2:displayPriority 10 ; pg:group <urn:generativearp:arp#g_scale> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 11 ; lv2:symbol "mut_notes" ; lv2:name "Notes %" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 40 ; pg:group <urn:generativearp:arp#g_mutate> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 12 ; lv2:symbol "loop_len" ; lv2:name "Loop len" ;
+        lv2:default 8 ; lv2:minimum 1 ; lv2:maximum 16 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 30 ; pg:group <urn:generativearp:arp#g_mutate> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 13 ; lv2:symbol "mut_steps" ; lv2:name "Steps %" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 20 ; pg:group <urn:generativearp:arp#g_mutate> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 14 ; lv2:symbol "reset" ; lv2:name "Reset" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 10 ; pg:group <urn:generativearp:arp#g_mutate> ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 26 ; lv2:symbol "step_count" ; lv2:name "Step count" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 16777215 ; lv2:portProperty lv2:integer ;
+        # dev1..dev16 (ports 19..34): drift of each step for the widget, packed (prob+3) + 7*(shift+3) + 49*(vel+3) + 343*(gate+4)
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 27 ; lv2:symbol "dev1" ; lv2:name "Drift 1" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 28 ; lv2:symbol "dev2" ; lv2:name "Drift 2" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 29 ; lv2:symbol "dev3" ; lv2:name "Drift 3" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 30 ; lv2:symbol "dev4" ; lv2:name "Drift 4" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 31 ; lv2:symbol "dev5" ; lv2:name "Drift 5" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 32 ; lv2:symbol "dev6" ; lv2:name "Drift 6" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 33 ; lv2:symbol "dev7" ; lv2:name "Drift 7" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 34 ; lv2:symbol "dev8" ; lv2:name "Drift 8" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 35 ; lv2:symbol "dev9" ; lv2:name "Drift 9" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 36 ; lv2:symbol "dev10" ; lv2:name "Drift 10" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 37 ; lv2:symbol "dev11" ; lv2:name "Drift 11" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 38 ; lv2:symbol "dev12" ; lv2:name "Drift 12" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 39 ; lv2:symbol "dev13" ; lv2:name "Drift 13" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 40 ; lv2:symbol "dev14" ; lv2:name "Drift 14" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 41 ; lv2:symbol "dev15" ; lv2:name "Drift 15" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 42 ; lv2:symbol "dev16" ; lv2:name "Drift 16" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
+    ] .
+
+# Pattern step values: LV2 parameters (patch:Set), hidden from the encoder pages, edited by the widget.
+<urn:generativearp:arp#prob1>
+    a lv2:Parameter ;
+    lv2:symbol "prob1" ;
+    rdfs:label "Prob 1" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#shift1>
+    a lv2:Parameter ;
+    lv2:symbol "shift1" ;
+    rdfs:label "Shift 1" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#vel1>
+    a lv2:Parameter ;
+    lv2:symbol "vel1" ;
+    rdfs:label "Vel 1" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 200 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#gate1>
+    a lv2:Parameter ;
+    lv2:symbol "gate1" ;
+    rdfs:label "Gate 1" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 101 ;
+    lv2:scalePoint [ rdfs:label "Global" ; rdf:value 0 ] , [ rdfs:label "5%" ; rdf:value 5 ] , [ rdfs:label "10%" ; rdf:value 10 ] , [ rdfs:label "15%" ; rdf:value 15 ] ,
+                   [ rdfs:label "20%" ; rdf:value 20 ] , [ rdfs:label "25%" ; rdf:value 25 ] , [ rdfs:label "30%" ; rdf:value 30 ] , [ rdfs:label "35%" ; rdf:value 35 ] ,
+                   [ rdfs:label "40%" ; rdf:value 40 ] , [ rdfs:label "45%" ; rdf:value 45 ] , [ rdfs:label "50%" ; rdf:value 50 ] , [ rdfs:label "55%" ; rdf:value 55 ] ,
+                   [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
+                   [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
+                   [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#prob2>
+    a lv2:Parameter ;
+    lv2:symbol "prob2" ;
+    rdfs:label "Prob 2" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#shift2>
+    a lv2:Parameter ;
+    lv2:symbol "shift2" ;
+    rdfs:label "Shift 2" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#vel2>
+    a lv2:Parameter ;
+    lv2:symbol "vel2" ;
+    rdfs:label "Vel 2" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 200 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#gate2>
+    a lv2:Parameter ;
+    lv2:symbol "gate2" ;
+    rdfs:label "Gate 2" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 101 ;
+    lv2:scalePoint [ rdfs:label "Global" ; rdf:value 0 ] , [ rdfs:label "5%" ; rdf:value 5 ] , [ rdfs:label "10%" ; rdf:value 10 ] , [ rdfs:label "15%" ; rdf:value 15 ] ,
+                   [ rdfs:label "20%" ; rdf:value 20 ] , [ rdfs:label "25%" ; rdf:value 25 ] , [ rdfs:label "30%" ; rdf:value 30 ] , [ rdfs:label "35%" ; rdf:value 35 ] ,
+                   [ rdfs:label "40%" ; rdf:value 40 ] , [ rdfs:label "45%" ; rdf:value 45 ] , [ rdfs:label "50%" ; rdf:value 50 ] , [ rdfs:label "55%" ; rdf:value 55 ] ,
+                   [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
+                   [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
+                   [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#prob3>
+    a lv2:Parameter ;
+    lv2:symbol "prob3" ;
+    rdfs:label "Prob 3" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#shift3>
+    a lv2:Parameter ;
+    lv2:symbol "shift3" ;
+    rdfs:label "Shift 3" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#vel3>
+    a lv2:Parameter ;
+    lv2:symbol "vel3" ;
+    rdfs:label "Vel 3" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 200 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#gate3>
+    a lv2:Parameter ;
+    lv2:symbol "gate3" ;
+    rdfs:label "Gate 3" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 101 ;
+    lv2:scalePoint [ rdfs:label "Global" ; rdf:value 0 ] , [ rdfs:label "5%" ; rdf:value 5 ] , [ rdfs:label "10%" ; rdf:value 10 ] , [ rdfs:label "15%" ; rdf:value 15 ] ,
+                   [ rdfs:label "20%" ; rdf:value 20 ] , [ rdfs:label "25%" ; rdf:value 25 ] , [ rdfs:label "30%" ; rdf:value 30 ] , [ rdfs:label "35%" ; rdf:value 35 ] ,
+                   [ rdfs:label "40%" ; rdf:value 40 ] , [ rdfs:label "45%" ; rdf:value 45 ] , [ rdfs:label "50%" ; rdf:value 50 ] , [ rdfs:label "55%" ; rdf:value 55 ] ,
+                   [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
+                   [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
+                   [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#prob4>
+    a lv2:Parameter ;
+    lv2:symbol "prob4" ;
+    rdfs:label "Prob 4" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#shift4>
+    a lv2:Parameter ;
+    lv2:symbol "shift4" ;
+    rdfs:label "Shift 4" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#vel4>
+    a lv2:Parameter ;
+    lv2:symbol "vel4" ;
+    rdfs:label "Vel 4" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 200 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#gate4>
+    a lv2:Parameter ;
+    lv2:symbol "gate4" ;
+    rdfs:label "Gate 4" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 101 ;
+    lv2:scalePoint [ rdfs:label "Global" ; rdf:value 0 ] , [ rdfs:label "5%" ; rdf:value 5 ] , [ rdfs:label "10%" ; rdf:value 10 ] , [ rdfs:label "15%" ; rdf:value 15 ] ,
+                   [ rdfs:label "20%" ; rdf:value 20 ] , [ rdfs:label "25%" ; rdf:value 25 ] , [ rdfs:label "30%" ; rdf:value 30 ] , [ rdfs:label "35%" ; rdf:value 35 ] ,
+                   [ rdfs:label "40%" ; rdf:value 40 ] , [ rdfs:label "45%" ; rdf:value 45 ] , [ rdfs:label "50%" ; rdf:value 50 ] , [ rdfs:label "55%" ; rdf:value 55 ] ,
+                   [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
+                   [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
+                   [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#prob5>
+    a lv2:Parameter ;
+    lv2:symbol "prob5" ;
+    rdfs:label "Prob 5" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#shift5>
+    a lv2:Parameter ;
+    lv2:symbol "shift5" ;
+    rdfs:label "Shift 5" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#vel5>
+    a lv2:Parameter ;
+    lv2:symbol "vel5" ;
+    rdfs:label "Vel 5" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 200 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#gate5>
+    a lv2:Parameter ;
+    lv2:symbol "gate5" ;
+    rdfs:label "Gate 5" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 101 ;
+    lv2:scalePoint [ rdfs:label "Global" ; rdf:value 0 ] , [ rdfs:label "5%" ; rdf:value 5 ] , [ rdfs:label "10%" ; rdf:value 10 ] , [ rdfs:label "15%" ; rdf:value 15 ] ,
+                   [ rdfs:label "20%" ; rdf:value 20 ] , [ rdfs:label "25%" ; rdf:value 25 ] , [ rdfs:label "30%" ; rdf:value 30 ] , [ rdfs:label "35%" ; rdf:value 35 ] ,
+                   [ rdfs:label "40%" ; rdf:value 40 ] , [ rdfs:label "45%" ; rdf:value 45 ] , [ rdfs:label "50%" ; rdf:value 50 ] , [ rdfs:label "55%" ; rdf:value 55 ] ,
+                   [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
+                   [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
+                   [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#prob6>
+    a lv2:Parameter ;
+    lv2:symbol "prob6" ;
+    rdfs:label "Prob 6" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#shift6>
+    a lv2:Parameter ;
+    lv2:symbol "shift6" ;
+    rdfs:label "Shift 6" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#vel6>
+    a lv2:Parameter ;
+    lv2:symbol "vel6" ;
+    rdfs:label "Vel 6" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 200 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#gate6>
+    a lv2:Parameter ;
+    lv2:symbol "gate6" ;
+    rdfs:label "Gate 6" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 101 ;
+    lv2:scalePoint [ rdfs:label "Global" ; rdf:value 0 ] , [ rdfs:label "5%" ; rdf:value 5 ] , [ rdfs:label "10%" ; rdf:value 10 ] , [ rdfs:label "15%" ; rdf:value 15 ] ,
+                   [ rdfs:label "20%" ; rdf:value 20 ] , [ rdfs:label "25%" ; rdf:value 25 ] , [ rdfs:label "30%" ; rdf:value 30 ] , [ rdfs:label "35%" ; rdf:value 35 ] ,
+                   [ rdfs:label "40%" ; rdf:value 40 ] , [ rdfs:label "45%" ; rdf:value 45 ] , [ rdfs:label "50%" ; rdf:value 50 ] , [ rdfs:label "55%" ; rdf:value 55 ] ,
+                   [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
+                   [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
+                   [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#prob7>
+    a lv2:Parameter ;
+    lv2:symbol "prob7" ;
+    rdfs:label "Prob 7" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#shift7>
+    a lv2:Parameter ;
+    lv2:symbol "shift7" ;
+    rdfs:label "Shift 7" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#vel7>
+    a lv2:Parameter ;
+    lv2:symbol "vel7" ;
+    rdfs:label "Vel 7" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 200 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#gate7>
+    a lv2:Parameter ;
+    lv2:symbol "gate7" ;
+    rdfs:label "Gate 7" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 101 ;
+    lv2:scalePoint [ rdfs:label "Global" ; rdf:value 0 ] , [ rdfs:label "5%" ; rdf:value 5 ] , [ rdfs:label "10%" ; rdf:value 10 ] , [ rdfs:label "15%" ; rdf:value 15 ] ,
+                   [ rdfs:label "20%" ; rdf:value 20 ] , [ rdfs:label "25%" ; rdf:value 25 ] , [ rdfs:label "30%" ; rdf:value 30 ] , [ rdfs:label "35%" ; rdf:value 35 ] ,
+                   [ rdfs:label "40%" ; rdf:value 40 ] , [ rdfs:label "45%" ; rdf:value 45 ] , [ rdfs:label "50%" ; rdf:value 50 ] , [ rdfs:label "55%" ; rdf:value 55 ] ,
+                   [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
+                   [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
+                   [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#prob8>
+    a lv2:Parameter ;
+    lv2:symbol "prob8" ;
+    rdfs:label "Prob 8" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#shift8>
+    a lv2:Parameter ;
+    lv2:symbol "shift8" ;
+    rdfs:label "Shift 8" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#vel8>
+    a lv2:Parameter ;
+    lv2:symbol "vel8" ;
+    rdfs:label "Vel 8" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 200 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#gate8>
+    a lv2:Parameter ;
+    lv2:symbol "gate8" ;
+    rdfs:label "Gate 8" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 101 ;
+    lv2:scalePoint [ rdfs:label "Global" ; rdf:value 0 ] , [ rdfs:label "5%" ; rdf:value 5 ] , [ rdfs:label "10%" ; rdf:value 10 ] , [ rdfs:label "15%" ; rdf:value 15 ] ,
+                   [ rdfs:label "20%" ; rdf:value 20 ] , [ rdfs:label "25%" ; rdf:value 25 ] , [ rdfs:label "30%" ; rdf:value 30 ] , [ rdfs:label "35%" ; rdf:value 35 ] ,
+                   [ rdfs:label "40%" ; rdf:value 40 ] , [ rdfs:label "45%" ; rdf:value 45 ] , [ rdfs:label "50%" ; rdf:value 50 ] , [ rdfs:label "55%" ; rdf:value 55 ] ,
+                   [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
+                   [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
+                   [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#prob9>
+    a lv2:Parameter ;
+    lv2:symbol "prob9" ;
+    rdfs:label "Prob 9" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#shift9>
+    a lv2:Parameter ;
+    lv2:symbol "shift9" ;
+    rdfs:label "Shift 9" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#vel9>
+    a lv2:Parameter ;
+    lv2:symbol "vel9" ;
+    rdfs:label "Vel 9" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 200 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#gate9>
+    a lv2:Parameter ;
+    lv2:symbol "gate9" ;
+    rdfs:label "Gate 9" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 101 ;
+    lv2:scalePoint [ rdfs:label "Global" ; rdf:value 0 ] , [ rdfs:label "5%" ; rdf:value 5 ] , [ rdfs:label "10%" ; rdf:value 10 ] , [ rdfs:label "15%" ; rdf:value 15 ] ,
+                   [ rdfs:label "20%" ; rdf:value 20 ] , [ rdfs:label "25%" ; rdf:value 25 ] , [ rdfs:label "30%" ; rdf:value 30 ] , [ rdfs:label "35%" ; rdf:value 35 ] ,
+                   [ rdfs:label "40%" ; rdf:value 40 ] , [ rdfs:label "45%" ; rdf:value 45 ] , [ rdfs:label "50%" ; rdf:value 50 ] , [ rdfs:label "55%" ; rdf:value 55 ] ,
+                   [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
+                   [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
+                   [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#prob10>
+    a lv2:Parameter ;
+    lv2:symbol "prob10" ;
+    rdfs:label "Prob 10" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#shift10>
+    a lv2:Parameter ;
+    lv2:symbol "shift10" ;
+    rdfs:label "Shift 10" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#vel10>
+    a lv2:Parameter ;
+    lv2:symbol "vel10" ;
+    rdfs:label "Vel 10" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 200 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#gate10>
+    a lv2:Parameter ;
+    lv2:symbol "gate10" ;
+    rdfs:label "Gate 10" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 101 ;
+    lv2:scalePoint [ rdfs:label "Global" ; rdf:value 0 ] , [ rdfs:label "5%" ; rdf:value 5 ] , [ rdfs:label "10%" ; rdf:value 10 ] , [ rdfs:label "15%" ; rdf:value 15 ] ,
+                   [ rdfs:label "20%" ; rdf:value 20 ] , [ rdfs:label "25%" ; rdf:value 25 ] , [ rdfs:label "30%" ; rdf:value 30 ] , [ rdfs:label "35%" ; rdf:value 35 ] ,
+                   [ rdfs:label "40%" ; rdf:value 40 ] , [ rdfs:label "45%" ; rdf:value 45 ] , [ rdfs:label "50%" ; rdf:value 50 ] , [ rdfs:label "55%" ; rdf:value 55 ] ,
+                   [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
+                   [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
+                   [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#prob11>
+    a lv2:Parameter ;
+    lv2:symbol "prob11" ;
+    rdfs:label "Prob 11" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#shift11>
+    a lv2:Parameter ;
+    lv2:symbol "shift11" ;
+    rdfs:label "Shift 11" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#vel11>
+    a lv2:Parameter ;
+    lv2:symbol "vel11" ;
+    rdfs:label "Vel 11" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 200 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#gate11>
+    a lv2:Parameter ;
+    lv2:symbol "gate11" ;
+    rdfs:label "Gate 11" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 101 ;
+    lv2:scalePoint [ rdfs:label "Global" ; rdf:value 0 ] , [ rdfs:label "5%" ; rdf:value 5 ] , [ rdfs:label "10%" ; rdf:value 10 ] , [ rdfs:label "15%" ; rdf:value 15 ] ,
+                   [ rdfs:label "20%" ; rdf:value 20 ] , [ rdfs:label "25%" ; rdf:value 25 ] , [ rdfs:label "30%" ; rdf:value 30 ] , [ rdfs:label "35%" ; rdf:value 35 ] ,
+                   [ rdfs:label "40%" ; rdf:value 40 ] , [ rdfs:label "45%" ; rdf:value 45 ] , [ rdfs:label "50%" ; rdf:value 50 ] , [ rdfs:label "55%" ; rdf:value 55 ] ,
+                   [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
+                   [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
+                   [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#prob12>
+    a lv2:Parameter ;
+    lv2:symbol "prob12" ;
+    rdfs:label "Prob 12" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#shift12>
+    a lv2:Parameter ;
+    lv2:symbol "shift12" ;
+    rdfs:label "Shift 12" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#vel12>
+    a lv2:Parameter ;
+    lv2:symbol "vel12" ;
+    rdfs:label "Vel 12" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 200 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#gate12>
+    a lv2:Parameter ;
+    lv2:symbol "gate12" ;
+    rdfs:label "Gate 12" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 101 ;
+    lv2:scalePoint [ rdfs:label "Global" ; rdf:value 0 ] , [ rdfs:label "5%" ; rdf:value 5 ] , [ rdfs:label "10%" ; rdf:value 10 ] , [ rdfs:label "15%" ; rdf:value 15 ] ,
+                   [ rdfs:label "20%" ; rdf:value 20 ] , [ rdfs:label "25%" ; rdf:value 25 ] , [ rdfs:label "30%" ; rdf:value 30 ] , [ rdfs:label "35%" ; rdf:value 35 ] ,
+                   [ rdfs:label "40%" ; rdf:value 40 ] , [ rdfs:label "45%" ; rdf:value 45 ] , [ rdfs:label "50%" ; rdf:value 50 ] , [ rdfs:label "55%" ; rdf:value 55 ] ,
+                   [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
+                   [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
+                   [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#prob13>
+    a lv2:Parameter ;
+    lv2:symbol "prob13" ;
+    rdfs:label "Prob 13" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#shift13>
+    a lv2:Parameter ;
+    lv2:symbol "shift13" ;
+    rdfs:label "Shift 13" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#vel13>
+    a lv2:Parameter ;
+    lv2:symbol "vel13" ;
+    rdfs:label "Vel 13" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 200 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#gate13>
+    a lv2:Parameter ;
+    lv2:symbol "gate13" ;
+    rdfs:label "Gate 13" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 101 ;
+    lv2:scalePoint [ rdfs:label "Global" ; rdf:value 0 ] , [ rdfs:label "5%" ; rdf:value 5 ] , [ rdfs:label "10%" ; rdf:value 10 ] , [ rdfs:label "15%" ; rdf:value 15 ] ,
+                   [ rdfs:label "20%" ; rdf:value 20 ] , [ rdfs:label "25%" ; rdf:value 25 ] , [ rdfs:label "30%" ; rdf:value 30 ] , [ rdfs:label "35%" ; rdf:value 35 ] ,
+                   [ rdfs:label "40%" ; rdf:value 40 ] , [ rdfs:label "45%" ; rdf:value 45 ] , [ rdfs:label "50%" ; rdf:value 50 ] , [ rdfs:label "55%" ; rdf:value 55 ] ,
+                   [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
+                   [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
+                   [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#prob14>
+    a lv2:Parameter ;
+    lv2:symbol "prob14" ;
+    rdfs:label "Prob 14" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#shift14>
+    a lv2:Parameter ;
+    lv2:symbol "shift14" ;
+    rdfs:label "Shift 14" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#vel14>
+    a lv2:Parameter ;
+    lv2:symbol "vel14" ;
+    rdfs:label "Vel 14" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 200 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#gate14>
+    a lv2:Parameter ;
+    lv2:symbol "gate14" ;
+    rdfs:label "Gate 14" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 101 ;
+    lv2:scalePoint [ rdfs:label "Global" ; rdf:value 0 ] , [ rdfs:label "5%" ; rdf:value 5 ] , [ rdfs:label "10%" ; rdf:value 10 ] , [ rdfs:label "15%" ; rdf:value 15 ] ,
+                   [ rdfs:label "20%" ; rdf:value 20 ] , [ rdfs:label "25%" ; rdf:value 25 ] , [ rdfs:label "30%" ; rdf:value 30 ] , [ rdfs:label "35%" ; rdf:value 35 ] ,
+                   [ rdfs:label "40%" ; rdf:value 40 ] , [ rdfs:label "45%" ; rdf:value 45 ] , [ rdfs:label "50%" ; rdf:value 50 ] , [ rdfs:label "55%" ; rdf:value 55 ] ,
+                   [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
+                   [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
+                   [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#prob15>
+    a lv2:Parameter ;
+    lv2:symbol "prob15" ;
+    rdfs:label "Prob 15" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#shift15>
+    a lv2:Parameter ;
+    lv2:symbol "shift15" ;
+    rdfs:label "Shift 15" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#vel15>
+    a lv2:Parameter ;
+    lv2:symbol "vel15" ;
+    rdfs:label "Vel 15" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 200 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#gate15>
+    a lv2:Parameter ;
+    lv2:symbol "gate15" ;
+    rdfs:label "Gate 15" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 101 ;
+    lv2:scalePoint [ rdfs:label "Global" ; rdf:value 0 ] , [ rdfs:label "5%" ; rdf:value 5 ] , [ rdfs:label "10%" ; rdf:value 10 ] , [ rdfs:label "15%" ; rdf:value 15 ] ,
+                   [ rdfs:label "20%" ; rdf:value 20 ] , [ rdfs:label "25%" ; rdf:value 25 ] , [ rdfs:label "30%" ; rdf:value 30 ] , [ rdfs:label "35%" ; rdf:value 35 ] ,
+                   [ rdfs:label "40%" ; rdf:value 40 ] , [ rdfs:label "45%" ; rdf:value 45 ] , [ rdfs:label "50%" ; rdf:value 50 ] , [ rdfs:label "55%" ; rdf:value 55 ] ,
+                   [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
+                   [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
+                   [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#prob16>
+    a lv2:Parameter ;
+    lv2:symbol "prob16" ;
+    rdfs:label "Prob 16" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#shift16>
+    a lv2:Parameter ;
+    lv2:symbol "shift16" ;
+    rdfs:label "Shift 16" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#vel16>
+    a lv2:Parameter ;
+    lv2:symbol "vel16" ;
+    rdfs:label "Vel 16" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 200 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<urn:generativearp:arp#gate16>
+    a lv2:Parameter ;
+    lv2:symbol "gate16" ;
+    rdfs:label "Gate 16" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 101 ;
+    lv2:scalePoint [ rdfs:label "Global" ; rdf:value 0 ] , [ rdfs:label "5%" ; rdf:value 5 ] , [ rdfs:label "10%" ; rdf:value 10 ] , [ rdfs:label "15%" ; rdf:value 15 ] ,
+                   [ rdfs:label "20%" ; rdf:value 20 ] , [ rdfs:label "25%" ; rdf:value 25 ] , [ rdfs:label "30%" ; rdf:value 30 ] , [ rdfs:label "35%" ; rdf:value 35 ] ,
+                   [ rdfs:label "40%" ; rdf:value 40 ] , [ rdfs:label "45%" ; rdf:value 45 ] , [ rdfs:label "50%" ; rdf:value 50 ] , [ rdfs:label "55%" ; rdf:value 55 ] ,
+                   [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
+                   [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
+                   [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
