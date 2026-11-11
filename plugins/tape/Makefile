@@ -18,10 +18,11 @@ install:
 uninstall:
 	./scripts/uninstall.sh
 
-test: build_test/test_core build_test/test_looper build_test/test_plugin
+test: build_test/test_core build_test/test_looper build_test/test_session build_test/test_plugin
 	@mkdir -p tests/out
 	./build_test/test_core
 	./build_test/test_looper
+	./build_test/test_session
 	./build_test/test_plugin
 	python3 tests/check_ttl.py
 
@@ -32,6 +33,10 @@ build_test/test_core: tests/test_core.cpp $(CORE_H)
 build_test/test_looper: tests/test_looper.cpp $(CORE_H) $(CORE_CPP)
 	@mkdir -p build_test
 	$(CXX) $(CXXFLAGS) -o $@ tests/test_looper.cpp $(CORE_CPP) -lm
+
+build_test/test_session: tests/test_session.cpp $(CORE_H) $(CORE_CPP)
+	@mkdir -p build_test
+	$(CXX) $(CXXFLAGS) -o $@ tests/test_session.cpp $(CORE_CPP) -lm
 
 # Обёртка LV2 без хоста (нужны заголовки lv2, как и для сборки плагина)
 build_test/test_plugin: tests/test_plugin.cpp lv2/eka_tape.cpp $(CORE_H) $(CORE_CPP)

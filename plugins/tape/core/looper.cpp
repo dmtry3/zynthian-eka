@@ -40,7 +40,10 @@ bool Looper::init(double sample_rate, size_t pool_bytes) {
   mix_matrix(mix_[0], dcur_);
   // Если столько памяти не дали, пробуем меньше: плагин должен загрузиться.
   for (size_t b = pool_bytes; b >= ((size_t)32 << 20); b /= 2)
-    if (pool_.init(b, 4096)) return true;
+    if (pool_.init(b, 4096)) {
+      pool_chunks_.store(pool_.total_chunks(), std::memory_order_relaxed);
+      return true;
+    }
   return false;
 }
 
@@ -49,13 +52,20 @@ bool Looper::init(double sample_rate, size_t pool_bytes) {
 void Looper::command(Cmd c) {
   if (!pool_.ok()) return;
   if (pool_state_ != PS_IDLE && c == Cmd::Rec) return;  // меняется пул: запись подождёт
+  // идёт сохранение сессии: всё, что меняет записанный звук, молча игнорируется
+  if (frozen_.load(std::memory_order_relaxed) &&
+      (c == Cmd::Rec || c == Cmd::Undo || c == Cmd::Redo || c == Cmd::ResetTrack || c == Cmd::ResetAll))
+    return;
   const int a = idx(active_);
   Track& t = tr_[a];
   switch (c) {
     case Cmd::Rec:
       // переход ждёт границы: запись взводится в новом парте (повторное нажатие — отмена)
-      if (pend_part_ >= 0) rec_after_switch_ = !rec_after_switch_;
-      else rec_press(a);
+      if (pend_part_ >= 0) {
+        if (rec_after_switch_ || !rec_blocked()) rec_after_switch_ = !rec_after_switch_;
+      } else {
+        rec_press(a);
+      }
       break;
     case Cmd::Undo: undo(a); break;
     case Cmd::Redo: redo(a); break;
@@ -132,7 +142,8 @@ void Looper::rec_press(int ti) {
   switch (t.st) {
     case TState::Empty:
       // запись только при запущенном транспорте Zynthian (решение пользователя 2026-11-08)
-      if (!rolling_) break;
+      // и не во время сохранения сессии (Save ждёт, пока закроется начатое)
+      if (!rolling_ || rec_blocked()) break;
       if (!set_.quantize) {
         start_rec(ti);
       } else {
@@ -144,7 +155,7 @@ void Looper::rec_press(int ti) {
     case TState::Rec: request_close(ti); break;
     case TState::Closing: break;
     case TState::Play:
-      if (!t.stopped && !t.ustop) start_dub(ti);  // остановлена: молча игнорируем
+      if (!t.stopped && !t.ustop && !rec_blocked()) start_dub(ti);  // остановлена: молча игнорируем
       break;
     case TState::Dub:
       if (t.dub_end < 0) end_dub(ti);
@@ -277,6 +288,7 @@ void Looper::close_loop(int ti, uint64_t L) {
   uint64_t d = t.rec_frames - L;   // уже записано после конца цикла (граница такта прошла)
   if (d >= L) d = L - 1;
   int32_t base = t.rec;
+  ++edit_epoch_;
   t.rec = -1;
   t.rec_frames = t.rec_target = 0;
   if (peaks_ && in_cur(ti)) __atomic_store_n(&peaks_->t[ti % ns_].rec_cols, 0u, __ATOMIC_RELEASE);
@@ -347,6 +359,7 @@ void Looper::end_dub(int ti) {
 
 void Looper::finish_dub(int ti) {
   Track& t = tr_[ti];
+  ++edit_epoch_;
   if (t.layer >= 0) push_undo(t, Entry{U_DELTA, t.layer});
   t.layer = -1;
   t.dub_end = -1;
@@ -439,6 +452,10 @@ void Looper::set_pool_size(size_t bytes) {
 void Looper::pool_step() {
   if (pool_state_ == PS_REQ) {
     if (job_pending_ || job_running_) return;  // undo/redo дочитает старый пул
+    // сессия сохраняется или грузится: пул сменится после
+    if (frozen_.load(std::memory_order_relaxed) || freeze_req_.load(std::memory_order_relaxed) ||
+        load_state_ != LS_IDLE)
+      return;
     reset_all_now(false);                      // лупы затихают по кроссфейду, микшер остаётся
     pool_state_ = PS_DRAIN;
   }
@@ -456,7 +473,8 @@ void Looper::pool_step() {
 void Looper::set_grid(int n) {
   if (!valid_grid(n) || (n == ns_ && grid_pending_ < 0)) return;
   grid_pending_ = n;
-  if (!job_pending_ && !job_running_) apply_grid();
+  // сохранение читает звук: сетка сменится после него (session_step)
+  if (!job_pending_ && !job_running_ && !frozen_.load(std::memory_order_relaxed)) apply_grid();
 }
 
 void Looper::apply_grid() {
@@ -468,6 +486,8 @@ void Looper::apply_grid() {
 }
 
 void Looper::reset_all_now(bool full) {
+  ++edit_epoch_;
+  entry_pending_ = rebase_pending_ = false;
   user_stop_ = false;
   ps_pending_ = 0;
   pend_part_ = -1;
@@ -632,6 +652,7 @@ bool Looper::reserve(uint32_t need, int prefer) {
 
 void Looper::swap_to(int ti, int32_t new_sum, bool free_old) {
   Track& t = tr_[ti];
+  ++edit_epoch_;
   mark_peaks(t);
   int32_t old = t.sum;
   if (t.xf_from >= 0 && t.xf_owned) pool_.free_buf(t.xf_from);
@@ -703,7 +724,15 @@ bool Looper::take_work(WorkMsg& m) {
     m.len = pool_req_;
     return true;
   }
-  if (pool_state_ >= PS_DRAIN) return false;  // пул вот-вот уйдёт: заданий, читающих его, не даём
+  if (load_msg_) {
+    load_msg_ = false;
+    m = WorkMsg{};
+    m.op = 5;
+    m.gen = load_seen_;
+    return true;
+  }
+  // пул вот-вот уйдёт (смена размера или загрузка сессии): заданий, читающих его, не даём
+  if (pool_state_ >= PS_DRAIN || load_state_ >= LS_DRAIN) return false;
   if (job_pending_) {
     m = job_;
     job_pending_ = false;
@@ -742,6 +771,10 @@ void Looper::cancel_work(const WorkMsg& m) {
     pool_msg_ = true;
     return;
   }
+  if (m.op == 5) {
+    load_msg_ = true;
+    return;
+  }
   if (m.op == 3) {
     Track& t = tr_[m.track];
     t.pinflight = false;
@@ -770,6 +803,45 @@ void Looper::do_work(const WorkMsg& m, WorkResp& r) {
     spare_.release();
     for (size_t b = (size_t)m.len; b >= ((size_t)32 << 20); b /= 2)
       if (spare_.init(b, 4096)) break;
+    return;
+  }
+  if (m.op == 5) {  // рабочий поток: пул целиком здесь (аудиопоток молчит) — заполнить звуком сессии
+    SessionDesc d;
+    std::string dir;
+    uint32_t gen;
+    {
+      std::lock_guard<std::mutex> lk(load_mx_);
+      d = load_desc_;
+      dir = load_dir_;
+      gen = load_slot_gen_;  // самый свежий запрос
+    }
+    spare_.reset();
+    LoadResult& res = load_res_;
+    res.gen = gen;
+    res.status = SS_IDLE;
+    uint64_t total = 0;
+    for (const auto& s : d.t) total += s.used ? s.len : 0;
+    sess_total_.store(total, std::memory_order_relaxed);
+    sess_done_.store(0, std::memory_order_relaxed);
+    auto cancelled = [this, gen] { return load_gen_.load(std::memory_order_acquire) != gen; };
+    for (int k = 0; k < kTracks && res.status == SS_IDLE && !cancelled(); ++k) {
+      SessionTrack& s = d.t[k];
+      s.buf = -1;
+      if (!s.used || k >= d.grid * d.grid) continue;
+      const int32_t b = spare_.alloc_buf();
+      if (b < 0) {
+        res.status = SS_E_MEMORY;
+        break;
+      }
+      std::string path = dir;
+      if (!path.empty() && path.back() != '/') path += '/';
+      path += s.file;
+      res.status = wav24_read(path.c_str(), spare_, b, s.len, s.gain, cancelled, &sess_done_);
+      s.buf = b;
+    }
+    if (res.status != SS_IDLE || cancelled()) spare_.reset();  // не вышло или отменили: пул пустой
+    res.desc = d;
+    r.gen = gen;
     return;
   }
   if (m.op == 3) {
@@ -810,6 +882,25 @@ void Looper::do_work(const WorkMsg& m, WorkResp& r) {
 }
 
 void Looper::work_done(const WorkResp& r) {
+  if (r.op == 5) {  // звук сессии прочитан (или нет): пул обратно в аудиопоток
+    pool_.swap(spare_);
+    if (load_res_.gen != load_gen_.load(std::memory_order_acquire)) {
+      // пока читали, пришёл новый запрос: читать заново (пул пустой, лупы молчат)
+      load_seen_ = load_gen_.load(std::memory_order_acquire);
+      load_state_ = LS_DRAIN;
+      return;
+    }
+    load_state_ = LS_IDLE;
+    if (load_res_.status != SS_IDLE) {
+      sess_status_.store(load_res_.status, std::memory_order_relaxed);
+      cur_id_.store(0, std::memory_order_relaxed);
+      for (auto& t : tr_) mark_peaks(t);
+      return;
+    }
+    install_session(load_res_.desc);
+    sess_status_.store(SS_LOADED, std::memory_order_relaxed);
+    return;
+  }
   if (r.op == 4) {  // новый пул готов
     if (spare_.ok()) pool_.swap(spare_);
     pool_state_ = PS_IDLE;
@@ -823,6 +914,7 @@ void Looper::work_done(const WorkResp& r) {
     return;
   }
   job_running_ = false;
+  ++edit_epoch_;
   Track& t = tr_[r.track];
   t.busy = false;
   mark_peaks(t);
@@ -1173,6 +1265,10 @@ void Looper::set_time(const TimeInfo& ti) {
 // когда всё затихнет, счёт тактов и курсоры встают в 0 (hold_).
 void Looper::transport_stop() {
   tstop_ = true;
+  if (entry_pending_) {  // загруженная сессия ещё не вступила: вступит при пуске
+    entry_pending_ = false;
+    rebase_pending_ = true;
+  }
   rec_after_switch_ = false;
   bool recording = false;
   for (auto& t : tr_) {
@@ -1200,6 +1296,10 @@ void Looper::transport_stop() {
 // (записанные в Free — с начала цикла), остальные встают в фазу.
 void Looper::transport_start() {
   tstop_ = false;
+  if (rebase_pending_) {  // загруженная сессия: фаза от точки пуска
+    rebase_pending_ = false;
+    session_rebase(beats_);
+  }
   for (int k = idx(0); k < idx(0) + ns_; ++k) {
     Track& t = tr_[k];
     if (!t.stopped) {
@@ -1235,6 +1335,10 @@ void Looper::wake(int ti) {
 void Looper::apply_playstop(bool stop) {
   user_stop_ = stop;
   if (!stop) tstop_ = false;
+  if (!stop && (entry_pending_ || rebase_pending_)) {  // явный старт загруженной сессии: сейчас
+    entry_pending_ = rebase_pending_ = false;
+    session_rebase(beats_);
+  }
   for (int k = idx(0); k < idx(0) + ns_; ++k) {
     Track& t = tr_[k];
     if (t.st != TState::Play && t.st != TState::Dub) continue;
@@ -1355,6 +1459,7 @@ void Looper::default_locks() {
 // Дорожка становится пустой и без истории (под Lock-копию в пустом парте).
 void Looper::clear_track(int k) {
   Track& t = tr_[k];
+  ++edit_epoch_;
   if (t.rec >= 0) pool_.free_buf(t.rec);
   if (t.layer >= 0) pool_.free_buf(t.layer);
   clear_redo(t);
@@ -1380,6 +1485,7 @@ void Looper::clear_track(int k) {
 void Looper::clone_into(int from, int to) {
   Track& o = tr_[from];
   if (o.sum < 0 || tr_[to].busy) return;
+  ++edit_epoch_;
   clear_track(to);
   const int32_t b = pool_.clone_buf(o.sum);
   if (b < 0) return;
@@ -1475,7 +1581,9 @@ void Looper::switch_part(int p) {
     rec_after_switch_ = false;
     const int k = idx(active_);
     Track& t = tr_[k];
-    if (t.st == TState::Empty) {
+    if (rec_blocked()) {
+      // идёт сохранение сессии: новой записи нет
+    } else if (t.st == TState::Empty) {
       if (rolling_) rec_on_boundary(k);  // запись только при запущенном транспорте
     } else if (t.st == TState::Play && !t.stopped && !t.ustop) {
       start_dub(k);
@@ -1532,6 +1640,7 @@ void Looper::process(const float* in_l, const float* in_r, float* out_l, float* 
   }
   const float lim_rel = (float)std::exp(-1.0 / (kLimRelS * sr_));
   pool_step();
+  session_step();
   update_speeds(n);
   lat_ = (uint32_t)std::lround(std::fmin(100.0f, std::fmax(0.0f, set_.latency_ms)) * sr_ / 1000.0);
   float mbl = 0.0f, mbr = 0.0f;
@@ -1573,6 +1682,11 @@ void Looper::process(const float* in_l, const float* in_r, float* out_l, float* 
           rec_waiting_ = true;
         }
       }
+    }
+    // загруженная сессия вступает на ближайшем такте (и в Free: такты Zynthian есть всегда)
+    if (entry_pending_ && rolling_) {
+      const double c = std::floor(beats_ / bpb_);
+      if (std::floor((beats_ - bpf_) / bpb_) != c) session_enter(c * bpb_);
     }
     // beats_ — доля этого кадра; граница там, где доля перешла через целое с прошлого кадра
     if (set_.quantize) {
@@ -1642,6 +1756,214 @@ void Looper::process(const float* in_l, const float* in_r, float* out_l, float* 
         __atomic_add_fetch(&peaks_->t[k % ns_].live, 1u, __ATOMIC_RELEASE);
         tr_[k].plive = false;
       }
+}
+
+// ---------------------------------------------------------------- сессии
+
+// Всё затихло и рабочий поток пул не читает: пул можно отдать (загрузка сессии).
+bool Looper::silent_for_swap() const {
+  for (const auto& t : tr_)
+    if (t.st != TState::Empty || t.xf_len > 0 || t.pinflight) return false;
+  return !job_pending_ && !job_running_;
+}
+
+// Звук можно заморозить для сохранения: ничего не пишется и ничего не ждёт записи.
+bool Looper::can_freeze() const {
+  if (!pool_.ok() || pool_state_ != PS_IDLE || pool_msg_ || load_state_ != LS_IDLE) return false;
+  if (job_pending_ || job_running_ || grid_pending_ >= 0 || reset_all_pending_ || clones_pending_) return false;
+  if (rec_after_switch_) return false;
+  for (const auto& t : tr_) {
+    if (t.st == TState::Armed || t.st == TState::Rec || t.st == TState::Closing || t.st == TState::Dub) return false;
+    if (t.seam_t < xf_ || t.lock_to >= 0 || t.busy) return false;  // хвост стыка ещё пишется в сумму
+  }
+  return true;
+}
+
+void Looper::session_step() {
+  if (pool_.ok()) pool_chunks_.store(pool_.total_chunks(), std::memory_order_relaxed);
+  // сохранение: заморозка по запросу потока save()
+  const bool req = freeze_req_.load(std::memory_order_acquire);
+  const bool fz = frozen_.load(std::memory_order_relaxed);
+  if (req && !fz) {
+    if (can_freeze()) {
+      SessionDesc& d = frozen_desc_;
+      d = SessionDesc();
+      d.sr = sr_;
+      d.grid = ns_;
+      d.part = cur_part_;
+      d.active = active_;
+      for (int k = 0; k < ns_ * ns_; ++k) {
+        const Track& t = tr_[k];
+        SessionTrack& s = d.t[k];
+        s.locked = t.locked;
+        if (t.sum < 0 || t.len == 0 || t.st != TState::Play) continue;
+        s.used = true;
+        s.buf = t.sum;
+        s.len = t.len;
+        s.muted = t.muted;
+        s.reversed = t.dir < 0;
+        s.synced = t.synced;
+        s.loop_beats = t.loop_beats;
+        s.rec_bpm = t.rec_bpf * 60.0 * sr_;
+        s.b0 = t.b0;
+      }
+      frozen_epoch_ = edit_epoch_;
+      sess_status_.store(SS_SAVING, std::memory_order_relaxed);
+      frozen_.store(true, std::memory_order_release);
+    }
+  } else if (!req && fz) {
+    frozen_.store(false, std::memory_order_release);
+    if (grid_pending_ > 0 && !job_pending_ && !job_running_) apply_grid();  // ждала сохранения
+  }
+  // загрузка: принять новый запрос (не во время сохранения и смены пула)
+  const uint32_t g = load_gen_.load(std::memory_order_acquire);
+  if (g != load_seen_) {
+    if (load_state_ == LS_IDLE) {
+      if (req || fz || pool_state_ != PS_IDLE) return;
+      load_seen_ = g;
+      // та же сессия, звук с её сохранения или загрузки не менялся (Zynthian грузит пресет сам сразу
+      // после сохранения и при листании списка): грузить нечего
+      if (load_id_.load(std::memory_order_relaxed) == cur_id_.load(std::memory_order_relaxed) &&
+          edit_epoch_ == saved_epoch_.load(std::memory_order_relaxed))
+        return;
+      sess_status_.store(SS_LOADING, std::memory_order_relaxed);
+      sess_done_.store(0, std::memory_order_relaxed);
+      load_state_ = LS_REQ;
+    } else if (load_state_ != LS_LOADING) {
+      load_seen_ = g;  // ещё не начали читать: прочитаем самый свежий
+    }  // читаем: рабочий поток увидит новый номер и бросит, work_done начнёт заново
+  }
+  if (load_state_ == LS_REQ) {
+    if (job_pending_ || job_running_) return;  // undo/redo дочитает пул
+    reset_all_now(false);                      // лупы затихают по кроссфейду, микшер остаётся
+    load_state_ = LS_DRAIN;
+  }
+  if (load_state_ == LS_DRAIN && silent_for_swap()) {
+    pool_.swap(spare_);  // пул у рабочего потока: лупер молчит, сухой сигнал идёт
+    load_msg_ = true;
+    load_state_ = LS_LOADING;
+  }
+}
+
+// Звук сессии в пуле: дорожки как были, все ждут вступления.
+void Looper::install_session(const SessionDesc& d) {
+  ++edit_epoch_;
+  if (valid_grid(d.grid)) ns_ = d.grid;  // дорожки пустые: сбрасывать нечего
+  const int n = ns_ * ns_;
+  for (int k = 0; k < kTracks; ++k) {
+    Track& t = tr_[k];
+    if (k < n) t.locked = d.t[k].locked;
+    const SessionTrack& s = d.t[k];
+    if (!s.used || s.buf < 0 || k >= n) continue;
+    t.sum = s.buf;
+    t.len = s.len;
+    t.st = TState::Play;
+    t.dir = s.reversed ? -1 : 1;
+    t.rate = (double)t.dir;
+    t.rate_step = 0.0;
+    t.pos = t.xpos = s.reversed ? (double)(s.len - 1) : 0.0;
+    t.muted = s.muted;
+    t.mute_pending = false;
+    t.gain = s.muted ? 0.0f : 1.0f;
+    t.synced = t.rec_q = s.synced;
+    t.loop_beats = s.loop_beats;
+    t.rec_bpf = s.rec_bpm > 0 ? s.rec_bpm / 60.0 / sr_ : 0.0;
+    t.b0 = s.b0;
+    t.tspd = 1.0;
+    t.stopped = true;  // молчит до вступления
+    t.sgain = 0.0f;
+    t.seam_t = ~0ull;
+    mark_peaks(t);
+  }
+  cur_part_ = d.part >= 0 && d.part < ns_ ? d.part : 0;
+  active_ = d.active >= 0 && d.active < ns_ ? d.active : 0;
+  if (rolling_) {
+    entry_pending_ = true;  // на ближайшем такте
+  } else {
+    tstop_ = true;  // как после остановки транспорта: вступит при пуске
+    rebase_pending_ = true;
+  }
+  cur_id_.store(d.id, std::memory_order_relaxed);
+  saved_epoch_.store(edit_epoch_, std::memory_order_relaxed);
+}
+
+// Сдвинуть сетку сессии: самая длинная дорожка в Quantize начинает цикл с доли e,
+// остальные — в той же взаимной фазе, что при сохранении.
+void Looper::session_rebase(double e) {
+  int m = -1;
+  for (int pass = 0; pass < 2 && m < 0; ++pass)  // сначала текущий парт, потом любой
+    for (int k = 0; k < ns_ * ns_; ++k) {
+      const Track& t = tr_[k];
+      if (pass == 0 && !in_cur(k)) continue;
+      if (t.st != TState::Play || !t.synced || !t.len) continue;
+      if (m < 0 || t.loop_beats > tr_[m].loop_beats) m = k;
+    }
+  if (m < 0) return;
+  const double d = e - tr_[m].b0;
+  for (auto& t : tr_)
+    if (t.synced) t.b0 += d;
+}
+
+void Looper::session_enter(double e) {
+  entry_pending_ = rebase_pending_ = false;
+  session_rebase(e);
+  for (int k = 0; k < kTracks; ++k) {
+    Track& t = tr_[k];
+    if (t.st != TState::Play || !t.stopped) continue;
+    t.stopped = false;
+    if (in_cur(k) && !t.ustop) wake(k);  // фаза с сеткой (Free — с начала цикла), огибающая нарастёт
+  }
+}
+
+// Поток save(): звук заморожен, записать WAV и заполнить описание.
+int Looper::session_save_audio(const char* dir, SessionDesc& out) {
+  if (!frozen_.load(std::memory_order_acquire)) return SS_E_WRITE;
+  SessionDesc d = frozen_desc_;
+  d.id = session_new_id();
+  uint64_t total = 0;
+  for (const auto& s : d.t) total += s.used ? s.len : 0;
+  sess_total_.store(total, std::memory_order_relaxed);
+  sess_done_.store(0, std::memory_order_relaxed);
+  for (int k = 0; k < kTracks; ++k) {
+    SessionTrack& s = d.t[k];
+    if (!s.used) continue;
+    session_file_name(k, d.grid, s.file, sizeof s.file);
+    // сумма слоёв бывает громче 0 дБ: такой файл пишется тише, множитель — в описании
+    const float pk = buf_peak(pool_, s.buf, s.len);
+    s.gain = pk > 0.999f ? pk / 0.999f : 1.0f;
+    std::string path = dir ? dir : "";
+    if (!path.empty() && path.back() != '/') path += '/';
+    path += s.file;
+    if (!wav24_write(path.c_str(), pool_, s.buf, s.len, sr_, s.gain, &sess_done_)) return SS_E_WRITE;
+  }
+  out = d;
+  return SS_SAVED;
+}
+
+void Looper::session_unfreeze(bool saved, uint64_t id) {
+  if (saved) {
+    saved_epoch_.store(frozen_epoch_, std::memory_order_relaxed);
+    cur_id_.store(id, std::memory_order_relaxed);
+    sess_status_.store(SS_SAVED, std::memory_order_relaxed);
+  }
+  freeze_req_.store(false, std::memory_order_release);
+}
+
+void Looper::session_load(const SessionDesc& d, const char* dir) {
+  uint32_t g;
+  {
+    std::lock_guard<std::mutex> lk(load_mx_);
+    load_desc_ = d;
+    load_dir_ = dir ? dir : "";
+    g = ++load_slot_gen_;
+  }
+  load_id_.store(d.id, std::memory_order_relaxed);
+  load_gen_.store(g, std::memory_order_release);
+}
+
+float Looper::session_progress() const {
+  const uint64_t t = sess_total_.load(std::memory_order_relaxed);
+  return t ? (float)((double)sess_done_.load(std::memory_order_relaxed) / (double)t) : 0.0f;
 }
 
 // ---------------------------------------------------------------- состояние

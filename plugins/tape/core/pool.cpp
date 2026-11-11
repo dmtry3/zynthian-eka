@@ -50,6 +50,20 @@ void Pool::swap(Pool& o) {
   sw(a->btop_, o.btop_);
 }
 
+void Pool::reset() {
+  if (!mem_) return;
+  for (uint32_t i = 0; i < n_; ++i) {
+    stack_[i] = n_ - 1 - i;
+    ref_[i] = 0;
+  }
+  top_ = n_;
+  for (uint32_t i = 0; i < nbufs_; ++i) {
+    bufs_[i].used = false;
+    bstack_[i] = (int32_t)(nbufs_ - 1 - i);
+  }
+  btop_ = nbufs_;
+}
+
 void Pool::release() {
   std::free(mem_);
   delete[] stack_;

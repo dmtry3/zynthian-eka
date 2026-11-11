@@ -3,10 +3,14 @@
 // Без LV2. process() и всё с пометкой RT вызываются из аудиопотока: без выделения памяти,
 // блокировок и системных вызовов. do_work() — из рабочего потока (LV2 worker).
 #pragma once
+#include <atomic>
 #include <cstdint>
+#include <mutex>
+#include <string>
 
 #include "peaks.h"
 #include "pool.h"
+#include "session.h"
 
 namespace alp {
 
@@ -14,6 +18,7 @@ namespace alp {
 // Память — под самую большую сетку. Дорожка k принадлежит парту k / n, место в парте k % n.
 constexpr int kMaxSlots = 6;
 constexpr int kTracks = kMaxSlots * kMaxSlots;
+static_assert(kTracks == kSessionTracks, "session.h: kSessionTracks");
 inline bool valid_grid(int n) { return n == 2 || n == 4 || n == 6; }
 constexpr uint32_t kMaxUndo = 1024;  // записей undo на дорожку (дальше старые вливаются в основу)
 
@@ -72,9 +77,9 @@ struct TrackView {
 
 // Задание рабочему потоку: dst = src ± layer (подготовка undo/redo).
 // Или (op 3) пересчитать пики дорожки для волн виджета, (op 4) заменить пул памяти: старый
-// освободить, выделить новый размером len байт.
+// освободить, выделить новый размером len байт, (op 5) загрузить звук сессии в пул.
 struct WorkMsg {
-  uint8_t op;  // 1 вычесть слой (undo), 2 прибавить (redo), 3 пики, 4 новый пул
+  uint8_t op;  // 1 вычесть слой (undo), 2 прибавить (redo), 3 пики, 4 новый пул, 5 сессия
   uint8_t track;
   uint8_t nl;  // op 3: слоёв в lay[]
   uint8_t slot;  // op 3: место дорожки в парте (куда в общей памяти писать пики)
@@ -158,6 +163,32 @@ class Looper {
   float pool_fill() const;
   uint32_t free_chunks() const { return pool_.free_chunks(); }
   uint32_t total_chunks() const { return pool_.total_chunks(); }
+
+  // ---- сессии (этап 7а, ТЗ «Сессии») ----
+  // Сохранение — поток save() хоста, не RT, звук идёт:
+  //   session_request_freeze(), ждать session_frozen() (обёртка ждёт с таймаутом); пока ждём, новые
+  //   запись и овердаб не начинаются, начатые можно закрыть. Аудиопоток замораживает звук, когда нет
+  //   записи, овердаба, взведённой записи и заданий рабочего потока. Заморожено: лупы играют,
+  //   Rec, Undo, Redo, Reset молча игнорируются, смена сетки и пула ждут.
+  //   session_save_audio() пишет WAV в dir, session_unfreeze() отпускает.
+  void session_request_freeze() { freeze_req_.store(true, std::memory_order_release); }
+  bool session_frozen() const { return frozen_.load(std::memory_order_acquire); }
+  int session_save_audio(const char* dir, SessionDesc& out);  // SS_SAVED или код ошибки
+  void session_unfreeze(bool saved, uint64_t id);
+  // Загрузка — restore() хоста, не RT. Описание уже проверено session_check(). Текущие лупы
+  // затихают, звук читает рабочий поток (op 5), новая загрузка отменяет недочитанную. Та же сессия,
+  // если звук с её сохранения или загрузки не менялся, заново не грузится.
+  void session_load(const SessionDesc& d, const char* dir);
+  // Для виджета и проверки (из любого потока).
+  int session_status() const { return sess_status_.load(std::memory_order_relaxed); }
+  void session_set_status(int s) { sess_status_.store(s, std::memory_order_relaxed); }
+  float session_progress() const;
+  uint32_t pool_chunks() const { return pool_chunks_.load(std::memory_order_relaxed); }
+  uint64_t session_id() const { return cur_id_.load(std::memory_order_relaxed); }
+  // Для тестов: что играет дорожка k (все дорожки, не только текущий парт).
+  const Pool& pool() const { return pool_; }
+  int32_t track_sum(int k) const { return tr_[k].sum; }
+  uint64_t track_len(int k) const { return tr_[k].len; }
 
  private:
   enum : uint8_t { U_DELTA = 1, U_SNAP = 2 };
@@ -352,6 +383,46 @@ class Looper {
   float lim_env_ = 0.0f;
   float mpeak_[2] = {};
   uint32_t mix_epoch_ = 0;
+
+  // ---- сессии ----
+  void session_step();            // RT, в начале блока: заморозка и шаги загрузки
+  bool can_freeze() const;
+  bool rec_blocked() const {      // новые запись и овердаб не начинаются: Save ждёт или идёт
+    return freeze_req_.load(std::memory_order_relaxed) || frozen_.load(std::memory_order_relaxed);
+  }
+  void install_session(const SessionDesc& d);
+  void session_enter(double e);   // загруженная сессия вступает: на такте или при пуске транспорта
+  void session_rebase(double e);
+  bool silent_for_swap() const;   // всё затихло и рабочий поток пул не читает
+  uint64_t edit_epoch_ = 0;       // растёт при каждом изменении записанного звука (RT)
+  // заморозка: запрос от потока save(), ответ аудиопотока
+  std::atomic<bool> freeze_req_{false};
+  std::atomic<bool> frozen_{false};
+  SessionDesc frozen_desc_;       // снимок на момент заморозки (пишет RT до frozen_)
+  uint64_t frozen_epoch_ = 0;
+  std::atomic<uint64_t> saved_epoch_{~0ull};  // edit_epoch_ при сохранении или загрузке cur_id_
+  std::atomic<uint64_t> cur_id_{0};           // сессия, которая сейчас в лупере (0 — никакая)
+  std::atomic<int> sess_status_{SS_IDLE};
+  std::atomic<uint64_t> sess_done_{0}, sess_total_{0};  // кадров записано или прочитано из всех
+  std::atomic<uint32_t> pool_chunks_{0};
+  // загрузка: запрос (только не-RT потоки, под мьютексом), номер запроса — атомарно для RT
+  std::mutex load_mx_;
+  SessionDesc load_desc_;
+  std::string load_dir_;
+  uint32_t load_slot_gen_ = 0;
+  std::atomic<uint32_t> load_gen_{0};
+  std::atomic<uint64_t> load_id_{0};
+  enum LoadState : uint8_t { LS_IDLE, LS_REQ, LS_DRAIN, LS_LOADING };
+  LoadState load_state_ = LS_IDLE;
+  uint32_t load_seen_ = 0;        // последний запрос, который аудиопоток принял
+  bool load_msg_ = false;         // задание op 5 ещё не отдано рабочему потоку
+  struct LoadResult {
+    uint32_t gen = 0;
+    int status = SS_IDLE;
+    SessionDesc desc;
+  } load_res_;                    // пишет рабочий поток, читает work_done (после ответа)
+  bool entry_pending_ = false;    // загружено при идущем транспорте: вступить на ближайшем такте
+  bool rebase_pending_ = false;   // загружено при стоящем: фаза — от пуска транспорта
 };
 
 }  // namespace alp
