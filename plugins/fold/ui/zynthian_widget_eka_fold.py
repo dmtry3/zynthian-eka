@@ -1,12 +1,12 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# Eka Fold widget. Tabs (top left): Osc. Later stages add Mod, Fold, Gate, Env, Delay, Matrix.
+# Eka Fold widget. Tabs (top left): Osc, Mod. Later stages add Fold, Gate, Env, Delay, Matrix.
 # The skeleton follows the Eka Mist widget:
 # - Zynthian calls update() every 32 ms; monitors and marks are refreshed only every UPDATE_PERIOD.
 # - Curves are computed here from the parameters and redrawn only when a parameter changed, at most every
 #   CURVE_PERIOD; only small marks (notes, level) move with the live data, and only when they changed.
 # - Live data from the plugin's output ports (self.monitors): note1..4 = MIDI note of each voice, -1 = idle;
-#   out_peak = output peak, dB.
+#   out_peak = output peak, dB; mod_phase = Mod OSC phase 0..1 of the newest voice, -1 = none.
 # - Tabs and knob pages go together: a tap on a tab selects its knob page through Zynthian's control screen;
 #   turning to such a page shows its tab. Pages without a tab (Env, for now) keep the tab shown.
 # - At the top right, in a small font: the name of the current knob page (screen_title of Zynthian's control screen).
@@ -15,6 +15,16 @@
 #   come with the other sources), so the curve depends only on the size of the widget.
 # - Source tiles: Sine only for now.
 # - The sounding notes with their frequency (Pitch and Fine included) and a small output level meter.
+# Mod:
+# - Mod OSC block (one period of its shape) -> arrows FM / AM / Sync -> Principal block. A tap on an arrow
+#   switches that route (LV2 parameters route_fm, route_am, route_sync, 0/1, saved in the snapshot).
+# - The Principal block shows the result: the Principal modulated by the Mod OSC over a few periods, computed
+#   here with the plugin's formulas (linear FM, AM, hard sync). In Free mode the Mod frequency is absolute,
+#   so the result is drawn for C4.
+# - A running mark of the Mod phase (output mod_phase) on the Mod OSC shape, only while it is slow
+#   (Free mode, up to MARK_MAX_HZ): an LFO is seen "breathing"; at audio rates a mark would only flicker.
+# - At the bottom: the Mod Index, large, and what the Mod Freq knob means in this Mod Mode
+#   (Free: Hz, Keytrack: semitones, Ratio: x p/q), with the shape.
 
 import logging
 import math
@@ -27,8 +37,8 @@ from zyngui import zynthian_widget_base
 
 MULTI_INSTANCE = True
 
-TABS = ["Osc"]
-TAB_GROUPS = ["g_osc"]           # knob page (port group) of each tab
+TABS = ["Osc", "Mod"]
+TAB_GROUPS = ["g_osc", "g_mod"]  # knob page (port group) of each tab
 SOURCES = ["Sine"]               # Source tiles; VA, FM and Wavetable come at stage 4
 NVOICES = 4
 TAB_COLOR = "#4dabf7"
@@ -39,10 +49,27 @@ METER_COLOR = "#51cf66"
 METER_HOT = "#ff6b6b"            # above -6 dB
 TILE_ON = "#4dabf7"
 TILE_OFF = "#2a2a2a"
+ROUTE_ON = "#4dabf7"
+ROUTE_OFF = "#505050"
+MARK_COLOR = "#ffd43b"
+LABEL_COLOR = "#909090"
+MARK_MAX_HZ = 8.0                # the phase mark is shown up to this Mod frequency
 UPDATE_PERIOD = 0.08             # s: monitors and marks at ~12 per second, not at Zynthian's 30
 CURVE_PERIOD = 0.15              # s: curves redrawn at most this often
 METER_DB = 48.0                  # the meter shows -48..0 dB
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+MOD_SHAPES = ["Triangle", "Sine", "Saw", "Square"]   # Mod Shape knob, as FC_MOD_* in fold_core.h
+MOD_MODES = ["Free", "Keytrack", "Ratio"]            # Mod Mode knob, as FC_MODE_*
+ROUTES = [("route_fm", "FM"), ("route_am", "AM"), ("route_sync", "Sync")]
+ROUTE_DEFAULTS = {"route_fm": 1, "route_am": 0, "route_sync": 0}
+# Mod Freq knob 0..100, read by the mode: the formulas of fold_core.c
+FREQ_MAX = 100.0
+FREE_MIN, FREE_MAX = 0.01, 10000.0
+KEY_RANGE = 48.0
+RATIOS = [(1, 8), (1, 6), (1, 4), (1, 3), (1, 2), (2, 3), (3, 4), (1, 1), (5, 4), (4, 3), (3, 2), (5, 3), (2, 1),
+          (5, 2), (3, 1), (7, 2), (4, 1), (5, 1), (6, 1), (7, 1), (8, 1), (9, 1), (10, 1), (12, 1), (16, 1)]
+FM_DEPTH = 4.0                   # FC_FM_DEPTH: Mod Index 100 % swings the Principal frequency by 4 x itself
+C4_HZ = 261.626
 
 
 def note_name(n):
@@ -51,6 +78,90 @@ def note_name(n):
 
 def note_freq(n, pitch, fine):
     return 440.0 * 2.0 ** ((n - 69 + pitch + fine / 100.0) / 12.0)
+
+
+def _clamp(u, lo, hi):
+    return lo if u < lo else hi if u > hi else u
+
+
+def free_hz(u):
+    return FREE_MIN * (FREE_MAX / FREE_MIN) ** (_clamp(u, 0.0, FREQ_MAX) / FREQ_MAX)
+
+
+def key_semis(u):
+    return (_clamp(u, 0.0, FREQ_MAX) / FREQ_MAX * 2.0 - 1.0) * KEY_RANGE
+
+
+def ratio_index(u):
+    # lrintf rounds halves to even; the knob rarely sits on a half step, round() does the same
+    return int(round(_clamp(u, 0.0, FREQ_MAX) * (len(RATIOS) - 1) / FREQ_MAX))
+
+
+def ratio_text(i):
+    p, q = RATIOS[i]
+    return "%d" % p if q == 1 else "%d/%d" % (p, q)
+
+
+def hz_text(hz):
+    if hz >= 1000.0:
+        return "%.2f kHz" % (hz / 1000.0)
+    if hz >= 100.0:
+        return "%.0f Hz" % hz
+    if hz >= 10.0:
+        return "%.1f Hz" % hz
+    return "%.2f Hz" % hz
+
+
+def freq_text(mode, u):
+    """What the Mod Freq knob means in this mode."""
+    if mode == 0:
+        return "Free " + hz_text(free_hz(u))
+    if mode == 1:
+        return "Keytrack %+.1f st" % key_semis(u)
+    return "Ratio \u00d7" + ratio_text(ratio_index(u))
+
+
+def mod_ratio(mode, u):
+    """Mod frequency over the Principal's (Free: for C4)."""
+    if mode == 0:
+        return free_hz(u) / C4_HZ
+    if mode == 1:
+        return 2.0 ** (key_semis(u) / 12.0)
+    p, q = RATIOS[ratio_index(u)]
+    return p / q
+
+
+def mod_value(shape, ph):
+    """Mod OSC -1..1 at phase 0..1 (without the band-limiting of the plugin)."""
+    if shape == 0:
+        return 4.0 * ph if ph < 0.25 else 2.0 - 4.0 * ph if ph < 0.75 else 4.0 * ph - 4.0
+    if shape == 2:
+        return 2.0 * ph - 1.0
+    if shape == 3:
+        return 1.0 if ph < 0.5 else -1.0
+    return math.sin(2.0 * math.pi * ph)
+
+
+def result_values(rel, shape, index, fm, am, sync, n, cycles, sub=8):
+    """The Principal modulated by the Mod OSC, n + 1 values over `cycles` Principal periods.
+    rel = Mod frequency / Principal frequency. Linear FM, AM and hard sync as in fold_core.c."""
+    out = []
+    ph = mph = 0.0
+    dt = cycles / (n * sub)
+    fmd = FM_DEPTH * index if fm else 0.0
+    ama = index if am else 0.0
+    for i in range(n + 1):
+        m = mod_value(shape, mph)
+        out.append(math.sin(2.0 * math.pi * ph) * ((1.0 - ama) + ama * m))
+        for _ in range(sub):
+            m = mod_value(shape, mph)
+            ph = (ph + dt * (1.0 + fmd * m)) % 1.0
+            mph += dt * rel
+            if mph >= 1.0:
+                mph -= math.floor(mph)
+                if sync:
+                    ph = 0.0
+    return out
 
 
 def wave_points(source, x0, x1, y0, y1, periods=2):
@@ -107,6 +218,11 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         self.tile_boxes = []         # (x0, y0, x1, y1, source index)
         self.notes_view = None       # text of the sounding notes shown now
         self.meter_view = None       # meter height shown now
+        self.mod_view = None         # values the Mod tab curves were drawn for
+        self.mod_drawn = 0.0
+        self.route_boxes = []        # (x0, y0, x1, y1, symbol)
+        self.mark_view = None        # where the phase mark is shown, None = hidden
+        self.mark_item = None
 
     # ---------- plugin access ----------
     def _page_title(self):
@@ -120,6 +236,19 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             return float(self.processor.controllers_dict[sym].value)
         except Exception:
             return default
+
+    def _zset(self, sym, value):
+        try:
+            z = self.processor.controllers_dict[sym]
+            if z.value != value:
+                z.set_value(value)
+            return True
+        except Exception as e:
+            logging.debug("Eka Fold widget: can't set %s => %s", sym, e)
+            return False
+
+    def _route(self, sym):
+        return 1 if self._zval(sym, ROUTE_DEFAULTS[sym]) >= 0.5 else 0
 
     def _mon(self, key, default=0.0):
         try:
@@ -197,7 +326,15 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                     self._select_page(i)                            # a tap on the shown tab also brings its page back
                     self.refresh_gui()
             return
-        # Source tiles: only Sine for now, nothing to switch
+        if self.tab == 1:
+            for x0, y0, x1, y1, sym in self.route_boxes:
+                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                    self._zset(sym, 1 - self._route(sym))
+                    self.mod_view = None
+                    self.mod_drawn = 0.0                    # a tap shows at once
+                    self.refresh_gui()
+                    return
+        # Osc: Source tiles, only Sine for now, nothing to switch
 
     # ---------- drawing ----------
     def refresh_gui(self):
@@ -208,6 +345,8 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         self._draw_title()
         if self.tab == 0:
             self._draw_osc()
+        elif self.tab == 1:
+            self._draw_mod()
 
     def _tab_metrics(self, title):
         """(font size, padding, widths, title shown): the tabs and the page title share the top line. The padding
@@ -358,3 +497,129 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         c = self.widget_canvas
         c.delete("notes")
         c.create_text(6, y, anchor="w", text=text, font=self._font(), fill=NOTE_COLOR, tags="notes")
+
+    # ---------- Mod tab ----------
+    def _mod_layout(self):
+        """Boxes: Mod OSC (left), the route arrows (middle), Principal (right); the bottom line (Index, mode)."""
+        w, h = max(int(self.width), 60), max(int(self.height), 60)
+        hh, fs = self._header_h(), self._font_size()
+        bottom = 2 * fs + 10                            # the Index is drawn larger than the rest
+        y0, y1 = hh + 4, h - bottom - 4
+        xa, xb = int(w * 0.36), int(w * 0.64)
+        left = (4, y0, xa - 4, y1)
+        mid = (xa + 4, y0, xb - 4, y1)
+        right = (xb + 4, y0, w - 4, y1)
+        return left, mid, right, h - bottom / 2 - 2
+
+    def _mod_values(self):
+        return (int(round(self._zval("mod_shape", 1))), int(round(self._zval("mod_mode", 2))),
+                self._zval("mod_freq", 30.0), self._zval("mod_index", 0.0) / 100.0,
+                self._route("route_fm"), self._route("route_am"), self._route("route_sync"))
+
+    def _draw_mod(self):
+        left, mid, right, bottom_y = self._mod_layout()
+        vals = self._mod_values()
+        view = (left, mid, right, vals)
+        if view != self.mod_view:
+            now = time.monotonic()
+            if self.mod_view is None or now - self.mod_drawn >= CURVE_PERIOD:
+                self.mod_view = view
+                self.mod_drawn = now
+                self._draw_mod_static(left, mid, right, bottom_y, vals)
+                self.mark_view = None
+        self._draw_mod_mark(left, vals)
+
+    def _box_label(self, box, text, tag):
+        self.widget_canvas.create_text(box[0] + 4, box[1] + 2, anchor="nw", text=text, fill=LABEL_COLOR,
+                                       font=self._font(max(7, self._font_size() - 2)), tags=tag)
+
+    def _curve_box(self, box):
+        """The part of a block under its label."""
+        lh = self._font_size() + 6
+        return box[0] + 4, box[1] + lh, box[2] - 4, box[3] - 4
+
+    def _draw_mod_static(self, left, mid, right, bottom_y, vals):
+        shape, mode, u, index, fm, am, sync = vals
+        c = self.widget_canvas
+        c.delete("mod")
+        fs = self._font_size()
+        # Mod OSC block: one period of its shape
+        c.create_rectangle(*left, outline=AXIS_COLOR, tags="mod")
+        self._box_label(left, "Mod OSC", "mod")
+        x0, y0, x1, y1 = self._curve_box(left)
+        mid_y, amp = (y0 + y1) / 2.0, (y1 - y0) / 2.0 * 0.85
+        n = max(int((x1 - x0) / 2), 8)
+        pts = []
+        for i in range(n + 1):
+            pts += [x0 + i * (x1 - x0) / n, mid_y - mod_value(shape, i / n) * amp]
+        c.create_line(x0, mid_y, x1, mid_y, fill=AXIS_COLOR, tags="mod")
+        c.create_line(*pts, fill=WAVE_COLOR, width=2, tags="mod")
+        # the route arrows
+        self.route_boxes = []
+        mx0, my0, mx1, my1 = mid
+        gap = 6
+        bh = (my1 - my0 - 2 * gap) / 3.0
+        for i, (sym, name) in enumerate(ROUTES):
+            on = (fm, am, sync)[i]
+            by0 = my0 + i * (bh + gap)
+            by1 = by0 + bh
+            col = ROUTE_ON if on else ROUTE_OFF
+            c.create_rectangle(mx0, by0, mx1, by1, outline=col, fill=(col if on else ""), tags="mod")
+            c.create_text((mx0 + mx1) / 2, (by0 + by1) / 2, text=name + " \u2192", font=self._font(),
+                          fill=("#000000" if on else zynthian_gui_config.color_tx), tags="mod")
+            self.route_boxes.append((mx0, by0, mx1, by1, sym))
+        # Principal block: the result
+        c.create_rectangle(*right, outline=AXIS_COLOR, tags="mod")
+        self._box_label(right, "Principal" + (" at C4" if mode == 0 else ""), "mod")
+        x0, y0, x1, y1 = self._curve_box(right)
+        mid_y, amp = (y0 + y1) / 2.0, (y1 - y0) / 2.0 * 0.85
+        rel = mod_ratio(mode, u)
+        cycles = 2.0
+        if rel >= 0.25:                                 # show whole Mod periods when the Mod OSC is slower
+            cycles = min(max(2.0, 2.0 / rel), 8.0)
+        n = max(int((x1 - x0) / 2), 8)
+        vals_y = result_values(rel, shape, index, fm, am, sync, n, cycles)
+        pts = []
+        for i, y in enumerate(vals_y):
+            pts += [x0 + i * (x1 - x0) / n, mid_y - y * amp]
+        c.create_line(x0, mid_y, x1, mid_y, fill=AXIS_COLOR, tags="mod")
+        c.create_line(*pts, fill=WAVE_COLOR, width=2, tags="mod")
+        # bottom: the Index (large) and the Mod Freq meaning
+        c.create_text(6, bottom_y, anchor="w", text="Index", fill=LABEL_COLOR, font=self._font(), tags="mod")
+        try:
+            iw = tkinter.font.Font(family=zynthian_gui_config.font_family, size=fs).measure("Index ")
+        except Exception:
+            iw = 6 * fs
+        c.create_text(6 + iw, bottom_y, anchor="w", text="%d%%" % round(index * 100), fill=NOTE_COLOR,
+                      font=(zynthian_gui_config.font_family, int(fs * 1.6), "bold"), tags="mod")
+        c.create_text(max(self.width, 60) - 6, bottom_y, anchor="e",
+                      text="%s \u00b7 %s" % (freq_text(mode, u), MOD_SHAPES[shape % len(MOD_SHAPES)]),
+                      fill=zynthian_gui_config.color_tx, font=self._font(), tags="mod")
+
+    def _draw_mod_mark(self, left, vals):
+        """The Mod phase on the Mod OSC shape, while the Mod OSC is slow; moved, not recreated."""
+        shape, mode, u = vals[0], vals[1], vals[2]
+        ph = self._mon("mod_phase", -1.0)
+        show = mode == 0 and free_hz(u) <= MARK_MAX_HZ and 0.0 <= ph <= 1.0
+        x0, y0, x1, y1 = self._curve_box(left)
+        if show:
+            mid_y, amp = (y0 + y1) / 2.0, (y1 - y0) / 2.0 * 0.85
+            x = int(round(x0 + ph * (x1 - x0)))
+            y = int(round(mid_y - mod_value(shape, ph) * amp))
+            view = (x, y)
+        else:
+            view = None
+        if view == self.mark_view:
+            return
+        self.mark_view = view
+        c = self.widget_canvas
+        if view is None:
+            c.delete("modmark")
+            self.mark_item = None
+            return
+        r = max(3, self._font_size() // 3)
+        if self.mark_item is None or not c.find_withtag("modmark"):
+            self.mark_item = c.create_oval(x - r, y - r, x + r, y + r, fill=MARK_COLOR, outline="", tags="modmark")
+        else:
+            c.coords(self.mark_item, x - r, y - r, x + r, y + r)
+        c.tag_raise("modmark")

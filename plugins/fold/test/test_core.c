@@ -290,6 +290,176 @@ static void test_extremes(void) {
   CHECK(all_finite(L, SR));
 }
 
+
+/* ---------- stage 1: Mod OSC, FM / AM / Sync ---------- */
+
+/* Amplitude of the component at f Hz in x[0..n) (Hann window, one DFT bin at exactly f). */
+static double amp_at(const float* x, uint32_t n, double f, double sr) {
+  double re = 0, im = 0, wsum = 0;
+  for (uint32_t i = 0; i < n; i++) {
+    const double w = 0.5 - 0.5 * cos(2.0 * M_PI * i / n);
+    const double a = 2.0 * M_PI * f * i / sr;
+    re += w * x[i] * cos(a);
+    im -= w * x[i] * sin(a);
+    wsum += w;
+  }
+  return 2.0 * sqrt(re * re + im * im) / wsum;
+}
+
+static double db(double a) { return 20.0 * log10(a > 1e-12 ? a : 1e-12); }
+
+/* Free mode units for a Mod OSC frequency in Hz (inverse of fc_free_hz). */
+static float free_units(double hz) {
+  return (float)(FC_FREQ_MAX * log(hz / FC_FREE_MIN) / log(FC_FREE_MAX / FC_FREE_MIN));
+}
+
+/* One held note with these Mod settings, 1 s after 0.25 s of settling: the analysis in L[0..SR). */
+static void play_mod(int note, int mode, float freq, float index, int shape, int fm, int am, int sync) {
+  reset(SR);
+  FcParams p;
+  fc_default_params(&p);
+  p.attack_ms = 1; p.sustain = 1.0f;
+  p.mod_mode = mode; p.mod_freq = freq; p.mod_index = index; p.mod_shape = shape;
+  p.route_fm = fm; p.route_am = am; p.route_sync = sync;
+  fc_set_params(&core, &p);
+  fc_note_on(&core, note, 127);
+  render(&core, 0, SR / 4);
+  render(&core, 0, SR);
+}
+
+static void test_mod_knob(void) {
+  CHECK(fabsf(fc_free_hz(0) - FC_FREE_MIN) < 1e-6f);
+  CHECK(fabsf(fc_free_hz(100) - FC_FREE_MAX) < 0.5f);
+  CHECK(fabsf(fc_free_hz(free_units(100.0)) - 100.0f) < 0.01f);
+  CHECK(fabsf(fc_key_semis(50)) < 1e-5f && fabsf(fc_key_semis(0) + 48) < 1e-4f && fabsf(fc_key_semis(100) - 48) < 1e-4f);
+  CHECK(fc_ratios[fc_ratio_index(30)] == 1.0f);                       /* the default: x1 */
+  CHECK(fc_ratio_index(0) == 0 && fc_ratio_index(100) == FC_NRATIOS - 1);
+  for (int i = 1; i < FC_NRATIOS; i++) CHECK(fc_ratios[i] > fc_ratios[i - 1]);
+}
+
+static void test_fm(void) {
+  /* A4 440 Hz, Mod OSC sine at 100 Hz (Free): linear FM index beta = 4 * Index * 440 / 100 */
+  const float idx = 0.05f;
+  const double beta = FC_FM_DEPTH * idx * 440.0 / 100.0;
+  play_mod(69, FC_MODE_FREE, free_units(100.0), idx, FC_MOD_SINE, 1, 0, 0);
+  const double c0 = amp_at(L, SR, 440, SR), lo = amp_at(L, SR, 340, SR), hi = amp_at(L, SR, 540, SR);
+  const double want = fabs(jn(1, beta) / jn(0, beta));
+  printf("FM linear beta %.2f: J1/J0 %.2f dB (theory %.2f), sidebands %.2f / %.2f dB\n",
+         beta, db(lo / c0), db(want), db(lo / c0), db(hi / c0));
+  CHECK(fabs(db(lo / c0) - db(want)) < 0.5 && fabs(db(hi / c0) - db(want)) < 0.5);
+  CHECK(amp_at(L, SR, 640, SR) / c0 > 0.5 * fabs(jn(2, beta) / jn(0, beta)));  /* second sidebands too */
+
+  /* FM switched off: a plain sine whatever the Index */
+  play_mod(69, FC_MODE_FREE, free_units(100.0), 1.0f, FC_MOD_SINE, 0, 0, 0);
+  CHECK(amp_at(L, SR, 540, SR) / amp_at(L, SR, 440, SR) < 1e-3);
+}
+
+static void test_am(void) {
+  /* Index 100 %: ring modulation, no carrier; 50 %: carrier 0.5, sidebands 0.25 */
+  play_mod(69, FC_MODE_FREE, free_units(100.0), 1.0f, FC_MOD_SINE, 0, 1, 0);
+  const double c0 = amp_at(L, SR, 440, SR), lo = amp_at(L, SR, 340, SR), hi = amp_at(L, SR, 540, SR);
+  printf("ring: carrier %.1f dB below the sidebands\n", db(lo / (c0 + 1e-12)));
+  CHECK(c0 < lo * 0.01 && fabs(db(lo / hi)) < 0.2);
+  CHECK(fabs(lo - FC_GAIN * 0.5) < 0.005);
+  play_mod(69, FC_MODE_FREE, free_units(100.0), 0.5f, FC_MOD_SINE, 0, 1, 0);
+  CHECK(fabs(amp_at(L, SR, 440, SR) - FC_GAIN * 0.5) < 0.005);
+  CHECK(fabs(amp_at(L, SR, 540, SR) - FC_GAIN * 0.25) < 0.005);
+  /* Keytrack +12: the Mod OSC an octave up, ring sidebands at 3 x 440 and 440 */
+  play_mod(69, FC_MODE_KEY, 62.5f, 1.0f, FC_MOD_SINE, 0, 1, 0);
+  CHECK(amp_at(L, SR, 1320, SR) > FC_GAIN * 0.45 && amp_at(L, SR, 440, SR) > FC_GAIN * 0.45);
+  /* Ratio 3/2 */
+  int r = 0;
+  while (fc_ratios[r] != 1.5f) r++;
+  play_mod(69, FC_MODE_RATIO, (float)r * FC_FREQ_MAX / (FC_NRATIOS - 1), 1.0f, FC_MOD_SINE, 0, 1, 0);
+  CHECK(amp_at(L, SR, 1100, SR) > FC_GAIN * 0.45 && amp_at(L, SR, 220, SR) > FC_GAIN * 0.45);
+}
+
+static void test_sync(void) {
+  /* Ratio 1/2 and Sync: the Principal restarts every second cycle, so the sound has 220 Hz in it */
+  int r = 0;
+  while (fc_ratios[r] != 0.5f) r++;
+  const float u = (float)r * FC_FREQ_MAX / (FC_NRATIOS - 1);
+  play_mod(69, FC_MODE_RATIO, u, 0.0f, FC_MOD_SINE, 0, 0, 0);
+  const double off = amp_at(L, SR, 220, SR);
+  /* ratio 1/2 restarts the sine at a zero crossing: nothing changes. Ratio 3/4 (330 Hz) restarts it at
+   * phase 1/3 (a step of 0.87 of the voice level) */
+  CHECK(off < 1e-4);
+  while (fc_ratios[r] != 0.75f) r++;
+  const float u34 = (float)r * FC_FREQ_MAX / (FC_NRATIOS - 1);
+  const double f34 = 440.0 * 0.75;
+  play_mod(69, FC_MODE_RATIO, u34, 0.0f, FC_MOD_SINE, 0, 0, 0);
+  const double plain = amp_at(L, SR, f34, SR);
+  play_mod(69, FC_MODE_RATIO, u34, 0.0f, FC_MOD_SINE, 0, 0, 1);
+  const double synced = amp_at(L, SR, f34, SR);
+  printf("sync 3/4: %.1f dB at the Mod frequency (%.1f without sync)\n", db(synced), db(plain));
+  CHECK(plain < 1e-4 && synced > FC_GAIN * 0.1);
+  CHECK(peak(L, 0, SR) <= FC_GAIN * 1.1f && all_finite(L, SR));
+  /* the restarts are band-limited: the step (0.22) is spread over two samples, so the second difference
+   * stays below 0.2 (0.15; without the correction 0.24) */
+  const float curve = max_curve(L, 0, SR);
+  printf("sync 3/4: max second difference %.4f\n", curve);
+  CHECK(curve < 0.2f);
+}
+
+static void test_mod_smooth(void) {
+  /* Index from 0 to 100 % at once, AM ring: the gain glides over FC_SMOOTH_MS, no click */
+  reset(SR);
+  FcParams p;
+  fc_default_params(&p);
+  p.attack_ms = 1; p.sustain = 1.0f;
+  p.mod_mode = FC_MODE_FREE; p.mod_freq = free_units(3.0); p.route_fm = 0; p.route_am = 1;
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 57, 127);
+  render(&core, 0, SR / 4);
+  p.mod_index = 1.0f;
+  fc_set_params(&core, &p);
+  render(&core, SR / 4, SR / 4);
+  p.route_am = 0;                                       /* switched off while sounding */
+  fc_set_params(&core, &p);
+  render(&core, SR / 2, SR / 4);
+  const float steady = max_curve(L, SR / 10, SR / 4);
+  const float jumps = max_curve(L, SR / 4 - 10, 3 * SR / 4);
+  printf("Index jump and AM off: max second difference %.5f (steady %.5f)\n", jumps, steady);
+  CHECK(jumps < steady * 1.5f + 1e-4f);
+
+  /* Free mode keeps the Mod phase across notes; Ratio restarts it */
+  reset(SR);
+  p.mod_mode = FC_MODE_FREE;
+  fc_set_params(&core, &p);
+  CHECK(fc_mod_phase(&core) == -1.0f);
+  fc_note_on(&core, 60, 127);
+  render(&core, 0, SR / 7);
+  const float ph = fc_mod_phase(&core);
+  CHECK(ph > 0.0f && ph < 1.0f);
+  fc_all_sound_off(&core);
+  render(&core, 0, SR / 100);
+  fc_note_on(&core, 60, 127);
+  CHECK(fabsf(core.v[0].mphase - ph) < 0.01f);
+  p.mod_mode = FC_MODE_RATIO;
+  fc_set_params(&core, &p);
+  fc_all_sound_off(&core);
+  render(&core, 0, SR / 100);
+  fc_note_on(&core, 60, 127);
+  CHECK(core.v[0].mphase == 0.0f);
+}
+
+static void test_mod_extremes(void) {
+  /* everything on, every shape, highest notes and Mod frequency: bounded, no NaN */
+  for (int shape = 0; shape < FC_NMOD_SHAPES; shape++)
+    {
+      reset(SR);
+      FcParams p;
+      fc_default_params(&p);
+      p.pitch = 24; p.mod_mode = FC_MODE_FREE; p.mod_freq = 100; p.mod_index = 1; p.mod_shape = shape;
+      p.route_fm = p.route_am = p.route_sync = 1;
+      fc_set_params(&core, &p);
+      for (int i = 0; i < 4; i++) fc_note_on(&core, 100 + 9 * i, 127);
+      render(&core, 0, SR / 2);
+      CHECK(all_finite(L, SR / 2));
+      CHECK(peak(L, 0, SR / 2) <= 4 * FC_GAIN * 1.2f);
+    }
+}
+
 int main(void) {
   test_pitch();
   test_release();
@@ -298,6 +468,12 @@ int main(void) {
   test_pedal();
   test_all_off();
   test_extremes();
+  test_mod_knob();
+  test_fm();
+  test_am();
+  test_sync();
+  test_mod_smooth();
+  test_mod_extremes();
   printf(fails ? "test_core: %d FAILED\n" : "test_core: all passed\n", fails);
   return fails ? 1 : 0;
 }

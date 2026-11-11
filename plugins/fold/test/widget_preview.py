@@ -1,8 +1,9 @@
 #!/usr/bin/python3
 # Runs the Eka Fold widget outside Zynthian with stub modules (same approach as Eka Mist).
 #   python3 test/widget_preview.py          scripted tests (PASS/FAIL) and the time of a refresh
-#   python3 test/widget_preview.py --show   open a window: fake voices play chords, the meter moves
+#   python3 test/widget_preview.py --show   open a window: fake voices play chords, the meter and the Mod phase move
 import importlib.util
+import math
 import os
 import sys
 import time
@@ -74,9 +75,10 @@ class Engine:
     def __init__(self):
         self.notes = []
         self.peak = -100.0
+        self.mod_phase = -1.0
 
     def get_monitors_dict(self):
-        m = {"out_peak": float(self.peak)}
+        m = {"out_peak": float(self.peak), "mod_phase": float(self.mod_phase)}
         for i in range(4):
             m["note%d" % (i + 1)] = float(self.notes[i]) if i < len(self.notes) else -1.0
         return m
@@ -87,7 +89,9 @@ class Processor:
         self.engine = Engine()
         self.id = 1
         self.controllers_dict = {s: NumCtrl(s, v) for s, v in (("pitch", 0), ("fine", 0.0), ("attack", 5.0),
-                                 ("decay", 300.0), ("sustain", 70.0), ("release", 400.0))}
+                                 ("decay", 300.0), ("sustain", 70.0), ("release", 400.0),
+                                 ("mod_freq", 30.0), ("mod_index", 0.0), ("mod_shape", 1), ("mod_mode", 2),
+                                 ("route_fm", 1), ("route_am", 0), ("route_sync", 0))}
 
 
 class Control:
@@ -104,7 +108,7 @@ class Control:
 
     def add_pages(self, proc):
         self.list_data = [(None, None, "> Eka Fold", proc)]
-        for j, (g, t) in enumerate((("g_osc", "Osc"), ("g_env", "Env"))):
+        for j, (g, t) in enumerate((("g_osc", "Osc"), ("g_mod", "Mod"), ("g_env", "Env"))):
             self.list_data.append((g, j + 1, t, proc, j))
 
     def select(self, index=None, set_zctrl=True):
@@ -160,6 +164,8 @@ def main():
                 state["i"] = (state["i"] + 1) % len(chords)
                 proc.engine.notes = chords[state["i"]]
             proc.engine.peak = -100.0 if not proc.engine.notes else -4.0 - 20.0 * ((now - state["t"]) / 1.2)
+            proc.engine.mod_phase = (now * mod.free_hz(proc.controllers_dict["mod_freq"].value)) % 1.0 \
+                if proc.engine.notes else -1.0
             wdg.update()
             root.after(32, tick)        # like Zynthian
         root.after(32, tick)
@@ -177,7 +183,7 @@ def main():
         return [c.itemcget(i, "text") for i in c.find_withtag(tag) if c.type(i) == "text"]
 
     # tabs, title, tiles, waveform
-    check("tab Osc drawn", texts("tabs") == ["Osc"])
+    check("tabs Osc and Mod drawn", texts("tabs") == ["Osc", "Mod"])
     check("page title drawn", texts("title") == ["Osc"])
     check("Source tile Sine", texts("tiles") == ["Sine"])
     lines = [i for i in c.find_withtag("wave") if c.type(i) == "line" and len(c.coords(i)) > 8]
@@ -224,7 +230,7 @@ def main():
     ctl.selected = []
     wdg._on_press(Tap(10, 5))
     check("tap on Osc selects the Osc page", ctl.selected == [1])
-    ctl.select(2)
+    ctl.select(3)
     wdg.update()
     check("Env page: tab stays Osc, title Env", wdg.tab == 0 and texts("title") == ["Env"])
     ctl.select(1)
@@ -232,6 +238,126 @@ def main():
     check("back on Osc", texts("title") == ["Osc"])
     wdg._on_press(Tap(100, 100))                     # a tap below the tabs does nothing yet
     check("tap on the waveform: no error", True)
+
+    # ---------- Mod tab ----------
+    # the widget's Mod Freq formulas and ratios are those of fold_core
+    import re
+    core_c = open(os.path.join(ROOT, "src", "fold_core.c")).read()
+    core_h = open(os.path.join(ROOT, "src", "fold_core.h")).read()
+    body = core_c[core_c.index("fc_ratios[FC_NRATIOS] = {") + 25:]
+    body = body[:body.index("}")]
+    c_ratios = [eval(t.replace("f", "")) for t in body.replace("\n", " ").split(",")]
+    check("ratios as in fold_core.c", [p / q for p, q in mod.RATIOS] == c_ratios)
+
+    def hdr(name):
+        return float(re.search(r"#define %s ([0-9.]+)f" % name, core_h).group(1))
+    check("Mod Freq ranges and FM depth as in fold_core.h",
+          (mod.FREQ_MAX, mod.FREE_MIN, mod.FREE_MAX, mod.KEY_RANGE, mod.FM_DEPTH) ==
+          (hdr("FC_FREQ_MAX"), hdr("FC_FREE_MIN"), hdr("FC_FREE_MAX"), hdr("FC_KEY_RANGE"), hdr("FC_FM_DEPTH")))
+    check("Mod Freq meaning per mode", (mod.freq_text(0, 30), mod.freq_text(1, 62.5), mod.freq_text(2, 30),
+                                        mod.freq_text(2, 40), mod.freq_text(0, 100)) ==
+          ("Free 0.63 Hz", "Keytrack +12.0 st", "Ratio ×1", "Ratio ×3/2", "Free 10.00 kHz"))
+    plain = mod.result_values(1.0, 1, 0.0, 1, 0, 0, 40, 2.0)
+    check("result: Index 0 is a plain sine",
+          max(abs(y - math.sin(2 * math.pi * 2.0 * i / 40)) for i, y in enumerate(plain)) < 1e-9)
+    ring = mod.result_values(1.0, 1, 1.0, 0, 1, 0, 80, 2.0)
+    check("result: ring at ratio 1 never below zero", min(ring) > -1e-6)
+    synced = mod.result_values(0.75, 1, 0.0, 0, 0, 1, 400, 4.0)
+    unsynced = mod.result_values(0.75, 1, 0.0, 0, 0, 0, 400, 4.0)
+    # ratio 3/4: the Mod OSC begins a cycle after 4/3 Principal periods (value 300 of 400), the sine restarts there
+    check("result: sync restarts the Principal at the Mod cycle",
+          max(abs(a - b) for a, b in zip(synced[:133], unsynced[:133])) < 1e-9 and abs(synced[136]) < 0.25 and
+          abs(unsynced[136]) > 0.7)
+
+    ctl.selected = []
+    tx = (wdg.tab_boxes[1][0] + wdg.tab_boxes[1][1]) / 2
+    wdg._on_press(Tap(tx, 5))
+    wdg.update()
+    check("tap on Mod: Mod tab and its page", wdg.tab == 1 and ctl.selected == [2] and texts("title") == ["Mod"])
+    ctl.select(1)
+    wdg.update()
+    check("Osc page shows the Osc tab", wdg.tab == 0)
+    ctl.select(2)
+    wdg.update()
+    check("Mod page shows the Mod tab", wdg.tab == 1)
+
+    def routes():
+        out = {}
+        for x0, y0, x1, y1, sym in wdg.route_boxes:
+            rect = c.find_enclosed(x0 - 1, y0 - 1, x1 + 1, y1 + 1)
+            fills = [c.itemcget(i, "fill") for i in rect if c.type(i) == "rectangle"]
+            out[sym] = bool(fills and fills[0])
+        return out
+    mtexts = texts("mod")
+    check("Mod tab: blocks, arrows, Index, meaning", "Mod OSC" in mtexts and "Principal" in mtexts and
+          "FM →" in mtexts and "AM →" in mtexts and "Sync →" in mtexts and "0%" in mtexts and
+          "Ratio ×1 · Sine" in mtexts)
+    check("FM lit by default, AM and Sync not", routes() == {"route_fm": True, "route_am": False, "route_sync": False})
+
+    def tap_route(sym):
+        for x0, y0, x1, y1, s in wdg.route_boxes:
+            if s == sym:
+                wdg._on_press(Tap((x0 + x1) / 2, (y0 + y1) / 2))
+    tap_route("route_am")
+    check("tap on AM switches it on", proc.controllers_dict["route_am"].value == 1 and routes()["route_am"])
+    tap_route("route_am")
+    check("a second tap switches it off", proc.controllers_dict["route_am"].value == 0 and not routes()["route_am"])
+    tap_route("route_sync")
+    check("Sync on", proc.controllers_dict["route_sync"].value == 1 and routes()["route_sync"])
+    tap_route("route_sync")
+
+    def result_curve():
+        x0, y0, x1, y1 = wdg._curve_box(wdg._mod_layout()[2])
+        lines = [i for i in c.find_withtag("mod") if c.type(i) == "line" and len(c.coords(i)) > 8
+                 and c.coords(i)[0] >= x0 - 1]
+        return c.coords(lines[0]) if lines else []
+    before = result_curve()
+    proc.controllers_dict["mod_index"].value = 45.0
+    time.sleep(mod.CURVE_PERIOD)
+    wdg.update()
+    check("Index shown large", "45%" in texts("mod"))
+    check("FM at 45 % changes the Principal curve", result_curve() != before and result_curve() != [])
+    # curves follow the knobs at most every CURVE_PERIOD
+    proc.controllers_dict["mod_index"].value = 80.0
+    wdg.update()
+    check("a second change at once waits", "45%" in texts("mod"))
+    time.sleep(mod.CURVE_PERIOD)
+    wdg.update()
+    check("then it is drawn", "80%" in texts("mod"))
+    ids = c.find_withtag("mod")
+    for _ in range(5):
+        wdg.update()
+    check("Mod tab: no redraw without changes", c.find_withtag("mod") == ids)
+
+    # the phase mark: only in Free mode at LFO rates; moved, not recreated
+    proc.engine.mod_phase = 0.25
+    wdg.update()
+    check("no phase mark in Ratio mode", not c.find_withtag("modmark"))
+    proc.controllers_dict["mod_mode"].value = 0
+    proc.controllers_dict["mod_freq"].value = 50.0           # 10 Hz: too fast for a mark
+    time.sleep(mod.CURVE_PERIOD)
+    wdg.update()
+    check("Free 10 Hz: no mark", not c.find_withtag("modmark") and "Free 10.0 Hz · Sine" in texts("mod"))
+    check("Free mode: the result is drawn for C4", "Principal at C4" in texts("mod"))
+    proc.controllers_dict["mod_freq"].value = 33.3333        # 1 Hz
+    time.sleep(mod.CURVE_PERIOD)
+    wdg.update()
+    marks = c.find_withtag("modmark")
+    x0, y0, x1, y1 = wdg._curve_box(wdg._mod_layout()[0])
+    check("Free 1 Hz: the mark at the phase", len(marks) == 1 and
+          abs((c.coords(marks[0])[0] + c.coords(marks[0])[2]) / 2 - (x0 + 0.25 * (x1 - x0))) <= 1.0)
+    proc.engine.mod_phase = 0.6
+    wdg.update()
+    check("the mark moves (same item)", c.find_withtag("modmark") == marks and
+          abs((c.coords(marks[0])[0] + c.coords(marks[0])[2]) / 2 - (x0 + 0.6 * (x1 - x0))) <= 1.0)
+    proc.engine.mod_phase = -1.0
+    wdg.update()
+    check("no voice: no mark", not c.find_withtag("modmark"))
+    proc.controllers_dict["mod_mode"].value = 2
+    proc.controllers_dict["mod_freq"].value = 30.0
+    proc.controllers_dict["mod_index"].value = 0.0
+    ctl.select(1)
+    wdg.update()
 
     # throttle: two updates in a row, only one reaches refresh_gui
     mod.UPDATE_PERIOD = throttle
@@ -251,6 +377,10 @@ def main():
         tiles, wave, meter_box, notes_y = wdg._osc_layout()
         ok = tiles[3] < wave[1] and wave[3] < notes_y and wave[2] < meter_box[0] and meter_box[2] <= wdg.width
         check("layout %s: tiles, wave, meter, notes do not overlap" % geo, ok)
+        left, mid, right, bottom_y = wdg._mod_layout()
+        ok = left[2] < mid[0] and mid[2] < right[0] and right[2] <= wdg.width and \
+            max(left[3], mid[3], right[3]) < bottom_y - wdg._font_size() and left[1] >= wdg._header_h()
+        check("layout %s: Mod blocks and bottom line do not overlap" % geo, ok)
 
     # time of a refresh with live data changing every time (the case of 4 voices playing)
     chords = [[60, 64, 67, 72], [62, 65, 69], [48], []]
@@ -274,6 +404,26 @@ def main():
     full = (time.perf_counter() - t0) / 50 * 1000
     print("refresh on this PC: %.3f ms with live data changing, %.3f ms without changes, %.3f ms full redraw"
           % (live, idle, full))
+    # the Mod tab with a moving phase mark, and its full redraw (the result curve is computed in Python)
+    ctl.select(2)
+    proc.controllers_dict["mod_mode"].value = 0
+    proc.controllers_dict["mod_freq"].value = 33.3333
+    proc.controllers_dict["mod_index"].value = 60.0
+    proc.controllers_dict["route_am"].value = 1
+    wdg.update()
+    t0 = time.perf_counter()
+    for i in range(200):
+        proc.engine.mod_phase = (i % 50) / 50.0
+        wdg.update()
+        root.update_idletasks()
+    mark = (time.perf_counter() - t0) / 200 * 1000
+    t0 = time.perf_counter()
+    for i in range(50):
+        wdg._clear()
+        wdg.refresh_gui()
+        root.update_idletasks()
+    full = (time.perf_counter() - t0) / 50 * 1000
+    print("Mod tab on this PC: %.3f ms with the phase mark moving, %.3f ms full redraw" % (mark, full))
 
     root.destroy()
     print("All widget tests passed" if not fails else "%d FAILED" % fails)
