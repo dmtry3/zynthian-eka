@@ -1,4 +1,6 @@
 // Тесты LV2-обёртки без хоста: ручки страницы 5 с захватом (catch), смена сетки, сессии в пресетах.
+#include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <initializer_list>
 #include <thread>
@@ -128,23 +130,28 @@ struct Host {
   void blocks(int n, float amp = 0.0f) {
     for (int i = 0; i < n; ++i) block(amp);
   }
-  // save() в своём потоке (как jalv), здесь крутится аудио
-  void save_state(std::vector<KV>& st) {
+  // save() возвращается сразу (как ждёт Zynthian: не дольше 2 с); звук пишет фоновый поток,
+  // здесь крутится аудио, пока он не закончит
+  void save_now(std::vector<KV>& st, bool with_paths = true) {
     g_state.clear();
     LV2_State_Make_Path mk{nullptr, mk_path};
     LV2_State_Map_Path mp{nullptr, abs_to_abstract, abstract_to_abs};
     LV2_State_Free_Path fp{nullptr, fr_path};
     LV2_Feature f1{LV2_STATE__makePath, &mk}, f2{LV2_STATE__mapPath, &mp}, f3{LV2_STATE__freePath, &fp};
     const LV2_Feature* fs[] = {&f1, &f2, &f3, nullptr};
-    std::atomic<bool> done{false};
-    std::thread th([&] {
-      save(pl, st_store, nullptr, 0, fs);
-      done = true;
-    });
-    while (!done) block();
-    th.join();
+    const auto t0 = std::chrono::steady_clock::now();
+    save(pl, st_store, nullptr, 0, with_paths ? fs : nullptr);
+    save_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     st = g_state;
   }
+  void finish_save() {
+    for (int i = 0; i < 200000 && !saver_idle(pl); ++i) block();
+  }
+  void save_state(std::vector<KV>& st) {
+    save_now(st);
+    finish_save();
+  }
+  double save_ms = 0;
   void restore_state(std::vector<KV>& st) {
     LV2_State_Map_Path mp{nullptr, abs_to_abstract, abstract_to_abs};
     LV2_State_Free_Path fp{nullptr, fr_path};
@@ -204,22 +211,17 @@ static void test_sessions() {
 
   // пресет без makePath (другой хост) — только настройки
   {
-    g_state.clear();
-    std::atomic<bool> done{false};
-    std::thread th([&] {
-      save(a.pl, st_store, nullptr, 0, nullptr);
-      done = true;
-    });
-    while (!done) a.block();
-    th.join();
-    CHECK(!st_find(g_state, a.pl->u.sess_text) && st_find(g_state, a.pl->u.param[PR_LEV0]));
+    std::vector<KV> st0;
+    a.save_now(st0, false);
+    CHECK(!st_find(st0, a.pl->u.sess_id) && st_find(st0, a.pl->u.param[PR_LEV0]) && saver_idle(a.pl));
   }
 
   std::vector<KV> st;
   a.save_state(st);
-  const KV* tx = st_find(st, a.pl->u.sess_text);
+  const KV* iv = st_find(st, a.pl->u.sess_id);
   const KV* dv = st_find(st, a.pl->u.sess_dir);
-  CHECK(tx && dv && st_find(st, a.pl->u.param[PR_LEV0]));
+  CHECK(iv && dv && st_find(st, a.pl->u.param[PR_LEV0]) && !st_find(st, a.pl->u.sess_text));
+  CHECK(a.save_ms < 500);
   CHECK(a.pl->looper->session_status() == SS_SAVED);
   std::string folder = dv ? std::string(dv->data.data()) : "";
   CHECK(is_session_folder(folder.c_str()));  // путь — относительно папки пресетов
@@ -229,6 +231,8 @@ static void test_sessions() {
   CHECK(info.find("Eka Tape session") != std::string::npos && info.find("part1 track1.wav") != std::string::npos);
   CHECK(info.find("Preset: (not known yet)") != std::string::npos);
   CHECK(a.pl->looper->session_id() != 0);
+  CHECK(exists(dir + "/session.txt") && !exists(dir + "/session.txt.tmp"));
+  CHECK(iv && a.pl->looper->session_id() == *(const uint64_t*)iv->data.data());
 
   // Zynthian сразу загружает сохранённое: та же сессия — не перегружается
   const int32_t sum = a.pl->looper->track_sum(0);
@@ -253,7 +257,7 @@ static void test_sessions() {
   {
     std::vector<KV> only;
     for (auto& kv : st)
-      if (kv.key != a.pl->u.sess_text && kv.key != a.pl->u.sess_dir) only.push_back(kv);
+      if (kv.key != a.pl->u.sess_id && kv.key != a.pl->u.sess_dir) only.push_back(kv);
     for (auto& kv : only)
       if (kv.key == a.pl->u.param[PR_LEV0]) {
         const float v = -3.0f;
@@ -311,13 +315,90 @@ static void test_sessions() {
     unlink((g_bundle + "/Keep.ttl").c_str());
   }
 
+  // Save во время овердаба (проверка 7а, п. 2): save() не ждёт, педаль Rec работает и закрывает
+  // овердаб, Zynthian сразу загружает сохранённый пресет — пока звук пишется, ничего не меняется
+  {
+    do_action(a.pl, A_REC);  // овердаб на дорожке 1
+    a.blocks(200, 0.3f);
+    CHECK(a.pl->looper->view(0).state == 4);
+    std::vector<KV> sd;
+    a.save_now(sd);
+    CHECK(a.save_ms < 500 && st_find(sd, a.pl->u.sess_id));
+    a.blocks(20, 0.3f);
+    CHECK(a.pl->looper->session_status() == SS_WAIT && !saver_idle(a.pl));
+    const int32_t s0 = a.pl->looper->track_sum(0);
+    a.restore_state(sd);  // автозагрузка Zynthian
+    a.blocks(20, 0.3f);
+    CHECK(a.pl->looper->session_status() == SS_WAIT && a.pl->looper->track_sum(0) == s0);
+    do_action(a.pl, A_REC);  // педаль: закрыть овердаб
+    a.blocks(3 * 96000 / 128);
+    a.finish_save();
+    CHECK(a.pl->looper->view(0).state == 3);
+    CHECK(a.pl->looper->session_status() == SS_SAVED);
+    const KV* dvd = st_find(sd, a.pl->u.sess_dir);
+    const std::string dd = dvd ? g_bundle + "/" + dvd->data.data() : "";
+    CHECK(exists(dd + "/session.txt") && exists(dd + "/part1 track1.wav"));
+    // снова загрузить (снапшот): та же сессия, звук не менялся — не перегружается
+    const int32_t s1 = a.pl->looper->track_sum(0);
+    a.restore_state(sd);
+    a.blocks(40);
+    CHECK(a.pl->looper->track_sum(0) == s1);
+    // в другой экземпляр — со звуком из овердаба
+    Host c;
+    c.blocks(4);
+    c.restore_state(sd);
+    for (int i = 0; i < 2000 && c.pl->looper->session_status() != SS_LOADED; ++i) c.block();
+    CHECK(c.pl->looper->session_status() == SS_LOADED && c.pl->looper->track_len(0) == 96000);
+    // описание не дописано (выключили во время записи): SESSION FILES MISSING, лупы целы
+    unlink((dd + "/session.txt").c_str());
+    c.restore_state(sd);
+    c.blocks(4);
+    CHECK(c.pl->looper->session_status() == SS_E_MISSING && c.pl->looper->track_len(0) == 96000);
+  }
+
+  // пресет первой версии 7а (описание в самом пресете) по-прежнему загружается
+  {
+    std::vector<KV> old = st;
+    const KV* dvo = st_find(st, a.pl->u.sess_dir);
+    const std::string od = dvo ? g_bundle + "/" + dvo->data.data() : "";
+    const std::string text = slurp(od + "/session.txt");
+    old.erase(std::remove_if(old.begin(), old.end(), [&](const KV& kv) { return kv.key == a.pl->u.sess_id; }),
+              old.end());
+    old.push_back(KV{a.pl->u.sess_text, a.pl->u.atom_String, std::vector<char>(text.c_str(), text.c_str() + text.size() + 1)});
+    Host o;
+    o.blocks(4);
+    o.restore_state(old);
+    for (int i = 0; i < 2000 && o.pl->looper->session_status() != SS_LOADED; ++i) o.block();
+    CHECK(!text.empty() && o.pl->looper->session_status() == SS_LOADED && o.pl->looper->track_len(0) == 96000);
+  }
+
+  // плагин удаляют, пока Save ждёт закрытия овердаба: задание отменяется, папка убирается
+  {
+    Host w;
+    set_param(w.pl, PR_LEN1, 1);
+    on_param(w.pl, PR_LEN1);
+    w.blocks(4);
+    do_action(w.pl, A_REC);
+    w.blocks(3 * 96000 / 128, 0.4f);
+    do_action(w.pl, A_REC);
+    w.blocks(100, 0.3f);
+    std::vector<KV> sw;
+    w.save_now(sw);
+    w.blocks(10, 0.3f);
+    const KV* dvw = st_find(sw, w.pl->u.sess_dir);
+    const std::string wd = dvw ? g_bundle + "/" + dvw->data.data() : "";
+    CHECK(!wd.empty() && exists(wd));
+    stop_saver(w.pl);  // как cleanup(), но run() здесь больше не крутится
+    CHECK(!exists(wd));
+  }
+
   // пустой лупер: пресет без звука (при загрузке лупы не трогает)
   {
     Host e;
     e.blocks(4);
     std::vector<KV> st3;
     e.save_state(st3);
-    CHECK(!st_find(st3, e.pl->u.sess_text) && st_find(st3, e.pl->u.param[PR_GRID]));
+    CHECK(!st_find(st3, e.pl->u.sess_id) && st_find(st3, e.pl->u.param[PR_GRID]));
   }
 }
 

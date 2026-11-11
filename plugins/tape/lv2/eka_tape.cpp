@@ -8,8 +8,10 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <condition_variable>
 #include <cstring>
 #include <ctime>
+#include <deque>
 #include <mutex>
 #include <new>
 #include <string>
@@ -191,7 +193,7 @@ struct Uris {
   LV2_URID midi_Event;
   LV2_URID time_Position, time_bar, time_barBeat, time_bpm, time_bpb, time_speed, time_frame;
   LV2_URID patch_Set, patch_Get, patch_property, patch_value;
-  LV2_URID atom_String, atom_Path, sess_text, sess_dir;
+  LV2_URID atom_String, atom_Path, sess_text, sess_dir, sess_id;
   LV2_URID param[PR_COUNT];
 };
 
@@ -203,6 +205,22 @@ struct PendingParams {
   std::atomic<float> val[PR_COUNT];
   std::atomic<bool> has[PR_COUNT];
   uint32_t applied = 0;           // RT: последний применённый seq
+};
+
+// Сохранение сессии в фоне (своим потоком): Zynthian ждёт ответа save() не дольше 2 с, а педали
+// и кнопки доходят до плагина через тот же поток jalv, что вызывает save(). Поэтому save() только
+// создаёт папку и ставит задание, а ждать закрытия записи и писать WAV — здесь.
+struct SaveJob {
+  std::string dir, bundle, name;  // папка сессии, папка пресетов, имя папки
+  uint64_t id = 0;
+};
+struct Saver {
+  std::mutex mx;
+  std::condition_variable cv;
+  std::deque<SaveJob> q;
+  uint64_t cur = 0;               // id задания, которое сейчас пишется (0 — никакого)
+  std::atomic<bool> stop{false};
+  std::thread th;
 };
 
 struct Plugin {
@@ -226,6 +244,7 @@ struct Plugin {
   bool dirty[PR_COUNT] = {};  // ядро изменило значение само: сообщить хосту
   int report_next = -1;  // следующий параметр для ответа на patch:Get, -1 = нечего
   PendingParams pend;
+  Saver saver;
   // ручки страницы 5 (Level, Pan, Master) с захватом (catch): ведут значение,
   // только когда прошли через его текущую величину
   struct Catch {
@@ -571,6 +590,9 @@ void report_params(Plugin* pl) {
 }
 
 // Плагин с пулом pool_mb (instantiate — 2 ГБ по ТЗ; тесты — меньше).
+void save_worker(Plugin* pl);  // поток сохранения сессий (раздел state ниже)
+void stop_saver(Plugin* pl);
+
 Plugin* create_plugin(double rate, LV2_URID_Map* map, LV2_Worker_Schedule* schedule, int pool_mb) {
   Plugin* pl = new (std::nothrow) Plugin();
   if (!pl) return nullptr;
@@ -608,6 +630,7 @@ Plugin* create_plugin(double rate, LV2_URID_Map* map, LV2_Worker_Schedule* sched
   u.atom_Path = M(LV2_ATOM__Path);
   u.sess_text = M(AL_URI "#session");
   u.sess_dir = M(AL_URI "#session_dir");
+  u.sess_id = M(AL_URI "#session_id");
   init_params();
   for (int i = 0; i < PR_COUNT; ++i) {
     char uri[96];
@@ -640,6 +663,7 @@ Plugin* create_plugin(double rate, LV2_URID_Map* map, LV2_Worker_Schedule* sched
   pl->clock.set_sample_rate(rate);
   pl->midi_clock.set_sample_rate(rate);
   pl->apply_settings();  // пороги жестов и долей в такте — с известной частотой
+  pl->saver.th = std::thread(save_worker, pl);
   return pl;
 }
 
@@ -779,6 +803,7 @@ void run(LV2_Handle h, uint32_t n) {
 
 void cleanup(LV2_Handle h) {
   Plugin* pl = static_cast<Plugin*>(h);
+  stop_saver(pl);
   if (pl->peaks) {
     munmap(pl->peaks, sizeof(PeakShm));
     unlink(pl->peaks_path);
@@ -811,9 +836,11 @@ LV2_Worker_Status work_response(LV2_Handle h, uint32_t size, const void* data) {
 // makePath ведёт в папку пресетов плагина (одна на все пресеты); restore() с threadSafeRestore — тоже
 // в своём потоке, одновременно с run(). Снапшот хранит ссылку на пресет, save() не вызывает.
 
-constexpr int kSaveWaitMs = 120000;   // Save ждёт закрытия записи и овердаба не дольше 2 минут
+constexpr int kSaveWaitMs = 120000;   // фоновое сохранение ждёт закрытия записи и овердаба не дольше 2 минут
 constexpr int kOrphanAgeS = 600;      // папку без пресета удаляем, только если ей больше 10 минут
 constexpr char kSessPrefix[] = "tape_";
+constexpr char kSessFile[] = "session.txt";      // описание сессии; появляется последним — сессия записана целиком
+constexpr char kSessTmp[] = "session.txt.tmp";
 
 const void* find_feature(const LV2_Feature* const* fs, const char* uri) {
   for (int i = 0; fs && fs[i]; ++i)
@@ -899,7 +926,7 @@ bool is_session_folder(const char* n) {
   return !std::strncmp(n, kSessPrefix, sizeof kSessPrefix - 1) && std::strlen(n) >= 24 && !std::strchr(n, '/');
 }
 
-// Удалить только то, что пишем мы: part* track*.wav и info.txt; папку — если после этого пустая.
+// Удалить только то, что пишем мы: part* track*.wav, session.txt и info.txt; папку — если после этого пустая.
 void remove_session_folder(const std::string& dir) {
   DIR* d = opendir(dir.c_str());
   if (!d) return;
@@ -907,7 +934,7 @@ void remove_session_folder(const std::string& dir) {
   while (dirent* e = readdir(d)) {
     const char* n = e->d_name;
     const size_t len = std::strlen(n);
-    const bool ours = !std::strcmp(n, "info.txt") ||
+    const bool ours = !std::strcmp(n, "info.txt") || !std::strcmp(n, kSessFile) || !std::strcmp(n, kSessTmp) ||
                       (!std::strncmp(n, "part", 4) && len > 4 && !std::strcmp(n + len - 4, ".wav"));
     if (ours) files.push_back(n);
   }
@@ -966,29 +993,108 @@ void store_params(Plugin* pl, LV2_State_Store_Function store, LV2_State_Handle s
   }
 }
 
-// Звук лупера — в папку рядом с пресетом, описание — в пресет. Без makePath (другой хост) или без
-// лупов — только настройки: такой пресет при загрузке лупы не трогает.
+// Записать файл целиком через временный (с fsync): при сбое прежнего содержимого не будет видно наполовину.
+bool write_file_atomic(const std::string& dir, const char* name, const char* tmp, const std::string& text) {
+  const std::string tp = dir + "/" + tmp;
+  FILE* f = std::fopen(tp.c_str(), "wb");
+  if (!f) return false;
+  bool ok = std::fwrite(text.data(), 1, text.size(), f) == text.size();
+  ok = std::fflush(f) == 0 && ok;
+  ok = fsync(fileno(f)) == 0 && ok;
+  ok = std::fclose(f) == 0 && ok;
+  if (!ok || std::rename(tp.c_str(), (dir + "/" + name).c_str()) != 0) {
+    unlink(tp.c_str());
+    return false;
+  }
+  return true;
+}
+
+// Одно задание: дождаться, пока закроются запись и овердаб (педали работают: поток jalv свободен),
+// заморозить звук, записать WAV, затем session.txt и info.txt. Не вышло — свои файлы из папки убрать.
+void run_save_job(Plugin* pl, const SaveJob& job) {
+  Looper* lp = pl->looper;
+  lp->session_set_status(SS_WAIT);
+  lp->session_request_freeze();
+  for (int ms = 0; !lp->session_frozen() && ms < kSaveWaitMs && !pl->saver.stop.load(); ms += 5)
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  if (!lp->session_frozen()) {
+    lp->session_unfreeze(false, 0);
+    if (!pl->saver.stop.load()) lp->session_set_status(SS_E_TIMEOUT);
+    remove_session_folder(job.dir);
+    return;
+  }
+  SessionDesc d;
+  int st = lp->session_save_audio(job.dir.c_str(), d);
+  d.id = job.id;  // id известен с save(): по нему restore() узнаёт свою сессию
+  if (st == SS_SAVED && !write_file_atomic(job.dir, kSessFile, kSessTmp, session_to_text(d))) st = SS_E_WRITE;
+  lp->session_unfreeze(st == SS_SAVED, d.id);
+  if (st != SS_SAVED) {
+    lp->session_set_status(st);
+    remove_session_folder(job.dir);
+    return;
+  }
+  write_info(job.dir, d, "");
+  if (!job.bundle.empty()) cleanup_sessions(job.bundle, job.name);
+}
+
+void save_worker(Plugin* pl) {
+  Saver& sv = pl->saver;
+  for (;;) {
+    SaveJob job;
+    {
+      std::unique_lock<std::mutex> lk(sv.mx);
+      sv.cv.wait(lk, [&] { return sv.stop.load() || !sv.q.empty(); });
+      if (sv.stop.load()) break;
+      job = sv.q.front();
+      sv.q.pop_front();
+      sv.cur = job.id;
+    }
+    run_save_job(pl, job);
+    std::lock_guard<std::mutex> lk(sv.mx);
+    sv.cur = 0;
+  }
+}
+
+// Плагин удаляют: начатая запись WAV дописывается, ждущие задания отменяются.
+void stop_saver(Plugin* pl) {
+  Saver& sv = pl->saver;
+  if (!sv.th.joinable()) return;
+  {
+    std::lock_guard<std::mutex> lk(sv.mx);
+    sv.stop.store(true);
+  }
+  sv.cv.notify_all();
+  sv.th.join();
+  for (const auto& j : sv.q) remove_session_folder(j.dir);
+  sv.q.clear();
+}
+
+// Сохранение ещё не закончено (ждёт или пишется).
+bool saving_id(Plugin* pl, uint64_t id) {
+  std::lock_guard<std::mutex> lk(pl->saver.mx);
+  if (pl->saver.cur == id) return true;
+  for (const auto& j : pl->saver.q)
+    if (j.id == id) return true;
+  return false;
+}
+[[maybe_unused]] bool saver_idle(Plugin* pl) {  // для тестов
+  std::lock_guard<std::mutex> lk(pl->saver.mx);
+  return pl->saver.cur == 0 && pl->saver.q.empty();
+}
+
+// save() возвращается сразу: в пресет — id сессии и путь к её папке, звук и описание (session.txt)
+// пишет фоновый поток. Без makePath (другой хост) или без лупов — только настройки: такой пресет
+// при загрузке лупы не трогает.
 void save_session(Plugin* pl, LV2_State_Store_Function store, LV2_State_Handle sh, const LV2_Feature* const* fs) {
   const auto* mk = static_cast<const LV2_State_Make_Path*>(find_feature(fs, LV2_STATE__makePath));
   const auto* mp = static_cast<const LV2_State_Map_Path*>(find_feature(fs, LV2_STATE__mapPath));
   const auto* fp = static_cast<const LV2_State_Free_Path*>(find_feature(fs, LV2_STATE__freePath));
-  Looper* lp = pl->looper;
-  if (!mk || !mp || !lp->has_loops()) return;
+  if (!mk || !mp || !pl->looper->has_loops() || !pl->saver.th.joinable()) return;
   auto free_path = [fp](char* p) {
     if (!p) return;
     if (fp) fp->free_path(fp->handle, p);
     else std::free(p);
   };
-  // Save ждёт, пока закроются запись и овердаб (решение пользователя 2026-11-11)
-  lp->session_set_status(SS_WAIT);
-  lp->session_request_freeze();
-  for (int ms = 0; !lp->session_frozen() && ms < kSaveWaitMs; ms += 5)
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
-  if (!lp->session_frozen()) {
-    lp->session_unfreeze(false, 0);
-    lp->session_set_status(SS_E_TIMEOUT);
-    return;
-  }
   // папка: makePath даёт путь в папке пресетов; имя — по времени, своя у каждого сохранения
   std::string name;
   char* dir = nullptr;
@@ -1002,28 +1108,29 @@ void save_session(Plugin* pl, LV2_State_Store_Function store, LV2_State_Handle s
       if (!busy) break;
     }
   }
-  std::string bundle = dir ? dir : "";
-  const size_t sl = bundle.rfind('/');
-  bundle = sl == std::string::npos ? std::string() : bundle.substr(0, sl);
-  int st = SS_E_WRITE;
-  SessionDesc d;
-  if (dir) st = lp->session_save_audio(dir, d);
-  lp->session_unfreeze(st == SS_SAVED, d.id);
-  if (st != SS_SAVED) {
-    lp->session_set_status(st);
-    if (dir) remove_session_folder(dir);
-    free_path(dir);
+  if (!dir) {
+    pl->looper->session_set_status(SS_E_WRITE);
     return;
   }
-  write_info(dir, d, "");
-  const std::string text = session_to_text(d);
-  store(sh, pl->u.sess_text, text.c_str(), text.size() + 1, pl->u.atom_String, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+  SaveJob job;
+  job.dir = dir;
+  job.name = name;
+  job.id = session_new_id();
+  const size_t sl = job.dir.rfind('/');
+  job.bundle = sl == std::string::npos ? std::string() : job.dir.substr(0, sl);
+  const int64_t id = (int64_t)job.id;
+  store(sh, pl->u.sess_id, &id, sizeof id, pl->u.atom_Long, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
   char* apath = mp->abstract_path(mp->handle, dir);
   const char* sp = apath ? apath : dir;
   store(sh, pl->u.sess_dir, sp, std::strlen(sp) + 1, pl->u.atom_Path, LV2_STATE_IS_POD);
   free_path(apath);
-  if (!bundle.empty()) cleanup_sessions(bundle, name);
   free_path(dir);
+  pl->looper->session_set_status(SS_WAIT);
+  {
+    std::lock_guard<std::mutex> lk(pl->saver.mx);
+    pl->saver.q.push_back(job);
+  }
+  pl->saver.cv.notify_one();
 }
 
 LV2_State_Status save(LV2_Handle h, LV2_State_Store_Function store, LV2_State_Handle sh, uint32_t,
@@ -1058,17 +1165,8 @@ LV2_State_Status restore(LV2_Handle h, LV2_State_Retrieve_Function retrieve, LV2
   }
   size_t size = 0;
   uint32_t type = 0, flags = 0;
-  const void* txt = retrieve(sh, pl->u.sess_text, &size, &type, &flags);
-  if (!txt || type != pl->u.atom_String || size == 0) {  // только настройки: лупы не трогаем
-    post_params(pl, val, has);
-    return LV2_STATE_SUCCESS;
-  }
   Looper* lp = pl->looper;
-  SessionDesc d;
-  if (!session_from_text(static_cast<const char*>(txt), std::strlen(static_cast<const char*>(txt)), d)) {
-    lp->session_set_status(SS_E_FORMAT);
-    return LV2_STATE_SUCCESS;
-  }
+  // путь к папке сессии
   std::string dir;
   const void* dv = retrieve(sh, pl->u.sess_dir, &size, &type, &flags);
   if (dv && type == pl->u.atom_Path) {
@@ -1079,6 +1177,36 @@ LV2_State_Status restore(LV2_Handle h, LV2_State_Retrieve_Function retrieve, LV2
     if (abs) {
       if (fp) fp->free_path(fp->handle, abs);
       else std::free(abs);
+    }
+  }
+  SessionDesc d;
+  const void* txt = retrieve(sh, pl->u.sess_text, &size, &type, &flags);
+  if (txt && type == pl->u.atom_String && size > 0) {
+    // первая версия 7а: описание прямо в пресете
+    if (!session_from_text(static_cast<const char*>(txt), std::strlen(static_cast<const char*>(txt)), d)) {
+      lp->session_set_status(SS_E_FORMAT);
+      return LV2_STATE_SUCCESS;
+    }
+  } else {
+    const void* iv = retrieve(sh, pl->u.sess_id, &size, &type, &flags);
+    if (!iv || type != pl->u.atom_Long || size != sizeof(int64_t) || dir.empty()) {
+      post_params(pl, val, has);  // только настройки: лупы не трогаем
+      return LV2_STATE_SUCCESS;
+    }
+    const uint64_t id = (uint64_t)*static_cast<const int64_t*>(iv);
+    if (saving_id(pl, id)) {
+      // Zynthian загружает пресет сразу после сохранения: звук ещё пишется, и это он и есть
+      post_params(pl, val, has);
+      return LV2_STATE_SUCCESS;
+    }
+    const std::string text = read_file(dir + "/" + kSessFile, 1u << 20);
+    if (text.empty()) {
+      lp->session_set_status(SS_E_MISSING);
+      return LV2_STATE_SUCCESS;
+    }
+    if (!session_from_text(text.data(), text.size(), d) || d.id != id) {
+      lp->session_set_status(SS_E_FORMAT);
+      return LV2_STATE_SUCCESS;
     }
   }
   // та же сессия, что играет, без изменений звука — ядро само ничего не загрузит; проверка всё равно дешёвая
