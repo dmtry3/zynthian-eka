@@ -96,7 +96,7 @@ static void test_pitch(void) {
   const double f = freq(L, SR / 10, SR / 2, SR);
   printf("A4: %.3f Hz\n", f);
   CHECK(fabs(f - 440.0) < 0.2);
-  CHECK(peak(L, 0, SR / 2) <= FC_GAIN + 1e-4f);
+  CHECK(peak(L, 0, SR / 2) <= FC_GAIN * 1.01f);       /* the DC blocker overshoots a starting sine by 0.7 % */
   CHECK(fabsf(peak(L, SR / 4, SR / 2) - FC_GAIN * 0.7f) < 0.003f);       /* sustain 70 % */
   CHECK(!memcmp(L, R, sizeof(float) * SR / 2));                           /* mono for now: L = R */
 
@@ -393,7 +393,7 @@ static void test_sync(void) {
   const double synced = amp_at(L, SR, f34, SR);
   printf("sync 3/4: %.1f dB at the Mod frequency (%.1f without sync)\n", db(synced), db(plain));
   CHECK(plain < 1e-4 && synced > FC_GAIN * 0.1);
-  CHECK(peak(L, 0, SR) <= FC_GAIN * 1.1f && all_finite(L, SR));
+  CHECK(peak(L, 0, SR) <= FC_GAIN * 1.3f && all_finite(L, SR));   /* 1.18: the synced wave has DC, now removed */
   /* the restarts are band-limited: the step (0.22) is spread over two samples, so the second difference
    * stays below 0.2 (0.15; without the correction 0.24) */
   const float curve = max_curve(L, 0, SR);
@@ -460,6 +460,175 @@ static void test_mod_extremes(void) {
     }
 }
 
+/* ---------- stage 2: the Timbre section ---------- */
+
+/* One held note through the Timbre section (Mod Index 0), 1 s after 0.25 s of settling: L[0..SR). */
+static void play_timbre(int note, float timbre, float order, float sym, float drive, int aa) {
+  reset(SR);
+  fc_set_aa(&core, aa);
+  FcParams p;
+  fc_default_params(&p);
+  p.attack_ms = 1; p.sustain = 1.0f;
+  p.timbre = timbre; p.order = order; p.symmetry = sym; p.drive = drive;
+  fc_set_params(&core, &p);
+  fc_note_on(&core, note, 127);
+  render(&core, 0, SR / 4);
+  render(&core, 0, SR);
+}
+
+static double harm(double f0, int n) { return amp_at(L, SR, f0 * n, SR); }
+
+static void test_timbre_bypass(void) {
+  /* Timbre 0, Symmetry 0, Drive 0: the Principal passes, in every anti-aliasing mode */
+  double lvl[4];
+  for (int aa = 0; aa < 4; aa++) {
+    play_timbre(69, 0, 0, 0, 0, aa);
+    lvl[aa] = harm(440, 1);
+    CHECK(fabs(freq(L, 0, SR, SR) - 440.0) < 0.2);
+    CHECK(harm(440, 2) < lvl[aa] * 1e-4 && harm(440, 3) < lvl[aa] * 1e-4);
+    CHECK(fabs(db(lvl[aa] / (FC_GAIN * (1.0 - 0.0)))) < 0.1);
+  }
+  printf("bypass A4 level vs 1x: ADAA %+.3f dB, 2x %+.3f dB, 2x+ADAA %+.3f dB\n",
+         db(lvl[1] / lvl[0]), db(lvl[2] / lvl[0]), db(lvl[3] / lvl[0]));
+  CHECK(fabs(db(lvl[2] / lvl[0])) < 0.05);
+  /* 2x: the halfband delays the sound by a few samples only */
+  reset(SR);
+  fc_set_aa(&core, FC_AA_OS2);
+  fc_note_on(&core, 69, 127);
+  render(&core, 0, BLOCK);
+  int first = -1;
+  for (int i = 0; i < BLOCK && first < 0; i++) if (fabsf(L[i]) > 1e-6f) first = i;
+  CHECK(first >= 0 && first < 40);
+}
+
+static void test_folder(void) {
+  const double f0 = 110.0;
+  play_timbre(45, 0.5f, 0, 0, 0, FC_AA_NONE);
+  const double h1 = harm(f0, 1), h2 = harm(f0, 2), h3 = harm(f0, 3), h5 = harm(f0, 5);
+  printf("folder Timbre 50%%: h3 %.1f dB, h5 %.1f dB, h2 %.1f dB\n", db(h3 / h1), db(h5 / h1), db(h2 / h1));
+  CHECK(h3 > h1 * 0.1 && h5 > h1 * 0.05);                 /* folds: strong odd harmonics */
+  CHECK(h2 < h1 * 1e-3);                                  /* symmetric: no even ones */
+  CHECK(peak(L, 0, SR) <= FC_GAIN * 1.01f);
+  play_timbre(45, 0.5f, 0, 0.3f, 0, FC_AA_NONE);
+  printf("folder Symmetry +30: h2 %.1f dB\n", db(harm(f0, 2) / harm(f0, 1)));
+  CHECK(harm(f0, 2) > harm(f0, 1) * 0.03);                /* asymmetric: even harmonics */
+  /* more Timbre, brighter: the energy above h5 grows */
+  double hi[2];
+  for (int k = 0; k < 2; k++) {
+    play_timbre(45, k ? 1.0f : 0.25f, 0, 0, 0, FC_AA_NONE);
+    hi[k] = 0;
+    for (int n = 7; n < 40; n += 2) hi[k] += harm(f0, n);
+  }
+  CHECK(hi[1] > hi[0] * 2.0);
+}
+
+static void test_cheb_shapers(void) {
+  /* Saw, Timbre 100 %: harmonics 1/n, up to FC_CHEB_MAX on a low note */
+  const double f0 = 110.0;
+  play_timbre(45, 1.0f, 0.5f, 0, 0, FC_AA_NONE);
+  const double h1 = harm(f0, 1);
+  double worst = 0;
+  for (int n = 2; n <= 12; n++) {
+    const double e = fabs(db(harm(f0, n) / h1) - db(1.0 / n));
+    worst = e > worst ? e : worst;
+  }
+  printf("saw: harmonics 2..12 within %.3f dB of 1/n; h%d %.1f dB, h%d %.1f dB\n", worst, FC_CHEB_MAX,
+         db(harm(f0, FC_CHEB_MAX) / h1), FC_CHEB_MAX + 1, db(harm(f0, FC_CHEB_MAX + 1) / h1));
+  CHECK(worst < 0.1);
+  CHECK(fabs(db(harm(f0, FC_CHEB_MAX) / h1) - db(1.0 / FC_CHEB_MAX)) < 0.5);
+  CHECK(harm(f0, FC_CHEB_MAX + 1) < h1 * 1e-4);
+  CHECK(peak(L, 0, SR) <= FC_GAIN * 1.01f);
+  /* M: odd harmonics 1/n only */
+  play_timbre(45, 1.0f, 1.0f, 0, 0, FC_AA_NONE);
+  const double m1 = harm(f0, 1);
+  CHECK(harm(f0, 2) < m1 * 1e-4 && harm(f0, 4) < m1 * 1e-4);
+  CHECK(fabs(db(harm(f0, 3) / m1) - db(1.0 / 3)) < 0.1 && fabs(db(harm(f0, 5) / m1) - db(1.0 / 5)) < 0.1);
+  /* a high note: N follows it, nothing above 0.45 of the rate (C7: N = 10, h11 would be 23 kHz) */
+  const double c7 = 440.0 * pow(2.0, 27.0 / 12.0);
+  play_timbre(96, 1.0f, 0.5f, 0, 0, FC_AA_NONE);
+  printf("saw C7: h10 %.1f dB (1/10 = %.1f), h11 %.1f dB\n", db(harm(c7, 10) / harm(c7, 1)), db(0.1),
+         db(harm(c7, 11) / harm(c7, 1)));
+  CHECK(fabs(db(harm(c7, 10) / harm(c7, 1)) - db(0.1)) < 0.5);
+  CHECK(harm(c7, 11) < harm(c7, 1) * 1e-4);
+  /* Timbre 50 %: half way between the sine and the saw */
+  play_timbre(45, 0.5f, 0.5f, 0, 0, FC_AA_NONE);
+  const double s1 = harm(f0, 1), s2 = harm(f0, 2);
+  CHECK(s2 > s1 * 0.05 && s2 < s1 * 0.4);
+}
+
+static void test_drive(void) {
+  play_timbre(57, 0, 0, 0, 1.0f, FC_AA_NONE);
+  const double h1 = harm(220, 1), h3 = harm(220, 3);
+  printf("Drive 100 %%: h3 %.1f dB\n", db(h3 / h1));
+  CHECK(h3 > h1 * 0.05 && harm(220, 2) < h1 * 1e-3);
+  CHECK(peak(L, 0, SR) <= FC_GAIN * 1.05f);   /* the DC blocker tilts a near-square wave by a few % */
+}
+
+/* Timbre knobs at k (0..1) of the way from all 0 to Timbre 100 %, Order 50 %, Symmetry +50, Drive 100 %. */
+static void timbre_knobs(FcParams* p, float k) {
+  fc_default_params(p);
+  p->attack_ms = 1; p->sustain = 1.0f;
+  p->timbre = k; p->order = 0.5f * k; p->symmetry = 0.5f * k; p->drive = k;
+}
+
+static void test_timbre_smooth(void) {
+  /* all four knobs at once. The sound passes through the folder at high Timbre on the way (Order 0 -> 50 %), so
+   * the jump is compared with a slow turn of the same knobs (the same states, 200 ms): a click would be sharper */
+  FcParams p;
+  float sharp[2];
+  for (int slow = 0; slow < 2; slow++) {
+    reset(SR);
+    timbre_knobs(&p, 0);
+    fc_set_params(&core, &p);
+    fc_note_on(&core, 57, 127);
+    render(&core, 0, SR / 4);
+    const int steps = slow ? 150 : 1;
+    for (int i = 1; i <= steps; i++) {
+      timbre_knobs(&p, (float)i / steps);
+      fc_set_params(&core, &p);
+      render(&core, SR / 4 + (i - 1) * BLOCK, BLOCK);
+    }
+    render(&core, SR / 4 + steps * BLOCK, SR / 4);
+    sharp[slow] = max_curve(L, SR / 4 - 2, SR / 4 + steps * BLOCK + SR / 4);
+  }
+  printf("Timbre knobs: max second difference %.4f at once, %.4f turned slowly\n", sharp[0], sharp[1]);
+  CHECK(sharp[0] <= 1.2f * sharp[1]);
+}
+
+static void test_timbre_route(void) {
+  /* Mod OSC -> Timbre: a 2 Hz sine moves Timbre 50 % to 100 % and to 0 %: the 3rd harmonic follows */
+  reset(SR);
+  FcParams p;
+  fc_default_params(&p);
+  p.attack_ms = 1; p.sustain = 1.0f;
+  p.mod_mode = FC_MODE_FREE; p.mod_freq = free_units(2.0); p.mod_index = 1.0f;
+  p.route_fm = 0; p.route_timbre = 1; p.timbre = 0.5f;
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 57, 127);
+  render(&core, 0, SR / 2);                                 /* the LFO starts at phase 0 with the note */
+  const double up = amp_at(L + SR / 8 - 1200, 2400, 660, SR) / amp_at(L + SR / 8 - 1200, 2400, 220, SR);
+  const double down = amp_at(L + 3 * SR / 8 - 1200, 2400, 660, SR) / amp_at(L + 3 * SR / 8 - 1200, 2400, 220, SR);
+  printf("Mod -> Timbre: h3 %.1f dB at the LFO top, %.1f dB at its bottom\n", db(up), db(down));
+  CHECK(up > 0.1 && down < 0.01);
+}
+
+static void test_timbre_extremes(void) {
+  for (int aa = 0; aa < 4; aa++) {
+    reset(SR);
+    fc_set_aa(&core, aa);
+    FcParams p;
+    fc_default_params(&p);
+    p.pitch = 24; p.mod_mode = FC_MODE_FREE; p.mod_freq = 100; p.mod_index = 1; p.mod_shape = FC_MOD_SAW;
+    p.route_fm = p.route_am = p.route_sync = p.route_timbre = 1;
+    p.timbre = 1; p.order = 0.3f; p.symmetry = -1; p.drive = 1;
+    fc_set_params(&core, &p);
+    for (int i = 0; i < 4; i++) fc_note_on(&core, 90 + 12 * i, 127);
+    render(&core, 0, SR / 2);
+    CHECK(all_finite(L, SR / 2));
+    CHECK(peak(L, 0, SR / 2) <= 4 * FC_GAIN * 1.3f);
+  }
+}
+
 int main(void) {
   test_pitch();
   test_release();
@@ -474,6 +643,13 @@ int main(void) {
   test_sync();
   test_mod_smooth();
   test_mod_extremes();
+  test_timbre_bypass();
+  test_folder();
+  test_cheb_shapers();
+  test_drive();
+  test_timbre_smooth();
+  test_timbre_route();
+  test_timbre_extremes();
   printf(fails ? "test_core: %d FAILED\n" : "test_core: all passed\n", fails);
   return fails ? 1 : 0;
 }

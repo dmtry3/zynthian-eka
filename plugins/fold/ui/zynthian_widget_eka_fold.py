@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# Eka Fold widget. Tabs (top left): Osc, Mod. Later stages add Fold, Gate, Env, Delay, Matrix.
+# Eka Fold widget. Tabs (top left): Osc, Mod, Fold. Later stages add Gate, Env, Delay, Matrix.
 # The skeleton follows the Eka Mist widget:
 # - Zynthian calls update() every 32 ms; monitors and marks are refreshed only every UPDATE_PERIOD.
 # - Curves are computed here from the parameters and redrawn only when a parameter changed, at most every
@@ -16,8 +16,9 @@
 # - Source tiles: Sine only for now.
 # - The sounding notes with their frequency (Pitch and Fine included) and a small output level meter.
 # Mod:
-# - Mod OSC block (one period of its shape) -> arrows FM / AM / Sync -> Principal block. A tap on an arrow
-#   switches that route (LV2 parameters route_fm, route_am, route_sync, 0/1, saved in the snapshot).
+# - Mod OSC block (one period of its shape) -> arrows FM / AM / Sync / Timbre -> Principal block. A tap on an
+#   arrow switches that route (LV2 parameters route_fm, route_am, route_sync, route_timbre, 0/1, saved in the
+#   snapshot). Timbre: the Mod OSC moves the Timbre knob of the Fold tab.
 # - The Principal block shows the result: the Principal modulated by the Mod OSC over a few periods, computed
 #   here with the plugin's formulas (linear FM, AM, hard sync). In Free mode the Mod frequency is absolute,
 #   so the result is drawn for C4.
@@ -25,6 +26,12 @@
 #   (Free mode, up to MARK_MAX_HZ): an LFO is seen "breathing"; at audio rates a mark would only flicker.
 # - At the bottom: the Mod Index, large, and what the Mod Freq knob means in this Mod Mode
 #   (Free: Hz, Keytrack: semitones, Ratio: x p/q), with the shape.
+# Fold:
+# - Left: the transfer curve of the Timbre section (input -1..1 -> output) for Timbre, Order, Symmetry, Drive.
+#   Right: what it makes of the Principal sine, 2 periods, without its DC (the plugin removes it).
+#   The formulas of fold_core.c: folder (gain 1..8), Saw / M (Chebyshev sums, drawn with FC_CHEB_MAX terms,
+#   as a low note gets), Drive (tanh).
+# - At the bottom: the Order line Folder - Saw - M with its mark, and the knob values.
 
 import logging
 import math
@@ -37,8 +44,8 @@ from zyngui import zynthian_widget_base
 
 MULTI_INSTANCE = True
 
-TABS = ["Osc", "Mod"]
-TAB_GROUPS = ["g_osc", "g_mod"]  # knob page (port group) of each tab
+TABS = ["Osc", "Mod", "Fold"]
+TAB_GROUPS = ["g_osc", "g_mod", "g_timbre"]  # knob page (port group) of each tab
 SOURCES = ["Sine"]               # Source tiles; VA, FM and Wavetable come at stage 4
 NVOICES = 4
 TAB_COLOR = "#4dabf7"
@@ -60,8 +67,8 @@ METER_DB = 48.0                  # the meter shows -48..0 dB
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 MOD_SHAPES = ["Triangle", "Sine", "Saw", "Square"]   # Mod Shape knob, as FC_MOD_* in fold_core.h
 MOD_MODES = ["Free", "Keytrack", "Ratio"]            # Mod Mode knob, as FC_MODE_*
-ROUTES = [("route_fm", "FM"), ("route_am", "AM"), ("route_sync", "Sync")]
-ROUTE_DEFAULTS = {"route_fm": 1, "route_am": 0, "route_sync": 0}
+ROUTES = [("route_fm", "FM"), ("route_am", "AM"), ("route_sync", "Sync"), ("route_timbre", "Timbre")]
+ROUTE_DEFAULTS = {"route_fm": 1, "route_am": 0, "route_sync": 0, "route_timbre": 0}
 # Mod Freq knob 0..100, read by the mode: the formulas of fold_core.c
 FREQ_MAX = 100.0
 FREE_MIN, FREE_MAX = 0.01, 10000.0
@@ -69,6 +76,11 @@ KEY_RANGE = 48.0
 RATIOS = [(1, 8), (1, 6), (1, 4), (1, 3), (1, 2), (2, 3), (3, 4), (1, 1), (5, 4), (4, 3), (3, 2), (5, 3), (2, 1),
           (5, 2), (3, 1), (7, 2), (4, 1), (5, 1), (6, 1), (7, 1), (8, 1), (9, 1), (10, 1), (12, 1), (16, 1)]
 FM_DEPTH = 4.0                   # FC_FM_DEPTH: Mod Index 100 % swings the Principal frequency by 4 x itself
+FOLD_GAIN = 8.0                  # FC_FOLD_GAIN, FC_CHEB_MAX, FC_DRIVE_K of fold_core.h
+CHEB_MAX = 32
+DRIVE_K = 4.0
+ORDER_NAMES = ["Folder", "Saw", "M"]
+CURVE2_COLOR = "#ffd43b"         # the wave over the transfer curve
 C4_HZ = 261.626
 
 
@@ -164,6 +176,56 @@ def result_values(rel, shape, index, fm, am, sync, n, cycles, sub=8):
     return out
 
 
+def fold(u):
+    s = (u + 1.0) * 0.25
+    s -= math.floor(s)
+    return 4.0 * s - 1.0 if s < 0.5 else 3.0 - 4.0 * s
+
+
+def fast_tanh(x):
+    if x > 3.0:
+        return 1.0
+    if x < -3.0:
+        return -1.0
+    x2 = x * x
+    return x * (27.0 + x2) / (27.0 + 9.0 * x2)
+
+
+def order_weights(o):
+    """(folder, Saw, M) shares of Order 0..1."""
+    if o < 0.5:
+        return 1.0 - 2.0 * o, 2.0 * o, 0.0
+    return 0.0, 2.0 - 2.0 * o, 2.0 * o - 1.0
+
+
+def cheb_coefs(ws, wm, n=CHEB_MAX):
+    hs = sum(1.0 / k for k in range(1, n + 1))
+    hm = sum(1.0 / k for k in range(1, n + 1, 2))
+    tot = ws + wm if ws + wm > 1e-6 else 1.0
+    return [0.0] + [(ws / hs + (wm / hm if k & 1 else 0.0)) / (k * tot) for k in range(1, n + 1)]
+
+
+def chebyshev(a, u):
+    b1 = b2 = 0.0
+    for k in range(len(a) - 1, 0, -1):
+        b1, b2 = a[k] + 2.0 * u * b1 - b2, b1
+    return u * b1 - b2
+
+
+def shape(x, timbre, order, sym, drive, a=None):
+    """The Timbre section of fold_core.c for one input value (without ADAA and the DC blocker)."""
+    wf, ws, wm = order_weights(order)
+    sh = wf * fold((1.0 + (FOLD_GAIN - 1.0) * timbre) * x + sym) if wf > 0.0 else 0.0
+    if wf < 1.0:
+        uc = max(-1.0, min(1.0, x + sym))
+        ch = chebyshev(a if a is not None else cheb_coefs(ws, wm), uc) if timbre > 0.0 else 0.0
+        sh += (1.0 - wf) * ((1.0 - timbre) * x + timbre * ch)
+    if drive > 1e-4:
+        kd = 1.0 + DRIVE_K * drive
+        sh = (1.0 - drive) * sh + drive * fast_tanh(kd * sh) / fast_tanh(kd)
+    return sh
+
+
 def wave_points(source, x0, x1, y0, y1, periods=2):
     """Points of the Principal waveform over the box, one every 2 px."""
     mid, amp = (y0 + y1) / 2.0, (y1 - y0) / 2.0 * 0.9
@@ -223,6 +285,8 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         self.route_boxes = []        # (x0, y0, x1, y1, symbol)
         self.mark_view = None        # where the phase mark is shown, None = hidden
         self.mark_item = None
+        self.fold_view = None        # values the Fold tab was drawn for
+        self.fold_drawn = 0.0
 
     # ---------- plugin access ----------
     def _page_title(self):
@@ -347,6 +411,8 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             self._draw_osc()
         elif self.tab == 1:
             self._draw_mod()
+        elif self.tab == 2:
+            self._draw_fold()
 
     def _tab_metrics(self, title):
         """(font size, padding, widths, title shown): the tabs and the page title share the top line. The padding
@@ -514,7 +580,8 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
     def _mod_values(self):
         return (int(round(self._zval("mod_shape", 1))), int(round(self._zval("mod_mode", 2))),
                 self._zval("mod_freq", 30.0), self._zval("mod_index", 0.0) / 100.0,
-                self._route("route_fm"), self._route("route_am"), self._route("route_sync"))
+                self._route("route_fm"), self._route("route_am"), self._route("route_sync"),
+                self._route("route_timbre"))
 
     def _draw_mod(self):
         left, mid, right, bottom_y = self._mod_layout()
@@ -539,7 +606,7 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         return box[0] + 4, box[1] + lh, box[2] - 4, box[3] - 4
 
     def _draw_mod_static(self, left, mid, right, bottom_y, vals):
-        shape, mode, u, index, fm, am, sync = vals
+        shape, mode, u, index, fm, am, sync, timb = vals
         c = self.widget_canvas
         c.delete("mod")
         fs = self._font_size()
@@ -558,9 +625,9 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         self.route_boxes = []
         mx0, my0, mx1, my1 = mid
         gap = 6
-        bh = (my1 - my0 - 2 * gap) / 3.0
+        bh = (my1 - my0 - (len(ROUTES) - 1) * gap) / float(len(ROUTES))
         for i, (sym, name) in enumerate(ROUTES):
-            on = (fm, am, sync)[i]
+            on = (fm, am, sync, timb)[i]
             by0 = my0 + i * (bh + gap)
             by1 = by0 + bh
             col = ROUTE_ON if on else ROUTE_OFF
@@ -578,7 +645,7 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         if rel >= 0.25:                                 # show whole Mod periods when the Mod OSC is slower
             cycles = min(max(2.0, 2.0 / rel), 8.0)
         n = max(int((x1 - x0) / 2), 8)
-        vals_y = result_values(rel, shape, index, fm, am, sync, n, cycles)
+        vals_y = result_values(rel, shape, index, fm, am, sync, n, cycles)   # before the Timbre section
         pts = []
         for i, y in enumerate(vals_y):
             pts += [x0 + i * (x1 - x0) / n, mid_y - y * amp]
@@ -598,14 +665,14 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
 
     def _draw_mod_mark(self, left, vals):
         """The Mod phase on the Mod OSC shape, while the Mod OSC is slow; moved, not recreated."""
-        shape, mode, u = vals[0], vals[1], vals[2]
+        mshape, mode, u = vals[0], vals[1], vals[2]
         ph = self._mon("mod_phase", -1.0)
         show = mode == 0 and free_hz(u) <= MARK_MAX_HZ and 0.0 <= ph <= 1.0
         x0, y0, x1, y1 = self._curve_box(left)
         if show:
             mid_y, amp = (y0 + y1) / 2.0, (y1 - y0) / 2.0 * 0.85
             x = int(round(x0 + ph * (x1 - x0)))
-            y = int(round(mid_y - mod_value(shape, ph) * amp))
+            y = int(round(mid_y - mod_value(mshape, ph) * amp))
             view = (x, y)
         else:
             view = None
@@ -623,3 +690,92 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         else:
             c.coords(self.mark_item, x - r, y - r, x + r, y + r)
         c.tag_raise("modmark")
+
+    # ---------- Fold tab ----------
+    def _fold_layout(self):
+        """Boxes: transfer curve (left), wave (right); the bottom: Order line (left half), values (right half)."""
+        w, h = max(int(self.width), 60), max(int(self.height), 60)
+        hh, fs = self._header_h(), self._font_size()
+        bottom = 2 * fs + 12
+        y0, y1 = hh + 4, h - bottom - 4
+        xa = int(w * 0.45)
+        left = (4, y0, xa - 4, y1)
+        right = (xa + 4, y0, w - 4, y1)
+        order = (10, h - bottom + 2, int(w * 0.42), h - 4)
+        return left, right, order, h - bottom / 2 - 2
+
+    def _fold_values(self):
+        return (self._zval("timbre", 0.0) / 100.0, self._zval("order", 0.0) / 100.0,
+                self._zval("symmetry", 0.0) / 100.0, self._zval("drive", 0.0) / 100.0)
+
+    def _draw_fold(self):
+        left, right, order, bottom_y = self._fold_layout()
+        vals = self._fold_values()
+        view = (left, right, vals)
+        if view == self.fold_view:
+            return
+        now = time.monotonic()
+        if self.fold_view is not None and now - self.fold_drawn < CURVE_PERIOD:
+            return                                        # changed again: drawn on a later refresh
+        self.fold_view = view
+        self.fold_drawn = now
+        timbre, o, sym, drive = vals
+        c = self.widget_canvas
+        c.delete("fold")
+        wf, ws, wm = order_weights(o)
+        a = cheb_coefs(ws, wm) if wf < 1.0 and timbre > 0.0 else None
+        # transfer curve, with the diagonal (no change) behind it
+        c.create_rectangle(*left, outline=AXIS_COLOR, tags="fold")
+        self._box_label(left, "In \u2192 Out", "fold")
+        x0, y0, x1, y1 = self._curve_box(left)
+        side = min(x1 - x0, y1 - y0)
+        cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+        half = side / 2.0 * 0.92
+        c.create_line(cx - half, cy, cx + half, cy, fill=AXIS_COLOR, tags="fold")
+        c.create_line(cx, cy - half, cx, cy + half, fill=AXIS_COLOR, tags="fold")
+        c.create_line(cx - half, cy + half, cx + half, cy - half, fill=AXIS_COLOR, dash=(2, 3), tags="fold")
+        n = max(int(side / 2), 16)
+        pts = []
+        for i in range(n + 1):
+            xin = -1.0 + 2.0 * i / n
+            pts += [cx + xin * half, cy - shape(xin, timbre, o, sym, drive, a) * half]
+        c.create_line(*pts, fill=WAVE_COLOR, width=2, tags="fold")
+        # the Principal sine through it, 2 periods, DC removed
+        c.create_rectangle(*right, outline=AXIS_COLOR, tags="fold")
+        self._box_label(right, "Principal \u2192 Timbre", "fold")
+        x0, y0, x1, y1 = self._curve_box(right)
+        mid_y, amp = (y0 + y1) / 2.0, (y1 - y0) / 2.0 * 0.85
+        n = max(int((x1 - x0) / 2), 16)
+        ys = [shape(math.sin(4.0 * math.pi * i / n), timbre, o, sym, drive, a) for i in range(n + 1)]
+        mean = sum(ys[:-1]) / n
+        pts = []
+        for i, y in enumerate(ys):
+            pts += [x0 + i * (x1 - x0) / n, mid_y - (y - mean) * amp]
+        c.create_line(x0, mid_y, x1, mid_y, fill=AXIS_COLOR, tags="fold")
+        c.create_line(*pts, fill=CURVE2_COLOR, width=2, tags="fold")
+        # Order line: Folder - Saw - M, the mark at Order
+        ox0, oy0, ox1, oy1 = order
+        ly = oy0 + (oy1 - oy0) * 0.35
+        fs = self._font_size()
+        small = self._font(max(7, fs - 2))
+        c.create_line(ox0, ly, ox1, ly, fill=ROUTE_OFF, width=2, tags="fold")
+        for k, name in enumerate(ORDER_NAMES):
+            x = ox0 + k * (ox1 - ox0) / 2.0
+            share = (wf, ws, wm)[k]
+            c.create_oval(x - 3, ly - 3, x + 3, ly + 3, fill=(ROUTE_ON if share > 0.0 else ROUTE_OFF), outline="",
+                          tags="fold")
+            c.create_text(x, oy1, anchor=("sw" if k == 0 else "se" if k == 2 else "s"), text=name, font=small,
+                          fill=(zynthian_gui_config.color_tx if share > 0.0 else LABEL_COLOR), tags="fold")
+        mx = ox0 + o * (ox1 - ox0)
+        r = max(4, fs // 2)
+        c.create_oval(mx - r, ly - r, mx + r, ly + r, fill=MARK_COLOR, outline="", tags="fold")
+        vals_t = (round(timbre * 100), round(sym * 100), round(drive * 100))
+        text = "Timbre %d%%  Sym %+d  Drive %d%%" % vals_t
+        room = max(self.width, 60) - 6 - ox1 - 2 * fs   # right of the Order line
+        try:
+            if tkinter.font.Font(family=zynthian_gui_config.font_family, size=fs).measure(text) > room:
+                text = "T %d  S %+d  D %d" % vals_t
+        except Exception:
+            pass
+        c.create_text(max(self.width, 60) - 6, bottom_y, anchor="e", text=text,
+                      fill=zynthian_gui_config.color_tx, font=self._font(), tags="fold")

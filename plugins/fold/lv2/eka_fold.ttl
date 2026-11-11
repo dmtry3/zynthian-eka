@@ -10,11 +10,12 @@
 @prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
-# Knob pages, in this order (higher displayPriority first). Osc, Mod and a temporary Env (plain ADSR,
-# replaced by FG1 and the lopass gate at stage 3). Later stages add Timbre, Gate, Delay.
+# Knob pages, in this order (higher displayPriority first). Osc, Mod, Timbre and a temporary Env (plain ADSR,
+# replaced by FG1 and the lopass gate at stage 3). Later stages add Gate, Delay.
 <http://dmtry3.github.io/zynthian-eka/fold#g_osc> a pg:Group ; lv2:symbol "g_osc" ; lv2:name "Osc" ; lv2:index 0 ; lv2:displayPriority 60 .
 <http://dmtry3.github.io/zynthian-eka/fold#g_mod> a pg:Group ; lv2:symbol "g_mod" ; lv2:name "Mod" ; lv2:index 1 ; lv2:displayPriority 55 .
-<http://dmtry3.github.io/zynthian-eka/fold#g_env> a pg:Group ; lv2:symbol "g_env" ; lv2:name "Env" ; lv2:index 2 ; lv2:displayPriority 50 .
+<http://dmtry3.github.io/zynthian-eka/fold#g_timbre> a pg:Group ; lv2:symbol "g_timbre" ; lv2:name "Timbre" ; lv2:index 2 ; lv2:displayPriority 52 .
+<http://dmtry3.github.io/zynthian-eka/fold#g_env> a pg:Group ; lv2:symbol "g_env" ; lv2:name "Env" ; lv2:index 3 ; lv2:displayPriority 50 .
 
 # Routing of the Mod OSC into the Principal: set in the widget (Mod tab), saved in the snapshot and in LV2 State.
 # notOnGUI: not on a knob page.
@@ -45,6 +46,15 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
+<http://dmtry3.github.io/zynthian-eka/fold#route_timbre>
+    a lv2:Parameter ;
+    lv2:symbol "route_timbre" ;
+    rdfs:label "Route Timbre" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
 
 <http://dmtry3.github.io/zynthian-eka/fold>
     a lv2:Plugin , lv2:InstrumentPlugin ;
@@ -55,13 +65,15 @@
     lv2:requiredFeature urid:map ;
     lv2:optionalFeature lv2:hardRTCapable ;
     lv2:extensionData state:interface ;
-    patch:writable <http://dmtry3.github.io/zynthian-eka/fold#route_fm> , <http://dmtry3.github.io/zynthian-eka/fold#route_am> , <http://dmtry3.github.io/zynthian-eka/fold#route_sync> ;
+    patch:writable <http://dmtry3.github.io/zynthian-eka/fold#route_fm> , <http://dmtry3.github.io/zynthian-eka/fold#route_am> , <http://dmtry3.github.io/zynthian-eka/fold#route_sync> , <http://dmtry3.github.io/zynthian-eka/fold#route_timbre> ;
     # Control input ports MUST be indices 0..N-1 (before atom and audio ports): Zynthian numbers LV2 parameters
     # from len(control ports)+1 and would overwrite a control port with a higher index.
     # Outputs for the widget: note1..4 = MIDI note of each sounding voice, -1 = idle; out_peak = output peak, dB;
     # mod_phase = Mod OSC phase 0..1 of the newest voice, -1 = none.
     # Mod Freq: 0..100, read by Mod Mode (Free: 0.01 Hz..10 kHz, logarithmic; Keytrack: -48..+48 semitones;
     # Ratio: 25 ratios 1/8..16); the widget shows what it means.
+    # Timbre: depth of the shapers (0 = the Principal passes); Order: Folder (0) .. Saw (50) .. M (100);
+    # Symmetry: offset before the shapers; Drive: soft saturation after them.
     lv2:port
     [
         a lv2:InputPort , lv2:ControlPort ;
@@ -132,48 +144,72 @@
         lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_mod> ;
     ] ,
     [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 10 ; lv2:symbol "timbre" ; lv2:name "Timbre %" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_timbre> ;
+    ] ,
+    [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 11 ; lv2:symbol "order" ; lv2:name "Order" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_timbre> ;
+    ] ,
+    [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 12 ; lv2:symbol "symmetry" ; lv2:name "Symmetry" ;
+        lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_timbre> ;
+    ] ,
+    [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 13 ; lv2:symbol "drive" ; lv2:name "Drive %" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_timbre> ;
+    ] ,
+    [
         a lv2:InputPort , atom:AtomPort ;
         atom:bufferType atom:Sequence ;
         atom:supports midi:MidiEvent , patch:Message ;
         lv2:designation lv2:control ;
-        lv2:index 10 ; lv2:symbol "midi_in" ; lv2:name "MIDI In" ;
+        lv2:index 14 ; lv2:symbol "midi_in" ; lv2:name "MIDI In" ;
     ] ,
     [
         a lv2:OutputPort , lv2:AudioPort ;
-        lv2:index 11 ; lv2:symbol "out_l" ; lv2:name "Out L" ;
+        lv2:index 15 ; lv2:symbol "out_l" ; lv2:name "Out L" ;
     ] ,
     [
         a lv2:OutputPort , lv2:AudioPort ;
-        lv2:index 12 ; lv2:symbol "out_r" ; lv2:name "Out R" ;
+        lv2:index 16 ; lv2:symbol "out_r" ; lv2:name "Out R" ;
     ] ,
     [
         a lv2:OutputPort , atom:AtomPort ;
         atom:bufferType atom:Sequence ;
         atom:supports patch:Message ;
         lv2:designation lv2:control ;
-        lv2:index 13 ; lv2:symbol "notify" ; lv2:name "Notify" ;
+        lv2:index 17 ; lv2:symbol "notify" ; lv2:name "Notify" ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 14 ; lv2:symbol "note1" ; lv2:name "Note 1" ;
+        lv2:index 18 ; lv2:symbol "note1" ; lv2:name "Note 1" ;
         lv2:default -1 ; lv2:minimum -1 ; lv2:maximum 127 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 15 ; lv2:symbol "note2" ; lv2:name "Note 2" ;
+        lv2:index 19 ; lv2:symbol "note2" ; lv2:name "Note 2" ;
         lv2:default -1 ; lv2:minimum -1 ; lv2:maximum 127 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 16 ; lv2:symbol "note3" ; lv2:name "Note 3" ;
+        lv2:index 20 ; lv2:symbol "note3" ; lv2:name "Note 3" ;
         lv2:default -1 ; lv2:minimum -1 ; lv2:maximum 127 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 17 ; lv2:symbol "note4" ; lv2:name "Note 4" ;
+        lv2:index 21 ; lv2:symbol "note4" ; lv2:name "Note 4" ;
         lv2:default -1 ; lv2:minimum -1 ; lv2:maximum 127 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 18 ; lv2:symbol "out_peak" ; lv2:name "Output peak dB" ;
+        lv2:index 22 ; lv2:symbol "out_peak" ; lv2:name "Output peak dB" ;
         lv2:default -100 ; lv2:minimum -100 ; lv2:maximum 12 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 19 ; lv2:symbol "mod_phase" ; lv2:name "Mod phase" ;
+        lv2:index 23 ; lv2:symbol "mod_phase" ; lv2:name "Mod phase" ;
         lv2:default -1 ; lv2:minimum -1 ; lv2:maximum 1 ;
     ] .

@@ -19,13 +19,16 @@ static double now(void) {
   return t.tv_sec + t.tv_nsec * 1e-9;
 }
 
-static void bench(const char* label, int shape, float index, int fm, int am, int sync) {
+static void bench(const char* label, int aa, int shape, float index, int fm, int am, int sync, float timbre,
+                  float order) {
   fc_init(&core, SR);
+  fc_set_aa(&core, aa);
   FcParams p;
   fc_default_params(&p);
   p.sustain = 1.0f;
   p.mod_shape = shape; p.mod_index = index; p.route_fm = fm; p.route_am = am; p.route_sync = sync;
   p.mod_freq = 40.0f;                                 /* Ratio 3/2-ish: sync and FM both busy */
+  p.timbre = timbre; p.order = order;
   fc_set_params(&core, &p);
   const int notes[FC_VOICES] = { 48, 55, 60, 64 };
   for (int i = 0; i < FC_VOICES; i++) fc_note_on(&core, notes[i], 100);
@@ -36,15 +39,22 @@ static void bench(const char* label, int shape, float index, int fm, int am, int
     sum += l[0];
   }
   const double secs = now() - t0;
-  printf("%-34s %6.2f %% of one core (%5.1f ns per voice per sample)%s\n", label, 100.0 * secs / SECS,
+  printf("%-44s %6.2f %% of one core (%5.1f ns per voice per sample)%s\n", label, 100.0 * secs / SECS,
          secs * 1e9 / ((double)SR * SECS * FC_VOICES), sum != sum ? " NaN!" : "");
 }
 
 int main(void) {
   printf("fold_core, %d voices, 48 kHz, blocks of %d:\n", FC_VOICES, BLOCK);
-  bench("sine, Index 0", FC_MOD_SINE, 0.0f, 1, 0, 0);
-  bench("sine Mod, FM", FC_MOD_SINE, 0.7f, 1, 0, 0);
-  bench("saw Mod, FM + AM + Sync", FC_MOD_SAW, 0.7f, 1, 1, 1);
-  bench("triangle Mod, FM + AM + Sync", FC_MOD_TRI, 0.7f, 1, 1, 1);
+  const char* modes[4] = { "1x", "ADAA", "2x", "2x+ADAA" };
+  char label[80];
+  bench("sine, Index 0, Timbre 0 (1x)", FC_AA_NONE, FC_MOD_SINE, 0.0f, 1, 0, 0, 0.0f, 0.0f);
+  for (int aa = 0; aa < 4; aa++) {
+    snprintf(label, sizeof label, "saw Mod, FM+AM+Sync, folder (%s)", modes[aa]);
+    bench(label, aa, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  }
+  for (int aa = 0; aa < 4; aa += 2) {
+    snprintf(label, sizeof label, "  ... with Saw shaper too (%s)", modes[aa]);
+    bench(label, aa, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.25f);
+  }
   return 0;
 }

@@ -91,7 +91,8 @@ class Processor:
         self.controllers_dict = {s: NumCtrl(s, v) for s, v in (("pitch", 0), ("fine", 0.0), ("attack", 5.0),
                                  ("decay", 300.0), ("sustain", 70.0), ("release", 400.0),
                                  ("mod_freq", 30.0), ("mod_index", 0.0), ("mod_shape", 1), ("mod_mode", 2),
-                                 ("route_fm", 1), ("route_am", 0), ("route_sync", 0))}
+                                 ("route_fm", 1), ("route_am", 0), ("route_sync", 0), ("route_timbre", 0),
+                                 ("timbre", 0.0), ("order", 0.0), ("symmetry", 0.0), ("drive", 0.0))}
 
 
 class Control:
@@ -108,7 +109,8 @@ class Control:
 
     def add_pages(self, proc):
         self.list_data = [(None, None, "> Eka Fold", proc)]
-        for j, (g, t) in enumerate((("g_osc", "Osc"), ("g_mod", "Mod"), ("g_env", "Env"))):
+        for j, (g, t) in enumerate((("g_osc", "Osc"), ("g_mod", "Mod"), ("g_timbre", "Timbre"),
+                                    ("g_env", "Env"))):
             self.list_data.append((g, j + 1, t, proc, j))
 
     def select(self, index=None, set_zctrl=True):
@@ -183,7 +185,7 @@ def main():
         return [c.itemcget(i, "text") for i in c.find_withtag(tag) if c.type(i) == "text"]
 
     # tabs, title, tiles, waveform
-    check("tabs Osc and Mod drawn", texts("tabs") == ["Osc", "Mod"])
+    check("tabs Osc, Mod, Fold drawn", texts("tabs") == ["Osc", "Mod", "Fold"])
     check("page title drawn", texts("title") == ["Osc"])
     check("Source tile Sine", texts("tiles") == ["Sine"])
     lines = [i for i in c.find_withtag("wave") if c.type(i) == "line" and len(c.coords(i)) > 8]
@@ -230,7 +232,7 @@ def main():
     ctl.selected = []
     wdg._on_press(Tap(10, 5))
     check("tap on Osc selects the Osc page", ctl.selected == [1])
-    ctl.select(3)
+    ctl.select(4)
     wdg.update()
     check("Env page: tab stays Osc, title Env", wdg.tab == 0 and texts("title") == ["Env"])
     ctl.select(1)
@@ -254,6 +256,9 @@ def main():
     check("Mod Freq ranges and FM depth as in fold_core.h",
           (mod.FREQ_MAX, mod.FREE_MIN, mod.FREE_MAX, mod.KEY_RANGE, mod.FM_DEPTH) ==
           (hdr("FC_FREQ_MAX"), hdr("FC_FREE_MIN"), hdr("FC_FREE_MAX"), hdr("FC_KEY_RANGE"), hdr("FC_FM_DEPTH")))
+    check("Timbre constants as in fold_core.h",
+          (mod.FOLD_GAIN, mod.DRIVE_K) == (hdr("FC_FOLD_GAIN"), hdr("FC_DRIVE_K")) and
+          mod.CHEB_MAX == int(re.search(r"#define FC_CHEB_MAX (\d+)", core_h).group(1)))
     check("Mod Freq meaning per mode", (mod.freq_text(0, 30), mod.freq_text(1, 62.5), mod.freq_text(2, 30),
                                         mod.freq_text(2, 40), mod.freq_text(0, 100)) ==
           ("Free 0.63 Hz", "Keytrack +12.0 st", "Ratio ×1", "Ratio ×3/2", "Free 10.00 kHz"))
@@ -292,7 +297,9 @@ def main():
     check("Mod tab: blocks, arrows, Index, meaning", "Mod OSC" in mtexts and "Principal" in mtexts and
           "FM →" in mtexts and "AM →" in mtexts and "Sync →" in mtexts and "0%" in mtexts and
           "Ratio ×1 · Sine" in mtexts)
-    check("FM lit by default, AM and Sync not", routes() == {"route_fm": True, "route_am": False, "route_sync": False})
+    check("FM lit by default, AM, Sync, Timbre not", routes() == {"route_fm": True, "route_am": False,
+                                                                 "route_sync": False, "route_timbre": False})
+    check("Timbre arrow drawn", "Timbre \u2192" in texts("mod"))
 
     def tap_route(sym):
         for x0, y0, x1, y1, s in wdg.route_boxes:
@@ -305,6 +312,9 @@ def main():
     tap_route("route_sync")
     check("Sync on", proc.controllers_dict["route_sync"].value == 1 and routes()["route_sync"])
     tap_route("route_sync")
+    tap_route("route_timbre")
+    check("Timbre route on", proc.controllers_dict["route_timbre"].value == 1 and routes()["route_timbre"])
+    tap_route("route_timbre")
 
     def result_curve():
         x0, y0, x1, y1 = wdg._curve_box(wdg._mod_layout()[2])
@@ -359,6 +369,99 @@ def main():
     ctl.select(1)
     wdg.update()
 
+    # ---------- Fold tab ----------
+    # the shaper formulas: identity at 0, the Saw sum gives 1/n harmonics, M odd ones (a 256-point DFT)
+    check("Timbre 0: no change", all(abs(mod.shape(x / 10.0, 0, 0, 0, 0) - x / 10.0) < 1e-12 for x in range(-10, 11)))
+
+    def harmonics(fn, n=256, upto=6):
+        ys = [fn(math.sin(2 * math.pi * i / n)) for i in range(n)]
+        out = []
+        for k in range(1, upto + 1):
+            re_ = sum(y * math.cos(2 * math.pi * k * i / n) for i, y in enumerate(ys))
+            im_ = sum(y * math.sin(2 * math.pi * k * i / n) for i, y in enumerate(ys))
+            out.append(math.hypot(re_, im_) * 2 / n)
+        return out
+    hs = harmonics(lambda x: mod.shape(x, 1.0, 0.5, 0, 0))
+    check("Saw: harmonics 1/n", all(abs(hs[k] / hs[0] - 1.0 / (k + 1)) < 1e-3 for k in range(1, 6)))
+    hm = harmonics(lambda x: mod.shape(x, 1.0, 1.0, 0, 0))
+    check("M: odd harmonics 1/n only", hm[1] < 1e-6 * hm[0] and hm[3] < 1e-6 * hm[0] and
+          abs(hm[2] / hm[0] - 1 / 3) < 1e-3 and abs(hm[4] / hm[0] - 1 / 5) < 1e-3)
+    hf = harmonics(lambda x: mod.shape(x, 0.5, 0.0, 0, 0))
+    check("folder: odd harmonics only", hf[1] < 1e-6 and hf[3] < 1e-6 and hf[2] > 0.05)
+    check("all bounded", max(abs(mod.shape(x / 50.0, 1, o / 4.0, sy, d)) for x in range(-50, 51)
+                             for o in range(5) for sy in (-1, 0, 0.6) for d in (0, 1)) <= 1.0 + 1e-9)
+
+    ctl.selected = []
+    tx = (wdg.tab_boxes[2][0] + wdg.tab_boxes[2][1]) / 2
+    wdg._on_press(Tap(tx, 5))
+    wdg.update()
+    check("tap on Fold: Fold tab and the Timbre page", wdg.tab == 2 and ctl.selected == [3] and
+          texts("title") == ["Timbre"])
+    ctl.select(1)
+    wdg.update()
+    ctl.select(3)
+    wdg.update()
+    check("Timbre page shows the Fold tab", wdg.tab == 2)
+
+    def fold_lines():
+        return [c.coords(i) for i in c.find_withtag("fold") if c.type(i) == "line" and len(c.coords(i)) > 8]
+    ftexts = texts("fold")
+    check("Fold tab: boxes, Order line, values", "In → Out" in ftexts and "Principal → Timbre" in ftexts and
+          "Folder" in ftexts and "Saw" in ftexts and "M" in ftexts and
+          ("Timbre 0%  Sym +0  Drive 0%" in ftexts or "T 0  S +0  D 0" in ftexts))
+    curve, wave = fold_lines()
+    xs, ys = curve[0::2], curve[1::2]
+    # at the defaults the curve is the diagonal: y - cy == -(x - cx)
+    cx, cy = (xs[0] + xs[-1]) / 2, (ys[0] + ys[-1]) / 2
+    check("defaults: the transfer curve is the diagonal", max(abs((y - cy) + (x - cx)) for x, y in zip(xs, ys)) < 1.0)
+    ids = c.find_withtag("fold")
+    for _ in range(5):
+        wdg.update()
+    check("Fold tab: no redraw without changes", c.find_withtag("fold") == ids)
+
+    def turns(v):
+        d = [b - a for a, b in zip(v, v[1:]) if abs(b - a) > 1e-9]
+        return sum(1 for a, b in zip(d, d[1:]) if a * b < 0)
+    proc.controllers_dict["timbre"].value = 100.0
+    time.sleep(mod.CURVE_PERIOD)
+    wdg.update()
+    curve, wave = fold_lines()
+    check("Timbre 100 %: the curve folds (gain 8: turns at +-1, 3, 5, 7)", turns(curve[1::2]) == 8)
+    def shown(t, sy, d):
+        ft = texts("fold")
+        return "Timbre %d%%  Sym %+d  Drive %d%%" % (t, sy, d) in ft or "T %d  S %+d  D %d" % (t, sy, d) in ft
+    check("values follow", shown(100, 0, 0))
+    proc.controllers_dict["timbre"].value = 50.0
+    wdg.update()
+    check("a second change at once waits", shown(100, 0, 0))
+    proc.controllers_dict["symmetry"].value = 40.0
+    time.sleep(mod.CURVE_PERIOD)
+    wdg.update()
+    curve, wave = fold_lines()
+    ys = curve[1::2]
+    check("Symmetry: the curve is no longer odd", abs((ys[0] - cy) + (ys[-1] - cy)) > 2.0)
+    wy = wave[1::2]
+    mid_y = (min(wy) + max(wy)) / 2
+    x0, y0, x1, y1 = wdg._curve_box(wdg._fold_layout()[1])
+    check("the wave is drawn without its DC", abs(sum(wy[:-1]) / (len(wy) - 1) - (y0 + y1) / 2) < 1.0)
+
+    def order_mark():
+        ovals = [c.coords(i) for i in c.find_withtag("fold") if c.type(i) == "oval" and c.itemcget(i, "fill") == mod.MARK_COLOR]
+        return (ovals[0][0] + ovals[0][2]) / 2 if ovals else None
+    ox0, oy0, ox1, oy1 = wdg._fold_layout()[2]
+    check("Order mark at Folder", abs(order_mark() - ox0) < 1)
+    proc.controllers_dict["order"].value = 75.0
+    time.sleep(mod.CURVE_PERIOD)
+    wdg.update()
+    check("Order 75 %: mark between Saw and M", abs(order_mark() - (ox0 + 0.75 * (ox1 - ox0))) < 1)
+    lit = [c.itemcget(i, "fill") for i in c.find_withtag("fold") if c.type(i) == "oval" and
+           c.itemcget(i, "fill") != mod.MARK_COLOR]
+    check("Order 75 %: Saw and M lit, Folder not", lit == [mod.ROUTE_OFF, mod.ROUTE_ON, mod.ROUTE_ON])
+    for sym_, v in (("timbre", 0.0), ("order", 0.0), ("symmetry", 0.0)):
+        proc.controllers_dict[sym_].value = v
+    ctl.select(1)
+    wdg.update()
+
     # throttle: two updates in a row, only one reaches refresh_gui
     mod.UPDATE_PERIOD = throttle
     wdg.next_update = 0.0
@@ -381,6 +484,28 @@ def main():
         ok = left[2] < mid[0] and mid[2] < right[0] and right[2] <= wdg.width and \
             max(left[3], mid[3], right[3]) < bottom_y - wdg._font_size() and left[1] >= wdg._header_h()
         check("layout %s: Mod blocks and bottom line do not overlap" % geo, ok)
+        left, right, order, bottom_y = wdg._fold_layout()
+        ok = left[2] < right[0] and right[2] <= wdg.width and max(left[3], right[3]) < order[1] and \
+            order[3] <= wdg.height
+        check("layout %s: Fold boxes and bottom line do not overlap" % geo, ok)
+        # the values text stays right of the Order line, at every size, with the widest values
+        ctl.select(3)
+        proc.controllers_dict["timbre"].value, proc.controllers_dict["symmetry"].value = 100.0, -100.0
+        proc.controllers_dict["drive"].value = 100.0
+        wdg.fold_view = None
+        wdg.next_update = 0.0                  # the throttle check above left a pending period
+        wdg.update()
+        vt = [i for i in c.find_withtag("fold") if c.type(i) == "text" and c.itemcget(i, "anchor") == "e"]
+        ok = len(vt) == 1 and c.bbox(vt[0])[0] > order[2] and c.bbox(vt[0])[2] <= wdg.width
+        check("layout %s: Fold values right of the Order line" % geo, ok)
+        if not ok:
+            print("   tab %d, values %s, order line to %d" % (wdg.tab, [(c.itemcget(i, "text"), c.bbox(i)) for i in vt],
+                                                          order[2]))
+        proc.controllers_dict["timbre"].value = proc.controllers_dict["symmetry"].value = 0.0
+        proc.controllers_dict["drive"].value = 0.0
+        ctl.select(1)
+        wdg.next_update = 0.0
+        wdg.update()
 
     # time of a refresh with live data changing every time (the case of 4 voices playing)
     chords = [[60, 64, 67, 72], [62, 65, 69], [48], []]
@@ -424,6 +549,17 @@ def main():
         root.update_idletasks()
     full = (time.perf_counter() - t0) / 50 * 1000
     print("Mod tab on this PC: %.3f ms with the phase mark moving, %.3f ms full redraw" % (mark, full))
+    ctl.select(3)
+    proc.controllers_dict["timbre"].value = 70.0
+    proc.controllers_dict["order"].value = 30.0
+    wdg.update()
+    t0 = time.perf_counter()
+    for i in range(20):
+        wdg._clear()
+        wdg.refresh_gui()
+        root.update_idletasks()
+    full = (time.perf_counter() - t0) / 20 * 1000
+    print("Fold tab on this PC: %.3f ms full redraw (folder + Saw: the slowest curves)" % full)
 
     root.destroy()
     print("All widget tests passed" if not fails else "%d FAILED" % fails)

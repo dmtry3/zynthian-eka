@@ -1,5 +1,5 @@
 /* Eka Fold: LV2 wrapper around fold_core.
- * Knob pages Osc, Mod and Env (temporary). The routing switches FM / AM / Sync are LV2 parameters
+ * Knob pages Osc, Mod, Timbre and Env (temporary). The routing switches FM / AM / Sync / Timbre are LV2 parameters
  * (patch:writable, notOnGUI) set in the widget and saved in LV2 State: jalv in Zynthian does not
  * register ports with notOnGUI, so they could not be hidden ports.
  * SPDX-License-Identifier: GPL-3.0-or-later */
@@ -26,6 +26,7 @@
 enum {
   P_PITCH, P_FINE, P_ATTACK, P_DECAY, P_SUSTAIN, P_RELEASE,
   P_MOD_FREQ, P_MOD_INDEX, P_MOD_SHAPE, P_MOD_MODE,
+  P_TIMBRE, P_ORDER, P_SYMMETRY, P_DRIVE,
   P_END,                                 /* number of control inputs */
   P_MIDI_IN = P_END, P_OUT_L, P_OUT_R, P_NOTIFY,
   P_NOTE0,                               /* note1..4 */
@@ -34,9 +35,11 @@ enum {
 };
 
 /* Integer LV2 parameters set in the widget, saved in State. */
-enum { IP_ROUTE_FM, IP_ROUTE_AM, IP_ROUTE_SYNC, N_IPARAMS };
-static const char* const ip_names[N_IPARAMS] = { "route_fm", "route_am", "route_sync" };
-static const int ip_range[N_IPARAMS][3] = { { 1, 0, 1 }, { 0, 0, 1 }, { 0, 0, 1 } };   /* default, min, max */
+enum { IP_ROUTE_FM, IP_ROUTE_AM, IP_ROUTE_SYNC, IP_ROUTE_TIMBRE, N_IPARAMS };
+static const char* const ip_names[N_IPARAMS] = { "route_fm", "route_am", "route_sync", "route_timbre" };
+static const int ip_range[N_IPARAMS][3] = { { 1, 0, 1 }, { 0, 0, 1 }, { 0, 0, 1 }, { 0, 0, 1 } };   /* default, min, max */
+/* Anti-aliasing of the shapers and FM; stage 2 compares the modes (test/alias_report.c, fold_bench) */
+#define AA_MODE FC_AA_OS2_ADAA
 #define REPORT_PER_RUN 16                /* patch:Set replies per run() after patch:Get */
 
 typedef struct {
@@ -88,6 +91,7 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double rate, const char* 
   S->report_next = -1;
   lv2_atom_forge_init(&S->forge, m);
   fc_init(&S->core, (float)rate);
+  fc_set_aa(&S->core, AA_MODE);
   return S;
 }
 
@@ -127,6 +131,11 @@ static void read_params(Fold* S) {
   p.route_fm = S->ip[IP_ROUTE_FM];
   p.route_am = S->ip[IP_ROUTE_AM];
   p.route_sync = S->ip[IP_ROUTE_SYNC];
+  p.route_timbre = S->ip[IP_ROUTE_TIMBRE];
+  p.timbre = ctl(S, P_TIMBRE, p.timbre * 100.0f) * 0.01f;
+  p.order = ctl(S, P_ORDER, p.order * 100.0f) * 0.01f;
+  p.symmetry = ctl(S, P_SYMMETRY, p.symmetry * 100.0f) * 0.01f;
+  p.drive = ctl(S, P_DRIVE, p.drive * 100.0f) * 0.01f;
   fc_set_params(&S->core, &p);
 }
 

@@ -22,7 +22,7 @@ static int fails = 0;
 #define N 256
 /* ports, as in lv2/eka_fold.ttl */
 enum { P_PITCH, P_FINE, P_ATTACK, P_DECAY, P_SUSTAIN, P_RELEASE, P_MOD_FREQ, P_MOD_INDEX, P_MOD_SHAPE, P_MOD_MODE,
-       P_MIDI_IN, P_OUT_L, P_OUT_R, P_NOTIFY, P_NOTE1, P_NOTE4 = P_NOTE1 + 3, P_PEAK, P_MOD_PHASE, P_COUNT };
+       P_TIMBRE, P_ORDER, P_SYMMETRY, P_DRIVE, P_MIDI_IN, P_OUT_L, P_OUT_R, P_NOTIFY, P_NOTE1, P_NOTE4 = P_NOTE1 + 3, P_PEAK, P_MOD_PHASE, P_COUNT };
 
 static char* uris[64];
 static int nuris = 0;
@@ -133,11 +133,13 @@ static float peak(const float* x, int a, int b) {
 static const LV2_Descriptor* d;
 static LV2_Handle h;
 
-/* Runs blocks for `secs` and counts the rising zero crossings. */
+/* Runs whole blocks for about `secs` and counts the rising zero crossings; *len = the samples run. */
+static int blocks_len;
 static int crossings(double secs) {
   int cross = 0;
   float prev = 0.0f;                                                     /* across block boundaries too */
-  for (int b = 0; b < (int)(secs * 48000 / N); b++) {
+  blocks_len = (int)(secs * 48000 / N) * N;
+  for (int b = 0; b < blocks_len / N; b++) {
     notify_reset();
     d->run(h, N);
     for (int i = 0; i < N; i++) { cross += prev < 0.0f && out_l[i] >= 0.0f; prev = out_l[i]; }
@@ -175,6 +177,7 @@ int main(int argc, char** argv) {
   /* the knob defaults of the .ttl */
   ctl[P_PITCH] = 0; ctl[P_FINE] = 0; ctl[P_ATTACK] = 5; ctl[P_DECAY] = 300; ctl[P_SUSTAIN] = 70; ctl[P_RELEASE] = 400;
   ctl[P_MOD_FREQ] = 30; ctl[P_MOD_INDEX] = 0; ctl[P_MOD_SHAPE] = 1; ctl[P_MOD_MODE] = 2;
+  ctl[P_TIMBRE] = 0; ctl[P_ORDER] = 0; ctl[P_SYMMETRY] = 0; ctl[P_DRIVE] = 0;
   for (int p = 0; p < P_COUNT; p++) {
     if (p == P_MIDI_IN) d->connect_port(h, p, seq);
     else if (p == P_NOTIFY) d->connect_port(h, p, notify);
@@ -194,11 +197,11 @@ int main(int argc, char** argv) {
   CHECK(ctl[P_NOTE1] == -1.0f && ctl[P_NOTE4] == -1.0f);
   CHECK(ctl[P_MOD_PHASE] == -1.0f);
 
-  /* a note on at frame 100: sample-accurate (the Principal comes one sample late: the sync correction) */
+  /* a note on at frame 100: sample-accurate, silence before it */
   seq_midi(100, 0x90, 60, 127);
   run_seq();
-  CHECK(peak(out_l, 0, 101) == 0.0f);
-  CHECK(peak(out_l, 101, N) > 0.0f);
+  CHECK(peak(out_l, 0, 100) == 0.0f);
+  CHECK(peak(out_l, 100, N) > 0.0f);
   CHECK(!memcmp(out_l, out_r, sizeof out_l));
   CHECK(ctl[P_NOTE1] == 60.0f);
   CHECK(ctl[P_PEAK] > -100.0f && ctl[P_PEAK] <= 0.0f);
@@ -227,14 +230,16 @@ int main(int argc, char** argv) {
   printf("A4 + 12: %d crossings in 2 s\n", cross);
   CHECK(cross >= 1758 && cross <= 1762);
 
-  /* patch:Get: the plugin reports the routing switches (defaults FM on, AM and Sync off) */
+  /* patch:Get: the plugin reports the routing switches (defaults FM on, AM, Sync and Timbre off) */
   seq_get();
   run_seq();
-  CHECK(reported("route_fm") == 1 && reported("route_am") == 0 && reported("route_sync") == 0);
+  CHECK(reported("route_fm") == 1 && reported("route_am") == 0 && reported("route_sync") == 0 &&
+        reported("route_timbre") == 0);
 
-  /* AM on through patch:Set (FM off), Index 100 %, ratio 1: ring modulation sin^2, never below zero.
+  /* AM on through patch:Set (FM off), Index 100 %, ratio 1: ring modulation sin^2; without its DC
+   * (the DC blocker) that is -cos(2x) / 2: an octave up, 880 crossings in a second.
    * A new note: Ratio mode restarts both phases together (switching while a note sounds glides through some
-   * FM for 5 ms, which shifts the phases: sin * cos then, which does cross zero) */
+   * FM for 5 ms, which shifts the phases: sin * cos then) */
   ctl[P_PITCH] = 0;
   ctl[P_MOD_INDEX] = 100;
   seq_set("route_fm", 0.0f);
@@ -245,8 +250,9 @@ int main(int argc, char** argv) {
   seq_midi(0, 0x90, 69, 127);
   run_seq();
   cross = crossings(1.0);
-  printf("ring at ratio 1: %d crossings in 1 s (440 without)\n", cross);
-  CHECK(cross < 5);
+  const double octave = 880.0 * blocks_len / 48000;                     /* expected: an octave up */
+  printf("ring at ratio 1: %d crossings in %d samples (%.1f for an octave up)\n", cross, blocks_len, octave);
+  CHECK(fabs(cross - octave) <= 1.5);
   /* out of range values are clamped */
   seq_set("route_sync", 5.0f);
   run_seq();
@@ -257,7 +263,7 @@ int main(int argc, char** argv) {
   /* State: save, change, restore; the restored values are reported on the next run */
   nitems = 0;
   CHECK(si->save(h, store, NULL, 0, NULL) == LV2_STATE_SUCCESS);
-  CHECK(nitems == 3);
+  CHECK(nitems == 4);
   seq_set("route_am", 0.0f);
   seq_set("route_sync", 0.0f);
   seq_set("route_fm", 1.0f);
@@ -276,9 +282,28 @@ int main(int argc, char** argv) {
   printf("FM ratio 1, Index 100 %%: %d crossings in 1 s\n", cross);
   CHECK(cross > 600);
 
+  /* the Timbre knob: Index 0, a plain sine (440 crossings), then the folder at 100 %: many folds */
+  ctl[P_MOD_INDEX] = 0;
+  for (int i = 0; i < 10; i++) run_seq();
+  cross = crossings(1.0);
+  CHECK(fabs(cross - 440.0 * blocks_len / 48000) <= 1.5);
+  ctl[P_TIMBRE] = 100;
+  for (int i = 0; i < 10; i++) run_seq();
+  cross = crossings(1.0);
+  printf("folder, Timbre 100 %%: %d crossings in 1 s\n", cross);
+  CHECK(cross > 3 * 440);
+  /* Mod OSC -> Timbre through patch:Set */
+  seq_set("route_timbre", 1.0f);
+  run_seq();
+  seq_get();
+  run_seq();
+  CHECK(reported("route_timbre") == 1);
+  ctl[P_TIMBRE] = 0;
+
   /* odd values from a host: NaN knobs, a short MIDI event, out of range Mod knobs */
   ctl[P_ATTACK] = NAN;
   ctl[P_MOD_SHAPE] = 9; ctl[P_MOD_MODE] = -3; ctl[P_MOD_FREQ] = 1000; ctl[P_MOD_INDEX] = NAN;
+  ctl[P_TIMBRE] = 500; ctl[P_ORDER] = -7; ctl[P_SYMMETRY] = NAN; ctl[P_DRIVE] = 1e9;
   seq_midi(0, 0xE0, 0x7F, 0x7F);                                        /* bend fully up */
   run_seq();
   for (int b = 0; b < 20; b++) {

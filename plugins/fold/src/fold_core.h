@@ -1,7 +1,9 @@
 /* Eka Fold engine, without LV2: tested in WSL as a plain program (test/test_core.c).
- * Stage 1: 4 voices; each voice has a Principal oscillator (sine; more sources at stage 4) and a Mod OSC
- * (triangle, sine, saw, square; Free / Keytrack / Ratio) that modulates it through FM, AM and Sync with one
- * Mod Index. A plain ADSR per voice (replaced by FG1 and the lopass gate at stage 3).
+ * Stage 2: 4 voices; each voice has a Principal oscillator (sine; more sources at stage 4) and a Mod OSC
+ * (triangle, sine, saw, square; Free / Keytrack / Ratio) that modulates it through FM, AM, Sync and Timbre with
+ * one Mod Index; then the Timbre section: three shapers (folder, saw, M) blended by Order, Timbre = depth,
+ * Symmetry = offset before them, Drive = soft saturation after them; a DC blocker. A plain ADSR per voice
+ * (replaced by FG1 and the lopass gate at stage 3).
  * SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef FOLD_CORE_H
 #define FOLD_CORE_H
@@ -19,6 +21,23 @@
  * Chosen by the aliasing test (test/alias_report.c, 2026-11-11): phase modulation aliased strongly with a saw or
  * square Mod OSC (a phase step is a step in the sound), linear FM stays clean to C6 at the plugin rate. */
 #define FC_FM_DEPTH 4.0f
+
+/* Timbre section. Folder: gain 1..FC_FOLD_GAIN into a triangle folder (Timbre 0 with Symmetry 0 = no change).
+ * Saw and M: the sum of Chebyshev polynomials T_n / n (all n, or odd n), which turns a sine into exactly the
+ * harmonics of a saw (square) up to n = N; N per voice from its note, below 0.45 of the rate, at most
+ * FC_CHEB_MAX. Timbre crossfades the input into them. The Mod OSC adds up to FC_TIMBRE_MOD x Index to Timbre.
+ * Drive: tanh saturation, k = 1 + FC_DRIVE_K x Drive, crossfaded in. */
+#define FC_FOLD_GAIN 8.0f
+#define FC_CHEB_MAX 32
+#define FC_TIMBRE_MOD 1.0f
+#define FC_DRIVE_K 4.0f
+#define FC_DC_HZ 5.0f             /* DC blocker per voice (Symmetry, AM and the shapers make DC) */
+
+/* Anti-aliasing of the shapers and FM (being compared at stage 2, test/alias_report.c): the plugin rate,
+ * ADAA (first-order antiderivative) on the folder, the voices at 2x with a halfband decimator, or both. */
+enum { FC_AA_NONE, FC_AA_ADAA, FC_AA_OS2, FC_AA_OS2_ADAA };
+#define FC_CHUNK 64               /* output samples rendered at a time (the 2x buffer) */
+#define FC_HB_TAPS 63             /* halfband decimator */
 
 /* Mod OSC shapes and modes: the order of the scale points in lv2/eka_fold.ttl and of the widget's lists. */
 enum { FC_MOD_TRI, FC_MOD_SINE, FC_MOD_SAW, FC_MOD_SQUARE, FC_NMOD_SHAPES };
@@ -46,7 +65,9 @@ typedef struct {
   float mod_freq;                 /* units, see above */
   float mod_index;                /* 0..1 */
   int mod_shape, mod_mode;
-  int route_fm, route_am, route_sync;
+  int route_fm, route_am, route_sync, route_timbre;
+  float timbre, order, drive;     /* 0..1 */
+  float symmetry;                 /* -1..1 */
 } FcParams;
 
 enum { FC_IDLE, FC_ATTACK, FC_DECAY, FC_SUSTAIN, FC_RELEASE, FC_STEAL };
@@ -58,7 +79,10 @@ typedef struct {
   float phase;                    /* Principal, cycles 0..1 */
   float mphase;                   /* Mod OSC, cycles 0..1 */
   float env;
-  float idx, gfm, gam;            /* Mod Index and the FM / AM switches, smoothed */
+  float idx, gfm, gam, gtim;      /* Mod Index and the FM / AM / Timbre switches, smoothed */
+  float tim, ord, sym, drv;       /* Timbre knobs, smoothed */
+  float au, aF;                   /* ADAA: last folder input and its antiderivative */
+  float dcx, dcy;                 /* DC blocker */
   float y_prev;                   /* Principal, one sample late: the sync step is corrected on both sides */
   uint32_t age;                   /* note-on order: lower = older */
   int held;                       /* the key is down */
@@ -68,7 +92,10 @@ typedef struct {
 } FcVoice;
 
 typedef struct {
-  float sr;
+  float sr;                       /* the voices' rate: the plugin rate x os */
+  float sr_out;                   /* the plugin rate */
+  int os, aa;
+  FcParams p;                     /* the last parameters (for a change of rate) */
   FcVoice v[FC_VOICES];
   uint32_t clock;
   int sustain_pedal;
@@ -78,7 +105,11 @@ typedef struct {
   float smooth;                   /* one-pole coefficient for FC_SMOOTH_MS */
   int mod_shape, mod_mode;
   float mod_hz, mod_semis, mod_ratio;   /* Mod Freq read for each mode */
-  float idx_t, fm_t, am_t;        /* targets of the smoothed values */
+  float idx_t, fm_t, am_t, tim_route_t;   /* targets of the smoothed values */
+  float tim_t, ord_t, sym_t, drv_t;
+  float dc_r;                     /* DC blocker pole */
+  float hb[FC_HB_TAPS];           /* halfband taps */
+  float hbuf[FC_HB_TAPS - 1 + 2 * FC_CHUNK];   /* 2x samples: history, then the chunk */
   int sync;
   float table[FC_SINE_N + 1];
 } FoldCore;
@@ -86,6 +117,7 @@ typedef struct {
 void fc_init(FoldCore* c, float sr);
 void fc_default_params(FcParams* p);
 void fc_set_params(FoldCore* c, const FcParams* p);
+void fc_set_aa(FoldCore* c, int aa);   /* FC_AA_*: stage 2 comparison; changes the rate, stops the voices */
 void fc_note_on(FoldCore* c, int note, int vel);
 void fc_note_off(FoldCore* c, int note);
 void fc_set_sustain(FoldCore* c, int on);

@@ -1,4 +1,4 @@
-/* Eka Fold engine, stage 1. SPDX-License-Identifier: GPL-3.0-or-later */
+/* Eka Fold engine, stage 2. SPDX-License-Identifier: GPL-3.0-or-later */
 #include "fold_core.h"
 
 #include <math.h>
@@ -48,17 +48,68 @@ void fc_default_params(FcParams* p) {
   p->route_fm = 1;
   p->route_am = 0;
   p->route_sync = 0;
+  p->route_timbre = 0;
+  p->timbre = 0.0f;               /* the Timbre section passes the Principal through until turned up */
+  p->order = 0.0f;
+  p->symmetry = 0.0f;
+  p->drive = 0.0f;
+}
+
+/* Kaiser-windowed halfband low-pass for 2x -> 1x: zero at every second tap, cut at a quarter of the 2x rate. */
+static double bessel_i0(double x) {
+  double sum = 1.0, term = 1.0;
+  for (int k = 1; k < 40; k++) {
+    term *= (x / (2.0 * k)) * (x / (2.0 * k));
+    sum += term;
+  }
+  return sum;
+}
+
+static void make_halfband(float* h) {
+  const double beta = 8.0;
+  const int mid = (FC_HB_TAPS - 1) / 2;
+  double sum = 0.0;
+  double t[FC_HB_TAPS];
+  for (int i = 0; i < FC_HB_TAPS; i++) {
+    const int m = i - mid;
+    const double r = (double)m / mid;
+    const double w = bessel_i0(beta * sqrt(1.0 - r * r)) / bessel_i0(beta);
+    const double sinc = m == 0 ? 0.5 : (m % 2 == 0 ? 0.0 : sin(M_PI * m / 2.0) / (M_PI * m));
+    t[i] = sinc * w;
+    sum += t[i];
+  }
+  for (int i = 0; i < FC_HB_TAPS; i++) h[i] = (float)(t[i] / sum);
+}
+
+/* Everything that depends on the rate. */
+static void set_rate(FoldCore* c) {
+  c->sr = c->sr_out * (float)c->os;
+  c->smooth = 1.0f - expf(-1.0f / (FC_SMOOTH_MS * 0.001f * c->sr));
+  c->dc_r = 1.0f - 2.0f * (float)M_PI * FC_DC_HZ / c->sr;
+  memset(c->hbuf, 0, sizeof c->hbuf);
 }
 
 void fc_init(FoldCore* c, float sr) {
   memset(c, 0, sizeof *c);
-  c->sr = sr > 1.0f ? sr : 48000.0f;
+  c->sr_out = sr > 1.0f ? sr : 48000.0f;
+  c->os = 1;
+  c->aa = FC_AA_NONE;
   for (int i = 0; i <= FC_SINE_N; i++)
     c->table[i] = (float)sin(2.0 * M_PI * (double)i / FC_SINE_N);
   for (int i = 0; i < FC_VOICES; i++) c->v[i].note = -1;
-  c->smooth = 1.0f - expf(-1.0f / (FC_SMOOTH_MS * 0.001f * c->sr));
+  make_halfband(c->hb);
+  set_rate(c);
   FcParams p;
   fc_default_params(&p);
+  fc_set_params(c, &p);
+}
+
+void fc_set_aa(FoldCore* c, int aa) {
+  c->aa = aa >= FC_AA_NONE && aa <= FC_AA_OS2_ADAA ? aa : FC_AA_NONE;
+  c->os = c->aa >= FC_AA_OS2 ? 2 : 1;
+  for (int i = 0; i < FC_VOICES; i++) { c->v[i].stage = FC_IDLE; c->v[i].note = -1; }
+  set_rate(c);
+  const FcParams p = c->p;
   fc_set_params(c, &p);
 }
 
@@ -69,6 +120,7 @@ static float exp_coef(float sr, float ms) {
 }
 
 void fc_set_params(FoldCore* c, const FcParams* p) {
+  c->p = *p;
   c->tune = p->pitch + p->fine * 0.01f;
   c->att_inc = 1.0f / ((p->attack_ms < 0.5f ? 0.5f : p->attack_ms) * 0.001f * c->sr);
   c->dec_coef = exp_coef(c->sr, p->decay_ms);
@@ -84,6 +136,11 @@ void fc_set_params(FoldCore* c, const FcParams* p) {
   c->fm_t = p->route_fm ? 1.0f : 0.0f;
   c->am_t = p->route_am ? 1.0f : 0.0f;
   c->sync = p->route_sync != 0;
+  c->tim_route_t = p->route_timbre ? 1.0f : 0.0f;
+  c->tim_t = clampf(p->timbre, 0.0f, 1.0f);
+  c->ord_t = clampf(p->order, 0.0f, 1.0f);
+  c->sym_t = clampf(p->symmetry, -1.0f, 1.0f);
+  c->drv_t = clampf(p->drive, 0.0f, 1.0f);
 }
 
 static void start_voice(FoldCore* c, FcVoice* v, int note, int vel) {
@@ -95,6 +152,13 @@ static void start_voice(FoldCore* c, FcVoice* v, int note, int vel) {
   v->idx = c->idx_t;
   v->gfm = c->fm_t;
   v->gam = c->am_t;
+  v->gtim = c->tim_route_t;
+  v->tim = c->tim_t;
+  v->ord = c->ord_t;
+  v->sym = c->sym_t;
+  v->drv = c->drv_t;
+  v->au = v->aF = 0.0f;
+  v->dcx = v->dcy = 0.0f;
   v->y_prev = 0.0f;
   v->stage = FC_ATTACK;
   v->held = 1;
@@ -231,6 +295,54 @@ static inline float mod_wave(const FoldCore* c, int shape, float ph, float dt) {
   }
 }
 
+/* ---------- Timbre section ---------- */
+/* Triangle folder: u inside -1..1 passes, beyond it folds back (period 4). */
+static inline float fold(float u) {
+  float s = (u + 1.0f) * 0.25f;
+  s -= floorf(s);
+  return s < 0.5f ? 4.0f * s - 1.0f : 3.0f - 4.0f * s;
+}
+
+/* Its antiderivative (periodic, 0 at u = -1). */
+static inline float fold_int(float u) {
+  float s = (u + 1.0f) * 0.25f;
+  s -= floorf(s);
+  return s < 0.5f ? 8.0f * s * s - 4.0f * s : 12.0f * s - 8.0f * s * s - 4.0f;
+}
+
+/* sum a[k] T_k(u), k = 1..n (Clenshaw). */
+static inline float chebyshev(const float* a, int n, float u) {
+  float b1 = 0.0f, b2 = 0.0f;
+  const float u2 = 2.0f * u;
+  for (int k = n; k >= 1; k--) {
+    const float b0 = a[k] + u2 * b1 - b2;
+    b2 = b1;
+    b1 = b0;
+  }
+  return u * b1 - b2;
+}
+
+static inline float fast_tanh(float x) {           /* rational, exact at +-3 (= 1), clamped beyond */
+  if (x > 3.0f) return 1.0f;
+  if (x < -3.0f) return -1.0f;
+  const float x2 = x * x;
+  return x * (27.0f + x2) / (27.0f + 9.0f * x2);
+}
+
+/* Chebyshev weights of the Saw / M blend for a voice: Saw 1/n, M 1/n for odd n, each scaled to a peak of 1
+ * (its value at u = 1, the sum of the weights), then mixed by ws : wm. Returns N. */
+static int shaper_coefs(float inc, float ws, float wm, float* a) {
+  int n = inc > 0.0f ? (int)(0.45f / inc) : FC_CHEB_MAX;
+  n = n < 1 ? 1 : n > FC_CHEB_MAX ? FC_CHEB_MAX : n;
+  float hs = 0.0f, hm = 0.0f;
+  for (int k = 1; k <= n; k++) { hs += 1.0f / (float)k; if (k & 1) hm += 1.0f / (float)k; }
+  const float sum = ws + wm > 1e-6f ? ws + wm : 1.0f;
+  a[0] = 0.0f;
+  for (int k = 1; k <= n; k++)
+    a[k] = (ws / hs + ((k & 1) ? wm / hm : 0.0f)) / ((float)k * sum);
+  return n;
+}
+
 /* Principal cycles per sample for a note. */
 static float note_inc(const FoldCore* c, int note) {
   const float semis = (float)note - 69.0f + c->tune + c->bend;
@@ -247,14 +359,20 @@ static float mod_inc(const FoldCore* c, float inc) {
   return m < 0.49f ? m : 0.49f;
 }
 
-void fc_process(FoldCore* c, float* l, float* r, uint32_t n) {
+/* n samples of all voices at the voices' rate into l (overwritten). */
+static void render_voices(FoldCore* c, float* l, uint32_t n) {
   memset(l, 0, n * sizeof(float));
   const float k = c->smooth;
+  const int adaa = c->aa == FC_AA_ADAA || c->aa == FC_AA_OS2_ADAA;
+  float a[FC_CHEB_MAX + 1];
   for (int vi = 0; vi < FC_VOICES; vi++) {
     FcVoice* v = &c->v[vi];
     if (v->stage == FC_IDLE) continue;
     float inc = note_inc(c, v->note);                /* once per block: bend and tune come between blocks */
     float dm = mod_inc(c, inc);
+    /* the Saw / M weights for this block (Order changes slowly; the crossfade with the folder is per sample) */
+    float o = v->ord;
+    int ncheb = shaper_coefs(inc, o < 0.5f ? 2.0f * o : 2.0f - 2.0f * o, o < 0.5f ? 0.0f : 2.0f * o - 1.0f, a);
     for (uint32_t s = 0; s < n; s++) {
       switch (v->stage) {
         case FC_ATTACK:
@@ -282,6 +400,8 @@ void fc_process(FoldCore* c, float* l, float* r, uint32_t n) {
               start_voice(c, v, v->next_note, v->next_vel);
               inc = note_inc(c, v->note);
               dm = mod_inc(c, inc);
+              o = v->ord;
+              ncheb = shaper_coefs(inc, o < 0.5f ? 2.0f * o : 2.0f - 2.0f * o, o < 0.5f ? 0.0f : 2.0f * o - 1.0f, a);
             } else {
               v->stage = FC_IDLE;
             }
@@ -297,6 +417,11 @@ void fc_process(FoldCore* c, float* l, float* r, uint32_t n) {
       v->idx += (c->idx_t - v->idx) * k;
       v->gfm += (c->fm_t - v->gfm) * k;
       v->gam += (c->am_t - v->gam) * k;
+      v->gtim += (c->tim_route_t - v->gtim) * k;
+      v->tim += (c->tim_t - v->tim) * k;
+      v->ord += (c->ord_t - v->ord) * k;
+      v->sym += (c->sym_t - v->sym) * k;
+      v->drv += (c->drv_t - v->drv) * k;
 
       /* Mod OSC */
       const float m = mod_wave(c, c->mod_shape, v->mphase, dm);
@@ -325,9 +450,62 @@ void fc_process(FoldCore* c, float* l, float* r, uint32_t n) {
       const float out = v->y_prev;                     /* one sample late */
       v->y_prev = y;
       const float am = v->gam * v->idx;
-      l[s] += out * ((1.0f - am) + am * m) * v->env * v->amp;
+      const float x = out * ((1.0f - am) + am * m);    /* AM before the shapers: it changes the timbre too */
+
+      /* Timbre section: folder, Saw / M (Chebyshev) blended by Order; Timbre = depth, Symmetry = offset */
+      float t = v->tim + FC_TIMBRE_MOD * v->gtim * v->idx * m;
+      t = t < 0.0f ? 0.0f : t > 1.0f ? 1.0f : t;
+      const float wf = v->ord < 0.5f ? 1.0f - 2.0f * v->ord : 0.0f;   /* the folder's share */
+      float sh = 0.0f;
+      const float u = (1.0f + (FC_FOLD_GAIN - 1.0f) * t) * x + v->sym;
+      if (adaa) {                                      /* first-order ADAA: the mean of fold() since the last sample */
+        const float F = fold_int(u);
+        const float d = u - v->au;
+        const float f = fabsf(d) > 1e-4f ? (F - v->aF) / d : fold(0.5f * (u + v->au));
+        v->au = u;
+        v->aF = F;
+        sh = wf * f;
+      } else if (wf > 0.0f) {
+        sh = wf * fold(u);
+      }
+      if (wf < 1.0f) {
+        float uc = x + v->sym;
+        uc = uc < -1.0f ? -1.0f : uc > 1.0f ? 1.0f : uc;
+        const float ch = t > 0.0f ? chebyshev(a, ncheb, uc) : 0.0f;
+        sh += (1.0f - wf) * ((1.0f - t) * x + t * ch);
+      }
+      if (v->drv > 1e-4f) {
+        const float kd = 1.0f + FC_DRIVE_K * v->drv;
+        sh = (1.0f - v->drv) * sh + v->drv * fast_tanh(kd * sh) / fast_tanh(kd);
+      }
+      /* DC blocker before the envelope: silence stays exact silence */
+      const float dc = sh - v->dcx + c->dc_r * v->dcy;
+      v->dcx = sh;
+      v->dcy = dc;
+      l[s] += dc * v->env * v->amp;
     }
     if (v->stage == FC_IDLE) v->note = -1;
+  }
+}
+
+void fc_process(FoldCore* c, float* l, float* r, uint32_t n) {
+  if (c->os == 1) {
+    render_voices(c, l, n);
+  } else {
+    /* 2x: render a chunk after the history, then the halfband taps for every second sample */
+    const int hist = FC_HB_TAPS - 1;
+    float* in = c->hbuf + hist;
+    for (uint32_t done = 0; done < n; done += FC_CHUNK) {
+      const uint32_t k = n - done < FC_CHUNK ? n - done : FC_CHUNK;
+      render_voices(c, in, 2 * k);
+      for (uint32_t j = 0; j < k; j++) {
+        const float* x = in + 2 * j + 1;               /* newest input of this output sample */
+        float acc = c->hb[(FC_HB_TAPS - 1) / 2] * x[-(FC_HB_TAPS - 1) / 2];
+        for (int i = 0; i < FC_HB_TAPS; i += 2) acc += c->hb[i] * x[-i];   /* the other non-zero taps are even */
+        l[done + j] = acc;
+      }
+      memmove(c->hbuf, in + 2 * k - hist, hist * sizeof(float));
+    }
   }
   memcpy(r, l, n * sizeof(float));
 }
