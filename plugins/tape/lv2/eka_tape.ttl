@@ -201,7 +201,8 @@
         <http://dmtry3.github.io/zynthian-eka/tape#tsel> ,
         <http://dmtry3.github.io/zynthian-eka/tape#psel> ,
         <http://dmtry3.github.io/zynthian-eka/tape#wsel> ,
-        <http://dmtry3.github.io/zynthian-eka/tape#count_in> ;
+        <http://dmtry3.github.io/zynthian-eka/tape#count_in> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#rec_thresh> ;
     lv2:port
     [
         a lv2:InputPort , lv2:AudioPort ; lv2:index 18 ; lv2:symbol "in_l" ; lv2:name "In L" ;
@@ -2139,5 +2140,15 @@
     rdfs:label "Count In" ;
     rdfs:range atom:Int ;
     lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+# Старт записи основы по порогу входа (этап 8, только Free): 0 выкл, −60..−12 дБ.
+<http://dmtry3.github.io/zynthian-eka/tape#rec_thresh>
+    a lv2:Parameter ;
+    lv2:symbol "rec_thresh" ;
+    rdfs:label "Rec Threshold dB" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -60 ; lv2:maximum 0 ;
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .

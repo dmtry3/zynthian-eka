@@ -134,6 +134,7 @@ QUANT_NAMES = ("NOW", "BEAT", "BAR", "LOOP END")
 LAT_STEPS = [0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 60, 80, 100]
 HOLD_STEPS = [200, 300, 400, 500, 600, 750, 1000, 1250, 1500, 2000]
 RHOLD_STEPS = [500, 750, 1000, 1250, 1500, 2000, 2500, 3000]
+THRESH_STEPS = [0, -60, -54, -48, -42, -36, -30, -24, -18, -12]  # старт по порогу (только Free), 0 выкл
 # Экран настроек: разделы, в разделе строки.
 #   ("seg", символ, подпись, названия вариантов[, значения]) — сегментный переключатель;
 #      значение = номер варианта или значение из списка
@@ -151,6 +152,7 @@ SETTINGS = [
         ("seg", "mode", "MODE", ("FREE", "QUANTIZE")),
         ("sl", "latency", "LATENCY", LAT_STEPS, lambda v: "OFF" if v == 0 else "%d ms" % v),
         ("seg", "count_in", "COUNT IN", ("OFF", "1 BAR", "2 BARS")),
+        ("sl", "rec_thresh", "THRESHOLD", THRESH_STEPS, lambda v: "OFF" if v == 0 else "%d dB" % v),
     ]),
     ("QUANTIZE", [
         ("seg", "mute_q", "MUTE AT", QUANT_NAMES),
@@ -204,7 +206,7 @@ SETTING_DEFAULTS = {"rec_order": 0, "mode": 1, "mute_q": 2, "part_q": 3, "tempo_
                     "spd_glide": 150, "fade_out": 200, "fade_in": 200, "rev_time": 50,
                     "len1": 0, "len2": 0, "len3": 0, "len4": 0, "len5": 0, "len6": 0, "limiter": 1, "grid": 1,
                     "latency": 0, "hold_ms": 500, "reset_ms": 1000,
-                    "pool_mb": 2048, "count_in": 0}
+                    "pool_mb": 2048, "count_in": 0, "rec_thresh": 0}
 
 
 def mix(c1, c2, f):
@@ -1496,7 +1498,10 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
         if s == ST_EMPTY:
             return "RECORD", RED
         if s == ST_ARMED:
-            return ("COUNT IN", RED) if st.get("count", 0) > 0 else ("WAIT BAR", RED)
+            if st.get("count", 0) > 0:
+                return "COUNT IN", RED
+            # Free: взведённая без счёта ждёт сигнала (старт по порогу)
+            return ("WAIT BAR", RED) if st["quantize"] else ("WAIT SIGNAL", RED)
         if s == ST_REC:
             return ("OVERDUB", ORANGE) if st["rop"] else ("PLAY", BLUE)
         if s == ST_PLAY:

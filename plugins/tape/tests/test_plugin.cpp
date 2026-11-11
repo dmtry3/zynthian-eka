@@ -460,6 +460,18 @@ static void test_touch() {
     rec = q.pl->looper->view(0).state == 2;
   }
   CHECK(maxc == 4.0f && rec && q.ctl[O_COUNT] == 0.0f);
+  // старт по порогу (этап 8): Free, −30 дБ — в тишине ждёт, со звуком пишет
+  Host f;
+  set_param(f.pl, PR_MODE, 0);
+  on_param(f.pl, PR_MODE);
+  set_param(f.pl, PR_RTHRESH, -30);
+  on_param(f.pl, PR_RTHRESH);
+  f.blocks(4);
+  do_action(f.pl, A_REC);
+  f.blocks(200);
+  CHECK(f.pl->looper->view(0).state == 1);
+  f.blocks(2, 0.3f);
+  CHECK(f.pl->looper->view(0).state == 2);
 }
 
 int main() {

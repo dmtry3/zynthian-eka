@@ -41,6 +41,7 @@ struct Settings {
   float spd_glide_ms = 150.0f;    // плавный ход ручной скорости
   float latency_ms = 0.0f;        // компенсация задержки аудиоинтерфейса (выход + вход), 0..100
   int count_in = 0;               // счёт перед записью основы, тактов: 0 выкл, 1, 2 (этап 8)
+  int rec_thresh_db = 0;          // старт записи основы по порогу входа (только Free): 0 выкл, −60..−12 дБ
 };
 
 constexpr float kMinSpeed = 0.25f, kMaxSpeed = 2.0f;  // ручная скорость дорожки, как у ленты
@@ -286,6 +287,7 @@ class Looper {
   void reset_all_now(bool full = true);  // full: и микшер со скоростями
   void apply_grid();
   void start_rec(int ti);
+  void prefill_rec(int ti);  // старт по порогу: в начало записи — вход за 10 мс до атаки
   void rec_on_boundary(int ti);  // запись с черты (такт, переход парта) с учётом компенсации задержки
   void cancel_rec(int ti);
   void close_loop(int ti, uint64_t L);
@@ -354,6 +356,10 @@ class Looper {
   Settings set_;
   double sr_ = 48000.0;
   uint32_t xf_ = 480;          // внутренний кроссфейд стыка, овердаба, undo (10 мс)
+  // вход за последние кадры (старт записи по порогу берёт из него 10 мс до атаки)
+  static constexpr uint32_t kPreMax = 2048;
+  float pre_l_[kPreMax] = {}, pre_r_[kPreMax] = {};
+  uint32_t pre_w_ = 0, pre_n_ = 0;
   Track tr_[kTracks];
   int active_ = 0;
   int ns_ = 4;              // сетка: партов и дорожек в парте

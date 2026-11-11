@@ -170,7 +170,10 @@ void Looper::rec_press(int ti) {
       t.count_n = (uint8_t)(set_.count_in > 0 ? set_.count_in : 0);
       t.count_end = -1.0;
       if (!set_.quantize) {
-        if (t.count_n == 0) {
+        if (t.count_n == 0 && set_.rec_thresh_db < 0) {  // порог: ждём сигнала
+          t.st = TState::Armed;
+          t.rec_wait = 0;
+        } else if (t.count_n == 0) {
           start_rec(ti);
         } else {
           t.st = TState::Armed;
@@ -219,6 +222,27 @@ void Looper::start_rec(int ti) {
   t.tspd = 1.0;
   t.st = TState::Rec;
   rec_peaks_start(ti);
+}
+
+// Старт по порогу: запись начинается с кадра, где вход перешёл порог; чтобы атака не обрезалась,
+// в начало кладём вход за 10 мс до него (с fade in начала записи).
+void Looper::prefill_rec(int ti) {
+  Track& t = tr_[ti];
+  if (t.st != TState::Rec || t.rec < 0) return;
+  uint32_t p = (uint32_t)std::lround(sr_ * 0.010);
+  if (p > kPreMax - 1) p = kPreMax - 1;
+  if (p > pre_n_) p = pre_n_;
+  if (p == 0) return;
+  Chunk* c = pool_.ensure(t.rec, 0, false);
+  if (!c) return;
+  for (uint32_t j = 0; j < p; ++j) {
+    const uint32_t q = (pre_w_ + kPreMax - p + j) % kPreMax;
+    const float g = j < xf_ ? (float)j / (float)xf_ : 1.0f;
+    c->l[j] = pre_l_[q] * g;
+    c->r[j] = pre_r_[q] * g;
+    rec_peaks(ti, c->l[j], c->r[j]);
+  }
+  t.rec_frames = p;
 }
 
 // Волна записи основы. При фиксированной длине вся полоса — эта длина;
@@ -1704,6 +1728,7 @@ void Looper::process(const float* in_l, const float* in_r, float* out_l, float* 
       hold_ = false;
   }
   if (hold_) beats_ = 0.0;
+  const float thr = set_.rec_thresh_db < 0 ? db_gain((float)set_.rec_thresh_db) : 0.0f;
   for (uint32_t i = 0; i < n; ++i) {
     // компенсация задержки: запись начинается ровно через lat_ кадров после черты
     // (до проверки черты: взведённая в этом кадре дорожка начинает отсчёт со следующего)
@@ -1737,7 +1762,14 @@ void Looper::process(const float* in_l, const float* in_r, float* out_l, float* 
         if (t.st != TState::Armed || (t.count_n > 0 && beats_ < t.count_end)) continue;  // идёт счёт
         t.count_n = 0;
         t.count_end = -1.0;
-        start_rec(k);
+        if (thr > 0.0f) {  // старт по порогу (после счёта, если он был)
+          const float a = std::fmax(in_l ? std::fabs(in_l[i]) : 0.0f, in_r ? std::fabs(in_r[i]) : 0.0f);
+          if (a < thr) continue;
+          start_rec(k);
+          prefill_rec(k);
+        } else {
+          start_rec(k);
+        }
       }
     }
     if (part_due_) {  // самый длинный луп дошёл до конца цикла: переход
@@ -1763,6 +1795,10 @@ void Looper::process(const float* in_l, const float* in_r, float* out_l, float* 
         if ((t.st == TState::Empty || t.st == TState::Armed) && t.xf_len == 0) continue;
         track_sample(k, i, il, ir, ol, orr);
       }
+    pre_l_[pre_w_] = il;  // вход этого кадра — в историю (для старта по порогу)
+    pre_r_[pre_w_] = ir;
+    pre_w_ = (pre_w_ + 1) % kPreMax;
+    if (pre_n_ < kPreMax) ++pre_n_;
     // мастер лупов: уровень, мягкий ограничитель, пики; сухой сигнал мимо ограничителя
     const float mg = mg0 + mgs * (float)i;
     ol *= mg;

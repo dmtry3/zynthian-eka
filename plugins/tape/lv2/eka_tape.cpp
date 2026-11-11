@@ -147,6 +147,7 @@ enum Param {
   PR_PSEL,                      // переход в парт 1..6 по PART AT (тот же или текущий, пока ждёт, — отмена)
   PR_WSEL,                      // экран: 1 Loop, 2 Mixer (как контроллеры «Виджет Loop/Mixer»)
   PR_COUNTIN,                   // счёт перед записью основы: 0 выкл, 1 или 2 такта (этап 8)
+  PR_RTHRESH,                   // старт записи основы по порогу (только Free): 0 выкл, −60..−12 дБ
   PR_COUNT
 };
 struct ParamDef {
@@ -193,6 +194,7 @@ void init_params() {
   kParams[PR_PSEL] = ParamDef{"psel", 0.0f, 0.0f, 6.0f, false};
   kParams[PR_WSEL] = ParamDef{"wsel", 0.0f, 0.0f, 2.0f, false};
   kParams[PR_COUNTIN] = ParamDef{"count_in", 0.0f, 0.0f, 2.0f, false};
+  kParams[PR_RTHRESH] = ParamDef{"rec_thresh", 0.0f, -60.0f, 0.0f, false};
 }
 constexpr uint32_t kReportPerRun = 4;  // ответов на patch:Get за один run()
 
@@ -284,6 +286,7 @@ struct Plugin {
     s.spd_glide_ms = vals[PR_SGLIDE];
     s.latency_ms = vals[PR_LAT];
     s.count_in = (int)vals[PR_COUNTIN];
+    s.rec_thresh_db = (int)vals[PR_RTHRESH];
     looper->set_settings(s);
     configure_buttons();
     // пул — только когда изменился сам параметр: смена стирает лупы
@@ -334,7 +337,7 @@ struct Plugin {
     }
   }
   static bool is_setting(int i) {
-    return i < PR_LEV0 || i == PR_TGLIDE || i == PR_SSNAP || i == PR_SGLIDE || (i >= PR_HOLD && i <= PR_POOL) || i == PR_COUNTIN;
+    return i < PR_LEV0 || i == PR_TGLIDE || i == PR_SSNAP || i == PR_SGLIDE || (i >= PR_HOLD && i <= PR_POOL) || i == PR_COUNTIN || i == PR_RTHRESH;
   }
   void apply_all() {
     apply_settings();

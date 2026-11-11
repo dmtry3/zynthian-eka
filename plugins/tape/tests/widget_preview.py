@@ -123,6 +123,7 @@ class Processor:
         self.controllers_dict["wsel"] = Ctrl("wsel", 0, 0, 2)
         # этап 8: счёт перед записью
         self.controllers_dict["count_in"] = Ctrl("count_in", 0, 0, 2)
+        self.controllers_dict["rec_thresh"] = Ctrl("rec_thresh", 0, -60, 0)
 
 
 class Control:
@@ -630,8 +631,22 @@ def main():
     check("счёт: в строке крупно 3", texts(wdg).count("3") == 2 and "COUNT IN" in texts(wdg))
     no_overlap("800x480, счёт перед записью")
     m["o_count"] = 0.0
+    cd["mode"].value = 1  # Quantize: до черты WAIT BAR (в Free взведённая без счёта ждёт сигнала)
     wdg.update()
     check("ждёт черты до счёта: WAIT BAR", "WAIT BAR" in texts(wdg) and "COUNT IN" not in texts(wdg))
+    # старт по порогу (этап 8): ползунок THRESHOLD, в Free взведённая без счёта ждёт сигнала
+    wdg.settings_open = True
+    into_view("ssl", "rec_thresh")
+    check("в настройках THRESHOLD", "THRESHOLD" in texts(wdg))
+    slide_to("rec_thresh", -36)
+    check("THRESHOLD: −36 дБ", cd["rec_thresh"].value == -36 and "-36 dB" in texts(wdg))
+    wdg.settings_open = False
+    cd["mode"].value = 0
+    wdg.update()
+    check("Free, ждёт сигнала: WAIT SIGNAL", "WAIT SIGNAL" in texts(wdg))
+    no_overlap("800x480, ждёт сигнала")
+    cd["mode"].value = 1
+    cd["rec_thresh"].value = 0
     m["o_st1"] = 0.0
     cd["count_in"].value = 0
     wdg.update()

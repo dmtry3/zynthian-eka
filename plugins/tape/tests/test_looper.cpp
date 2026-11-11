@@ -347,6 +347,89 @@ static void test_count_in() {
   }
 }
 
+// Старт записи по порогу (этап 8): только Free, основа; в начале записи 10 мс входа до атаки.
+static void test_threshold() {
+  const uint64_t BAR = 96000;
+  auto at = [](Sim& s, double bars) { s.run((uint64_t)std::llround(bars * BAR) - s.t); };
+  const uint64_t T = (uint64_t)(1.0 * BAR) + 77;  // атака не на границе блока
+  {
+    Sim s(64, false);
+    s.set.rec_thresh_db = -30;
+    s.apply();
+    s.in_l = [T](uint64_t f) { return f < T ? 0.005f : 0.5f; };  // тихо (−46 дБ), потом громко
+    s.in_r = s.in_l;
+    at(s, 0.3);
+    s.cmd(Cmd::Rec);
+    at(s, 0.9);
+    CHECK(s.v().state == 1 && s.v().count == 0);  // ждёт сигнала
+    at(s, 1.2);
+    CHECK(s.v().state == 2);
+    at(s, 2.0);
+    s.in_l = [](uint64_t) { return 0.0f; };  // хвост после закрытия (кроссфейд стыка) — тишина
+    s.in_r = s.in_l;
+    s.cmd(Cmd::Rec);
+    s.run(BLOCK * 8);
+    CHECK(s.v().state == 3);
+    // начало цикла: 10 мс тихого входа до атаки (с нарастанием и стыком), с кадра 480 — атака
+    const Pool& p = s.lp->pool();
+    const Buf& b = p.buf(s.lp->track_sum(0));
+    float l, r, l0, l479, l480;
+    p.read(b, 0, l0, r);
+    p.read(b, 479, l479, r);
+    p.read(b, 480, l480, r);
+    p.read(b, 240, l, r);
+    CHECK(l0 == 0.0f && l480 == 0.5f);
+    CHECK(l > 0.0f && l < 0.005f && l479 > 0.004f && l479 < 0.005f);  // тихий вход, не атака
+    // длина: от атаки (минус 10 мс) до нажатия, такт не доигрывается (Free)
+    const double len = s.v().len_s * SR;
+    CHECK(std::fabs(len - (double)(2 * BAR - T + 480)) < BLOCK + 1);
+    // овердаб — сразу, без порога: вход тихий, а овердаб идёт
+    s.cmd(Cmd::Rec);
+    CHECK(s.v().state == 4);
+  }
+  {  // счёт, потом порог: громкий вход во время счёта запись не запускает
+    Sim s(64, false);
+    s.set.rec_thresh_db = -30;
+    s.set.count_in = 1;
+    s.apply();
+    s.in_l = [](uint64_t) { return 0.0f; };
+    at(s, 0.3);
+    s.cmd(Cmd::Rec);
+    s.in_l = sine(220.0, 0.3f);
+    at(s, 1.25);
+    CHECK(s.v().state == 1 && s.v().count == 1);
+    s.in_l = [](uint64_t) { return 0.0f; };
+    at(s, 1.6);
+    CHECK(s.v().state == 1 && s.v().count == 0);  // счёт кончился, ждёт сигнала
+    s.in_l = sine(220.0, 0.3f);
+    at(s, 1.7);
+    CHECK(s.v().state == 2);
+    s.cmd(Cmd::Rec);  // закрыть (короче 20 мс не бывает: здесь 0,1 такта)
+  }
+  {  // Quantize: порог не действует, запись с черты и в тишине
+    Sim s(64, true);
+    s.set.rec_thresh_db = -30;
+    s.apply();
+    at(s, 0.5);
+    s.cmd(Cmd::Rec);
+    at(s, 1.0 + 0.01);
+    CHECK(s.v().state == 2);
+  }
+  {  // повторный Rec, пока ждёт сигнала, — отмена
+    Sim s(64, false);
+    s.set.rec_thresh_db = -30;
+    s.apply();
+    at(s, 0.3);
+    s.cmd(Cmd::Rec);
+    at(s, 0.5);
+    s.cmd(Cmd::Rec);
+    CHECK(s.v().state == 0);
+    s.in_l = sine(220.0, 0.3f);
+    at(s, 0.8);
+    CHECK(s.v().state == 0);
+  }
+}
+
 static void test_quantize() {
   const uint64_t BAR = 96000;  // 120 уд/мин, 4/4
   {
@@ -1553,6 +1636,7 @@ int main() {
   test_dub_at_speed();
   test_quantize();
   test_count_in();
+  test_threshold();
   test_rop();
   test_reset();
   test_pool_full();
