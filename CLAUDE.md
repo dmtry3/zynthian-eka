@@ -1,14 +1,14 @@
-# zynthian-sono
+# zynthian-eka
 
-Набор LV2-плагинов Sono для Zynthian (Raspberry Pi, ARM Linux). Монорепо: у каждого плагина своя папка и своя сборка.
+Набор LV2-плагинов Eka для Zynthian (Raspberry Pi, ARM Linux). Монорепо: у каждого плагина своя папка и своя сборка.
 
-## Плагины (бренд Sono)
+## Плагины (бренд Eka)
 | Папка | Название | Что делает | Старый репозиторий |
 |---|---|---|---|
-| plugins/tape | Sono Tape | audio looper | zynthian-audio-looper |
-| plugins/roll | Sono Roll | MIDI looper | zynthian-midi-looper |
-| plugins/bloom | Sono Bloom | generative arpeggiator | zynthian-generative-arp |
-| plugins/mist | Sono Mist | granular sampler | zynthian-granular-sampler |
+| plugins/tape | Eka Tape | audio looper | zynthian-audio-looper |
+| plugins/roll | Eka Roll | MIDI looper | zynthian-midi-looper |
+| plugins/bloom | Eka Bloom | generative arpeggiator | zynthian-generative-arp |
+| plugins/mist | Eka Mist | granular sampler | zynthian-granular-sampler |
 
 - common/: общий код для плагинов (пока пусто)
 - Makefile в корне: `make <плагин>` собирает один, `make` все, `make install-<плагин>` ставит один
@@ -22,10 +22,10 @@
 - Одна задача за раз, после каждой показывай итог и жди моего ответа.
 
 ## LV2 URI
-Плагины переименовываются один раз, сейчас. Новые URI вида `http://dmtry3.github.io/zynthian-sono/<папка>` (tape, roll, bloom, mist). После переименования URI больше не менять: они хранятся в пресетах пользователей.
+Плагины переименовываются один раз, сейчас. Новые URI вида `http://dmtry3.github.io/zynthian-eka/<папка>` (tape, roll, bloom, mist). После переименования URI больше не менять: они хранятся в пресетах пользователей.
 
 ## Текущие задачи (по порядку)
-1. Переименование. В каждом плагине заменить старые имена на новые: doap:name ("Sono Tape" и т.д.), LV2 URI, имя бандла (sono-tape.lv2 и т.д.), имя бинарника, ссылки в manifest.ttl, README и комментариях. Перед правками покажи список всех мест, где встречается старое имя (grep), и жди моего подтверждения.
+1. Переименование. В каждом плагине заменить старые имена на новые: doap:name ("Eka Tape" и т.д.), LV2 URI, имя бандла (eka-tape.lv2 и т.д.), имя бинарника, ссылки в manifest.ttl, README и комментариях. Перед правками покажи список всех мест, где встречается старое имя (grep), и жди моего подтверждения.
 2. Сборка. В plugins/tape, roll, bloom, mist нет Makefile (make выдаёт "No targets specified and no makefile found"). Выясни, как собирается каждый плагин, и добавь Makefile, чтобы `make tape`, `make roll`, `make bloom`, `make mist` из корня работали.
 
 ## О владельце
