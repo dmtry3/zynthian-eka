@@ -38,8 +38,6 @@ enum {
 enum { IP_ROUTE_FM, IP_ROUTE_AM, IP_ROUTE_SYNC, IP_ROUTE_TIMBRE, N_IPARAMS };
 static const char* const ip_names[N_IPARAMS] = { "route_fm", "route_am", "route_sync", "route_timbre" };
 static const int ip_range[N_IPARAMS][3] = { { 1, 0, 1 }, { 0, 0, 1 }, { 0, 0, 1 }, { 0, 0, 1 } };   /* default, min, max */
-/* Anti-aliasing of the shapers and FM; stage 2 compares the modes (test/alias_report.c, fold_bench) */
-#define AA_MODE FC_AA_OS2_ADAA
 #define REPORT_PER_RUN 16                /* patch:Set replies per run() after patch:Get */
 
 typedef struct {
@@ -91,7 +89,6 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double rate, const char* 
   S->report_next = -1;
   lv2_atom_forge_init(&S->forge, m);
   fc_init(&S->core, (float)rate);
-  fc_set_aa(&S->core, AA_MODE);
   return S;
 }
 

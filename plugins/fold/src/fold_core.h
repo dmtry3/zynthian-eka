@@ -33,9 +33,11 @@
 #define FC_DRIVE_K 4.0f
 #define FC_DC_HZ 5.0f             /* DC blocker per voice (Symmetry, AM and the shapers make DC) */
 
-/* Anti-aliasing of the shapers and FM (being compared at stage 2, test/alias_report.c): the plugin rate,
- * ADAA (first-order antiderivative) on the folder, the voices at 2x with a halfband decimator, or both. */
-enum { FC_AA_NONE, FC_AA_ADAA, FC_AA_OS2, FC_AA_OS2_ADAA };
+/* Anti-aliasing: the voices run at 2x the plugin rate, with first-order ADAA on the folder, and a halfband
+ * decimator on the mix. Chosen on 2026-11-11 from four modes (1x, ADAA, 2x, 2x + ADAA; test/alias_report.c,
+ * fold_bench on the Pi 5): folder at Timbre 70 % on C5: -37 / -49 / -50 / -70 dB of aliasing; 4 voices with
+ * everything on: 1.4 % of one Pi 5 core (4.3 % with the Saw shaper). */
+#define FC_OS 2
 #define FC_CHUNK 64               /* output samples rendered at a time (the 2x buffer) */
 #define FC_HB_TAPS 63             /* halfband decimator */
 
@@ -92,10 +94,8 @@ typedef struct {
 } FcVoice;
 
 typedef struct {
-  float sr;                       /* the voices' rate: the plugin rate x os */
+  float sr;                       /* the voices' rate: the plugin rate x FC_OS */
   float sr_out;                   /* the plugin rate */
-  int os, aa;
-  FcParams p;                     /* the last parameters (for a change of rate) */
   FcVoice v[FC_VOICES];
   uint32_t clock;
   int sustain_pedal;
@@ -117,7 +117,6 @@ typedef struct {
 void fc_init(FoldCore* c, float sr);
 void fc_default_params(FcParams* p);
 void fc_set_params(FoldCore* c, const FcParams* p);
-void fc_set_aa(FoldCore* c, int aa);   /* FC_AA_*: stage 2 comparison; changes the rate, stops the voices */
 void fc_note_on(FoldCore* c, int note, int vel);
 void fc_note_off(FoldCore* c, int note);
 void fc_set_sustain(FoldCore* c, int on);

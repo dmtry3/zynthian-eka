@@ -1,8 +1,10 @@
-/* Aliasing of the folder, the other shapers and FM in the four anti-aliasing modes of the engine (stage 2):
- * the plugin rate (1x), ADAA on the folder, the voices at 2x (halfband decimator), 2x with ADAA.
+/* Aliasing of the folder, the other shapers and FM as the plugin makes them: voices at 2x, ADAA on the folder,
+ * halfband decimator. Chosen on 2026-11-11 from four modes; their table then (to 16 kHz, dB):
+ *   folder Timbre 70 %   C4  C5  C6  C7:   1x -45 -37 -28 -18   ADAA -57 -49 -44 -33
+ *                                          2x -58 -50 -40 -30   2x + ADAA -75 -70 -59 -55
+ *   ADAA alone cost -1.4 dB at 8.4 kHz (an average over a sample), at 2x -0.3 dB.
  * Metric: power outside the harmonics of the note (the only lines a periodic sound has; with Ratio p/q the lines
  * are at multiples of f/q), relative to the power on them, in dB, in the band to 16 kHz.
- * Also the cost of ADAA: it averages over a sample, a gentle low-pass on everything.
  * Phase modulation was compared here at stage 1 and dropped on 2026-11-11 (saw Mod OSC: -19 dB on C5 against
  * -61 for linear FM).
  * Usage: alias_report (prints a table; no pass/fail) */
@@ -48,9 +50,8 @@ typedef struct {
 } Case;
 
 /* NFFT samples at 48 kHz of one held note (after 0.2 s of settling). */
-static void render_note(float* out, int note, const Case* k, int aa) {
+static void render_note(float* out, int note, const Case* k) {
   fc_init(&core, (float)SR);
-  fc_set_aa(&core, aa);
   FcParams p;
   fc_default_params(&p);
   p.attack_ms = 1; p.sustain = 1.0f;
@@ -86,15 +87,6 @@ static double alias_db(const float* x, double f0) {
   return 10.0 * log10((bad + 1e-30) / (good + 1e-30));
 }
 
-static double level(const float* x, double f) {          /* amplitude of one component (Hann, one DFT bin) */
-  double a = 0, b = 0, ws = 0;
-  for (int i = 0; i < NFFT; i++) {
-    const double w = 0.5 - 0.5 * cos(2 * M_PI * i / NFFT), ph = 2 * M_PI * f * i / SR;
-    a += w * x[i] * cos(ph); b += w * x[i] * sin(ph); ws += w;
-  }
-  return 2 * sqrt(a * a + b * b) / ws;
-}
-
 int main(void) {
   static float x[NFFT];
   const int notes[4] = { 60, 72, 84, 96 };
@@ -108,33 +100,15 @@ int main(void) {
     { "M, Timbre 100%, Drive 100%", 1, 1, 0, FC_MOD_SINE, 1.0f, 1.0f, 0, 1.0f },
     { "FM saw ratio 1, Index 100% (no Timbre)", 1, 1, 1.0f, FC_MOD_SAW, 0, 0, 0, 0 },
   };
-  const char* modes[4] = { "1x", "ADAA", "2x", "2x+ADAA" };
-  printf("Aliasing to 16 kHz, dB below the harmonics. Lower is better; about -60 dB is inaudible,\n"
-         "above -30 dB is clearly audible.\n\n");
-  printf("%-44s %-8s %6s %6s %6s %6s\n", "", "", "C4", "C5", "C6", "C7");
+  printf("Aliasing to 16 kHz, dB below the harmonics (voices at 2x, ADAA on the folder). Lower is better;\n"
+         "about -60 dB is inaudible, above -30 dB is clearly audible.\n\n");
+  printf("%-44s %6s %6s %6s %6s\n", "", "C4", "C5", "C6", "C7");
   for (unsigned c = 0; c < sizeof cases / sizeof cases[0]; c++) {
-    for (int m = 0; m < 4; m++) {
-      printf("%-44s %-8s", m == 0 ? cases[c].label : "", modes[m]);
-      for (int ni = 0; ni < 4; ni++) {
-        const double f = 440.0 * pow(2.0, (notes[ni] - 69) / 12.0);
-        render_note(x, notes[ni], &cases[c], m);
-        printf(" %6.0f", alias_db(x, f / cases[c].q));
-      }
-      printf("\n");
-    }
-  }
-  /* what ADAA costs: the level of a plain sine (Timbre 0) at high frequencies, against 1x */
-  printf("\nLevel of a plain sine against 1x, dB (ADAA averages over a sample):\n");
-  const Case plain = { "", 1, 1, 0, FC_MOD_SINE, 0, 0, 0, 0 };
-  const int hi[3] = { 108, 115, 120 };                    /* C8 4.2 kHz, G8 6.3 kHz, C9 8.4 kHz */
-  for (int m = 1; m < 4; m++) {
-    printf("  %-8s", modes[m]);
-    for (int ni = 0; ni < 3; ni++) {
-      const double f = 440.0 * pow(2.0, (hi[ni] - 69) / 12.0);
-      render_note(x, hi[ni], &plain, 0);
-      const double l0 = level(x, f);
-      render_note(x, hi[ni], &plain, m);
-      printf("  %.0f Hz %+.2f", f, 20 * log10(level(x, f) / l0));
+    printf("%-44s", cases[c].label);
+    for (int ni = 0; ni < 4; ni++) {
+      const double f = 440.0 * pow(2.0, (notes[ni] - 69) / 12.0);
+      render_note(x, notes[ni], &cases[c]);
+      printf(" %6.0f", alias_db(x, f / cases[c].q));
     }
     printf("\n");
   }

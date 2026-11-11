@@ -1,5 +1,6 @@
 /* CPU of fold_core: 4 voices for 20 s of audio at 48 kHz, in blocks of 64, for a few settings.
  * Only measurements on the Pi 5 count (TZ 8, A4); in WSL it only shows the relative cost.
+ * Pi 5, 2026-11-11 (2x + ADAA): 1.4 % of one core with everything on, 4.3 % with the Saw shaper too.
  * Usage: fold_bench (built by scripts/bench.sh with the plugin's flags) */
 #include <stdio.h>
 #include <time.h>
@@ -19,10 +20,8 @@ static double now(void) {
   return t.tv_sec + t.tv_nsec * 1e-9;
 }
 
-static void bench(const char* label, int aa, int shape, float index, int fm, int am, int sync, float timbre,
-                  float order) {
+static void bench(const char* label, int shape, float index, int fm, int am, int sync, float timbre, float order) {
   fc_init(&core, SR);
-  fc_set_aa(&core, aa);
   FcParams p;
   fc_default_params(&p);
   p.sustain = 1.0f;
@@ -44,17 +43,9 @@ static void bench(const char* label, int aa, int shape, float index, int fm, int
 }
 
 int main(void) {
-  printf("fold_core, %d voices, 48 kHz, blocks of %d:\n", FC_VOICES, BLOCK);
-  const char* modes[4] = { "1x", "ADAA", "2x", "2x+ADAA" };
-  char label[80];
-  bench("sine, Index 0, Timbre 0 (1x)", FC_AA_NONE, FC_MOD_SINE, 0.0f, 1, 0, 0, 0.0f, 0.0f);
-  for (int aa = 0; aa < 4; aa++) {
-    snprintf(label, sizeof label, "saw Mod, FM+AM+Sync, folder (%s)", modes[aa]);
-    bench(label, aa, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
-  }
-  for (int aa = 0; aa < 4; aa += 2) {
-    snprintf(label, sizeof label, "  ... with Saw shaper too (%s)", modes[aa]);
-    bench(label, aa, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.25f);
-  }
+  printf("fold_core, %d voices, 48 kHz (voices at %dx), blocks of %d:\n", FC_VOICES, FC_OS, BLOCK);
+  bench("sine, Index 0, Timbre 0", FC_MOD_SINE, 0.0f, 1, 0, 0, 0.0f, 0.0f);
+  bench("saw Mod, FM+AM+Sync, folder", FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  bench("saw Mod, FM+AM+Sync, folder + Saw shaper", FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.25f);
   return 0;
 }
