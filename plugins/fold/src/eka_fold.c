@@ -1,5 +1,6 @@
 /* Eka Fold: LV2 wrapper around fold_core.
- * Knob pages Osc, Mod, Timbre and Env (temporary). The routing switches FM / AM / Sync / Timbre are LV2 parameters
+ * Knob pages Osc, Mod, Timbre, Gate, Env. The routing switches FM / AM / Sync / Timbre, the function generator
+ * modes and FG2 -> Timbre are LV2 parameters
  * (patch:writable, notOnGUI) set in the widget and saved in LV2 State: jalv in Zynthian does not
  * register ports with notOnGUI, so they could not be hidden ports.
  * SPDX-License-Identifier: GPL-3.0-or-later */
@@ -24,20 +25,27 @@
 /* Port indices: the same as lv2/eka_fold.ttl. Control inputs first (0..P_END-1): Zynthian numbers LV2
  * parameters from len(control ports)+1, so a control port with a higher index would be overwritten. */
 enum {
-  P_PITCH, P_FINE, P_ATTACK, P_DECAY, P_SUSTAIN, P_RELEASE,
+  P_PITCH, P_FINE,
   P_MOD_FREQ, P_MOD_INDEX, P_MOD_SHAPE, P_MOD_MODE,
   P_TIMBRE, P_ORDER, P_SYMMETRY, P_DRIVE,
+  P_GATE_MODE, P_GATE_DECAY, P_GATE_RES, P_LEVEL,
+  P_FG1_RISE, P_FG1_FALL, P_FG2_RISE, P_FG2_FALL,
   P_END,                                 /* number of control inputs */
   P_MIDI_IN = P_END, P_OUT_L, P_OUT_R, P_NOTIFY,
   P_NOTE0,                               /* note1..4 */
   P_PEAK = P_NOTE0 + FC_VOICES,
-  P_MOD_PHASE
+  P_MOD_PHASE, P_GATE_LEVEL, P_FG1, P_FG2
 };
 
 /* Integer LV2 parameters set in the widget, saved in State. */
-enum { IP_ROUTE_FM, IP_ROUTE_AM, IP_ROUTE_SYNC, IP_ROUTE_TIMBRE, N_IPARAMS };
-static const char* const ip_names[N_IPARAMS] = { "route_fm", "route_am", "route_sync", "route_timbre" };
-static const int ip_range[N_IPARAMS][3] = { { 1, 0, 1 }, { 0, 0, 1 }, { 0, 0, 1 }, { 0, 0, 1 } };   /* default, min, max */
+enum { IP_ROUTE_FM, IP_ROUTE_AM, IP_ROUTE_SYNC, IP_ROUTE_TIMBRE, IP_FG1_MODE, IP_FG2_MODE, IP_FG2_TIMBRE,
+       N_IPARAMS };
+static const char* const ip_names[N_IPARAMS] = { "route_fm", "route_am", "route_sync", "route_timbre",
+  "fg1_mode", "fg2_mode", "m_fg2_timbre" };
+static const int ip_range[N_IPARAMS][3] = {        /* default, min, max */
+  { 1, 0, 1 }, { 0, 0, 1 }, { 0, 0, 1 }, { 0, 0, 1 },
+  { FC_FG_GATE, 0, FC_NFG_MODES - 1 }, { FC_FG_GATE, 0, FC_NFG_MODES - 1 },
+  { 0, -100, 100 } };                              /* m_fg2_timbre: becomes a mod-matrix cell at stage 4 */
 #define REPORT_PER_RUN 16                /* patch:Set replies per run() after patch:Get */
 
 typedef struct {
@@ -49,6 +57,8 @@ typedef struct {
   float* note_out[FC_VOICES];
   float* peak_out;
   float* mod_phase_out;
+  float* gate_level_out;
+  float* fg_out[2];
 
   LV2_Atom_Forge forge;
   LV2_URID midi_Event, atom_Object, atom_URID, atom_Int, atom_Long, atom_Float, atom_Double;
@@ -102,6 +112,9 @@ static void connect_port(LV2_Handle h, uint32_t port, void* data) {
   else if (port >= P_NOTE0 && port < P_NOTE0 + FC_VOICES) S->note_out[port - P_NOTE0] = (float*)data;
   else if (port == P_PEAK) S->peak_out = (float*)data;
   else if (port == P_MOD_PHASE) S->mod_phase_out = (float*)data;
+  else if (port == P_GATE_LEVEL) S->gate_level_out = (float*)data;
+  else if (port == P_FG1) S->fg_out[0] = (float*)data;
+  else if (port == P_FG2) S->fg_out[1] = (float*)data;
 }
 
 static void activate(LV2_Handle h) { (void)h; }
@@ -117,10 +130,17 @@ static void read_params(Fold* S) {
   fc_default_params(&p);
   p.pitch = ctl(S, P_PITCH, p.pitch);
   p.fine = ctl(S, P_FINE, p.fine);
-  p.attack_ms = ctl(S, P_ATTACK, p.attack_ms);
-  p.decay_ms = ctl(S, P_DECAY, p.decay_ms);
-  p.sustain = ctl(S, P_SUSTAIN, p.sustain * 100.0f) * 0.01f;
-  p.release_ms = ctl(S, P_RELEASE, p.release_ms);
+  p.fg_rise_ms[0] = ctl(S, P_FG1_RISE, p.fg_rise_ms[0]);
+  p.fg_fall_ms[0] = ctl(S, P_FG1_FALL, p.fg_fall_ms[0]);
+  p.fg_rise_ms[1] = ctl(S, P_FG2_RISE, p.fg_rise_ms[1]);
+  p.fg_fall_ms[1] = ctl(S, P_FG2_FALL, p.fg_fall_ms[1]);
+  p.fg_mode[0] = S->ip[IP_FG1_MODE];
+  p.fg_mode[1] = S->ip[IP_FG2_MODE];
+  p.fg2_timbre = (float)S->ip[IP_FG2_TIMBRE] * 0.01f;
+  p.gate_mode = (int)lrintf(ctl(S, P_GATE_MODE, (float)p.gate_mode));
+  p.gate_decay = ctl(S, P_GATE_DECAY, p.gate_decay * 100.0f) * 0.01f;
+  p.gate_res = ctl(S, P_GATE_RES, p.gate_res * 100.0f) * 0.01f;
+  p.level = ctl(S, P_LEVEL, p.level * 100.0f) * 0.01f;
   p.mod_freq = ctl(S, P_MOD_FREQ, p.mod_freq);
   p.mod_index = ctl(S, P_MOD_INDEX, p.mod_index * 100.0f) * 0.01f;
   p.mod_shape = (int)lrintf(ctl(S, P_MOD_SHAPE, (float)p.mod_shape));
@@ -241,6 +261,9 @@ static void run(LV2_Handle h, uint32_t n) {
   for (int i = 0; i < FC_VOICES; i++)
     if (S->note_out[i]) *S->note_out[i] = (float)fc_voice_note(&S->core, i);
   if (S->mod_phase_out) *S->mod_phase_out = fc_mod_phase(&S->core);
+  if (S->gate_level_out) *S->gate_level_out = fc_gate_level(&S->core);
+  for (int i = 0; i < 2; i++)
+    if (S->fg_out[i]) *S->fg_out[i] = fc_fg_pos(&S->core, i);
 }
 
 static void cleanup(LV2_Handle h) { free(h); }

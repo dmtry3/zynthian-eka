@@ -1,4 +1,4 @@
-/* Eka Fold engine, stage 2. SPDX-License-Identifier: GPL-3.0-or-later */
+/* Eka Fold engine, stage 3. SPDX-License-Identifier: GPL-3.0-or-later */
 #include "fold_core.h"
 
 #include <math.h>
@@ -37,10 +37,17 @@ int fc_ratio_index(float u) {
 void fc_default_params(FcParams* p) {
   p->pitch = 0.0f;
   p->fine = 0.0f;
-  p->attack_ms = 5.0f;
-  p->decay_ms = 300.0f;
-  p->sustain = 0.7f;
-  p->release_ms = 400.0f;
+  p->fg_rise_ms[0] = 5.0f;
+  p->fg_fall_ms[0] = 300.0f;
+  p->fg_mode[0] = FC_FG_GATE;     /* plays like an envelope from the keyboard; Once is the Buchla "strike" */
+  p->fg_rise_ms[1] = 300.0f;
+  p->fg_fall_ms[1] = 800.0f;
+  p->fg_mode[1] = FC_FG_GATE;
+  p->gate_mode = FC_GATE_COMBO;
+  p->gate_decay = 0.3f;
+  p->gate_res = 0.0f;
+  p->level = 0.8f;
+  p->fg2_timbre = 0.0f;
   p->mod_freq = 30.0f;            /* Ratio x1 */
   p->mod_index = 0.0f;            /* a plain sine until the Index is turned up */
   p->mod_shape = FC_MOD_SINE;
@@ -102,19 +109,31 @@ void fc_init(FoldCore* c, float sr) {
   fc_set_params(c, &p);
 }
 
-/* Exponential segment: the time is how long it takes to fall by 60 dB (ln 1000 = 6.9 time constants). */
-static float exp_coef(float sr, float ms) {
-  if (ms < 0.1f) ms = 0.1f;
-  return expf(-6.9078f / (ms * 0.001f * sr));
+float fc_decay_ms(float decay) {
+  return FC_DECAY_MIN_MS * powf(FC_DECAY_MAX_MS / FC_DECAY_MIN_MS, clampf(decay, 0.0f, 1.0f));
+}
+
+/* A segment of `ms` as a linear step per sample. */
+static float seg_inc(float sr, float ms) {
+  return 1.0f / (clampf(ms, FC_FG_MIN_MS, FC_FG_MAX_MS) * 0.001f * sr);
 }
 
 void fc_set_params(FoldCore* c, const FcParams* p) {
   c->tune = p->pitch + p->fine * 0.01f;
-  c->att_inc = 1.0f / ((p->attack_ms < 0.5f ? 0.5f : p->attack_ms) * 0.001f * c->sr);
-  c->dec_coef = exp_coef(c->sr, p->decay_ms);
-  c->rel_coef = exp_coef(c->sr, p->release_ms);
-  c->sus_coef = exp_coef(c->sr, 20.0f);
-  c->sus = clampf(p->sustain, 0.0f, 1.0f);
+  for (int i = 0; i < 2; i++) {
+    c->fg_rise_inc[i] = seg_inc(c->sr, p->fg_rise_ms[i]);
+    c->fg_fall_inc[i] = seg_inc(c->sr, p->fg_fall_ms[i]);
+    c->fg_mode[i] = p->fg_mode[i] >= 0 && p->fg_mode[i] < FC_NFG_MODES ? p->fg_mode[i] : FC_FG_GATE;
+  }
+  const int gm = p->gate_mode >= 0 && p->gate_mode < FC_NGATE_MODES ? p->gate_mode : FC_GATE_COMBO;
+  c->wv_t = gm != FC_GATE_LP ? 1.0f : 0.0f;
+  c->wl_t = gm != FC_GATE_VCA ? 1.0f : 0.0f;
+  c->vac_rise = 1.0f / (FC_VAC_RISE_MS * 0.001f * c->sr);
+  c->vac_fall = 1.0f / (fc_decay_ms(p->gate_decay) * 0.001f * c->sr);
+  c->res_t = clampf(p->gate_res, 0.0f, 1.0f);
+  c->lvl_t = clampf(p->level, 0.0f, 1.0f);
+  c->fg2_tim = clampf(p->fg2_timbre, -1.0f, 1.0f);
+  c->fmax = FC_LPG_FMAX < 0.45f * c->sr_out ? FC_LPG_FMAX : 0.45f * c->sr_out;
   c->mod_shape = p->mod_shape >= 0 && p->mod_shape < FC_NMOD_SHAPES ? p->mod_shape : FC_MOD_SINE;
   c->mod_mode = p->mod_mode >= 0 && p->mod_mode < FC_NMODES ? p->mod_mode : FC_MODE_RATIO;
   c->mod_hz = fc_free_hz(p->mod_freq);
@@ -131,12 +150,27 @@ void fc_set_params(FoldCore* c, const FcParams* p) {
   c->drv_t = clampf(p->drive, 0.0f, 1.0f);
 }
 
+static void trigger(FoldCore* c, FcVoice* v) {
+  (void)c;
+  for (int i = 0; i < 2; i++) v->fg[i].seg = FC_SEG_RISE;   /* from where it is: a retrigger does not jump */
+}
+
+static float velocity(int vel) { return FC_VEL_FLOOR + (1.0f - FC_VEL_FLOOR) * (float)vel / 127.0f; }
+
 static void start_voice(FoldCore* c, FcVoice* v, int note, int vel) {
   v->note = note;
-  v->amp = FC_GAIN * (float)vel / 127.0f;
+  v->vel = velocity(vel);
   v->phase = 0.0f;
   if (c->mod_mode != FC_MODE_FREE) v->mphase = 0.0f;   /* Free keeps running: the LFO does not restart */
-  v->env = 0.0f;
+  for (int i = 0; i < 2; i++) v->fg[i].lvl = 0.0f;
+  v->vac = 0.0f;
+  v->ic1 = v->ic2 = 0.0f;
+  v->coef_count = 0;
+  v->sg = 1.0f;
+  v->wv = c->wv_t;
+  v->wl = c->wl_t;
+  v->lvl = c->lvl_t;
+  v->res = c->res_t;
   v->idx = c->idx_t;
   v->gfm = c->fm_t;
   v->gam = c->am_t;
@@ -148,44 +182,43 @@ static void start_voice(FoldCore* c, FcVoice* v, int note, int vel) {
   v->au = v->aF = 0.0f;
   v->dcx = v->dcy = 0.0f;
   v->y_prev = 0.0f;
-  v->stage = FC_ATTACK;
+  v->stage = FC_PLAY;
   v->held = 1;
   v->pedal = 0;
   v->age = ++c->clock;
+  trigger(c, v);
+}
+
+static void steal(FoldCore* c, FcVoice* v) {
+  if (v->stage != FC_STEAL) v->steal_dec = v->sg / (FC_STEAL_MS * 0.001f * c->sr) + 1e-9f;
+  v->stage = FC_STEAL;
 }
 
 void fc_note_on(FoldCore* c, int note, int vel) {
   if (vel <= 0) { fc_note_off(c, note); return; }
-  /* the same note again: retrigger its voice from where its envelope is now (no click) */
+  /* the same note again: retrigger its voice from where it is (no click) */
   for (int i = 0; i < FC_VOICES; i++) {
     FcVoice* v = &c->v[i];
-    if (v->stage != FC_IDLE && v->stage != FC_STEAL && v->note == note) {
-      v->amp = FC_GAIN * (float)vel / 127.0f;
-      v->stage = FC_ATTACK;
+    if (v->stage == FC_PLAY && v->note == note) {
+      v->vel = velocity(vel);
       v->held = 1;
       v->pedal = 0;
       v->age = ++c->clock;
+      trigger(c, v);
       return;
     }
   }
   for (int i = 0; i < FC_VOICES; i++)
     if (c->v[i].stage == FC_IDLE) { start_voice(c, &c->v[i], note, vel); return; }
-  /* no free voice: the oldest one in release, else the oldest one; it fades out first */
+  /* no free voice: the oldest one let go (key and pedal up), else the oldest one; it fades out first */
   FcVoice* best = NULL;
   for (int pass = 0; pass < 2 && !best; pass++)
     for (int i = 0; i < FC_VOICES; i++) {
       FcVoice* v = &c->v[i];
-      if (pass == 0 && v->stage != FC_RELEASE) continue;
+      if (pass == 0 && (v->stage != FC_PLAY || v->held || v->pedal)) continue;
       if (!best || v->age < best->age) best = v;
     }
-  if (best->stage == FC_STEAL) {                     /* already fading: only the coming note changes */
-    best->next_note = note;
-    best->next_vel = vel;
-    best->age = ++c->clock;
-    return;
-  }
-  best->steal_dec = best->env / (FC_STEAL_MS * 0.001f * c->sr) + 1e-9f;
-  best->stage = FC_STEAL;
+  steal(c, best);
   best->next_note = note;
   best->next_vel = vel;
   best->age = ++c->clock;
@@ -195,21 +228,16 @@ void fc_note_off(FoldCore* c, int note) {
   for (int i = 0; i < FC_VOICES; i++) {
     FcVoice* v = &c->v[i];
     if (v->stage == FC_STEAL && v->next_note == note) { v->next_note = -1; continue; }
-    if (v->stage == FC_IDLE || v->stage == FC_STEAL || v->note != note || !v->held) continue;
+    if (v->stage != FC_PLAY || v->note != note || !v->held) continue;
     v->held = 0;
     if (c->sustain_pedal) v->pedal = 1;
-    else v->stage = FC_RELEASE;
   }
 }
 
 void fc_set_sustain(FoldCore* c, int on) {
   c->sustain_pedal = on;
   if (on) return;
-  for (int i = 0; i < FC_VOICES; i++) {
-    FcVoice* v = &c->v[i];
-    if (v->pedal && v->stage != FC_IDLE && v->stage != FC_STEAL) v->stage = FC_RELEASE;
-    v->pedal = 0;
-  }
+  for (int i = 0; i < FC_VOICES; i++) c->v[i].pedal = 0;
 }
 
 void fc_set_bend(FoldCore* c, float semitones) { c->bend = semitones; }
@@ -220,7 +248,6 @@ void fc_all_notes_off(FoldCore* c) {
     FcVoice* v = &c->v[i];
     v->held = v->pedal = 0;
     if (v->stage == FC_STEAL) v->next_note = -1;
-    else if (v->stage != FC_IDLE) v->stage = FC_RELEASE;
   }
 }
 
@@ -230,13 +257,43 @@ void fc_all_sound_off(FoldCore* c) {
     FcVoice* v = &c->v[i];
     v->held = v->pedal = 0;
     if (v->stage == FC_IDLE) continue;
-    if (v->stage != FC_STEAL) v->steal_dec = v->env / (FC_STEAL_MS * 0.001f * c->sr) + 1e-9f;
-    v->stage = FC_STEAL;
+    steal(c, v);
     v->next_note = -1;
   }
 }
 
-/* ---------- oscillators ---------- */
+/* One step of a function generator; gate = the key or the pedal is down. */
+static inline void fg_step(FcFg* g, int mode, int gate, float rise, float fall) {
+  switch (g->seg) {
+    case FC_SEG_RISE:
+      if (mode == FC_FG_GATE && !gate) { g->seg = FC_SEG_FALL; break; }   /* let go while rising */
+      g->lvl += rise;
+      if (g->lvl >= 1.0f) { g->lvl = 1.0f; g->seg = mode == FC_FG_GATE ? FC_SEG_HOLD : FC_SEG_FALL; }
+      break;
+    case FC_SEG_HOLD:
+      if (!gate || mode != FC_FG_GATE) g->seg = FC_SEG_FALL;
+      break;
+    case FC_SEG_FALL:
+      g->lvl -= fall;
+      if (g->lvl <= 0.0f) { g->lvl = 0.0f; g->seg = mode == FC_FG_CYCLE && gate ? FC_SEG_RISE : FC_SEG_IDLE; }
+      break;
+    default:
+      break;
+  }
+}
+
+/* Low-pass coefficients (TPT state-variable filter) for the vactrol state. */
+static void lpg_coefs(const FoldCore* c, FcVoice* v) {
+  const float ctl = 1.0f - v->wl + v->wl * v->vac;               /* LP share follows g, the rest stays open */
+  float fc = FC_LPG_FMIN * powf(c->fmax / FC_LPG_FMIN, ctl);
+  const float g = tanf((float)M_PI * fc / c->sr);
+  const float k = 1.41421356f * (1.0f - 0.96f * v->res);         /* Butterworth at 0, Q ~ 18 at 100 % */
+  v->a1 = 1.0f / (1.0f + g * (g + k));
+  v->a2 = g * v->a1;
+  v->a3 = g * v->a2;
+}
+
+/* ---------- oscillators ---------- *//* ---------- oscillators ---------- */
 static inline float sine(const FoldCore* c, float ph) {   /* ph in cycles, any value */
   ph -= floorf(ph);
   const float x = ph * (float)FC_SINE_N;
@@ -363,49 +420,29 @@ static void render_voices(FoldCore* c, float* l, uint32_t n) {
     float o = v->ord;
     int ncheb = shaper_coefs(inc, o < 0.5f ? 2.0f * o : 2.0f - 2.0f * o, o < 0.5f ? 0.0f : 2.0f * o - 1.0f, a);
     for (uint32_t s = 0; s < n; s++) {
-      switch (v->stage) {
-        case FC_ATTACK:
-          v->env += c->att_inc;
-          if (v->env >= 1.0f) { v->env = 1.0f; v->stage = FC_DECAY; }
-          break;
-        case FC_DECAY: {
-          const float e = c->sus + (v->env - c->sus) * c->dec_coef;
-          /* e == env: the step is below the float resolution near the Sustain level (a long Decay, or the 2x
-           * rate), the decay would stall just above it */
-          if (e - c->sus < FC_SILENT || e == v->env) {
-            v->env = c->sus;
-            v->stage = FC_SUSTAIN;
+      if (v->stage == FC_STEAL) {
+        v->sg -= v->steal_dec;
+        if (v->sg <= 0.0f) {
+          if (v->next_note >= 0) {
+            start_voice(c, v, v->next_note, v->next_vel);
+            inc = note_inc(c, v->note);
+            dm = mod_inc(c, inc);
+            o = v->ord;
+            ncheb = shaper_coefs(inc, o < 0.5f ? 2.0f * o : 2.0f - 2.0f * o, o < 0.5f ? 0.0f : 2.0f * o - 1.0f, a);
           } else {
-            v->env = e;
+            v->stage = FC_IDLE;
+            break;
           }
-          break;
         }
-        case FC_SUSTAIN:
-          v->env = c->sus + (v->env - c->sus) * c->sus_coef;   /* follows the Sustain knob, without a click */
-          break;
-        case FC_RELEASE:
-          v->env *= c->rel_coef;
-          break;
-        case FC_STEAL:
-          v->env -= v->steal_dec;
-          if (v->env <= 0.0f) {
-            v->env = 0.0f;
-            if (v->next_note >= 0) {
-              start_voice(c, v, v->next_note, v->next_vel);
-              inc = note_inc(c, v->note);
-              dm = mod_inc(c, inc);
-              o = v->ord;
-              ncheb = shaper_coefs(inc, o < 0.5f ? 2.0f * o : 2.0f - 2.0f * o, o < 0.5f ? 0.0f : 2.0f * o - 1.0f, a);
-            } else {
-              v->stage = FC_IDLE;
-            }
-          }
-          break;
       }
-      if (v->stage == FC_IDLE) break;
-      if ((v->stage == FC_RELEASE || (v->stage == FC_SUSTAIN && c->sus <= 0.0f)) && v->env < FC_SILENT) {
+      /* function generators and the vactrol */
+      const int gate = v->held || v->pedal;
+      for (int i = 0; i < 2; i++) fg_step(&v->fg[i], c->fg_mode[i], gate, c->fg_rise_inc[i], c->fg_fall_inc[i]);
+      const float drive_in = v->fg[0].lvl * v->vel;
+      if (drive_in > v->vac) v->vac += (drive_in - v->vac) * c->vac_rise;
+      else v->vac += (drive_in - v->vac) * c->vac_fall / (1.0f + FC_VAC_SLOW * (1.0f - v->vac));
+      if (v->stage == FC_PLAY && v->fg[0].seg == FC_SEG_IDLE && v->vac < FC_GATE_OFF) {
         v->stage = FC_IDLE;
-        v->env = 0.0f;
         break;
       }
       v->idx += (c->idx_t - v->idx) * k;
@@ -416,6 +453,10 @@ static void render_voices(FoldCore* c, float* l, uint32_t n) {
       v->ord += (c->ord_t - v->ord) * k;
       v->sym += (c->sym_t - v->sym) * k;
       v->drv += (c->drv_t - v->drv) * k;
+      v->wv += (c->wv_t - v->wv) * k;
+      v->wl += (c->wl_t - v->wl) * k;
+      v->lvl += (c->lvl_t - v->lvl) * k;
+      v->res += (c->res_t - v->res) * k;
 
       /* Mod OSC */
       const float m = mod_wave(c, c->mod_shape, v->mphase, dm);
@@ -447,7 +488,7 @@ static void render_voices(FoldCore* c, float* l, uint32_t n) {
       const float x = out * ((1.0f - am) + am * m);    /* AM before the shapers: it changes the timbre too */
 
       /* Timbre section: folder, Saw / M (Chebyshev) blended by Order; Timbre = depth, Symmetry = offset */
-      float t = v->tim + FC_TIMBRE_MOD * v->gtim * v->idx * m;
+      float t = v->tim + FC_TIMBRE_MOD * v->gtim * v->idx * m + c->fg2_tim * v->fg[1].lvl;
       t = t < 0.0f ? 0.0f : t > 1.0f ? 1.0f : t;
       const float wf = v->ord < 0.5f ? 1.0f - 2.0f * v->ord : 0.0f;   /* the folder's share */
       float sh = 0.0f;
@@ -470,11 +511,23 @@ static void render_voices(FoldCore* c, float* l, uint32_t n) {
         const float kd = 1.0f + FC_DRIVE_K * v->drv;
         sh = (1.0f - v->drv) * sh + v->drv * fast_tanh(kd * sh) / fast_tanh(kd);
       }
-      /* DC blocker before the envelope: silence stays exact silence */
+      /* DC blocker before the gate: silence stays exact silence */
       const float dc = sh - v->dcx + c->dc_r * v->dcy;
       v->dcx = sh;
       v->dcy = dc;
-      l[s] += dc * v->env * v->amp;
+
+      /* lopass gate: the low-pass (LP share), then the level (VCA share), the fade at the end */
+      if (--v->coef_count <= 0) { lpg_coefs(c, v); v->coef_count = FC_COEF_EVERY; }
+      const float v3 = dc - v->ic2;
+      const float v1 = v->a1 * v->ic1 + v->a2 * v3;
+      const float v2 = v->ic2 + v->a2 * v->ic1 + v->a3 * v3;
+      v->ic1 = 2.0f * v1 - v->ic1;
+      v->ic2 = 2.0f * v2 - v->ic2;
+      const float filtered = dc + v->wl * (v2 - dc);
+      float fade = (v->vac - FC_GATE_OFF) * (1.0f / FC_GATE_OFF);
+      fade = fade < 0.0f ? 0.0f : fade > 1.0f ? 1.0f : fade;
+      const float gain = (1.0f - v->wv + v->wv * v->vac) * fade * v->lvl * v->sg * FC_GAIN;
+      l[s] += filtered * gain;
     }
     if (v->stage == FC_IDLE) v->note = -1;
   }
@@ -491,7 +544,9 @@ void fc_process(FoldCore* c, float* l, float* r, uint32_t n) {
       const float* x = in + 2 * j + 1;                 /* newest input of this output sample */
       float acc = c->hb[(FC_HB_TAPS - 1) / 2] * x[-(FC_HB_TAPS - 1) / 2];
       for (int i = 0; i < FC_HB_TAPS; i += 2) acc += c->hb[i] * x[-i];   /* the other non-zero taps are even */
-      l[done + j] = acc;
+      /* soft clip, transparent below about -6 dBFS (TZ 6: a safe output at extreme settings) */
+      const float a2 = acc * acc, a8 = a2 * a2 * a2 * a2;
+      l[done + j] = acc / sqrtf(sqrtf(sqrtf(1.0f + a8)));
     }
     memmove(c->hbuf, in + 2 * k - hist, hist * sizeof(float));
   }
@@ -512,11 +567,33 @@ int fc_active_voices(const FoldCore* c) {
   return k;
 }
 
-float fc_mod_phase(const FoldCore* c) {
+static const FcVoice* newest(const FoldCore* c) {
   const FcVoice* best = NULL;
   for (int i = 0; i < FC_VOICES; i++) {
     const FcVoice* v = &c->v[i];
-    if (v->stage != FC_IDLE && v->stage != FC_STEAL && (!best || v->age > best->age)) best = v;
+    if (v->stage == FC_PLAY && (!best || v->age > best->age)) best = v;
   }
-  return best ? best->mphase : -1.0f;
+  return best;
+}
+
+float fc_mod_phase(const FoldCore* c) {
+  const FcVoice* v = newest(c);
+  return v ? v->mphase : -1.0f;
+}
+
+float fc_gate_level(const FoldCore* c) {
+  const FcVoice* v = newest(c);
+  return v ? v->vac : -1.0f;
+}
+
+float fc_fg_pos(const FoldCore* c, int i) {
+  const FcVoice* v = newest(c);
+  if (!v || i < 0 || i > 1) return -1.0f;
+  const FcFg* g = &v->fg[i];
+  switch (g->seg) {
+    case FC_SEG_RISE: return g->lvl < 0.999f ? g->lvl : 0.999f;
+    case FC_SEG_HOLD: return 1.5f;
+    case FC_SEG_FALL: return 3.0f - g->lvl;
+    default: return 3.0f;
+  }
 }

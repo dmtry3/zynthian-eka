@@ -54,7 +54,7 @@ static void render_note(float* out, int note, const Case* k) {
   fc_init(&core, (float)SR);
   FcParams p;
   fc_default_params(&p);
-  p.attack_ms = 1; p.sustain = 1.0f;
+  p.gate_mode = FC_GATE_VCA; p.level = 1.0f; p.fg_rise_ms[0] = 1;   /* a held note, the gate open, no filter */
   int r = 0;
   while (r < FC_NRATIOS - 1 && fc_ratios[r] != k->ratio) r++;
   p.mod_mode = FC_MODE_RATIO; p.mod_freq = (float)r * FC_FREQ_MAX / (FC_NRATIOS - 1);

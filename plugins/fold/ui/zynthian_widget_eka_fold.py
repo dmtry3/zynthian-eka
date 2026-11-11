@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# Eka Fold widget. Tabs (top left): Osc, Mod, Fold. Later stages add Gate, Env, Delay, Matrix.
+# Eka Fold widget. Tabs (top left): Osc, Mod, Fold, Gate, Env. Later stages add Delay, Matrix.
 # The skeleton follows the Eka Mist widget:
 # - Zynthian calls update() every 32 ms; monitors and marks are refreshed only every UPDATE_PERIOD.
 # - Curves are computed here from the parameters and redrawn only when a parameter changed, at most every
@@ -32,6 +32,19 @@
 #   The formulas of fold_core.c: folder (gain 1..8), Saw / M (Chebyshev sums, drawn with FC_CHEB_MAX terms,
 #   as a low note gets), Drive (tanh).
 # - At the bottom: the Order line Folder - Saw - M with its mark, and the knob values.
+# Gate:
+# - Buttons VCA / LP / Combo (the Gate Mode knob). The response of the lopass gate for the vactrol open, at 3/4,
+#   1/2 and 1/4 (level x low-pass, the formulas of fold_core.c: cutoff 20 Hz..20 kHz exponential in g, a TPT
+#   state-variable filter whose |H| is the analog one at w = tan(pi f / sr) / tan(pi fc / sr), at the 2x rate):
+#   it shows how the gate closes in each mode. Live: the vactrol of the newest voice (output gate_level) as a
+#   bar, and its cutoff as a mark on the frequency axis (LP, Combo).
+# - At the bottom: Decay (ms), Resonance, Level.
+# Env:
+# - FG1 (-> Gate) and FG2 (-> Timbre): Rise, Hold (Gate mode), Fall drawn with log-scaled lengths (5 ms and 2 s
+#   both readable), two cycles in Cycle mode; a running point from the outputs fg1, fg2 (0..1 rising, 1.5
+#   holding, 2..3 falling, 3 ended). Buttons Once / Gate / Cycle (LV2 parameters fg1_mode, fg2_mode).
+# - FG2 -> Timbre depth (LV2 parameter m_fg2_timbre, -100..100 %): a finger up/down on its box, a double tap
+#   resets it.
 
 import logging
 import math
@@ -44,8 +57,8 @@ from zyngui import zynthian_widget_base
 
 MULTI_INSTANCE = True
 
-TABS = ["Osc", "Mod", "Fold"]
-TAB_GROUPS = ["g_osc", "g_mod", "g_timbre"]  # knob page (port group) of each tab
+TABS = ["Osc", "Mod", "Fold", "Gate", "Env"]
+TAB_GROUPS = ["g_osc", "g_mod", "g_timbre", "g_gate", "g_env"]  # knob page (port group) of each tab
 SOURCES = ["Sine"]               # Source tiles; VA, FM and Wavetable come at stage 4
 NVOICES = 4
 TAB_COLOR = "#4dabf7"
@@ -81,6 +94,16 @@ CHEB_MAX = 32
 DRIVE_K = 4.0
 ORDER_NAMES = ["Folder", "Saw", "M"]
 CURVE2_COLOR = "#ffd43b"         # the wave over the transfer curve
+GATE_MODES = ["VCA", "LP", "Combo"]   # FC_GATE_* of fold_core.h, Gate Mode knob
+FG_MODES = ["Once", "Gate", "Cycle"]  # FC_FG_*
+LPG_FMIN, LPG_FMAX = 20.0, 20000.0    # FC_LPG_FMIN, FC_LPG_FMAX, FC_DECAY_MIN_MS, FC_DECAY_MAX_MS of fold_core.h
+DECAY_MIN_MS, DECAY_MAX_MS = 10.0, 2000.0
+VOICE_SR = 96000.0               # the voices' rate (2x of 48 kHz): the filter's warping
+VAC_LEVELS = (1.0, 0.75, 0.5, 0.25)   # vactrol states drawn on the Gate tab
+DB_TOP, DB_BOTTOM = 30.0, -48.0
+HOLD_W = 1.5                     # Env: width of the hold, in the units of log10(ms) + 1
+DOUBLE_TAP = 0.35                # s
+DRAG_PX = 1.5                    # px of finger movement per step (1 %)
 C4_HZ = 261.626
 
 
@@ -226,6 +249,68 @@ def shape(x, timbre, order, sym, drive, a=None):
     return sh
 
 
+def decay_ms(d):
+    return DECAY_MIN_MS * (DECAY_MAX_MS / DECAY_MIN_MS) ** max(0.0, min(1.0, d))
+
+
+def lpg_db(f, g, mode, res, sr=VOICE_SR):
+    """Level of the lopass gate at f Hz for the vactrol state g, dB (fold_core.c: lpg_coefs and the gain)."""
+    wv = 1.0 if mode != 1 else 0.0          # VCA share (VCA, Combo)
+    wl = 1.0 if mode != 0 else 0.0          # LP share (LP, Combo)
+    gain = 1.0 - wv + wv * g
+    h = 1.0
+    if wl > 0.0:
+        fmax = min(LPG_FMAX, 0.45 * sr / 2)
+        fc = LPG_FMIN * (fmax / LPG_FMIN) ** (1.0 - wl + wl * g)
+        w = math.tan(math.pi * min(f, 0.49 * sr) / sr) / math.tan(math.pi * fc / sr)
+        k = math.sqrt(2.0) * (1.0 - 0.96 * res)
+        h = 1.0 / math.sqrt((1.0 - w * w) ** 2 + (k * w) ** 2)
+    return 20.0 * math.log10(max(gain * h, 1e-9))
+
+
+def lpg_cutoff(g, mode, sr=VOICE_SR):
+    if mode == 0:
+        return None
+    fmax = min(LPG_FMAX, 0.45 * sr / 2)
+    return LPG_FMIN * (fmax / LPG_FMIN) ** g
+
+
+def fg_units(ms):
+    return math.log10(max(1.0, min(10000.0, ms))) + 1.0
+
+
+def fg_shape(rise, fall, mode):
+    """Segments of a function generator curve, [(width units, level from, level to)]."""
+    r, f = fg_units(rise), fg_units(fall)
+    if mode == 1:
+        return [(r, 0.0, 1.0), (HOLD_W, 1.0, 1.0), (f, 1.0, 0.0)]
+    if mode == 2:
+        return [(r, 0.0, 1.0), (f, 1.0, 0.0), (r, 0.0, 1.0), (f, 1.0, 0.0)]
+    return [(r, 0.0, 1.0), (f, 1.0, 0.0)]
+
+
+def fg_point(pos, rise, fall, mode):
+    """(x as a share of the curve width, level) of an fg output, or None."""
+    if pos < 0.0 or pos >= 3.0:
+        return None
+    segs = fg_shape(rise, fall, mode)
+    total = sum(w for w, a, b in segs)
+    r, f = segs[0][0], fg_units(fall)
+    if pos < 1.0:
+        return pos * r / total, pos
+    if pos < 2.0:
+        if mode == 1:
+            return (r + HOLD_W / 2.0) / total, 1.0
+        return r / total, 1.0
+    lvl = 3.0 - pos
+    start = r + (HOLD_W if mode == 1 else 0.0)
+    return (start + (1.0 - lvl) * f) / total, lvl
+
+
+def ms_text(ms):
+    return "%.1f s" % (ms / 1000.0) if ms >= 1000.0 else "%d ms" % round(ms)
+
+
 def wave_points(source, x0, x1, y0, y1, periods=2):
     """Points of the Principal waveform over the box, one every 2 px."""
     mid, amp = (y0 + y1) / 2.0, (y1 - y0) / 2.0 * 0.9
@@ -252,6 +337,10 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             bg=zynthian_gui_config.color_bg)
         self.widget_canvas.grid(sticky='news')
         self.widget_canvas.bind("<ButtonPress-1>", self._on_press)
+        self.widget_canvas.bind("<B1-Motion>", self._on_motion)
+        self.widget_canvas.bind("<ButtonRelease-1>", self._on_release)
+        self.drag = None             # (symbol, start value, start y) while a finger is on a value box
+        self.last_tap = (None, 0.0)  # (symbol, time) for a double tap
         self._clear()
 
     def update(self):
@@ -287,6 +376,16 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         self.mark_item = None
         self.fold_view = None        # values the Fold tab was drawn for
         self.fold_drawn = 0.0
+        self.gate_view = None        # values the Gate tab was drawn for
+        self.gate_drawn = 0.0
+        self.gate_live = None        # bar height and cutoff mark drawn
+        self.gate_buttons = []       # (x0, y0, x1, y1, value)
+        self.env_view = None
+        self.env_drawn = 0.0
+        self.env_points = [None, None]   # point position drawn per FG
+        self.env_buttons = []        # (x0, y0, x1, y1, symbol, value)
+        self.depth_box = None        # FG2 -> Timbre box
+        self.env_curves = [None, None]   # (x0, y0, x1, y1) of each curve area
 
     # ---------- plugin access ----------
     def _page_title(self):
@@ -398,7 +497,50 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                     self.mod_drawn = 0.0                    # a tap shows at once
                     self.refresh_gui()
                     return
+        if self.tab == 3:
+            for x0, y0, x1, y1, value in self.gate_buttons:
+                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                    self._zset("gate_mode", value)
+                    self.gate_view = None
+                    self.gate_drawn = 0.0
+                    self.refresh_gui()
+                    return
+        if self.tab == 4:
+            for x0, y0, x1, y1, sym, value in self.env_buttons:
+                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                    self._zset(sym, value)
+                    self.env_view = None
+                    self.env_drawn = 0.0
+                    self.refresh_gui()
+                    return
+            b = self.depth_box
+            if b and b[0] <= event.x <= b[2] and b[1] <= event.y <= b[3]:
+                now = time.monotonic()
+                sym = "m_fg2_timbre"
+                if self.last_tap[0] == sym and now - self.last_tap[1] < DOUBLE_TAP:
+                    self._zset(sym, 0)                      # double tap: reset
+                    self.last_tap = (None, 0.0)
+                    self.drag = None
+                    self.env_view = None
+                    self.env_drawn = 0.0
+                    self.refresh_gui()
+                    return
+                self.last_tap = (sym, now)
+                self.drag = (sym, int(round(self._zval(sym, 0))), event.y)
         # Osc: Source tiles, only Sine for now, nothing to switch
+
+    def _on_motion(self, event):
+        if not self.drag:
+            return
+        sym, start, y0 = self.drag
+        value = max(-100, min(100, start + int((y0 - event.y) / DRAG_PX)))
+        if value != int(round(self._zval(sym, 0))):
+            self._zset(sym, value)
+            self.env_view = None
+            self.refresh_gui()
+
+    def _on_release(self, event):
+        self.drag = None
 
     # ---------- drawing ----------
     def refresh_gui(self):
@@ -413,6 +555,10 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             self._draw_mod()
         elif self.tab == 2:
             self._draw_fold()
+        elif self.tab == 3:
+            self._draw_gate()
+        elif self.tab == 4:
+            self._draw_env()
 
     def _tab_metrics(self, title):
         """(font size, padding, widths, title shown): the tabs and the page title share the top line. The padding
@@ -779,3 +925,212 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             pass
         c.create_text(max(self.width, 60) - 6, bottom_y, anchor="e", text=text,
                       fill=zynthian_gui_config.color_tx, font=self._font(), tags="fold")
+
+    # ---------- Gate tab ----------
+    def _gate_layout(self):
+        """Buttons row (left), the response box, the vactrol bar at its right, the bottom line."""
+        w, h = max(int(self.width), 60), max(int(self.height), 60)
+        hh, fs = self._header_h(), self._font_size()
+        row = 2 * fs + 6
+        buttons = (4, hh + 4, min(w - 4, int(w * 0.6)), hh + 4 + row)
+        bar_w = max(8, fs)
+        bottom = h - row // 2 - 2
+        plot = (4, buttons[3] + 6, w - bar_w - 14, h - row - 6)
+        bar = (w - bar_w - 4, plot[1], w - 4, plot[3])
+        return buttons, plot, bar, bottom
+
+    def _gate_values(self):
+        return (int(round(self._zval("gate_mode", 2))), self._zval("gate_decay", 30.0) / 100.0,
+                self._zval("gate_res", 0.0) / 100.0, self._zval("level", 80.0) / 100.0)
+
+    @staticmethod
+    def _fx(f, x0, x1):
+        return x0 + (x1 - x0) * math.log10(f / LPG_FMIN) / math.log10(LPG_FMAX / LPG_FMIN)
+
+    @staticmethod
+    def _dby(db, y0, y1):
+        db = max(DB_BOTTOM, min(DB_TOP, db))
+        return y0 + (y1 - y0) * (DB_TOP - db) / (DB_TOP - DB_BOTTOM)
+
+    def _draw_gate(self):
+        buttons, plot, bar, bottom = self._gate_layout()
+        vals = self._gate_values()
+        view = (buttons, plot, bar, vals)
+        if view != self.gate_view:
+            now = time.monotonic()
+            if self.gate_view is None or now - self.gate_drawn >= CURVE_PERIOD:
+                self.gate_view = view
+                self.gate_drawn = now
+                self._draw_gate_static(buttons, plot, bar, bottom, vals)
+                self.gate_live = None
+        self._draw_gate_live(plot, bar, vals[0])
+
+    def _draw_gate_static(self, buttons, plot, bar, bottom, vals):
+        mode, decay, res, level = vals
+        c = self.widget_canvas
+        c.delete("gate")
+        c.delete("gatelive")
+        # mode buttons
+        self.gate_buttons = []
+        bx0, by0, bx1, by1 = buttons
+        bw = (bx1 - bx0) / 3.0
+        for i, name in enumerate(GATE_MODES):
+            on = i == mode
+            x0 = bx0 + i * bw
+            c.create_rectangle(x0, by0, x0 + bw - 4, by1, outline=ROUTE_ON if on else ROUTE_OFF,
+                               fill=(ROUTE_ON if on else ""), tags="gate")
+            c.create_text(x0 + (bw - 4) / 2, (by0 + by1) / 2, text=name, font=self._font(),
+                          fill=("#000000" if on else zynthian_gui_config.color_tx), tags="gate")
+            self.gate_buttons.append((x0, by0, x0 + bw - 4, by1, i))
+        # response for a few vactrol states, brightest = open
+        x0, y0, x1, y1 = plot
+        c.create_rectangle(*plot, outline=AXIS_COLOR, tags="gate")
+        for f in (100.0, 1000.0, 10000.0):
+            x = self._fx(f, x0, x1)
+            c.create_line(x, y0, x, y1, fill=AXIS_COLOR, tags="gate")
+            c.create_text(x + 2, y1 - 2, anchor="sw", text=("%dk" % (f / 1000) if f >= 1000 else "%d" % f),
+                          fill=LABEL_COLOR, font=self._font(max(7, self._font_size() - 3)), tags="gate")
+        y = self._dby(0.0, y0, y1)
+        c.create_line(x0, y, x1, y, fill=AXIS_COLOR, dash=(2, 3), tags="gate")
+        n = max(int((x1 - x0) / 3), 16)
+        shades = ["#4dabf7", "#3a82bd", "#2c6190", "#204766"]
+        for k, g in enumerate(VAC_LEVELS):
+            pts = []
+            for i in range(n + 1):
+                f = LPG_FMIN * (LPG_FMAX / LPG_FMIN) ** (i / n)
+                pts += [x0 + (x1 - x0) * i / n, self._dby(lpg_db(f, g, mode, res), y0, y1)]
+            c.create_line(*pts, fill=shades[k], width=(2 if k == 0 else 1), tags="gate")
+        self._box_label(plot, "g = 1, 3/4, 1/2, 1/4", "gate")
+        # the vactrol bar frame
+        c.create_rectangle(*bar, outline=AXIS_COLOR, tags="gate")
+        # bottom: Decay, Resonance, Level
+        c.create_text(6, bottom, anchor="w", text="Decay %s  Res %d%%  Level %d%%" % (
+            ms_text(decay_ms(decay)), round(res * 100), round(level * 100)),
+            fill=zynthian_gui_config.color_tx, font=self._font(), tags="gate")
+
+    def _draw_gate_live(self, plot, bar, mode):
+        """The vactrol bar and the cutoff mark: redrawn only when they changed (two small items)."""
+        g = self._mon("gate_level", -1.0)
+        bx0, by0, bx1, by1 = bar
+        hpx = int(round(max(0.0, min(1.0, g)) * (by1 - by0))) if g >= 0.0 else 0
+        fcut = lpg_cutoff(g, mode) if g >= 0.0 else None
+        mx = int(round(self._fx(max(LPG_FMIN, min(LPG_FMAX, fcut)), plot[0], plot[2]))) if fcut else None
+        view = (hpx, mx)
+        if view == self.gate_live:
+            return
+        self.gate_live = view
+        c = self.widget_canvas
+        c.delete("gatelive")
+        if hpx > 0:
+            c.create_rectangle(bx0 + 1, by1 - hpx, bx1 - 1, by1 - 1, fill=MARK_COLOR, outline="", tags="gatelive")
+        if mx is not None:
+            r = max(3, self._font_size() // 3)
+            c.create_polygon(mx - r, plot[1], mx + r, plot[1], mx, plot[1] + 2 * r, fill=MARK_COLOR,
+                             outline="", tags="gatelive")
+
+    # ---------- Env tab ----------
+    def _env_layout(self):
+        """Two rows (FG1, FG2): label column, curve, mode buttons stacked at the right."""
+        w, h = max(int(self.width), 60), max(int(self.height), 60)
+        hh, fs = self._header_h(), self._font_size()
+        top = hh + 4
+        rh = (h - top - 4) / 2.0
+        label_w = int(w * 0.24)
+        btn_w = max(int(w * 0.16), 5 * fs)
+        rows = []
+        for i in range(2):
+            y0 = top + i * rh
+            y1 = y0 + rh - 6
+            rows.append(((4, y0, label_w, y1), (label_w + 6, y0, w - btn_w - 10, y1), (w - btn_w - 4, y0, w - 4, y1)))
+        return rows
+
+    def _env_values(self):
+        return (self._zval("fg1_rise", 5.0), self._zval("fg1_fall", 300.0), int(round(self._zval("fg1_mode", 1))),
+                self._zval("fg2_rise", 300.0), self._zval("fg2_fall", 800.0), int(round(self._zval("fg2_mode", 1))),
+                int(round(self._zval("m_fg2_timbre", 0))))
+
+    def _draw_env(self):
+        rows = self._env_layout()
+        vals = self._env_values()
+        view = (rows, vals)
+        if view != self.env_view:
+            now = time.monotonic()
+            if self.env_view is None or now - self.env_drawn >= CURVE_PERIOD or self.drag:
+                self.env_view = view
+                self.env_drawn = now
+                self._draw_env_static(rows, vals)
+                self.env_points = [None, None]
+        self._draw_env_points(vals)
+
+    def _draw_env_static(self, rows, vals):
+        c = self.widget_canvas
+        c.delete("env")
+        c.delete("envpt")
+        self.env_buttons = []
+        self.env_curves = [None, None]
+        fs = self._font_size()
+        small = self._font(max(7, fs - 2))
+        for i in range(2):
+            rise, fall, mode = vals[3 * i], vals[3 * i + 1], vals[3 * i + 2]
+            lab, curve, btns = rows[i]
+            # label column
+            c.create_text(lab[0] + 2, lab[1] + 2, anchor="nw", text="FG%d → %s" % (i + 1, "Gate" if i == 0 else "Timbre"),
+                          fill=zynthian_gui_config.color_tx, font=self._font(), tags="env")
+            c.create_text(lab[0] + 2, lab[1] + fs + 10, anchor="nw",
+                          text="↗ %s\n↘ %s" % (ms_text(rise), ms_text(fall)),
+                          fill=LABEL_COLOR, font=small, tags="env")
+            if i == 1:
+                depth = vals[6]
+                bh = 2 * fs + 6
+                box = (lab[0] + 2, lab[3] - bh, lab[2] - 4, lab[3])
+                col = ROUTE_ON if depth else ROUTE_OFF
+                c.create_rectangle(*box, outline=col, tags="env")
+                c.create_text((box[0] + box[2]) / 2, (box[1] + box[3]) / 2, text="Timbre %+d%%" % depth,
+                              fill=(NOTE_COLOR if depth else LABEL_COLOR), font=small, tags="env")
+                self.depth_box = box
+            # curve
+            c.create_rectangle(*curve, outline=AXIS_COLOR, tags="env")
+            x0, y0, x1, y1 = curve[0] + 4, curve[1] + 6, curve[2] - 4, curve[3] - 4
+            self.env_curves[i] = (x0, y0, x1, y1)
+            segs = fg_shape(rise, fall, mode)
+            total = sum(wd for wd, a, b in segs)
+            x = x0
+            pts = [x0, y1]
+            for wd, a, b in segs:
+                x += (x1 - x0) * wd / total
+                pts += [x, y1 - (y1 - y0) * b]
+            c.create_line(*pts, fill=WAVE_COLOR, width=2, tags="env")
+            # mode buttons, stacked
+            bx0, by0, bx1, by1 = btns
+            bh = (by1 - by0 - 8) / 3.0
+            for k, name in enumerate(FG_MODES):
+                on = k == mode
+                yy = by0 + k * (bh + 4)
+                c.create_rectangle(bx0, yy, bx1, yy + bh, outline=ROUTE_ON if on else ROUTE_OFF,
+                                   fill=(ROUTE_ON if on else ""), tags="env")
+                c.create_text((bx0 + bx1) / 2, yy + bh / 2, text=name, font=small,
+                              fill=("#000000" if on else zynthian_gui_config.color_tx), tags="env")
+                self.env_buttons.append((bx0, yy, bx1, yy + bh, "fg%d_mode" % (i + 1), k))
+
+    def _draw_env_points(self, vals):
+        c = self.widget_canvas
+        r = max(3, self._font_size() // 3)
+        for i in range(2):
+            box = self.env_curves[i]
+            pos = self._mon("fg%d" % (i + 1), -1.0)
+            pt = fg_point(pos, vals[3 * i], vals[3 * i + 1], vals[3 * i + 2]) if box else None
+            view = (int(round(box[0] + pt[0] * (box[2] - box[0]))), int(round(box[3] - pt[1] * (box[3] - box[1])))) \
+                if pt else None
+            if view == self.env_points[i]:
+                continue
+            self.env_points[i] = view
+            tag = "envpt%d" % i
+            items = c.find_withtag(tag)
+            if view is None:
+                c.delete(tag)
+                continue
+            x, y = view
+            if items:
+                c.coords(items[0], x - r, y - r, x + r, y + r)
+            else:
+                c.create_oval(x - r, y - r, x + r, y + r, fill=MARK_COLOR, outline="", tags=(tag, "envpt"))

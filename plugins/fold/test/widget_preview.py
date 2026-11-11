@@ -76,9 +76,12 @@ class Engine:
         self.notes = []
         self.peak = -100.0
         self.mod_phase = -1.0
+        self.gate_level = -1.0
+        self.fg = [-1.0, -1.0]
 
     def get_monitors_dict(self):
-        m = {"out_peak": float(self.peak), "mod_phase": float(self.mod_phase)}
+        m = {"out_peak": float(self.peak), "mod_phase": float(self.mod_phase), "gate_level": float(self.gate_level),
+             "fg1": float(self.fg[0]), "fg2": float(self.fg[1])}
         for i in range(4):
             m["note%d" % (i + 1)] = float(self.notes[i]) if i < len(self.notes) else -1.0
         return m
@@ -88,8 +91,10 @@ class Processor:
     def __init__(self):
         self.engine = Engine()
         self.id = 1
-        self.controllers_dict = {s: NumCtrl(s, v) for s, v in (("pitch", 0), ("fine", 0.0), ("attack", 5.0),
-                                 ("decay", 300.0), ("sustain", 70.0), ("release", 400.0),
+        self.controllers_dict = {s: NumCtrl(s, v) for s, v in (("pitch", 0), ("fine", 0.0),
+                                 ("gate_mode", 2), ("gate_decay", 30.0), ("gate_res", 0.0), ("level", 80.0),
+                                 ("fg1_rise", 5.0), ("fg1_fall", 300.0), ("fg2_rise", 300.0), ("fg2_fall", 800.0),
+                                 ("fg1_mode", 1), ("fg2_mode", 1), ("m_fg2_timbre", 0),
                                  ("mod_freq", 30.0), ("mod_index", 0.0), ("mod_shape", 1), ("mod_mode", 2),
                                  ("route_fm", 1), ("route_am", 0), ("route_sync", 0), ("route_timbre", 0),
                                  ("timbre", 0.0), ("order", 0.0), ("symmetry", 0.0), ("drive", 0.0))}
@@ -110,7 +115,7 @@ class Control:
     def add_pages(self, proc):
         self.list_data = [(None, None, "> Eka Fold", proc)]
         for j, (g, t) in enumerate((("g_osc", "Osc"), ("g_mod", "Mod"), ("g_timbre", "Timbre"),
-                                    ("g_env", "Env"))):
+                                    ("g_gate", "Gate"), ("g_env", "Env"))):
             self.list_data.append((g, j + 1, t, proc, j))
 
     def select(self, index=None, set_zctrl=True):
@@ -168,6 +173,13 @@ def main():
             proc.engine.peak = -100.0 if not proc.engine.notes else -4.0 - 20.0 * ((now - state["t"]) / 1.2)
             proc.engine.mod_phase = (now * mod.free_hz(proc.controllers_dict["mod_freq"].value)) % 1.0 \
                 if proc.engine.notes else -1.0
+            held = now - state["t"]                     # a fake FG1 / vactrol: rise 0.1 s, hold, fall at 0.8 s
+            if not proc.engine.notes:
+                proc.engine.fg, proc.engine.gate_level = [-1.0, -1.0], -1.0
+            else:
+                pos = held / 0.1 if held < 0.1 else 1.5 if held < 0.8 else min(3.0, 2.0 + (held - 0.8) / 0.4)
+                proc.engine.fg = [pos, (held / 1.2) * 3.0 % 3.0]
+                proc.engine.gate_level = pos if pos < 1 else 1.0 if pos < 2 else max(0.0, 3.0 - pos)
             wdg.update()
             root.after(32, tick)        # like Zynthian
         root.after(32, tick)
@@ -185,7 +197,7 @@ def main():
         return [c.itemcget(i, "text") for i in c.find_withtag(tag) if c.type(i) == "text"]
 
     # tabs, title, tiles, waveform
-    check("tabs Osc, Mod, Fold drawn", texts("tabs") == ["Osc", "Mod", "Fold"])
+    check("tabs Osc, Mod, Fold, Gate, Env drawn", texts("tabs") == ["Osc", "Mod", "Fold", "Gate", "Env"])
     check("page title drawn", texts("title") == ["Osc"])
     check("Source tile Sine", texts("tiles") == ["Sine"])
     lines = [i for i in c.find_withtag("wave") if c.type(i) == "line" and len(c.coords(i)) > 8]
@@ -228,13 +240,13 @@ def main():
     wdg.update()
     check("meter empty in silence", not [i for i in c.find_withtag("meter") if c.itemcget(i, "fill")])
 
-    # tab <-> knob page: a tap on the tab selects its page; the Env page (no tab) keeps Osc shown
+    # tab <-> knob page: a tap on the tab selects its page, turning to a page shows its tab
     ctl.selected = []
     wdg._on_press(Tap(10, 5))
     check("tap on Osc selects the Osc page", ctl.selected == [1])
-    ctl.select(4)
+    ctl.select(5)
     wdg.update()
-    check("Env page: tab stays Osc, title Env", wdg.tab == 0 and texts("title") == ["Env"])
+    check("Env page shows the Env tab", wdg.tab == 4 and texts("title") == ["Env"])
     ctl.select(1)
     wdg.update()
     check("back on Osc", texts("title") == ["Osc"])
@@ -462,6 +474,131 @@ def main():
     ctl.select(1)
     wdg.update()
 
+    # ---------- Gate tab ----------
+    check("lopass gate constants as in fold_core.h",
+          (mod.LPG_FMIN, mod.LPG_FMAX, mod.DECAY_MIN_MS, mod.DECAY_MAX_MS) ==
+          (hdr("FC_LPG_FMIN"), hdr("FC_LPG_FMAX"), hdr("FC_DECAY_MIN_MS"), hdr("FC_DECAY_MAX_MS")))
+    check("response: VCA flat at the vactrol level",
+          all(abs(mod.lpg_db(f, 0.5, 0, 0) - 20 * math.log10(0.5)) < 1e-9 for f in (50, 1000, 15000)))
+    check("response: LP open, -3 dB at its cutoff (Butterworth)", abs(mod.lpg_db(20000, 1.0, 1, 0) + 3.01) < 0.05)
+    check("response: Resonance 100 % peaks at the cutoff", mod.lpg_db(mod.lpg_cutoff(0.5, 1), 0.5, 1, 1.0) > 20)
+    check("response: Combo at g 1/4 is quieter and darker than LP",
+          mod.lpg_db(5000, 0.25, 2, 0) < mod.lpg_db(5000, 0.25, 1, 0) - 10)
+    check("Decay 30 % = 49 ms", mod.ms_text(mod.decay_ms(0.3)) == "49 ms")
+
+    ctl.selected = []
+    tx = (wdg.tab_boxes[3][0] + wdg.tab_boxes[3][1]) / 2
+    wdg._on_press(Tap(tx, 5))
+    wdg.update()
+    check("tap on Gate: Gate tab and page", wdg.tab == 3 and ctl.selected == [4] and texts("title") == ["Gate"])
+    gtexts = texts("gate")
+    check("Gate tab: buttons and values", "VCA" in gtexts and "LP" in gtexts and "Combo" in gtexts and
+          "Decay 49 ms  Res 0%  Level 80%" in gtexts)
+
+    def gate_lit():
+        return [bool(c.itemcget(i, "fill")) for i in c.find_withtag("gate") if c.type(i) == "rectangle"][:3]
+    check("Combo lit by default", gate_lit() == [False, False, True])
+    curves = [i for i in c.find_withtag("gate") if c.type(i) == "line" and len(c.coords(i)) > 8]
+    check("4 response curves", len(curves) == 4)
+    ids = c.find_withtag("gate")
+    for _ in range(5):
+        wdg.update()
+    check("Gate tab: no redraw without changes", c.find_withtag("gate") == ids)
+    b = wdg.gate_buttons[0]
+    wdg._on_press(Tap((b[0] + b[2]) / 2, (b[1] + b[3]) / 2))
+    check("tap on VCA sets Gate Mode", proc.controllers_dict["gate_mode"].value == 0 and gate_lit() == [True, False, False])
+    curves = [c.coords(i) for i in c.find_withtag("gate") if c.type(i) == "line" and len(c.coords(i)) > 8]
+    check("VCA: flat curves", all(max(cv[1::2]) - min(cv[1::2]) < 0.5 for cv in curves))
+    # live: the vactrol bar and the cutoff mark
+    proc.engine.gate_level = 0.5
+    wdg.update()
+    buttons, plot, bar, bottom = wdg._gate_layout()
+    live = c.find_withtag("gatelive")
+    rects = [c.coords(i) for i in live if c.type(i) == "rectangle"]
+    check("vactrol bar at half", len(rects) == 1 and abs((rects[0][3] - rects[0][1]) - (bar[3] - bar[1]) / 2) <= 2)
+    check("VCA: no cutoff mark", not [i for i in live if c.type(i) == "polygon"])
+    b = wdg.gate_buttons[2]
+    wdg._on_press(Tap((b[0] + b[2]) / 2, (b[1] + b[3]) / 2))
+    wdg.update()
+    marks = [c.coords(i) for i in c.find_withtag("gatelive") if c.type(i) == "polygon"]
+    want = wdg._fx(mod.lpg_cutoff(0.5, 2), plot[0], plot[2])
+    check("Combo: the cutoff mark at g 1/2", len(marks) == 1 and abs(marks[0][4] - want) <= 1)
+    proc.engine.gate_level = -1.0
+    wdg.update()
+    check("no voice: no bar, no mark", not c.find_withtag("gatelive"))
+
+    # ---------- Env tab ----------
+    check("FG shapes: Gate has a hold, Cycle two cycles",
+          len(mod.fg_shape(5, 300, 1)) == 3 and len(mod.fg_shape(5, 300, 0)) == 2 and len(mod.fg_shape(5, 300, 2)) == 4)
+    check("FG units: 1 ms = 1, 10 s = 5", mod.fg_units(1) == 1.0 and abs(mod.fg_units(10000) - 5.0) < 1e-12)
+    ptr = mod.fg_point(0.5, 10, 100, 1)
+    tot = 2.0 + mod.HOLD_W + 3.0
+    check("FG point: half way up the rise", abs(ptr[0] - 0.5 * 2.0 / tot) < 1e-9 and ptr[1] == 0.5)
+    ptf = mod.fg_point(2.25, 10, 100, 1)
+    check("FG point: a quarter down the fall", abs(ptf[0] - (2.0 + mod.HOLD_W + 0.25 * 3.0) / tot) < 1e-9 and
+          ptf[1] == 0.75)
+    check("FG point: none when ended", mod.fg_point(3.0, 10, 100, 1) is None and mod.fg_point(-1, 10, 100, 1) is None)
+
+    ctl.selected = []
+    tx = (wdg.tab_boxes[4][0] + wdg.tab_boxes[4][1]) / 2
+    wdg._on_press(Tap(tx, 5))
+    wdg.update()
+    check("tap on Env: Env tab and page", wdg.tab == 4 and ctl.selected == [5] and texts("title") == ["Env"])
+    etexts = texts("env")
+    check("Env tab: labels, times, depth", "FG1 → Gate" in etexts and "FG2 → Timbre" in etexts and
+          "↗ 5 ms\n↘ 300 ms" in etexts and "Timbre +0%" in etexts)
+
+    def env_curve(i):
+        x0, y0, x1, y1 = wdg.env_curves[i]
+        return [c.coords(j) for j in c.find_withtag("env") if c.type(j) == "line" and c.coords(j)[0] == x0 and
+                c.coords(j)[1] == y1][0]                  # both rows start at the same x: the row's bottom too
+    check("FG1 Gate: rise, hold, fall", len(env_curve(0)) == 8)
+
+    def env_lit(row):
+        return [bool(c.itemcget(j, "fill")) for j in c.find_withtag("env") if c.type(j) == "rectangle" and
+                any(c.coords(j) == [float(v) for v in b[:4]] for b in wdg.env_buttons if b[4] == "fg%d_mode" % row)]
+    check("Gate lit on both rows", env_lit(1) == [False, True, False] and env_lit(2) == [False, True, False])
+    b = [b for b in wdg.env_buttons if b[4] == "fg1_mode" and b[5] == 0][0]
+    wdg._on_press(Tap((b[0] + b[2]) / 2, (b[1] + b[3]) / 2))
+    check("tap on Once: fg1_mode 0, no hold", proc.controllers_dict["fg1_mode"].value == 0 and len(env_curve(0)) == 6)
+    b = [b for b in wdg.env_buttons if b[4] == "fg2_mode" and b[5] == 2][0]
+    wdg._on_press(Tap((b[0] + b[2]) / 2, (b[1] + b[3]) / 2))
+    check("tap on Cycle: fg2_mode 2, two cycles", proc.controllers_dict["fg2_mode"].value == 2 and len(env_curve(1)) == 10)
+    # the running point
+    proc.engine.fg = [0.5, -1.0]
+    wdg.update()
+    pts = c.find_withtag("envpt0")
+    x0, y0, x1, y1 = wdg.env_curves[0]
+    want = mod.fg_point(0.5, 5.0, 300.0, 0)
+    check("FG1 point half way up", len(pts) == 1 and
+          abs((c.coords(pts[0])[0] + c.coords(pts[0])[2]) / 2 - (x0 + want[0] * (x1 - x0))) <= 1 and
+          abs((c.coords(pts[0])[1] + c.coords(pts[0])[3]) / 2 - (y1 - 0.5 * (y1 - y0))) <= 1)
+    check("FG2 idle: no point", not c.find_withtag("envpt1"))
+    proc.engine.fg = [2.5, 0.2]
+    wdg.update()
+    check("the point moves (same item)", c.find_withtag("envpt0") == pts and len(c.find_withtag("envpt1")) == 1)
+    proc.engine.fg = [3.0, -1.0]
+    wdg.update()
+    check("ended: no points", not c.find_withtag("envpt"))
+    # FG2 -> Timbre: a finger up, then a double tap
+    bx = wdg.depth_box
+    cx_, cy_ = (bx[0] + bx[2]) / 2, (bx[1] + bx[3]) / 2
+    wdg.last_tap = (None, 0.0)
+    wdg._on_press(Tap(cx_, cy_))
+    wdg._on_motion(Tap(cx_, cy_ - 30))
+    wdg._on_release(Tap(cx_, cy_ - 30))
+    check("finger up 30 px: +20 %", proc.controllers_dict["m_fg2_timbre"].value == 20 and "Timbre +20%" in texts("env"))
+    wdg.last_tap = (None, 0.0)
+    wdg._on_press(Tap(cx_, cy_))
+    wdg._on_release(Tap(cx_, cy_))
+    wdg._on_press(Tap(cx_, cy_))
+    wdg._on_release(Tap(cx_, cy_))
+    check("double tap resets", proc.controllers_dict["m_fg2_timbre"].value == 0)
+    for sym_, v in (("fg1_mode", 1), ("fg2_mode", 1), ("gate_mode", 2)):
+        proc.controllers_dict[sym_].value = v
+    ctl.select(1)
+    wdg.update()
+
     # throttle: two updates in a row, only one reaches refresh_gui
     mod.UPDATE_PERIOD = throttle
     wdg.next_update = 0.0
@@ -488,6 +625,13 @@ def main():
         ok = left[2] < right[0] and right[2] <= wdg.width and max(left[3], right[3]) < order[1] and \
             order[3] <= wdg.height
         check("layout %s: Fold boxes and bottom line do not overlap" % geo, ok)
+        buttons, plot, bar, bottom = wdg._gate_layout()
+        ok = buttons[3] < plot[1] and plot[2] < bar[0] and bar[2] <= wdg.width and plot[3] < bottom - wdg._font_size() / 2
+        check("layout %s: Gate buttons, plot, bar, bottom line do not overlap" % geo, ok)
+        rows = wdg._env_layout()
+        ok = all(lab[2] < cur[0] and cur[2] < btn[0] and btn[2] <= wdg.width for lab, cur, btn in rows) and \
+            rows[0][1][3] < rows[1][1][1] and rows[1][1][3] <= wdg.height
+        check("layout %s: Env rows do not overlap" % geo, ok)
         # the values text stays right of the Order line, at every size, with the widest values
         ctl.select(3)
         proc.controllers_dict["timbre"].value, proc.controllers_dict["symmetry"].value = 100.0, -100.0
@@ -560,6 +704,24 @@ def main():
         root.update_idletasks()
     full = (time.perf_counter() - t0) / 20 * 1000
     print("Fold tab on this PC: %.3f ms full redraw (folder + Saw: the slowest curves)" % full)
+    for tab_page, name in ((4, "Gate"), (5, "Env")):
+        ctl.select(tab_page)
+        wdg.next_update = 0.0
+        wdg.update()
+        t0 = time.perf_counter()
+        for i in range(20):
+            wdg._clear()
+            wdg.refresh_gui()
+            root.update_idletasks()
+        full = (time.perf_counter() - t0) / 20 * 1000
+        t0 = time.perf_counter()
+        for i in range(200):
+            proc.engine.gate_level = (i % 40) / 40.0
+            proc.engine.fg = [(i % 30) / 10.0, ((i + 7) % 30) / 10.0]
+            wdg.update()
+            root.update_idletasks()
+        live = (time.perf_counter() - t0) / 200 * 1000
+        print("%s tab on this PC: %.3f ms full redraw, %.3f ms with its live marks moving" % (name, full, live))
 
     root.destroy()
     print("All widget tests passed" if not fails else "%d FAILED" % fails)

@@ -83,8 +83,21 @@ static void write_wav(const char* path, const float* x, uint32_t n) {
   fclose(f);
 }
 
+/* The settings most tests use: the lopass gate as a plain VCA at Level 100 %, FG1 Gate with Rise 1 ms, the
+ * fastest vactrol. A held note at velocity 127 then plays at FC_GAIN. */
+static void base_params(FcParams* p) {
+  fc_default_params(p);
+  p->gate_mode = FC_GATE_VCA;
+  p->level = 1.0f;
+  p->fg_rise_ms[0] = 1.0f;
+  p->gate_decay = 0.0f;
+}
+
 static void reset(float sr) {
   fc_init(&core, sr);
+  FcParams p;
+  base_params(&p);
+  fc_set_params(&core, &p);
   memset(L, 0, sizeof L);
   memset(R, 0, sizeof R);
 }
@@ -97,11 +110,11 @@ static void test_pitch(void) {
   printf("A4: %.3f Hz\n", f);
   CHECK(fabs(f - 440.0) < 0.2);
   CHECK(peak(L, 0, SR / 2) <= FC_GAIN * 1.01f);       /* the DC blocker overshoots a starting sine by 0.7 % */
-  CHECK(fabsf(peak(L, SR / 4, SR / 2) - FC_GAIN * 0.7f) < 0.003f);       /* sustain 70 % */
+  CHECK(fabsf(peak(L, SR / 4, SR / 2) - FC_GAIN) < 0.003f);
   CHECK(!memcmp(L, R, sizeof(float) * SR / 2));                           /* mono for now: L = R */
 
   FcParams p;
-  fc_default_params(&p);
+  base_params(&p);
   p.pitch = 12;
   fc_set_params(&core, &p);
   render(&core, 0, SR / 2);
@@ -115,39 +128,50 @@ static void test_pitch(void) {
   fc_set_bend(&core, -2.0f);
   render(&core, 0, SR / 2);
   CHECK(fabs(freq(L, 0, SR / 2, SR) - 391.995) < 0.3);
+  p.level = 0.5f;                                                         /* the Level knob */
+  fc_set_params(&core, &p);
+  render(&core, 0, SR / 4);
+  CHECK(fabsf(peak(L, SR / 8, SR / 4) - FC_GAIN * 0.5f) < 0.003f);
 
   reset(44100);                                                           /* the rate Zynthian may use */
   fc_note_on(&core, 60, 100);
   render(&core, 0, 22050);
   CHECK(fabs(freq(L, 4410, 22050, 44100) - 261.626) < 0.2);
-  CHECK(fabsf(peak(L, 11025, 22050) - FC_GAIN * 0.7f * 100.0f / 127.0f) < 0.003f);   /* velocity */
+  /* velocity opens the vactrol to FC_VEL_FLOOR .. 1 */
+  CHECK(fabsf(peak(L, 11025, 22050) - FC_GAIN * (FC_VEL_FLOOR + (1 - FC_VEL_FLOOR) * 100.0f / 127.0f)) < 0.003f);
 }
 
 static void test_release(void) {
+  /* FG1 Gate, Fall 100 ms: after the key the level falls (the vactrol lags a little), then the voice is free */
   reset(SR);
+  FcParams p;
+  base_params(&p);
+  p.fg_fall_ms[0] = 100.0f;
+  fc_set_params(&core, &p);
   fc_note_on(&core, 60, 127);
   render(&core, 0, SR / 4);
+  CHECK(fc_fg_pos(&core, 0) == 1.5f);                                     /* holding */
   fc_note_off(&core, 60);
   CHECK(fc_active_voices(&core) == 1);
   CHECK(fc_voice_note(&core, 0) == 60);
-  render(&core, SR / 4, SR);                    /* release 400 ms to -60 dB: free (-80 dB) after ~530 ms */
+  render(&core, SR / 4, SR / 20);
+  const float pos = fc_fg_pos(&core, 0);
+  CHECK(pos > 2.4f && pos < 2.6f);                                        /* half way down */
+  const float mid = peak(L, SR / 4 + SR / 20 - 400, SR / 4 + SR / 20) / FC_GAIN;
+  printf("FG1 fall: %.2f of the level half way, the vactrol lags\n", mid);
+  CHECK(mid > 0.45f && mid < 0.85f);
+  render(&core, SR / 4 + SR / 20, SR - SR / 20);
   CHECK(fc_active_voices(&core) == 0);
   CHECK(fc_voice_note(&core, 0) == -1);
-  CHECK(peak(L, SR, SR + SR / 4) == 0.0f);
+  CHECK(peak(L, SR / 4 + SR / 2, SR + SR / 4) == 0.0f);                  /* free within 0.5 s, then silence */
   CHECK(max_step(L, 0, SR + SR / 4) < 0.02f);
-  /* the voice ends at the right time: -30 dB 200 ms after note off (half of -60 dB in 400 ms), silent by 600 ms */
-  const float mid = peak(L, SR / 4 + SR / 5, SR / 4 + SR / 5 + 480) / (FC_GAIN * 0.7f);
-  CHECK(mid > 0.025f && mid < 0.04f);
-  CHECK(peak(L, SR / 4 + SR * 6 / 10, SR + SR / 4) < 1e-4f);
 
-  /* sustain 0: the voice ends during the decay, with the key still down */
+  /* Once: the note ends with the key still down */
   reset(SR);
-  FcParams p;
-  fc_default_params(&p);
-  p.sustain = 0.0f;
+  p.fg_mode[0] = FC_FG_ONCE;
   fc_set_params(&core, &p);
   fc_note_on(&core, 60, 127);
-  render(&core, 0, SR);
+  render(&core, 0, SR / 2);
   CHECK(fc_active_voices(&core) == 0);
 }
 
@@ -164,7 +188,7 @@ static void test_voices(void) {
   write_wav("chord.wav", L, 2 * SR);
   CHECK(fc_active_voices(&core) == 0);
 
-  /* the same note again: its own voice, from where the envelope is (no click) */
+  /* the same note again: its own voice, from where it is (no click) */
   reset(SR);
   fc_note_on(&core, 60, 127);
   render(&core, 0, SR / 4);
@@ -179,7 +203,7 @@ static void test_voices(void) {
   reset(SR);
   fc_note_on(&core, 60, 127);
   fc_note_on(&core, 60, 0);
-  CHECK(core.v[0].stage == FC_RELEASE);
+  CHECK(core.v[0].held == 0);
 }
 
 static void test_steal(void) {
@@ -198,11 +222,11 @@ static void test_steal(void) {
   CHECK(!has[48] && !has[52] && has[55] && has[59] && has[62] && has[65]);   /* the oldest two were taken */
   const float curve = max_curve(L, 0, at);
   printf("steal: max second difference %.5f\n", curve);
-  /* a cut without the fade would give up to 0.175 (one voice at sustain); the 2 ms fade about 0.002 */
+  /* a cut without the fade would give up to 0.25 (one voice); the 2 ms fade about 0.002 */
   CHECK(curve < 0.005f);
   write_wav("steal.wav", L, at);
 
-  /* a voice in release is taken before a held one */
+  /* a voice let go is taken before a held one */
   reset(SR);
   for (int i = 0; i < 4; i++) fc_note_on(&core, notes[i], 127);
   render(&core, 0, SR / 4);
@@ -223,18 +247,6 @@ static void test_steal(void) {
   CHECK(fc_active_voices(&core) == 3);
 }
 
-static void test_decay_ends(void) {
-  /* a long Decay reaches the Sustain stage (it stalled 1.2e-4 above the level: below the float resolution) */
-  reset(SR);
-  FcParams p;
-  fc_default_params(&p);
-  p.decay_ms = 20000;
-  fc_set_params(&core, &p);
-  fc_note_on(&core, 60, 127);
-  for (int i = 0; i < 40; i++) render(&core, 0, SR);
-  CHECK(core.v[0].stage == FC_SUSTAIN && core.v[0].env == core.sus);
-}
-
 static void test_pedal(void) {
   reset(SR);
   fc_set_sustain(&core, 1);
@@ -243,9 +255,10 @@ static void test_pedal(void) {
   fc_note_off(&core, 60);
   render(&core, 0, SR);
   CHECK(fc_active_voices(&core) == 1);
-  CHECK(core.v[0].stage == FC_SUSTAIN);
+  CHECK(fc_fg_pos(&core, 0) == 1.5f);                                     /* the pedal holds FG1 */
   fc_set_sustain(&core, 0);
-  CHECK(core.v[0].stage == FC_RELEASE);
+  render(&core, 0, BLOCK);
+  CHECK(fc_fg_pos(&core, 0) >= 2.0f);                                     /* falling */
 
   /* the key is still down when the pedal goes up: the note keeps sounding */
   reset(SR);
@@ -253,7 +266,7 @@ static void test_pedal(void) {
   fc_note_on(&core, 60, 127);
   fc_set_sustain(&core, 0);
   render(&core, 0, SR / 2);
-  CHECK(core.v[0].stage == FC_SUSTAIN);
+  CHECK(fc_fg_pos(&core, 0) == 1.5f);
 }
 
 static void test_all_off(void) {
@@ -270,7 +283,8 @@ static void test_all_off(void) {
   fc_set_sustain(&core, 1);
   render(&core, 0, SR / 4);
   fc_all_notes_off(&core);
-  for (int i = 0; i < 4; i++) CHECK(core.v[i].stage == FC_RELEASE);
+  render(&core, 0, BLOCK);
+  for (int i = 0; i < 4; i++) CHECK(core.v[i].fg[0].seg == FC_SEG_FALL);
   render(&core, 0, SR);
   CHECK(fc_active_voices(&core) == 0);
 
@@ -285,8 +299,9 @@ static void test_extremes(void) {
   /* the highest note, pitch +24 and bend up: capped below Nyquist, no NaN */
   reset(SR);
   FcParams p;
-  fc_default_params(&p);
-  p.pitch = 24; p.fine = 100; p.attack_ms = 0; p.decay_ms = 0; p.release_ms = 0;
+  base_params(&p);
+  p.pitch = 24; p.fine = 100;
+  for (int i = 0; i < 2; i++) p.fg_rise_ms[i] = p.fg_fall_ms[i] = 0.0f;
   fc_set_params(&core, &p);
   fc_set_bend(&core, 2.0f);
   fc_note_on(&core, 127, 127);
@@ -294,14 +309,15 @@ static void test_extremes(void) {
   render(&core, 0, SR / 10);
   CHECK(all_finite(L, SR / 10));
   CHECK(peak(L, 0, SR / 10) <= 2 * FC_GAIN + 1e-4f);
-  /* long envelope times */
-  p.pitch = 0; p.attack_ms = 10000; p.decay_ms = 20000; p.release_ms = 20000;
+  /* long times */
+  p.pitch = 0;
+  for (int i = 0; i < 2; i++) p.fg_rise_ms[i] = p.fg_fall_ms[i] = 1e6f;
+  p.gate_decay = 1.0f;
   fc_set_params(&core, &p);
   fc_note_on(&core, 60, 1);
   render(&core, 0, SR);
   CHECK(all_finite(L, SR));
 }
-
 
 /* ---------- stage 1: Mod OSC, FM / AM / Sync ---------- */
 
@@ -329,8 +345,7 @@ static float free_units(double hz) {
 static void play_mod(int note, int mode, float freq, float index, int shape, int fm, int am, int sync) {
   reset(SR);
   FcParams p;
-  fc_default_params(&p);
-  p.attack_ms = 1; p.sustain = 1.0f;
+  base_params(&p);
   p.mod_mode = mode; p.mod_freq = freq; p.mod_index = index; p.mod_shape = shape;
   p.route_fm = fm; p.route_am = am; p.route_sync = sync;
   fc_set_params(&core, &p);
@@ -417,8 +432,7 @@ static void test_mod_smooth(void) {
   /* Index from 0 to 100 % at once, AM ring: the gain glides over FC_SMOOTH_MS, no click */
   reset(SR);
   FcParams p;
-  fc_default_params(&p);
-  p.attack_ms = 1; p.sustain = 1.0f;
+  base_params(&p);
   p.mod_mode = FC_MODE_FREE; p.mod_freq = free_units(3.0); p.route_fm = 0; p.route_am = 1;
   fc_set_params(&core, &p);
   fc_note_on(&core, 57, 127);
@@ -478,8 +492,7 @@ static void test_mod_extremes(void) {
 static void play_timbre(int note, float timbre, float order, float sym, float drive) {
   reset(SR);
   FcParams p;
-  fc_default_params(&p);
-  p.attack_ms = 1; p.sustain = 1.0f;
+  base_params(&p);
   p.timbre = timbre; p.order = order; p.symmetry = sym; p.drive = drive;
   fc_set_params(&core, &p);
   fc_note_on(&core, note, 127);
@@ -571,8 +584,7 @@ static void test_drive(void) {
 
 /* Timbre knobs at k (0..1) of the way from all 0 to Timbre 100 %, Order 50 %, Symmetry +50, Drive 100 %. */
 static void timbre_knobs(FcParams* p, float k) {
-  fc_default_params(p);
-  p->attack_ms = 1; p->sustain = 1.0f;
+  base_params(p);
   p->timbre = k; p->order = 0.5f * k; p->symmetry = 0.5f * k; p->drive = k;
 }
 
@@ -604,8 +616,7 @@ static void test_timbre_route(void) {
   /* Mod OSC -> Timbre: a 2 Hz sine moves Timbre 50 % to 100 % and to 0 %: the 3rd harmonic follows */
   reset(SR);
   FcParams p;
-  fc_default_params(&p);
-  p.attack_ms = 1; p.sustain = 1.0f;
+  base_params(&p);
   p.mod_mode = FC_MODE_FREE; p.mod_freq = free_units(2.0); p.mod_index = 1.0f;
   p.route_fm = 0; p.route_timbre = 1; p.timbre = 0.5f;
   fc_set_params(&core, &p);
@@ -633,12 +644,226 @@ static void test_timbre_extremes(void) {
   }
 }
 
+/* ---------- stage 3: function generators, vactrol, lopass gate ---------- */
+
+/* Peak of each 1 ms (48 samples) of L[from..from + n) into env[] (n / 48 values). */
+static void envelope(int from, int n, float* env) {
+  for (int b = 0; b < n / 48; b++) env[b] = peak(L, from + b * 48, from + b * 48 + 48);
+}
+
+/* First ms at or after `start` where env falls below `level`; -1 = never. */
+static int first_below(const float* env, int n, int start, float level) {
+  for (int b = start; b < n; b++) if (env[b] < level) return b;
+  return -1;
+}
+
+static void test_fg(void) {
+  /* Gate, Rise 100 ms: half way at 50 ms, holding after; Fall 200 ms: half way 100 ms after the key */
+  reset(SR);
+  FcParams p;
+  base_params(&p);
+  p.fg_rise_ms[0] = 100; p.fg_fall_ms[0] = 200;
+  p.fg_rise_ms[1] = 50; p.fg_fall_ms[1] = 50; p.fg_mode[1] = FC_FG_CYCLE;
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 60, 127);
+  render(&core, 0, SR / 20);
+  CHECK(fabsf(fc_fg_pos(&core, 0) - 0.5f) < 0.02f);
+  render(&core, 0, SR / 10);
+  CHECK(fc_fg_pos(&core, 0) == 1.5f);
+  /* FG2 Cycle 50 + 50 ms: 10 cycles a second while the key is down */
+  int cycles = 0;
+  float last = fc_fg_pos(&core, 1);
+  for (int b = 0; b < SR / BLOCK; b++) {
+    render(&core, 0, BLOCK);
+    const float pos = fc_fg_pos(&core, 1);
+    if (last >= 2.0f && pos < 1.0f) cycles++;                             /* fall -> rise */
+    last = pos;
+  }
+  printf("FG2 Cycle 50 + 50 ms: %d cycles in 1 s\n", cycles);
+  CHECK(cycles >= 9 && cycles <= 11);
+  fc_note_off(&core, 60);
+  render(&core, 0, SR / 10);
+  CHECK(fabsf(fc_fg_pos(&core, 0) - 2.5f) < 0.02f);
+  render(&core, 0, SR / 5);
+  CHECK(fc_fg_pos(&core, 0) == 3.0f || fc_active_voices(&core) == 0);   /* ended */
+  CHECK(fc_fg_pos(&core, 1) == 3.0f || fc_active_voices(&core) == 0);   /* Cycle ends its fall after the key */
+
+  /* Gate: the key let go while rising falls from there */
+  reset(SR);
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 60, 127);
+  render(&core, 0, SR / 40);                                              /* 25 ms: a quarter up */
+  fc_note_off(&core, 60);
+  render(&core, 0, BLOCK);
+  CHECK(fc_fg_pos(&core, 0) > 2.7f && fc_fg_pos(&core, 0) < 2.8f);       /* falling from about 0.25 */
+
+  /* a retrigger rises from where it is */
+  reset(SR);
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 60, 127);
+  render(&core, 0, SR / 4);
+  fc_note_off(&core, 60);
+  render(&core, 0, SR / 10);                                              /* half way down: 0.5 */
+  fc_note_on(&core, 60, 127);
+  render(&core, 0, BLOCK);
+  CHECK(fc_fg_pos(&core, 0) > 0.5f && fc_fg_pos(&core, 0) < 0.6f);
+}
+
+static void test_vactrol(void) {
+  /* a strike (FG1 Once, 1 + 1 ms) through the VCA: fast up, slow down, slower as it gets dark;
+   * Decay stretches the tail */
+  int t20[2], t40[2], top[2];
+  float peak_lvl[2];
+  for (int k = 0; k < 2; k++) {
+    reset(SR);
+    FcParams p;
+    base_params(&p);
+    p.fg_mode[0] = FC_FG_ONCE; p.fg_fall_ms[0] = 1;
+    p.gate_decay = k ? 0.6f : 0.2f;
+    fc_set_params(&core, &p);
+    fc_note_on(&core, 57, 127);
+    render(&core, 0, 4 * SR);
+    static float env[4000];
+    envelope(0, 4 * SR, env);
+    int pk = 0;
+    for (int b = 0; b < 4000; b++) if (env[b] > env[pk]) pk = b;
+    top[k] = pk;
+    t20[k] = first_below(env, 4000, pk, env[pk] * 0.1f) - pk;
+    t40[k] = first_below(env, 4000, pk, env[pk] * 0.01f) - pk;
+    peak_lvl[k] = env[pk] / FC_GAIN;
+    printf("strike, Decay %d%% (%.0f ms): peak at %d ms (%.2f), -20 dB after %d ms, -40 dB after %d ms\n",
+           k ? 60 : 20, fc_decay_ms(p.gate_decay), pk, env[pk] / FC_GAIN, t20[k], t40[k]);
+  }
+  CHECK(top[0] <= 6 && top[1] <= 6);                                      /* opens in a few ms */
+  CHECK(peak_lvl[0] > 0.3f);                                              /* a 2 ms strike still sounds */
+  CHECK(t40[0] > 0 && t40[1] > 0);
+  CHECK(t20[1] > 3 * t20[0]);                                             /* Decay stretches the tail */
+  /* slower when darker: from fully open (a held note let go, FG1 Fall 1 ms), the second -20 dB takes longer than
+   * the first (an exponential would take the same time) */
+  reset(SR);
+  FcParams p;
+  base_params(&p);
+  p.fg_fall_ms[0] = 1;
+  p.gate_decay = 0.2f;
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 57, 127);
+  render(&core, 0, SR / 4);
+  fc_note_off(&core, 57);
+  render(&core, 0, SR);
+  static float env[1000];
+  envelope(0, SR, env);
+  const int a = first_below(env, 1000, 0, env[0] * 0.1f), b = first_below(env, 1000, 0, env[0] * 0.01f);
+  printf("let go from open: -20 dB after %d ms, -40 dB after %d ms\n", a, b);
+  CHECK(a > 0 && b - a > 1.25 * a);                                     /* 1.34 with FC_VAC_SLOW 2: tune by ear */
+}
+
+static void test_gate_modes(void) {
+  /* the folder (rich) through a strike: LP and Combo darken as it closes, VCA keeps the spectrum */
+  double drop[3];
+  for (int mode = 0; mode < 3; mode++) {
+    reset(SR);
+    FcParams p;
+    base_params(&p);
+    p.gate_mode = mode;
+    p.fg_mode[0] = FC_FG_ONCE; p.fg_fall_ms[0] = 300;
+    p.gate_decay = 0.5f;
+    p.timbre = 0.6f;
+    fc_set_params(&core, &p);
+    fc_note_on(&core, 45, 127);
+    render(&core, 0, SR);
+    const int w = 4800;
+    const double early = amp_at(L + 2400, w, 110 * 7, SR) / amp_at(L + 2400, w, 110, SR);
+    const double late = amp_at(L + 19200, w, 110 * 7, SR) / amp_at(L + 19200, w, 110, SR);
+    drop[mode] = db(late) - db(early);
+  }
+  printf("h7 / h1 from 50 ms to 400 ms: VCA %+.1f dB, LP %+.1f dB, Combo %+.1f dB\n", drop[0], drop[1], drop[2]);
+  CHECK(fabs(drop[0]) < 1.0);
+  CHECK(drop[1] < -10.0 && drop[2] < -10.0);
+}
+
+static void test_resonance(void) {
+  /* LP mode held at a cutoff near 1 kHz (the vactrol at the velocity's level); the Saw shaper at 55 Hz makes
+   * harmonics every 55 Hz: Resonance lifts those near the cutoff, not the low ones */
+  const int vel = 35;                                       /* g = 0.4 + 0.6 * 35 / 127 = 0.565: about 1 kHz */
+  const double g = FC_VEL_FLOOR + (1 - FC_VEL_FLOOR) * vel / 127.0;
+  const double fcut = FC_LPG_FMIN * pow(FC_LPG_FMAX / FC_LPG_FMIN, g);
+  const int hn = (int)lround(fcut / 55.0);
+  double h[2][2];
+  for (int k = 0; k < 2; k++) {
+    reset(SR);
+    FcParams p;
+    base_params(&p);
+    p.gate_mode = FC_GATE_LP;
+    p.gate_res = k ? 1.0f : 0.0f;
+    p.timbre = 1.0f; p.order = 0.5f;
+    fc_set_params(&core, &p);
+    fc_note_on(&core, 33, vel);
+    render(&core, 0, SR / 2);
+    render(&core, 0, SR);
+    h[k][0] = harm(55, 2);
+    h[k][1] = harm(55, hn);
+  }
+  printf("resonance at %.0f Hz (h%d): %+.1f dB, h2 %+.1f dB\n", fcut, hn, db(h[1][1] / h[0][1]),
+         db(h[1][0] / h[0][0]));
+  CHECK(db(h[1][1] / h[0][1]) > 15.0);
+  CHECK(fabs(db(h[1][0] / h[0][0])) < 1.5);
+  CHECK(all_finite(L, SR));
+}
+
+static void test_gate_switch(void) {
+  /* VCA -> LP -> Combo while a note holds at velocity 64 (g = 0.7: VCA 0.7, LP 2.5 kHz): no click */
+  reset(SR);
+  FcParams p;
+  base_params(&p);
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 57, 64);
+  render(&core, 0, SR / 4);
+  p.gate_mode = FC_GATE_LP;
+  fc_set_params(&core, &p);
+  render(&core, SR / 4, SR / 4);
+  p.gate_mode = FC_GATE_COMBO;
+  fc_set_params(&core, &p);
+  render(&core, SR / 2, SR / 4);
+  const float steady = fmaxf(max_step(L, SR / 8, SR / 4), max_step(L, SR / 2 - SR / 8, SR / 2));
+  const float sw = fmaxf(max_step(L, SR / 4, SR / 4 + SR / 50), max_step(L, SR / 2, SR / 2 + SR / 50));
+  printf("gate mode switch: max step %.4f (steady %.4f)\n", sw, steady);
+  CHECK(sw <= 1.2f * steady);
+}
+
+static void test_fg2_timbre(void) {
+  /* FG2 Once (100 + 100 ms) -> Timbre 100 %: the folder at its top, a sine after it */
+  reset(SR);
+  FcParams p;
+  base_params(&p);
+  p.fg_mode[1] = FC_FG_ONCE; p.fg_rise_ms[1] = 100; p.fg_fall_ms[1] = 100;
+  p.fg2_timbre = 1.0f;
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 57, 127);
+  render(&core, 0, SR / 2);
+  const double top = amp_at(L + SR / 10 - 1200, 2400, 660, SR) / amp_at(L + SR / 10 - 1200, 2400, 220, SR);
+  const double after = amp_at(L + SR / 3, 4800, 660, SR) / amp_at(L + SR / 3, 4800, 220, SR);
+  printf("FG2 -> Timbre: h3 %.1f dB at its top, %.1f dB after\n", db(top), db(after));
+  CHECK(top > 0.1 && after < 1e-3);
+}
+
+static void test_soft_clip(void) {
+  /* 4 voices, full resonance, folder and Drive: the soft clip keeps the output below 1 */
+  reset(SR);
+  FcParams p;
+  base_params(&p);
+  p.gate_mode = FC_GATE_LP; p.gate_res = 1.0f; p.timbre = 1.0f; p.drive = 1.0f;
+  fc_set_params(&core, &p);
+  for (int i = 0; i < 4; i++) fc_note_on(&core, 40 + 3 * i, 50);
+  render(&core, 0, SR);
+  printf("soft clip: peak %.3f\n", peak(L, 0, SR));
+  CHECK(peak(L, 0, SR) < 1.0f && all_finite(L, SR));
+}
+
 int main(void) {
   test_pitch();
   test_release();
   test_voices();
   test_steal();
-  test_decay_ends();
   test_pedal();
   test_all_off();
   test_extremes();
@@ -655,6 +880,13 @@ int main(void) {
   test_timbre_smooth();
   test_timbre_route();
   test_timbre_extremes();
+  test_fg();
+  test_vactrol();
+  test_gate_modes();
+  test_resonance();
+  test_gate_switch();
+  test_fg2_timbre();
+  test_soft_clip();
   printf(fails ? "test_core: %d FAILED\n" : "test_core: all passed\n", fails);
   return fails ? 1 : 0;
 }

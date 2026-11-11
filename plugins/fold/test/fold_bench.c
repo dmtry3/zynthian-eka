@@ -24,7 +24,7 @@ static void bench(const char* label, int shape, float index, int fm, int am, int
   fc_init(&core, SR);
   FcParams p;
   fc_default_params(&p);
-  p.sustain = 1.0f;
+  /* the defaults: FG1 Gate, the lopass gate in Combo (low-pass and level): the full voice */
   p.mod_shape = shape; p.mod_index = index; p.route_fm = fm; p.route_am = am; p.route_sync = sync;
   p.mod_freq = 40.0f;                                 /* Ratio 3/2-ish: sync and FM both busy */
   p.timbre = timbre; p.order = order;

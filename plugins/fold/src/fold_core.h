@@ -1,9 +1,11 @@
 /* Eka Fold engine, without LV2: tested in WSL as a plain program (test/test_core.c).
- * Stage 2: 4 voices; each voice has a Principal oscillator (sine; more sources at stage 4) and a Mod OSC
+ * Stage 3: 4 voices; each voice has a Principal oscillator (sine; more sources at stage 4) and a Mod OSC
  * (triangle, sine, saw, square; Free / Keytrack / Ratio) that modulates it through FM, AM, Sync and Timbre with
  * one Mod Index; then the Timbre section: three shapers (folder, saw, M) blended by Order, Timbre = depth,
- * Symmetry = offset before them, Drive = soft saturation after them; a DC blocker. A plain ADSR per voice
- * (replaced by FG1 and the lopass gate at stage 3).
+ * Symmetry = offset before them, Drive = soft saturation after them; a DC blocker; then the lopass gate:
+ * a vactrol (fast to open, slow to close, slower the darker it gets) driven by function generator 1 and the
+ * velocity, which sets a 2-pole low-pass (LP), the level (VCA) or both (Combo). Function generator 2 moves
+ * Timbre (a mod-matrix cell from stage 4). A soft clip on the output.
  * SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef FOLD_CORE_H
 #define FOLD_CORE_H
@@ -13,7 +15,6 @@
 #define FC_VOICES 4
 #define FC_SINE_N 2048            /* table size (power of two); one more entry for interpolation */
 #define FC_STEAL_MS 2.0f          /* a stolen voice fades out this fast before the new note starts */
-#define FC_SILENT 1e-4f           /* -80 dB: a voice in release below this is free */
 #define FC_GAIN 0.25f             /* per voice: 4 voices at full velocity stay at 0 dBFS */
 #define FC_SMOOTH_MS 5.0f         /* Mod Index and routing switches glide over this, not to click */
 
@@ -41,6 +42,33 @@
 #define FC_CHUNK 64               /* output samples rendered at a time (the 2x buffer) */
 #define FC_HB_TAPS 63             /* halfband decimator */
 
+/* Function generators (after the Buchla 281): Rise and Fall are linear segments, FC_FG_MIN_MS..FC_FG_MAX_MS.
+ * Once: a note rises and falls, the key does not matter. Gate: rises, holds while the key (or the sustain
+ * pedal) is down, falls. Cycle: rises and falls again while the key is down (an LFO), then ends its fall. */
+enum { FC_FG_ONCE, FC_FG_GATE, FC_FG_CYCLE, FC_NFG_MODES };
+enum { FC_SEG_IDLE, FC_SEG_RISE, FC_SEG_HOLD, FC_SEG_FALL };
+#define FC_FG_MIN_MS 1.0f
+#define FC_FG_MAX_MS 10000.0f
+
+/* Lopass gate. The vactrol follows FG1 x velocity: it opens with FC_VAC_RISE_MS and closes with Decay
+ * (FC_DECAY_MIN_MS..FC_DECAY_MAX_MS, logarithmic), up to 1 + FC_VAC_SLOW times slower as it goes dark (the
+ * "acoustic" tail of a Buchla lopass gate). Its state g (0..1) sets the cutoff FC_LPG_FMIN..FC_LPG_FMAX
+ * (exponential) in LP and Combo, and the level (x g) in VCA and Combo. Velocity opens it to
+ * FC_VEL_FLOOR + (1 - FC_VEL_FLOOR) x velocity / 127. The voice ends when FG1 has ended and g is below
+ * FC_GATE_OFF; it fades out over the last FC_GATE_OFF of g. Resonance 0 is a Butterworth low-pass; VCA bypasses
+ * the filter (no top loss). */
+enum { FC_GATE_VCA, FC_GATE_LP, FC_GATE_COMBO, FC_NGATE_MODES };
+#define FC_VAC_RISE_MS 2.0f
+#define FC_VAC_SLOW 2.0f
+#define FC_DECAY_MIN_MS 10.0f
+#define FC_DECAY_MAX_MS 2000.0f
+#define FC_LPG_FMIN 20.0f
+#define FC_LPG_FMAX 20000.0f
+#define FC_VEL_FLOOR 0.4f
+#define FC_GATE_OFF 1e-3f         /* -60 dB */
+#define FC_COEF_EVERY 32          /* filter coefficients are updated every 32 samples (at the 2x rate) */
+float fc_decay_ms(float decay);   /* Decay 0..1 -> ms */
+
 /* Mod OSC shapes and modes: the order of the scale points in lv2/eka_fold.ttl and of the widget's lists. */
 enum { FC_MOD_TRI, FC_MOD_SINE, FC_MOD_SAW, FC_MOD_SQUARE, FC_NMOD_SHAPES };
 enum { FC_MODE_FREE, FC_MODE_KEY, FC_MODE_RATIO, FC_NMODES };
@@ -61,9 +89,11 @@ int fc_ratio_index(float units);
 typedef struct {
   float pitch;                    /* semitones */
   float fine;                     /* cents */
-  float attack_ms, decay_ms;
-  float sustain;                  /* 0..1 */
-  float release_ms;
+  float fg_rise_ms[2], fg_fall_ms[2];
+  int fg_mode[2];
+  int gate_mode;
+  float gate_decay, gate_res, level;   /* 0..1 */
+  float fg2_timbre;               /* -1..1: FG2 -> Timbre */
   float mod_freq;                 /* units, see above */
   float mod_index;                /* 0..1 */
   int mod_shape, mod_mode;
@@ -72,15 +102,26 @@ typedef struct {
   float symmetry;                 /* -1..1 */
 } FcParams;
 
-enum { FC_IDLE, FC_ATTACK, FC_DECAY, FC_SUSTAIN, FC_RELEASE, FC_STEAL };
+enum { FC_IDLE, FC_PLAY, FC_STEAL };
+
+typedef struct {
+  float lvl;                      /* 0..1 */
+  int seg;                        /* FC_SEG_* */
+} FcFg;
 
 typedef struct {
   int stage;
   int note;
-  float amp;                      /* from velocity */
+  float vel;                      /* vactrol drive from the velocity, FC_VEL_FLOOR..1 */
+  FcFg fg[2];
+  float vac;                      /* vactrol state g, 0..1 */
+  float wv, wl, lvl, res;         /* gate mode (VCA, LP shares), Level, Resonance: smoothed */
+  float ic1, ic2;                 /* low-pass state (TPT state-variable filter) */
+  float a1, a2, a3;               /* its coefficients, every FC_COEF_EVERY samples */
+  int coef_count;
+  float sg;                       /* steal fade, 1 = none */
   float phase;                    /* Principal, cycles 0..1 */
   float mphase;                   /* Mod OSC, cycles 0..1 */
-  float env;
   float idx, gfm, gam, gtim;      /* Mod Index and the FM / AM / Timbre switches, smoothed */
   float tim, ord, sym, drv;       /* Timbre knobs, smoothed */
   float au, aF;                   /* ADAA: last folder input and its antiderivative */
@@ -89,7 +130,7 @@ typedef struct {
   uint32_t age;                   /* note-on order: lower = older */
   int held;                       /* the key is down */
   int pedal;                      /* released while the sustain pedal was down */
-  float steal_dec;                /* FC_STEAL: env step per sample */
+  float steal_dec;                /* FC_STEAL: sg step per sample */
   int next_note, next_vel;        /* FC_STEAL: the note that starts when the fade ends */
 } FcVoice;
 
@@ -101,7 +142,11 @@ typedef struct {
   int sustain_pedal;
   float bend;                     /* semitones */
   float tune;                     /* semitones: pitch + fine */
-  float att_inc, dec_coef, rel_coef, sus_coef, sus;
+  float fg_rise_inc[2], fg_fall_inc[2];   /* per sample */
+  int fg_mode[2];
+  float vac_rise, vac_fall;       /* vactrol: one-pole steps per sample (fall before the slow-down) */
+  float wv_t, wl_t, lvl_t, res_t, fg2_tim;
+  float fmax;                     /* the highest cutoff */
   float smooth;                   /* one-pole coefficient for FC_SMOOTH_MS */
   int mod_shape, mod_mode;
   float mod_hz, mod_semis, mod_ratio;   /* Mod Freq read for each mode */
@@ -121,15 +166,19 @@ void fc_note_on(FoldCore* c, int note, int vel);
 void fc_note_off(FoldCore* c, int note);
 void fc_set_sustain(FoldCore* c, int on);
 void fc_set_bend(FoldCore* c, float semitones);
-void fc_all_notes_off(FoldCore* c);    /* every voice to release (CC 123) */
+void fc_all_notes_off(FoldCore* c);    /* every key and the pedal up (CC 123) */
 void fc_all_sound_off(FoldCore* c);    /* every voice fades out in FC_STEAL_MS (CC 120) */
 /* Renders n samples into l and r (overwrites them). */
 void fc_process(FoldCore* c, float* l, float* r, uint32_t n);
 /* MIDI note of voice i for the widget (the coming note while a voice is stolen), -1 = idle. */
 int fc_voice_note(const FoldCore* c, int i);
 int fc_active_voices(const FoldCore* c);
-/* Mod OSC phase 0..1 of the newest sounding voice, for the widget; -1 = none. */
+/* For the widget, from the newest sounding voice (-1 = none): the Mod OSC phase 0..1; the vactrol state g 0..1;
+ * where function generator i is: 0..1 rising (= its level), 1.5 holding, 2..3 falling (2 + 1 - level),
+ * 3 ended. */
 float fc_mod_phase(const FoldCore* c);
+float fc_gate_level(const FoldCore* c);
+float fc_fg_pos(const FoldCore* c, int i);
 /* Flush denormals to zero in this thread (call at the start of run()). */
 void fc_enable_ftz(void);
 

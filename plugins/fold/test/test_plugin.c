@@ -21,8 +21,11 @@ static int fails = 0;
 #define FOLD_URI "http://dmtry3.github.io/zynthian-eka/fold"
 #define N 256
 /* ports, as in lv2/eka_fold.ttl */
-enum { P_PITCH, P_FINE, P_ATTACK, P_DECAY, P_SUSTAIN, P_RELEASE, P_MOD_FREQ, P_MOD_INDEX, P_MOD_SHAPE, P_MOD_MODE,
-       P_TIMBRE, P_ORDER, P_SYMMETRY, P_DRIVE, P_MIDI_IN, P_OUT_L, P_OUT_R, P_NOTIFY, P_NOTE1, P_NOTE4 = P_NOTE1 + 3, P_PEAK, P_MOD_PHASE, P_COUNT };
+enum { P_PITCH, P_FINE, P_MOD_FREQ, P_MOD_INDEX, P_MOD_SHAPE, P_MOD_MODE,
+       P_TIMBRE, P_ORDER, P_SYMMETRY, P_DRIVE, P_GATE_MODE, P_GATE_DECAY, P_GATE_RES, P_LEVEL,
+       P_FG1_RISE, P_FG1_FALL, P_FG2_RISE, P_FG2_FALL,
+       P_MIDI_IN, P_OUT_L, P_OUT_R, P_NOTIFY, P_NOTE1, P_NOTE4 = P_NOTE1 + 3, P_PEAK, P_MOD_PHASE,
+       P_GATE_LEVEL, P_FG1, P_FG2, P_COUNT };
 
 static char* uris[64];
 static int nuris = 0;
@@ -175,7 +178,9 @@ int main(int argc, char** argv) {
   CHECK(h != NULL);
   if (!h) return 1;
   /* the knob defaults of the .ttl */
-  ctl[P_PITCH] = 0; ctl[P_FINE] = 0; ctl[P_ATTACK] = 5; ctl[P_DECAY] = 300; ctl[P_SUSTAIN] = 70; ctl[P_RELEASE] = 400;
+  ctl[P_PITCH] = 0; ctl[P_FINE] = 0;
+  ctl[P_GATE_MODE] = 2; ctl[P_GATE_DECAY] = 30; ctl[P_GATE_RES] = 0; ctl[P_LEVEL] = 80;
+  ctl[P_FG1_RISE] = 5; ctl[P_FG1_FALL] = 300; ctl[P_FG2_RISE] = 300; ctl[P_FG2_FALL] = 800;
   ctl[P_MOD_FREQ] = 30; ctl[P_MOD_INDEX] = 0; ctl[P_MOD_SHAPE] = 1; ctl[P_MOD_MODE] = 2;
   ctl[P_TIMBRE] = 0; ctl[P_ORDER] = 0; ctl[P_SYMMETRY] = 0; ctl[P_DRIVE] = 0;
   for (int p = 0; p < P_COUNT; p++) {
@@ -196,6 +201,7 @@ int main(int argc, char** argv) {
   CHECK(ctl[P_PEAK] == -100.0f);
   CHECK(ctl[P_NOTE1] == -1.0f && ctl[P_NOTE4] == -1.0f);
   CHECK(ctl[P_MOD_PHASE] == -1.0f);
+  CHECK(ctl[P_GATE_LEVEL] == -1.0f && ctl[P_FG1] == -1.0f && ctl[P_FG2] == -1.0f);
 
   /* a note on at frame 100: sample-accurate, silence before it */
   seq_midi(100, 0x90, 60, 127);
@@ -206,6 +212,7 @@ int main(int argc, char** argv) {
   CHECK(ctl[P_NOTE1] == 60.0f);
   CHECK(ctl[P_PEAK] > -100.0f && ctl[P_PEAK] <= 0.0f);
   CHECK(ctl[P_MOD_PHASE] >= 0.0f && ctl[P_MOD_PHASE] < 1.0f);
+  CHECK(ctl[P_GATE_LEVEL] > 0.0f && ctl[P_FG1] >= 0.0f && ctl[P_FG1] < 1.0f);   /* FG1 rising, the vactrol opening */
 
   /* a chord on another MIDI channel, then 2 s: peak at sustain, 4 notes shown */
   seq_midi(0, 0x93, 64, 127);
@@ -221,7 +228,7 @@ int main(int argc, char** argv) {
   /* the Pitch knob: an octave up, the frequency doubles */
   seq_midi(0, 0xB0, 123, 0);                                            /* All Notes Off */
   run_seq();
-  for (int i = 0; i < 200; i++) run_seq();
+  for (int i = 0; i < 400; i++) run_seq();   /* 2 s: FG1 Fall 300 ms, then the vactrol tail to -60 dB (~1 s) */
   CHECK(ctl[P_NOTE1] == -1.0f);
   ctl[P_PITCH] = 12;
   seq_midi(0, 0x90, 69, 127);
@@ -263,7 +270,7 @@ int main(int argc, char** argv) {
   /* State: save, change, restore; the restored values are reported on the next run */
   nitems = 0;
   CHECK(si->save(h, store, NULL, 0, NULL) == LV2_STATE_SUCCESS);
-  CHECK(nitems == 4);
+  CHECK(nitems == 7);
   seq_set("route_am", 0.0f);
   seq_set("route_sync", 0.0f);
   seq_set("route_fm", 1.0f);
@@ -300,8 +307,29 @@ int main(int argc, char** argv) {
   CHECK(reported("route_timbre") == 1);
   ctl[P_TIMBRE] = 0;
 
+  /* function generators: Once through patch:Set; the held note then ends on its own */
+  seq_set("route_timbre", 0.0f);
+  seq_set("fg1_mode", 0.0f);
+  seq_set("m_fg2_timbre", -250.0f);                                       /* clamped to -100 */
+  seq_midi(0, 0xB0, 123, 0);
+  run_seq();
+  seq_get();
+  run_seq();
+  CHECK(reported("fg1_mode") == 0 && reported("fg2_mode") == 1 && reported("m_fg2_timbre") == -100);
+  seq_set("m_fg2_timbre", 0.0f);
+  for (int i = 0; i < 400; i++) run_seq();
+  seq_midi(0, 0x90, 64, 127);
+  run_seq();
+  CHECK(ctl[P_NOTE1] == 64.0f || ctl[P_NOTE1 + 1] == 64.0f || ctl[P_NOTE1 + 2] == 64.0f || ctl[P_NOTE1 + 3] == 64.0f);
+  for (int i = 0; i < 400; i++) run_seq();                              /* 2 s, the key still down */
+  CHECK(ctl[P_NOTE1] == -1.0f && ctl[P_NOTE4] == -1.0f && ctl[P_GATE_LEVEL] == -1.0f);
+  seq_midi(0, 0x80, 64, 0);
+  seq_set("fg1_mode", 1.0f);
+  run_seq();
+
   /* odd values from a host: NaN knobs, a short MIDI event, out of range Mod knobs */
-  ctl[P_ATTACK] = NAN;
+  ctl[P_FG1_RISE] = NAN; ctl[P_FG2_FALL] = -5; ctl[P_GATE_MODE] = 7; ctl[P_GATE_DECAY] = NAN;
+  ctl[P_GATE_RES] = 1e6; ctl[P_LEVEL] = -1;
   ctl[P_MOD_SHAPE] = 9; ctl[P_MOD_MODE] = -3; ctl[P_MOD_FREQ] = 1000; ctl[P_MOD_INDEX] = NAN;
   ctl[P_TIMBRE] = 500; ctl[P_ORDER] = -7; ctl[P_SYMMETRY] = NAN; ctl[P_DRIVE] = 1e9;
   seq_midi(0, 0xE0, 0x7F, 0x7F);                                        /* bend fully up */
