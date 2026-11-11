@@ -1,11 +1,22 @@
-# Только офлайн-тесты ядра. Плагин собирается скриптом scripts/build.sh.
+# Плагин собирается и ставится скриптами в scripts/ (all, install: тонкие обёртки),
+# test: офлайн-тесты ядра и обёртки LV2.
 CXX ?= g++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -fno-exceptions -fno-rtti
 
 CORE_H := $(wildcard core/*.h)
 CORE_CPP := $(wildcard core/*.cpp)
 
-.PHONY: test clean
+.PHONY: all install uninstall test clean
+
+all:
+	./scripts/build.sh
+
+# На Zynthian: sudo make install (собирает и ставит ссылки)
+install:
+	./scripts/install.sh
+
+uninstall:
+	./scripts/uninstall.sh
 
 test: build_test/test_core build_test/test_looper build_test/test_plugin
 	@mkdir -p tests/out
