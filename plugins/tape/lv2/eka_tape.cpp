@@ -75,6 +75,7 @@ enum Port : uint32_t {
   O_MUTES, O_REVS, O_STOPS, O_LOCKS, O_GRID,
   O_POOL_MB,  // фактический размер пула, МБ (0 — меняется)
   O_SESS, O_SESS_PROG,  // сессия: состояние (SessStatus) и доля записанного или прочитанного
+  O_COUNT,              // счёт перед записью на активной дорожке: долей до начала (0 — нет)
   P_COUNT
 };
 
@@ -145,6 +146,7 @@ enum Param {
   PR_TSEL,                      // активная дорожка 1..6 текущего парта
   PR_PSEL,                      // переход в парт 1..6 по PART AT (тот же или текущий, пока ждёт, — отмена)
   PR_WSEL,                      // экран: 1 Loop, 2 Mixer (как контроллеры «Виджет Loop/Mixer»)
+  PR_COUNTIN,                   // счёт перед записью основы: 0 выкл, 1 или 2 такта (этап 8)
   PR_COUNT
 };
 struct ParamDef {
@@ -190,6 +192,7 @@ void init_params() {
   kParams[PR_TSEL] = ParamDef{"tsel", 0.0f, 0.0f, 6.0f, false};
   kParams[PR_PSEL] = ParamDef{"psel", 0.0f, 0.0f, 6.0f, false};
   kParams[PR_WSEL] = ParamDef{"wsel", 0.0f, 0.0f, 2.0f, false};
+  kParams[PR_COUNTIN] = ParamDef{"count_in", 0.0f, 0.0f, 2.0f, false};
 }
 constexpr uint32_t kReportPerRun = 4;  // ответов на patch:Get за один run()
 
@@ -280,6 +283,7 @@ struct Plugin {
     s.spd_snap = (int)vals[PR_SSNAP];
     s.spd_glide_ms = vals[PR_SGLIDE];
     s.latency_ms = vals[PR_LAT];
+    s.count_in = (int)vals[PR_COUNTIN];
     looper->set_settings(s);
     configure_buttons();
     // пул — только когда изменился сам параметр: смена стирает лупы
@@ -330,7 +334,7 @@ struct Plugin {
     }
   }
   static bool is_setting(int i) {
-    return i < PR_LEV0 || i == PR_TGLIDE || i == PR_SSNAP || i == PR_SGLIDE || (i >= PR_HOLD && i <= PR_POOL);
+    return i < PR_LEV0 || i == PR_TGLIDE || i == PR_SSNAP || i == PR_SGLIDE || (i >= PR_HOLD && i <= PR_POOL) || i == PR_COUNTIN;
   }
   void apply_all() {
     apply_settings();
@@ -814,6 +818,7 @@ void run(LV2_Handle h, uint32_t n) {
   pl->out(O_POOL_MB, (float)(lp->pool_bytes() >> 20));
   pl->out(O_SESS, (float)lp->session_status());
   pl->out(O_SESS_PROG, lp->session_progress());
+  pl->out(O_COUNT, (float)lp->view(lp->active()).count);
   pl->out(O_POOL, lp->pool_fill());
   pl->out(O_MPK_L, lp->master_peak(0));
   pl->out(O_MPK_R, lp->master_peak(1));

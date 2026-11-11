@@ -150,6 +150,7 @@ SETTINGS = [
         ("seg", "rec_order", "REC ORDER", ("RPO", "ROP")),
         ("seg", "mode", "MODE", ("FREE", "QUANTIZE")),
         ("sl", "latency", "LATENCY", LAT_STEPS, lambda v: "OFF" if v == 0 else "%d ms" % v),
+        ("seg", "count_in", "COUNT IN", ("OFF", "1 BAR", "2 BARS")),
     ]),
     ("QUANTIZE", [
         ("seg", "mute_q", "MUTE AT", QUANT_NAMES),
@@ -203,7 +204,7 @@ SETTING_DEFAULTS = {"rec_order": 0, "mode": 1, "mute_q": 2, "part_q": 3, "tempo_
                     "spd_glide": 150, "fade_out": 200, "fade_in": 200, "rev_time": 50,
                     "len1": 0, "len2": 0, "len3": 0, "len4": 0, "len5": 0, "len6": 0, "limiter": 1, "grid": 1,
                     "latency": 0, "hold_ms": 500, "reset_ms": 1000,
-                    "pool_mb": 2048}
+                    "pool_mb": 2048, "count_in": 0}
 
 
 def mix(c1, c2, f):
@@ -712,6 +713,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             "parts": int(m.get("o_parts", 0)),
             "rec_next": bool(flags >> 24 & 1),
             "widget": int(m.get("o_widget", 0)),
+            "count": int(round(m.get("o_count", 0.0))),  # счёт перед записью на активной: долей до начала
             "quantize": self._zval("mode") == 1,
             "rop": self._zval("rec_order") == 1,
             "tracks": [],
@@ -897,7 +899,8 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                    blink if pending else None, round(tr["speed"], 2), st["quantize"], st["bpm"], st["bpb"],
                    round(tr["len"], 2) if state == ST_REC else tr["len"],
                    (d["seq"], d["live"], d.get("rec") and d["rec"][0]) if d else None,
-                   self._zval("len%d" % (i + 1)) if state == ST_REC else None)
+                   self._zval("len%d" % (i + 1)) if state == ST_REC else None,
+                   st["count"] if (active and state == ST_ARMED) else 0)
             if not c.section("row%d" % i, key):
                 # точка парта (строка i = парт i), как столбик точек у Aeros:
                 # пустой — контур, записанный — заливка, текущий — зелёный, ожидающий — мигает
@@ -935,6 +938,10 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                     c.create_line(wx1 - 1, ry0 + 3, wx1 - 1, ry1 - 3, fill=RED, width=2)  # конец цикла
                 elif state != ST_REC:
                     c.create_line(wx0, cy, wx1, cy, fill=GRID, width=1)
+                if active and state == ST_ARMED and st["count"] > 0:
+                    # счёт перед записью (этап 8): крупно, сколько долей до начала записи
+                    cnt = str(st["count"])
+                    self._text((wx0 + wx1) / 2, cy, cnt, bw * 0.3, row_h * 0.8, RED)
             # подвижная часть: круг позиции с номером, замок, линия позиции — каждый кадр
             c.section("rowp%d" % i)
             frac = tr["pos"] if has_loop else (1.0 if state == ST_REC else 0.0)
@@ -1489,7 +1496,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
         if s == ST_EMPTY:
             return "RECORD", RED
         if s == ST_ARMED:
-            return "WAIT BAR", RED
+            return ("COUNT IN", RED) if st.get("count", 0) > 0 else ("WAIT BAR", RED)
         if s == ST_REC:
             return ("OVERDUB", ORANGE) if st["rop"] else ("PLAY", BLUE)
         if s == ST_PLAY:

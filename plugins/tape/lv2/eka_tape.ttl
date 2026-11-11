@@ -200,7 +200,8 @@
         <http://dmtry3.github.io/zynthian-eka/tape#pool_mb> ,
         <http://dmtry3.github.io/zynthian-eka/tape#tsel> ,
         <http://dmtry3.github.io/zynthian-eka/tape#psel> ,
-        <http://dmtry3.github.io/zynthian-eka/tape#wsel> ;
+        <http://dmtry3.github.io/zynthian-eka/tape#wsel> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#count_in> ;
     lv2:port
     [
         a lv2:InputPort , lv2:AudioPort ; lv2:index 18 ; lv2:symbol "in_l" ; lv2:name "In L" ;
@@ -570,6 +571,10 @@
         a lv2:OutputPort , lv2:ControlPort ;
         lv2:index 87 ; lv2:symbol "o_sess_prog" ; lv2:name "Out: Session Progress" ;
         lv2:minimum 0 ; lv2:maximum 1 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 88 ; lv2:symbol "o_count" ; lv2:name "Out: Count In" ;
+        lv2:minimum 0 ; lv2:maximum 64 ;
     ] .
 
 # Настройки: LV2-параметры (patch:Set), скрыты со страниц, меняются на вкладке настроек виджета.
@@ -2122,6 +2127,16 @@
     a lv2:Parameter ;
     lv2:symbol "wsel" ;
     rdfs:label "Select Screen" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+# Счёт перед записью основы (этап 8): 0 выкл, 1 или 2 такта.
+<http://dmtry3.github.io/zynthian-eka/tape#count_in>
+    a lv2:Parameter ;
+    lv2:symbol "count_in" ;
+    rdfs:label "Count In" ;
     rdfs:range atom:Int ;
     lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
     pprops:notOnGUI true ;

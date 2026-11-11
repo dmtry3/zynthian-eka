@@ -121,6 +121,8 @@ class Processor:
         self.controllers_dict["tsel"] = Ctrl("tsel", 0, 0, 6)
         self.controllers_dict["psel"] = Ctrl("psel", 0, 0, 6)
         self.controllers_dict["wsel"] = Ctrl("wsel", 0, 0, 2)
+        # этап 8: счёт перед записью
+        self.controllers_dict["count_in"] = Ctrl("count_in", 0, 0, 2)
 
 
 class Control:
@@ -614,6 +616,24 @@ def main():
     for k in ("o_mutes", "o_revs", "o_stops", "o_locks"):
         del m[k]
     wdg.settings_open = False
+    wdg.update()
+
+    # счёт перед записью (этап 8): настройка COUNT IN, крупный отсчёт в строке, вкладка COUNT IN
+    wdg.settings_open = True
+    into_view("sseg", "count_in")
+    check("в настройках COUNT IN", "COUNT IN" in texts(wdg) and "2 BARS" in texts(wdg))
+    tap_seg("count_in", 1)
+    check("COUNT IN: 1 BAR", cd["count_in"].value == 1)
+    wdg.settings_open = False
+    m["o_st1"], m["o_count"], m["o_track"] = 1.0, 3.0, 0.0
+    wdg.update()
+    check("счёт: в строке крупно 3", texts(wdg).count("3") == 2 and "COUNT IN" in texts(wdg))
+    no_overlap("800x480, счёт перед записью")
+    m["o_count"] = 0.0
+    wdg.update()
+    check("ждёт черты до счёта: WAIT BAR", "WAIT BAR" in texts(wdg) and "COUNT IN" not in texts(wdg))
+    m["o_st1"] = 0.0
+    cd["count_in"].value = 0
     wdg.update()
 
     # сессия (этап 7а): строка в полосе темпа вместо точек долей

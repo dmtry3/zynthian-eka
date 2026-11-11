@@ -166,8 +166,17 @@ void Looper::rec_press(int ti) {
       // запись только при запущенном транспорте Zynthian (решение пользователя 2026-11-08)
       // и не во время сохранения сессии (Save ждёт, пока закроется начатое)
       if (!rolling_ || rec_blocked()) break;
+      // счёт перед записью (этап 8): в Quantize — с ближайшей черты, в Free — сразу от нажатия
+      t.count_n = (uint8_t)(set_.count_in > 0 ? set_.count_in : 0);
+      t.count_end = -1.0;
       if (!set_.quantize) {
-        start_rec(ti);
+        if (t.count_n == 0) {
+          start_rec(ti);
+        } else {
+          t.st = TState::Armed;
+          t.rec_wait = 0;
+          t.count_end = beats_ + (double)t.count_n * bpb_;
+        }
       } else {
         t.st = TState::Armed;
         t.rec_wait = 0;
@@ -264,6 +273,8 @@ void Looper::rec_peaks(int ti, float l, float r) {
 // аудиоинтерфейса: запись начинается на столько же позже — и сыгранное «на раз» ляжет на начало цикла.
 void Looper::rec_on_boundary(int ti) {
   Track& t = tr_[ti];
+  t.count_n = 0;  // счёт кончился (или его не было)
+  t.count_end = -1.0;
   if (set_.quantize && lat_ > 0) {
     t.st = TState::Armed;
     t.rec_wait = lat_;
@@ -1128,7 +1139,13 @@ void Looper::live_peaks(int ti, uint64_t p) {
 void Looper::on_grid(bool beat, bool bar) {
   for (int ti = 0; ti < kTracks; ++ti) {
     Track& t = tr_[ti];
-    if (t.st == TState::Armed && bar && t.rec_wait == 0) rec_on_boundary(ti);
+    if (t.st == TState::Armed && bar && t.rec_wait == 0) {
+      if (t.count_n > 0 && t.count_end < 0) {
+        t.count_end = std::floor(beats_ + 1e-9) + (double)t.count_n * bpb_;  // черта: начался счёт
+      } else if (t.count_n == 0 || beats_ >= t.count_end - 0.5) {
+        rec_on_boundary(ti);
+      }
+    }
     if (t.mute_pending && ((set_.mute_q == 1 && beat) || (set_.mute_q == 2 && bar))) apply_mute(ti);
     if (t.phase_wait && ((set_.mute_q == 1 && beat) || (set_.mute_q >= 2 && bar))) {
       t.phase_wait = false;
@@ -1715,8 +1732,13 @@ void Looper::process(const float* in_l, const float* in_r, float* out_l, float* 
       const int64_t a = (int64_t)std::floor(beats_ - bpf_), c = (int64_t)std::floor(beats_);
       if (a != c) on_grid(true, ((c % bpb_) + bpb_) % bpb_ == 0);
     } else {
-      for (int k = 0; k < kTracks; ++k)
-        if (tr_[k].st == TState::Armed) start_rec(k);
+      for (int k = 0; k < kTracks; ++k) {
+        Track& t = tr_[k];
+        if (t.st != TState::Armed || (t.count_n > 0 && beats_ < t.count_end)) continue;  // идёт счёт
+        t.count_n = 0;
+        t.count_end = -1.0;
+        start_rec(k);
+      }
     }
     if (part_due_) {  // самый длинный луп дошёл до конца цикла: переход
       part_due_ = false;
@@ -2010,6 +2032,11 @@ TrackView Looper::view(int i) const {
   v.can_undo = t.undo_n > 0 || t.st == TState::Dub;
   v.can_redo = t.redo_n > 0;
   v.layers = t.undo_n;
+  v.count = 0;
+  if (t.st == TState::Armed && t.count_n > 0 && t.count_end >= 0) {
+    const double left = std::ceil(t.count_end - beats_ - 1e-9);
+    v.count = (uint8_t)(left < 1 ? 1 : (left > 64 ? 64 : left));
+  }
   if (t.len) {
     v.pos = (float)(t.pos / (double)t.len);
     v.len_s = (float)((double)t.len / sr_);

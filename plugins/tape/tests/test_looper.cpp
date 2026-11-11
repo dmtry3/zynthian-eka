@@ -267,6 +267,86 @@ static void test_reverse() {
 }
 
 // Quantize: запись ждёт такта, фиксированная длина закрывается сама; Free-длина округляется до такта.
+// Счёт перед записью (этап 8): Quantize — с ближайшей черты, Free — от нажатия; отмена как у взведённой.
+static void test_count_in() {
+  const uint64_t BAR = 96000;  // 120 уд/мин, 4/4
+  auto at = [](Sim& s, double bars) { s.run((uint64_t)std::llround(bars * BAR) - s.t); };
+  {  // Quantize, 1 такт: Rec на 0,5 -> черта 1 -> счёт такт -> запись с черты 2
+    Sim s(64, true);
+    s.set.length[0] = 1;
+    s.set.count_in = 1;
+    s.apply();
+    s.in_l = sine(200.0, 0.3f);
+    at(s, 0.5);
+    s.cmd(Cmd::Rec);
+    at(s, 0.9);
+    CHECK(s.v().state == 1 && s.v().count == 0);  // ждёт черты: счёта ещё нет
+    at(s, 1.1);
+    CHECK(s.v().state == 1 && s.v().count == 4);  // счёт: 4 доли до начала
+    at(s, 1.8);
+    CHECK(s.v().state == 1 && s.v().count == 1);
+    at(s, 2.0 + 0.01);
+    CHECK(s.v().state == 2 && s.v().count == 0);  // запись с черты 2
+    at(s, 3.0 + 0.01);
+    CHECK(s.v().state == 3 && std::fabs(s.v().len_s - 2.0f) < 1e-3f);
+  }
+  {  // Quantize, 2 такта; повторный Rec во время счёта — отмена
+    Sim s(64, true);
+    s.set.count_in = 2;
+    s.apply();
+    at(s, 0.5);
+    s.cmd(Cmd::Rec);
+    at(s, 1.5);
+    CHECK(s.v().state == 1 && s.v().count == 6);
+    s.cmd(Cmd::Rec);
+    CHECK(s.v().state == 0);
+    at(s, 4.3);
+    CHECK(s.v().state == 0);
+    // снова, посреди такта 4: черта 5, счёт 5-7, запись с 7
+    s.cmd(Cmd::Rec);
+    at(s, 6.9);
+    CHECK(s.v().state == 1);
+    at(s, 7.0 + 0.01);
+    CHECK(s.v().state == 2);
+  }
+  {  // Free, 1 такт: счёт от нажатия, запись ровно через такт; овердаб без счёта
+    Sim s(64, false);
+    s.set.count_in = 1;
+    s.apply();
+    s.in_l = sine(200.0, 0.3f);
+    at(s, 0.3);
+    s.cmd(Cmd::Rec);
+    at(s, 0.35);
+    CHECK(s.v().state == 1 && s.v().count == 4);
+    at(s, 1.29);
+    CHECK(s.v().state == 1 && s.v().count == 1);
+    at(s, 1.31);
+    CHECK(s.v().state == 2);
+    at(s, 2.3);
+    s.cmd(Cmd::Rec);  // закрыть: такт доигрывается
+    at(s, 3.5);
+    CHECK(s.v().state == 3);
+    s.cmd(Cmd::Rec);
+    CHECK(s.v().state == 4);  // овердаб сразу
+  }
+  {  // счёт идёт, транспорт остановился — отмена; переход на другую дорожку — отмена
+    Sim s(64, true);
+    s.set.count_in = 1;
+    s.apply();
+    at(s, 0.5);
+    s.cmd(Cmd::Rec);
+    at(s, 1.2);
+    s.ti.rolling = false;
+    s.cmd(Cmd::Mute);  // передать транспорт (cmd вызывает set_time)
+    CHECK(s.v().state == 0);
+    s.ti.rolling = true;
+    s.cmd(Cmd::Mute);
+    s.cmd(Cmd::Rec);
+    s.cmd(Cmd::TrackNext);
+    CHECK(s.v(0).state == 0);
+  }
+}
+
 static void test_quantize() {
   const uint64_t BAR = 96000;  // 120 уд/мин, 4/4
   {
@@ -1472,6 +1552,7 @@ int main() {
   test_manual_speed();
   test_dub_at_speed();
   test_quantize();
+  test_count_in();
   test_rop();
   test_reset();
   test_pool_full();

@@ -445,6 +445,21 @@ static void test_touch() {
   cmd(PR_WSEL, 1);
   h.blocks(1);
   CHECK(h.pl->widget == 0 && h.ctl[O_WIDGET] == 0.0f);
+
+  // счёт перед записью (этап 8): настройка доходит до ядра, o_count показывает долей до начала
+  Host q;
+  set_param(q.pl, PR_COUNTIN, 1);
+  on_param(q.pl, PR_COUNTIN);
+  q.blocks(4);
+  do_action(q.pl, A_REC);
+  float maxc = 0;
+  bool rec = false;
+  for (int i = 0; i < 3 * 96000 / 128 && !rec; ++i) {
+    q.block(0.2f);
+    maxc = std::fmax(maxc, q.ctl[O_COUNT]);
+    rec = q.pl->looper->view(0).state == 2;
+  }
+  CHECK(maxc == 4.0f && rec && q.ctl[O_COUNT] == 0.0f);
 }
 
 int main() {
