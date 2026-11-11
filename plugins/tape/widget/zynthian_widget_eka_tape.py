@@ -417,6 +417,16 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                     self.settings_open = False
                     self.refresh_gui()
                     return
+                if what == "screen":  # кнопка Loop <-> Mixer слева от темпа
+                    self.settings_open = False
+                    self.speed_slot = None
+                    self._zset("wsel", arg)
+                    self.refresh_gui()
+                    return
+                if what in ("tsel", "psel"):  # касание строки дорожки / точки парта (этап 7б)
+                    self._zset(what, arg)
+                    self.refresh_gui()
+                    return
                 if what == "sclose":
                     self.speed_slot = None
                     self.refresh_gui()
@@ -798,13 +808,22 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
         beat_i = min(st["bpb"] - 1, max(0, int(st["beat"]))) if st["src"] else -1
         sess = st.get("sess")
         # меняется раз в долю (и во время вспышки сильной доли, и когда меняется строка сессии)
+        mixer = st["widget"] == 1
         if c.section("tempo", (x0, y0, x1, y1, flash, st["src"], st["bpm"], st["bpb"], st["bar"], beat_i,
-                               self.settings_open, sess)):
+                               self.settings_open, sess, mixer)):
             return
         if flash is not None:  # вспышка: сразу светло-серый, гаснет к чёрному
             v = flash
             c.create_rectangle(x0, y0, x1, y1, fill="#%02x%02x%02x" % (v, v, v), width=0)
         cy = (y0 + y1) / 2
+        # слева кнопка соседнего экрана: на Loop — MIX, на Mixer — LOOP (этап 7б)
+        btn_w = hh * 1.9
+        bx0, by0, bx1, by1 = x0 + 3, y0 + hh * 0.14, x0 + btn_w - 3, y1 - hh * 0.14
+        c.create_rectangle(bx0, by0, bx1, by1, fill=TAB, outline="#4a4a4a", width=1)
+        self._text((bx0 + bx1) / 2, cy, "LOOP" if mixer else "MIX", (bx1 - bx0) * 0.84, (by1 - by0) * 0.62,
+                   "#b0b0b0")
+        self.hits.append((x0, y0, x0 + btn_w, y1, "screen", 1 if mixer else 2))
+        x0, w = x0 + btn_w, w - btn_w
         if st["src"]:
             bpm = st["bpm"]
             s = "%.1f" % bpm if abs(bpm - round(bpm)) > 0.05 else "%d" % round(bpm)
@@ -894,6 +913,10 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                 self._text(pcx, cy + u * 0.37, "%.2f×" % sp, u * 0.8, u * 0.22,
                            ORANGE if abs(sp - 1.0) > 1e-3 else DIM, bold=abs(sp - 1.0) > 1e-3)
                 self.hits.append((x0 + part_w, cy + u * 0.22, x0 + part_w + u * 0.85, cy + u * 0.5, "speed", i))
+                # касание (этап 7б): точка — переход в парт i, остальная строка — активная дорожка
+                # (метка скорости выше в списке: она проверяется первой)
+                self.hits.append((x0, ry0, x0 + part_w, ry1, "psel", i + 1))
+                self.hits.append((x0 + part_w, ry0, wx1, ry1, "tsel", i + 1))
                 # волна цикла: сумма цветом дорожки, слои овердабов полупрозрачно поверх
                 if state == ST_REC:
                     self._rec_wave(st, i, wx0, wx1, cy, row_h, color, u)
@@ -1183,6 +1206,8 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             self._fader(geo, "mix%d" % i, mid, fy0, fy1, ew, db, pk, None, "lev%d" % n)
             # круг позиции с номером — каждый кадр
             c.section("mixp%d" % i)
+            hw = min(cw * 0.45, max(r * 1.8, 22))  # касание круга — активная дорожка (этап 7б)
+            self.hits.append((mid - hw, y0, mid + hw, py0 - 6, "tsel", i + 1))
             self._pie(mid, y0 + r + 3, r, col, tr["pos"] if has_loop else 0.0, empty=not has_loop)
             self._text(mid, y0 + r + 3, str(i + 1), r * 1.3, r * 1.3, TEXT if has_loop else col)
         # справа: Master с ограничителем

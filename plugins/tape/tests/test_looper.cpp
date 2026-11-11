@@ -820,6 +820,28 @@ static void test_parts_lock() {
   CHECK(s.lp->pending_part() == 1);
   s.cmd(Cmd::PartPrev);
   CHECK(s.lp->pending_part() == -1);
+  // касание на экране (этап 7б): точка парта — переход по PART AT, строка — активная дорожка
+  s.lp->select_part(2);
+  CHECK(s.lp->pending_part() == 2);
+  s.lp->select_part(1);  // другая точка — новая цель
+  CHECK(s.lp->pending_part() == 1);
+  s.lp->select_part(1);  // та же — отмена
+  CHECK(s.lp->pending_part() == -1);
+  s.lp->select_part(1);
+  s.lp->select_part(0);  // текущий парт — отмена
+  CHECK(s.lp->pending_part() == -1 && s.lp->part() == 0);
+  s.lp->select_part(0);  // текущий без ожидания — ничего
+  s.lp->select_part(9);  // нет такого — молча
+  CHECK(s.lp->pending_part() == -1 && s.lp->part() == 0);
+  s.lp->select_slot(3);
+  CHECK(s.lp->active() == 3);
+  s.lp->select_slot(9);
+  CHECK(s.lp->active() == 3);
+  s.lp->select_part(1);
+  at(11.5);
+  CHECK(s.lp->part() == 0 && s.lp->pending_part() == 1);
+  at(12.0 + 0.01);
+  CHECK(s.lp->part() == 1 && s.lp->pending_part() == -1);
   s.wav("parts_lock");
 }
 

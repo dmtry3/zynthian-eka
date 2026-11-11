@@ -122,18 +122,40 @@ void Looper::command(Cmd c) {
         if (pend_part_ < 0) rec_after_switch_ = false;
         break;
       }
-      const int target = (cur_part_ + d) % ns_;
-      // из пустого парта и без квантования — сразу
-      // сразу: текущий парт пустой, PART AT = сразу, или Free без «конца цикла» (тактов нет)
-      // транспорт стоит и лупы затихли: ждать черты нечего
-      if (!part_has_content(cur_part_) || set_.part_q == 0 || (!set_.quantize && set_.part_q != 3) || hold_)
-        switch_part(target);
-      else
-        pend_part_ = target;
+      request_part((cur_part_ + d) % ns_);
       break;
     }
     case Cmd::Lock: t.locked = !t.locked; break;
   }
+}
+
+void Looper::request_part(int target) {
+  // сразу: текущий парт пустой, PART AT = сразу, или Free без «конца цикла» (тактов нет);
+  // транспорт стоит и лупы затихли: ждать черты нечего
+  if (!part_has_content(cur_part_) || set_.part_q == 0 || (!set_.quantize && set_.part_q != 3) || hold_)
+    switch_part(target);
+  else
+    pend_part_ = target;
+}
+
+void Looper::select_slot(int slot) {
+  if (!pool_.ok() || slot < 0 || slot >= ns_ || slot == active_) return;
+  leave_track(idx(active_));
+  active_ = slot;
+}
+
+void Looper::select_part(int p) {
+  if (!pool_.ok() || p < 0 || p >= ns_) return;
+  if (pend_part_ >= 0) {  // переход ждёт границы
+    if (p == pend_part_ || p == cur_part_) {
+      pend_part_ = -1;
+      rec_after_switch_ = false;
+    } else {
+      pend_part_ = p;
+    }
+    return;
+  }
+  if (p != cur_part_) request_part(p);
 }
 
 void Looper::rec_press(int ti) {

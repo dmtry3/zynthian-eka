@@ -197,7 +197,10 @@
         <http://dmtry3.github.io/zynthian-eka/tape#hold_ms> ,
         <http://dmtry3.github.io/zynthian-eka/tape#reset_ms> ,
         <http://dmtry3.github.io/zynthian-eka/tape#latency> ,
-        <http://dmtry3.github.io/zynthian-eka/tape#pool_mb> ;
+        <http://dmtry3.github.io/zynthian-eka/tape#pool_mb> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tsel> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#psel> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#wsel> ;
     lv2:port
     [
         a lv2:InputPort , lv2:AudioPort ; lv2:index 18 ; lv2:symbol "in_l" ; lv2:name "In L" ;
@@ -2092,5 +2095,34 @@
     rdfs:label "Memory Pool MB" ;
     rdfs:range atom:Int ;
     lv2:default 2048 ; lv2:minimum 256 ; lv2:maximum 4096 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+# Касание на экране (этап 7б): команды виджета, сами возвращаются в 0.
+
+<http://dmtry3.github.io/zynthian-eka/tape#tsel>
+    a lv2:Parameter ;
+    lv2:symbol "tsel" ;
+    rdfs:label "Select Track" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#psel>
+    a lv2:Parameter ;
+    lv2:symbol "psel" ;
+    rdfs:label "Select Part" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#wsel>
+    a lv2:Parameter ;
+    lv2:symbol "wsel" ;
+    rdfs:label "Select Screen" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 2 ;
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .

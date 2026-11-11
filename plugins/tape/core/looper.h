@@ -145,6 +145,10 @@ class Looper {
   // (сброс удержанием Reset, Lock-копия) — обёртка сообщает новые значения хосту
   void set_mix(int k, const Mix& m) { mix_[k] = m; }
   void mute_slot(int slot);  // mute дорожки текущего парта (кнопка M в виджете Mixer)
+  // Касание на экране (этап 7б): те же правила, что у педалей «Следующая дорожка» и «Следующий парт».
+  void select_slot(int slot);  // активной становится дорожка slot текущего парта
+  void select_part(int p);     // переход в парт p по PART AT; пока ждёт границы: тот же парт или
+                               // текущий — отмена, другой — новая цель
   // ручная скорость дорожки k (0..n×n−1): цель, к ней плавный ход; сброс — к 1× и в фазу с тактом
   void set_speed(int k, float s) { tr_[k].mspd = s < kMinSpeed ? kMinSpeed : (s > kMaxSpeed ? kMaxSpeed : s); }
   float speed(int k) const { return tr_[k].mspd; }
@@ -300,6 +304,7 @@ class Looper {
   void wake(int ti);
   void apply_playstop(bool stop);
   void leave_track(int ti);
+  void request_part(int target);  // переход по PART AT (переход ещё не ждёт границы)
   // парты
   int idx(int slot) const { return cur_part_ * ns_ + slot; }
   bool in_cur(int k) const { return k / ns_ == cur_part_; }

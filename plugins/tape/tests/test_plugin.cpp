@@ -424,6 +424,29 @@ static void test_sessions() {
   }
 }
 
+// Касание на экране (этап 7б): команды виджета tsel, psel, wsel сами возвращаются в 0.
+static void test_touch() {
+  Host h;
+  h.blocks(4);
+  auto cmd = [&](int i, float v) {
+    set_param(h.pl, i, v);
+    on_param(h.pl, i);
+    CHECK(h.pl->vals[i] == 0.0f && h.pl->dirty[i]);
+  };
+  cmd(PR_TSEL, 3);
+  CHECK(h.pl->looper->active() == 2);
+  cmd(PR_TSEL, 0);  // 0 — ничего
+  CHECK(h.pl->looper->active() == 2);
+  cmd(PR_PSEL, 2);  // текущий парт пустой: сразу
+  CHECK(h.pl->looper->part() == 1);
+  cmd(PR_WSEL, 2);
+  h.blocks(1);
+  CHECK(h.pl->widget == 1 && h.ctl[O_WIDGET] == 1.0f);
+  cmd(PR_WSEL, 1);
+  h.blocks(1);
+  CHECK(h.pl->widget == 0 && h.ctl[O_WIDGET] == 0.0f);
+}
+
 int main() {
   Plugin::Catch c;
   // первое значение только запоминается
@@ -544,6 +567,7 @@ int main() {
     delete pl.looper;
   }
   test_sessions();
+  test_touch();
   std::printf("plugin: %d passed, %d failed\n", g_pass, g_fail);
   return g_fail ? 1 : 0;
 }

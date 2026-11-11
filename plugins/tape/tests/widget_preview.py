@@ -117,6 +117,10 @@ class Processor:
         self.controllers_dict["reset_ms"] = Ctrl("reset_ms", 1000, 500, 3000)
         self.controllers_dict["latency"] = Ctrl("latency", 0, 0, 100)
         self.controllers_dict["pool_mb"] = Ctrl("pool_mb", 2048, 256, 4096)
+        # этап 7б: касание — дорожка, парт, экран
+        self.controllers_dict["tsel"] = Ctrl("tsel", 0, 0, 6)
+        self.controllers_dict["psel"] = Ctrl("psel", 0, 0, 6)
+        self.controllers_dict["wsel"] = Ctrl("wsel", 0, 0, 2)
 
 
 class Control:
@@ -486,7 +490,13 @@ def main():
     check("LIM выключает ограничитель", cd["limiter"].value == 0)
     tap("fader", "mst_db", fy=0.95)
     check("фейдер Master", cd["mst_db"].value < -20.0)
+    tap("tsel", 3)
+    check("Mixer: касание круга дорожки 3 — tsel=3", cd["tsel"].value == 3)
+    check("на Mixer кнопка LOOP", "LOOP" in texts(wdg) and "MIX" not in texts(wdg))
     no_overlap("800x480, Mixer после касаний")
+    wdg.settings_open = True
+    tap("screen", 1)
+    check("кнопка LOOP — wsel=1, настройки закрыты", cd["wsel"].value == 1 and not wdg.settings_open)
     m["o_widget"], m["o_part"] = 0.0, 0.0
     wdg.update()
 
@@ -513,6 +523,19 @@ def main():
     check("двойной тап по значению — сброс", cd["sreset"].value == 2)
     tap("sclose", None)
     check("CLOSE закрывает Speed", wdg.speed_slot is None)
+    # этап 7б: касание строки — дорожка, точки — парт, кнопка MIX — экран Mixer
+    wdg.update()
+    check("на Loop кнопка MIX", "MIX" in texts(wdg))
+    tap("tsel", 3, fx=0.6)
+    check("Loop: касание строки 3 — tsel=3", cd["tsel"].value == 3 and wdg.speed_slot is None)
+    tap("psel", 2)
+    check("Loop: касание точки парта 2 — psel=2", cd["psel"].value == 2)
+    sp = hit("speed", 1)
+    wdg._on_press(types.SimpleNamespace(x=(sp[0] + sp[2]) / 2, y=(sp[1] + sp[3]) / 2))
+    check("метка скорости по-прежнему открывает Speed", wdg.speed_slot == 1)
+    tap("screen", 2)
+    check("кнопка MIX — wsel=2, Speed закрыт", cd["wsel"].value == 2 and wdg.speed_slot is None)
+    wdg.update()
 
     # сетка: в настройках 2×2 / 4×4 / 6×6, при записанных лупах — второе касание
     m["o_widget"], m["o_parts"] = 0.0, 1.0

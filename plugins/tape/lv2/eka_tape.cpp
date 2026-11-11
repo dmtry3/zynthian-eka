@@ -141,6 +141,10 @@ enum Param {
   PR_RHOLD,                     // порог удержания Reset, мс
   PR_LAT,                       // компенсация задержки, мс
   PR_POOL,                      // пул памяти, МБ
+  // команды виджета (этап 7б, касание), сами возвращаются в 0:
+  PR_TSEL,                      // активная дорожка 1..6 текущего парта
+  PR_PSEL,                      // переход в парт 1..6 по PART AT (тот же или текущий, пока ждёт, — отмена)
+  PR_WSEL,                      // экран: 1 Loop, 2 Mixer (как контроллеры «Виджет Loop/Mixer»)
   PR_COUNT
 };
 struct ParamDef {
@@ -183,6 +187,9 @@ void init_params() {
   kParams[PR_RHOLD] = ParamDef{"reset_ms", 1000.0f, 500.0f, 3000.0f, false};
   kParams[PR_LAT] = ParamDef{"latency", 0.0f, 0.0f, 100.0f, false};
   kParams[PR_POOL] = ParamDef{"pool_mb", (float)kPoolMbDefault, 256.0f, 4096.0f, false};
+  kParams[PR_TSEL] = ParamDef{"tsel", 0.0f, 0.0f, 6.0f, false};
+  kParams[PR_PSEL] = ParamDef{"psel", 0.0f, 0.0f, 6.0f, false};
+  kParams[PR_WSEL] = ParamDef{"wsel", 0.0f, 0.0f, 2.0f, false};
 }
 constexpr uint32_t kReportPerRun = 4;  // ответов на patch:Get за один run()
 
@@ -494,6 +501,17 @@ void handle_patch_set(Plugin* pl, const LV2_Atom_Object* obj) {
 void on_param(Plugin* pl, int i) {
   if (i == PR_TMUTE) {
     if (pl->vals[i] >= 1.0f) pl->looper->mute_slot((int)pl->vals[i] - 1);
+    pl->vals[i] = 0.0f;
+    pl->dirty[i] = true;
+    return;
+  }
+  if (i == PR_TSEL || i == PR_PSEL || i == PR_WSEL) {
+    const int v = (int)pl->vals[i];
+    if (v >= 1) {
+      if (i == PR_TSEL) pl->looper->select_slot(v - 1);
+      else if (i == PR_PSEL) pl->looper->select_part(v - 1);
+      else pl->widget = v == 2 ? 1 : 0;
+    }
     pl->vals[i] = 0.0f;
     pl->dirty[i] = true;
     return;
