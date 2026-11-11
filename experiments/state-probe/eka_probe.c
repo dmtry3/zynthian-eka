@@ -4,6 +4,8 @@
  * при загрузке читает его обратно и сверяет контрольную сумму.
  * Всё пишет в лог /tmp/eka-probe.log: какие возможности дал хост, куда лёг файл, сколько длились
  * сохранение и загрузка и самый длинный перерыв между вызовами run() за это время (= тишина в звуке).
+ * Проба 2: объявлен state:threadSafeRestore (jalv не должен останавливать звук на время restore),
+ * у каждого сохранения свой файл.
  * Звук проходит насквозь. Чтение часов в run() допустимо только в эксперименте. */
 #define _GNU_SOURCE
 #include <stdarg.h>
@@ -21,7 +23,6 @@
 
 #define PROBE_URI "http://dmtry3.github.io/zynthian-eka/experiments/state-probe"
 #define LOG_PATH "/tmp/eka-probe.log"
-#define WAV_NAME "eka-probe.wav"
 
 enum { P_IN_L, P_IN_R, P_OUT_L, P_OUT_R, P_SIZE };
 
@@ -192,11 +193,15 @@ static LV2_State_Status save(LV2_Handle h, LV2_State_Store_Function store, LV2_S
   const LV2_State_Map_Path* mp = feature(fs, LV2_STATE__mapPath);
   const LV2_State_Free_Path* fp = feature(fs, LV2_STATE__freePath);
   char* path = NULL;
+  /* Своё имя у каждого сохранения: все пресеты плагина лежат в одной папке (проба 1 это показала). */
+  static unsigned counter;
+  char name[64];
+  snprintf(name, sizeof name, "eka-probe-%lld-%u.wav", (long long)time(NULL), counter++);
   if (mk) {
-    path = mk->path(mk->handle, WAV_NAME);
+    path = mk->path(mk->handle, name);
     logf_("save: makePath -> %s", path ? path : "(null)");
   } else {
-    if (asprintf(&path, "/tmp/%s", WAV_NAME) < 0) path = NULL;
+    if (asprintf(&path, "/tmp/%s", name) < 0) path = NULL;
     logf_("save: no makePath, writing %s", path ? path : "(null)");
   }
   if (!path) return LV2_STATE_ERR_UNKNOWN;

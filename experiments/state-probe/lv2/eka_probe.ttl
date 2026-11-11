@@ -8,7 +8,7 @@
     doap:name "Eka Probe" ;
     doap:license <http://opensource.org/licenses/isc> ;
     lv2:requiredFeature urid:map ;
-    lv2:optionalFeature state:makePath , state:mapPath , state:freePath ;
+    lv2:optionalFeature state:makePath , state:mapPath , state:freePath , state:threadSafeRestore ;
     lv2:extensionData state:interface ;
     lv2:port [
         a lv2:AudioPort , lv2:InputPort ; lv2:index 0 ; lv2:symbol "in_l" ; lv2:name "In L"
