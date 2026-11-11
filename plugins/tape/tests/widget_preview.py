@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Виджет Audio Looper без Zynthian, с заглушками модулей zyngui (по образцу generative-arp).
+# Виджет Eka Tape без Zynthian, с заглушками модулей zyngui (по образцу Eka Bloom).
 #   python3 tests/widget_preview.py          сценарий с проверками (PASS/FAIL)
 #   python3 tests/widget_preview.py --show   окно 800x480: темп идёт, действия меняются сами
 import importlib.util
@@ -87,7 +87,7 @@ class Processor:
     def __init__(self):
         self.engine = Engine()
         self.id = 1
-        # настройки — LV2-параметры плагина (как в lv2/audio_looper.ttl)
+        # настройки — LV2-параметры плагина (как в lv2/eka_tape.ttl)
         self.controllers_dict = {
             "grid": Ctrl("grid", 1, 0, 2),
             "rec_order": Ctrl("rec_order", 0, 0, 1), "mode": Ctrl("mode", 1, 0, 1),
@@ -126,8 +126,8 @@ class Control:
 
 
 def load_widget():
-    path = os.path.join(ROOT, "widget", "zynthian_widget_audio_looper.py")
-    spec = importlib.util.spec_from_file_location("zynthian_widget_audio_looper", path)
+    path = os.path.join(ROOT, "widget", "zynthian_widget_eka_tape.py")
+    spec = importlib.util.spec_from_file_location("zynthian_widget_eka_tape", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -205,7 +205,7 @@ def main():
     root = tkinter.Tk()
     root.geometry("800x480")
     proc = Processor()
-    wdg = mod.zynthian_widget_audio_looper(Control(root))
+    wdg = mod.zynthian_widget_eka_tape(Control(root))
     wdg.set_processor(proc)
     wdg.pack(fill="both", expand=True)
     root.update()

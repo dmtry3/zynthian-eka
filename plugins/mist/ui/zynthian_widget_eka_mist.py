@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# Granular Sampler widget. Tabs (top left): Wave, Grain, Pitch, Filter, Mod.
+# Eka Mist widget. Tabs (top left): Wave, Grain, Pitch, Filter, Mod.
 # Wave:
 # - The sample path is the "sample" LV2 parameter (atom:Path, notOnGUI): a tap opens Zynthian's file selector.
 # - The waveform is read from the file here, in a background thread, and drawn once into an image:
@@ -328,7 +328,7 @@ def _read_peaks_wave(path, npeaks):
     return frames, rate, ch, peaks
 
 
-class zynthian_widget_granular_sampler(zynthian_widget_base.zynthian_widget_base):
+class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -468,7 +468,7 @@ class zynthian_widget_granular_sampler(zynthian_widget_base.zynthian_widget_base
                 try:
                     self.zyngui_control.select(i)
                 except Exception as e:
-                    logging.debug("Granular Sampler widget: can't select page %s => %s", group, e)
+                    logging.debug("Eka Mist widget: can't select page %s => %s", group, e)
                 return
 
     def _current_group(self):
@@ -503,7 +503,7 @@ class zynthian_widget_granular_sampler(zynthian_widget_base.zynthian_widget_base
                 z.set_value(value)
             return True
         except Exception as e:
-            logging.debug("Granular Sampler widget: can't set %s => %s", sym, e)
+            logging.debug("Eka Mist widget: can't set %s => %s", sym, e)
             return False
 
     def _area(self):
@@ -571,13 +571,13 @@ class zynthian_widget_granular_sampler(zynthian_widget_base.zynthian_widget_base
         try:
             z.nudge(0)                    # a path controller opens Zynthian's file selector
         except Exception as e:
-            logging.warning("Granular Sampler widget: can't open file selector => %s", e)
+            logging.warning("Eka Mist widget: can't open file selector => %s", e)
 
     # ---------- waveform reading (background thread) ----------
     def _start_reading(self, path):
         self.loading_path = path
         threading.Thread(target=self._read_thread, args=(path,), daemon=True,
-                         name="granular_sampler_peaks").start()
+                         name="eka_mist_peaks").start()
 
     def _read_thread(self, path):
         try:
@@ -596,7 +596,7 @@ class zynthian_widget_granular_sampler(zynthian_widget_base.zynthian_widget_base
             rpath, info, err = res
             self.loading_path = None
             if err:
-                logging.warning("Granular Sampler widget: can't read %s => %s", rpath, err)
+                logging.warning("Eka Mist widget: can't read %s => %s", rpath, err)
             if rpath == path:
                 self.peaks, self.peaks_path = (info[3] if info else []), rpath
                 self.wave_size = None

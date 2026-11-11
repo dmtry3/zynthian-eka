@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Проверка lv2/audio_looper.ttl под правила Zynthian (запускается из make test):
+# Проверка lv2/eka_tape.ttl под правила Zynthian (запускается из make test):
 #  - входные порты-контроллеры занимают номера 0..N-1: Zynthian нумерует LV2-параметры с N,
 #    и порт-контроллер с номером >= N затёрся бы параметром (так однажды пропала страница Mix);
 #  - символы портов и параметров не повторяются: Zynthian хранит контроллеры по символу.
@@ -8,7 +8,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ttl = open(os.path.join(ROOT, "lv2", "audio_looper.ttl"), encoding="utf-8").read()
+ttl = open(os.path.join(ROOT, "lv2", "eka_tape.ttl"), encoding="utf-8").read()
 
 fails = 0
 

@@ -7,7 +7,7 @@
 
 static float clampf(float v, float lo, float hi) { return v < lo ? lo : v > hi ? hi : v; }
 
-/* Scales for Quantize: semitones above the tonic (the same list as in Generative Arp). */
+/* Scales for Quantize: semitones above the tonic (the same list as in Eka Bloom). */
 const char* const gc_scale_names[GC_NSCALES] = {
   "Chromatic", "Major", "Minor", "Dorian", "Phrygian", "Lydian", "Mixolydian",
   "Harm. minor", "Mel. minor", "Major pent.", "Minor pent.", "Blues" };

@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# Touchscreen editor of the Generative Arp pattern steps.
+# Touchscreen editor of the Eka Bloom pattern steps.
 # Step values live in hidden plugin ports (prob1..16, shift1..16, vel1..16, gate1..16);
 # the widget only writes them through regular Zynthian controllers, so snapshots keep them.
 import logging
@@ -46,7 +46,7 @@ def gate_label(v):
     return "%d" % v
 
 
-class zynthian_widget_generative_arp(zynthian_widget_base.zynthian_widget_base):
+class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -84,7 +84,7 @@ class zynthian_widget_generative_arp(zynthian_widget_base.zynthian_widget_base):
                 z.set_value(value)
             return True
         except Exception as e:
-            logging.debug("Generative Arp widget: can't set %s => %s", sym, e)
+            logging.debug("Eka Bloom widget: can't set %s => %s", sym, e)
             return False
 
     def _lane_len(self, lane):

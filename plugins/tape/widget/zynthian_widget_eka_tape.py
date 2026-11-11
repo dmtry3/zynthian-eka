@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# Audio Looper: виджет в стиле экрана Aeros.
+# Eka Tape: виджет в стиле экрана Aeros.
 #   Loop:  сверху тонкая полоса темпа и шестерёнка; строки дорожек: точка парта, круг позиции
 #          с номером, полоса цикла с линией позиции; справа MASTER; снизу три вкладки.
 #   Mixer: на каждую дорожку круг, кнопка M и сдвоенный фейдер; справа MASTER.
@@ -37,7 +37,7 @@ EMPTY = "#3a3a3a"      # пустая дорожка: тёмный контур
 METER_OFF = ("#0b1d0d", "#1f1c07", "#220a09")   # погашенные сегменты: зелёный, жёлтый, красный
 METER_ON = ("#3ddc4a", "#ffd23a", "#ff3b30")
 
-# Коды порта o_action, как enum Action в lv2/audio_looper.cpp: (подпись, цвет)
+# Коды порта o_action, как enum Action в lv2/eka_tape.cpp: (подпись, цвет)
 ACTIONS = [
     ("READY", DIM),
     ("REC / DUB", RED),
@@ -322,7 +322,7 @@ class _Frame:
         self.pkeys, self.phits = self.keys, self.phits_new
 
 
-class zynthian_widget_audio_looper(zynthian_widget_base.zynthian_widget_base):
+class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -886,9 +886,9 @@ class zynthian_widget_audio_looper(zynthian_widget_base.zynthian_widget_base):
         if PEAKS_PATH_OVERRIDE:
             return PEAKS_PATH_OVERRIDE
         try:
-            return "/dev/shm/audio_looper_%d" % self.processor.engine.proc.pid
+            return "/dev/shm/eka_tape_%d" % self.processor.engine.proc.pid
         except Exception:
-            files = glob.glob("/dev/shm/audio_looper_*")
+            files = glob.glob("/dev/shm/eka_tape_*")
             return files[0] if len(files) == 1 else None
 
     def _open_mm(self):

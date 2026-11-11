@@ -1,6 +1,6 @@
 /* A tiny LV2 host for the built plugin: URID map, a worker that runs when the host decides,
  * patch:Set / patch:Get on the control port, State save and restore. No jalv needed.
- * Usage: test_plugin <path to granular_sampler.so> (run from build_test/, after test_sample made st.wav) */
+ * Usage: test_plugin <path to eka_mist.so> (run from build_test/, after test_sample made st.wav) */
 #include <dlfcn.h>
 #include <math.h>
 #include <lv2/atom/atom.h>
@@ -82,7 +82,7 @@ static void in_set_path(const char* path) {
   lv2_atom_forge_frame_time(&forge, 0);
   lv2_atom_forge_object(&forge, &f, 0, U(LV2_PATCH__Set));
   lv2_atom_forge_key(&forge, U(LV2_PATCH__property));
-  lv2_atom_forge_urid(&forge, U("urn:granularsampler:sampler#sample"));
+  lv2_atom_forge_urid(&forge, U("http://dmtry3.github.io/zynthian-eka/mist#sample"));
   lv2_atom_forge_key(&forge, U(LV2_PATCH__value));
   lv2_atom_forge_path(&forge, path, (uint32_t)strlen(path));
   lv2_atom_forge_pop(&forge, &f);
@@ -153,7 +153,7 @@ static const Rep* reported(const char* prop) {
   return NULL;
 }
 static const char* reported_path(void) {
-  const Rep* r = reported("urn:granularsampler:sampler#sample");
+  const Rep* r = reported("http://dmtry3.github.io/zynthian-eka/mist#sample");
   return r && r->type == U(LV2_ATOM__Path) ? r->path : NULL;
 }
 static int reported_int(const char* prop, int def) {
@@ -168,10 +168,10 @@ static void collect(void) {
   for (int k = 0; k < 10; k++) { run_once(); total += last_reports; }
   last_reports = total;
 }
-#define P_MODE "urn:granularsampler:sampler#mode"
-#define P_VOICES "urn:granularsampler:sampler#voices"
-#define P_SCALE "urn:granularsampler:sampler#scale"
-#define P_KEY "urn:granularsampler:sampler#key"
+#define P_MODE "http://dmtry3.github.io/zynthian-eka/mist#mode"
+#define P_VOICES "http://dmtry3.github.io/zynthian-eka/mist#voices"
+#define P_SCALE "http://dmtry3.github.io/zynthian-eka/mist#scale"
+#define P_KEY "http://dmtry3.github.io/zynthian-eka/mist#key"
 /* patch:Set of a number, as Zynthian sends it (a float) */
 static void in_set_float(const char* prop, float val) {
   LV2_Atom_Forge_Frame f;
@@ -211,12 +211,12 @@ static const void* retrieve(LV2_State_Handle h, uint32_t key, size_t* size, uint
 }
 
 int main(int argc, char** argv) {
-  if (argc < 2) { printf("usage: test_plugin granular_sampler.so\n"); return 2; }
+  if (argc < 2) { printf("usage: test_plugin eka_mist.so\n"); return 2; }
   void* lib = dlopen(argv[1], RTLD_NOW);
   if (!lib) { printf("dlopen: %s\n", dlerror()); return 2; }
   LV2_Descriptor_Function df = (LV2_Descriptor_Function)dlsym(lib, "lv2_descriptor");
   d = df(0);
-  CHECK(d && !strcmp(d->URI, "urn:granularsampler:sampler") && !df(1));
+  CHECK(d && !strcmp(d->URI, "http://dmtry3.github.io/zynthian-eka/mist") && !df(1));
 
   LV2_Feature fmap = { LV2_URID__map, &map }, fsched = { LV2_WORKER__schedule, &sched };
   const LV2_Feature* no_worker[] = { &fmap, NULL };
@@ -294,55 +294,55 @@ int main(int argc, char** argv) {
   CHECK(reported_int(P_SCALE, -1) == 2 && reported_int(P_KEY, -1) == 11);
   in_set_float(P_KEY, 9.0f);
   /* modulation parameters: a grid cell, an LFO shape, Mod Depth; clamped, reported, saved */
-  in_set_float("urn:granularsampler:sampler#m_lfo1_pitch", 250.0f);
-  in_set_float("urn:granularsampler:sampler#m_env2_cutoff", -40.0f);
-  in_set_float("urn:granularsampler:sampler#lfo2_shape", 5.0f);
-  in_set_float("urn:granularsampler:sampler#mod_depth", 60.0f);
-  in_set_float("urn:granularsampler:sampler#glide", 5000.0f);
-  in_set_float("urn:granularsampler:sampler#lfo1_sync", 2.0f);
-  in_set_float("urn:granularsampler:sampler#lfo2_uni", 1.0f);
-  in_set_float("urn:granularsampler:sampler#x_env1_lfo1_amt", 70.0f);
-  in_set_float("urn:granularsampler:sampler#filter_mix", 40.0f);
-  in_set_float("urn:granularsampler:sampler#vowel_highs", 150.0f);
-  in_set_float("urn:granularsampler:sampler#filter_slope", 1.0f);
-  in_set_float("urn:granularsampler:sampler#x_rnd_env2_time", -300.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_pitch", 250.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#m_env2_cutoff", -40.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#lfo2_shape", 5.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#mod_depth", 60.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#glide", 5000.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#lfo1_sync", 2.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#lfo2_uni", 1.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#x_env1_lfo1_amt", 70.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#filter_mix", 40.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#vowel_highs", 150.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#filter_slope", 1.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#x_rnd_env2_time", -300.0f);
   in_get(); collect();
-  CHECK(reported_int("urn:granularsampler:sampler#m_lfo1_pitch", -1) == 100);
-  CHECK(reported_int("urn:granularsampler:sampler#m_env2_cutoff", 0) == -40);
-  CHECK(reported_int("urn:granularsampler:sampler#m_rnd_cutoff", -1) == 0);   /* the last cell */
-  CHECK(reported_int("urn:granularsampler:sampler#lfo2_shape", -1) == 5);
-  CHECK(reported_int("urn:granularsampler:sampler#mod_depth", -1) == 60);
-  CHECK(reported_int("urn:granularsampler:sampler#env2_shape", -1) == 50);    /* default */
-  CHECK(reported_int("urn:granularsampler:sampler#glide", -1) == 2000);       /* clamped */
-  CHECK(reported_int("urn:granularsampler:sampler#lfo1_sync", -1) == 2);      /* Tempo */
-  CHECK(reported_int("urn:granularsampler:sampler#lfo2_uni", -1) == 1);       /* 0..1 */
-  CHECK(reported_int("urn:granularsampler:sampler#lfo1_uni", -1) == 0);
-  CHECK(reported_int("urn:granularsampler:sampler#filter_mix", -1) == 40);     /* dry/wet */
-  CHECK(reported_int("urn:granularsampler:sampler#vowel_highs", -1) == 100);   /* clamped */
-  CHECK(reported_int("urn:granularsampler:sampler#vowel_lows", -1) == 25);     /* default */
-  CHECK(reported_int("urn:granularsampler:sampler#filter_slope", -1) == 1);    /* 24 dB */
-  CHECK(reported_int("urn:granularsampler:sampler#x_env1_lfo1_amt", 0) == 70);   /* cross-modulation */
-  CHECK(reported_int("urn:granularsampler:sampler#x_rnd_env2_time", 0) == -100); /* clamped */
-  CHECK(reported_int("urn:granularsampler:sampler#x_lfo1_lfo1_rate", -1) == 0);  /* the first cell */
-  CHECK(reported_int("urn:granularsampler:sampler#lfo2_div", -1) == -1);      /* gone: the Rate knob in Tempo */
-  CHECK(reported_int("urn:granularsampler:sampler#bend_range", -1) == 2);     /* default +-2 semitones */
-  CHECK(reported_int("urn:granularsampler:sampler#root", -1) == 60);          /* C4 */
-  CHECK(reported_int("urn:granularsampler:sampler#tune", -1) == 0);
-  CHECK(reported_int("urn:granularsampler:sampler#mark_start", -1) == 0);
-  CHECK(reported_int("urn:granularsampler:sampler#mark_end", -1) == 10000);   /* the whole sample */
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_pitch", -1) == 100);
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#m_env2_cutoff", 0) == -40);
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#m_rnd_cutoff", -1) == 0);   /* the last cell */
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#lfo2_shape", -1) == 5);
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#mod_depth", -1) == 60);
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#env2_shape", -1) == 50);    /* default */
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#glide", -1) == 2000);       /* clamped */
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#lfo1_sync", -1) == 2);      /* Tempo */
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#lfo2_uni", -1) == 1);       /* 0..1 */
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#lfo1_uni", -1) == 0);
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#filter_mix", -1) == 40);     /* dry/wet */
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#vowel_highs", -1) == 100);   /* clamped */
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#vowel_lows", -1) == 25);     /* default */
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#filter_slope", -1) == 1);    /* 24 dB */
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#x_env1_lfo1_amt", 0) == 70);   /* cross-modulation */
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#x_rnd_env2_time", 0) == -100); /* clamped */
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#x_lfo1_lfo1_rate", -1) == 0);  /* the first cell */
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#lfo2_div", -1) == -1);      /* gone: the Rate knob in Tempo */
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#bend_range", -1) == 2);     /* default +-2 semitones */
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#root", -1) == 60);          /* C4 */
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#tune", -1) == 0);
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#mark_start", -1) == 0);
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#mark_end", -1) == 10000);   /* the whole sample */
   in_set_float(P_VOICES, 3.0f); run_once();
 
   /* state: save, clear, restore */
   const LV2_Feature* none[] = { NULL };
   CHECK(si->save(inst, store, NULL, 0, none) == LV2_STATE_SUCCESS);
-  const StVal* sv = st_find(U("urn:granularsampler:sampler#sample"));
+  const StVal* sv = st_find(U("http://dmtry3.github.io/zynthian-eka/mist#sample"));
   CHECK(sv && sv->type == U(LV2_ATOM__Path) && !strcmp(sv->val, "st.wav"));
   CHECK(st_find(U(P_MODE)) == NULL);                              /* mode is gone */
   CHECK(st_find(U(P_VOICES)) && *(const int32_t*)st_find(U(P_VOICES))->val == 3);
   CHECK(st_find(U(P_SCALE)) && *(const int32_t*)st_find(U(P_SCALE))->val == 2);
   CHECK(st_find(U(P_KEY)) && *(const int32_t*)st_find(U(P_KEY))->val == 9);
-  CHECK(*(const int32_t*)st_find(U("urn:granularsampler:sampler#m_env2_cutoff"))->val == -40);
-  CHECK(*(const int32_t*)st_find(U("urn:granularsampler:sampler#x_env1_lfo1_amt"))->val == 70);
+  CHECK(*(const int32_t*)st_find(U("http://dmtry3.github.io/zynthian-eka/mist#m_env2_cutoff"))->val == -40);
+  CHECK(*(const int32_t*)st_find(U("http://dmtry3.github.io/zynthian-eka/mist#x_env1_lfo1_amt"))->val == 70);
   CHECK(nst == 144);                                              /* sample + 143 integer parameters */
   in_set_float(P_SCALE, 0.0f); in_set_float(P_KEY, 0.0f);
   in_set_float(P_VOICES, 8.0f); run_once();
@@ -396,7 +396,7 @@ int main(int argc, char** argv) {
   CHECK(mx == 0.0f);                                              /* Level 0 */
   ctls[C_LEVEL] = 0.8f;
   /* filter: a high-pass at 20 kHz takes almost everything away from the slow ramp of st.wav */
-  in_set_float("urn:granularsampler:sampler#filter_mix", 100.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#filter_mix", 100.0f);
   in_midi(0, 0x90, 60, 100);
   for (int k = 0; k < 20; k++) run_once();
   float open_peak = 0;
@@ -406,12 +406,12 @@ int main(int argc, char** argv) {
   float hp_peak = 0;
   for (int k = 0; k < 10; k++) { run_once(); for (int i = 0; i < NFR; i++) hp_peak = fmaxf(hp_peak, fabsf(out_l[i])); }
   CHECK(open_peak > 0.005f && hp_peak < open_peak * 0.01f);     /* st.wav is a slow ramp: -40 dB at least */
-  in_set_float("urn:granularsampler:sampler#filter_mix", 0.0f);   /* Mix 0: the dry sound again */
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#filter_mix", 0.0f);   /* Mix 0: the dry sound again */
   for (int k = 0; k < 4; k++) run_once();
   float dry_peak = 0;
   for (int k = 0; k < 10; k++) { run_once(); for (int i = 0; i < NFR; i++) dry_peak = fmaxf(dry_peak, fabsf(out_l[i])); }
   CHECK(dry_peak > open_peak * 0.7f);
-  in_set_float("urn:granularsampler:sampler#filter_mix", 100.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#filter_mix", 100.0f);
   ctls[C_FTYPE] = 0;
   in_midi(0, 0xB0, 120, 0); run_once();
   in_midi(0, 0xB0, 120, 0); run_once();                           /* All Sound Off */
@@ -445,42 +445,42 @@ int main(int argc, char** argv) {
   CHECK(seen == 0);
   /* pitch bend: full up, full down, centre; and the range parameter */
   in_midi(0, 0x90, 60, 100); in_midi(0, 0xE0, 0x7F, 0x7F); run_once(); run_once();
-  in_midi(0, 0xE0, 0, 0); in_set_float("urn:granularsampler:sampler#bend_range", 12.0f); run_once();
+  in_midi(0, 0xE0, 0, 0); in_set_float("http://dmtry3.github.io/zynthian-eka/mist#bend_range", 12.0f); run_once();
   in_midi(0, 0xE0, 0, 0x40); in_get(); collect();
-  CHECK(reported_int("urn:granularsampler:sampler#bend_range", -1) == 12);
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#bend_range", -1) == 12);
   in_midi(0, 0x80, 60, 0); in_midi(0, 0xB0, 120, 0); run_once();
   /* detected pitch of a sine at A3 (written by test_sample) */
   in_set_path("p_a3.wav"); run_once(); work_all(); run_once();
   CHECK(status == 2 && fabsf(detected - 57.0f) < 0.05f);
-  in_set_float("urn:granularsampler:sampler#root", 57.0f); in_set_float("urn:granularsampler:sampler#tune", 75.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#root", 57.0f); in_set_float("http://dmtry3.github.io/zynthian-eka/mist#tune", 75.0f);
   in_get(); collect();
-  CHECK(reported_int("urn:granularsampler:sampler#root", -1) == 57 && reported_int("urn:granularsampler:sampler#tune", 0) == 50);
+  CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#root", -1) == 57 && reported_int("http://dmtry3.github.io/zynthian-eka/mist#tune", 0) == 50);
   /* sample gain: +6.0 dB doubles the output (Level stays), -24 dB at most down */
   {
     in_midi(0, 0x90, 57, 127);
     for (int k = 0; k < 40; k++) run_once();
     float e0 = 0, e1 = 0;
     for (int c = 0; c < 30; c++) {                                 /* alternating, so the random grains average out */
-      in_set_float("urn:granularsampler:sampler#gain", c & 1 ? 60.0f : 0.0f);
+      in_set_float("http://dmtry3.github.io/zynthian-eka/mist#gain", c & 1 ? 60.0f : 0.0f);
       for (int k = 0; k < 8; k++) run_once();                      /* past the gain ramp */
       float* e = c & 1 ? &e1 : &e0;
       for (int k = 0; k < 20; k++) { run_once(); for (int i = 0; i < NFR; i++) *e += out_l[i] * out_l[i]; }
     }
     CHECK(e0 > 0 && fabsf(sqrtf(e1 / e0) - 1.995f) < 0.1f);
-    in_set_float("urn:granularsampler:sampler#gain", -999.0f); in_get(); collect();
-    CHECK(reported_int("urn:granularsampler:sampler#gain", 0) == -240);
-    in_set_float("urn:granularsampler:sampler#gain", 0.0f);
+    in_set_float("http://dmtry3.github.io/zynthian-eka/mist#gain", -999.0f); in_get(); collect();
+    CHECK(reported_int("http://dmtry3.github.io/zynthian-eka/mist#gain", 0) == -240);
+    in_set_float("http://dmtry3.github.io/zynthian-eka/mist#gain", 0.0f);
     in_midi(0, 0xB0, 120, 0); run_once();
   }
   /* markers: a note starts reading at the start marker (Position 0) */
-  in_set_float("urn:granularsampler:sampler#mark_start", 5000.0f);
-  in_set_float("urn:granularsampler:sampler#mark_end", 7500.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#mark_start", 5000.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#mark_end", 7500.0f);
   in_midi(0, 0x90, 60, 127); run_once();
   CHECK(playhead >= 0.5f && playhead < 0.51f);
   for (int k = 0; k < 300; k++) run_once();                       /* 0.4 s: the playhead loops inside */
   CHECK(playhead >= 0.5f && playhead <= 0.75f);
-  in_set_float("urn:granularsampler:sampler#mark_start", 0.0f);
-  in_set_float("urn:granularsampler:sampler#mark_end", 10000.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#mark_start", 0.0f);
+  in_set_float("http://dmtry3.github.io/zynthian-eka/mist#mark_end", 10000.0f);
   in_midi(0, 0xB0, 120, 0); run_once();
   /* a new sample while playing: no stale pointers (ASan) */
   in_midi(0, 0x90, 60, 127); run_once();

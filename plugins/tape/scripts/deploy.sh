@@ -10,7 +10,7 @@ if [ ! -f "$ENV" ]; then
 fi
 source "$ENV"
 : "${PI_HOST:?PI_HOST не задан}" "${PI_USER:?PI_USER не задан}" "${PI_DIR:?PI_DIR не задан}"
-REPO_URL="${REPO_URL:-https://github.com/dmtry3/zynthian-audio-looper.git}"
+REPO_URL="${REPO_URL:-https://github.com/dmtry3/zynthian-eka.git}"
 DEST="$PI_USER@$PI_HOST"
 SUDO=""
 [ "$PI_USER" != "root" ] && SUDO="sudo"
@@ -31,7 +31,7 @@ echo "== Обновляю код на $DEST:$PI_DIR"
 ssh "$DEST" "if [ -d '$PI_DIR/.git' ]; then cd '$PI_DIR' && git pull --ff-only; else git clone '$REPO_URL' '$PI_DIR'; fi"
 
 echo "== Собираю и ставлю на Pi"
-ssh "$DEST" "cd '$PI_DIR' && $SUDO ./scripts/install.sh"
+ssh "$DEST" "cd '$PI_DIR/plugins/tape' && $SUDO ./scripts/install.sh"
 
 echo "== Перезапускаю Zynthian"
 ssh "$DEST" "$SUDO systemctl restart zynthian"

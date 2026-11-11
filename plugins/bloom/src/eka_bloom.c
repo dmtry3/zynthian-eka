@@ -1,4 +1,4 @@
-/* Generative Arp: LV2 wrapper around arp_core.
+/* Eka Bloom: LV2 wrapper around arp_core.
  * Transport rolling: ticks follow time:Position (steps on the song grid).
  * Transport stopped: ticks come from an internal clock at the host tempo. */
 #include <lv2/core/lv2.h>
@@ -18,7 +18,7 @@
 #include <time.h>
 #include "arp_core.h"
 
-#define ARP_URI "urn:generativearp:arp"
+#define ARP_URI "http://dmtry3.github.io/zynthian-eka/bloom"
 #define JUMP_TICKS 4.0   /* position difference treated as a relocation */
 #define REPORT_PER_RUN 16 /* patch:Set replies per run() after patch:Get, not to overflow midi_out */
 

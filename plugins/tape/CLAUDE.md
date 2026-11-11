@@ -17,7 +17,7 @@ LV2-плагин аудио-лупера для Zynthian V5 (Raspberry Pi 5, 8 �
 
 ## Образцы, на которые опираться
 
-- `../zynthian-midi-looper` и `../zynthian-generative-arp` — прошлые плагины пользователя для того же Zynthian. Прежде чем делать каркас, Makefile, `.ttl`, URI и скрипт установки, посмотри, как это сделано там, и делай так же. Там уже решены путь установки на Zynthian, сборка и синхронизация с темпом.
+- `../roll` (Eka Roll, бывший `zynthian-midi-looper`) и `../bloom` (Eka Bloom, бывший `zynthian-generative-arp`) — прошлые плагины пользователя для того же Zynthian. Прежде чем делать каркас, Makefile, `.ttl`, URI и скрипт установки, посмотри, как это сделано там, и делай так же. Там уже решены путь установки на Zynthian, сборка и синхронизация с темпом.
 - Встроенная интеграция SooperLooper в zynthian-ui (движок и виджет на экране управления) — образец того, как Zynthian рисует виджет плагина и мапит контроллеры.
 
 ## Структура репозитория
@@ -34,7 +34,7 @@ docs/      ТЗ.md
 ## Сборка и установка
 
 - Тесты ядра собираются и запускаются в WSL (x86_64): `make test`.
-- Код попадает на Pi через GitHub (`github.com/dmtry3/zynthian-audio-looper`, публичный, ветка `main`), как у прошлых плагинов. После `git push` запускается `scripts/deploy.sh`: по ssh делает на Pi `git clone` или `git pull`, затем `scripts/install.sh` (сборка на Pi, ссылки в `/usr/local/lib/lv2` и `zyngui/widgets_user`) и перезапуск Zynthian. Без deploy.sh на Pi: `git pull && sudo ./scripts/install.sh && sudo systemctl restart zynthian`.
+- Код попадает на Pi через GitHub (монорепо `github.com/dmtry3/zynthian-eka`, папка `plugins/tape`, публичный, ветка `main`; раньше был отдельный репозиторий `zynthian-audio-looper`), как у прошлых плагинов. После `git push` запускается `scripts/deploy.sh`: по ssh делает на Pi `git clone` или `git pull`, затем `scripts/install.sh` (сборка на Pi, ссылки в `/usr/local/lib/lv2` и `zyngui/widgets_user`) и перезапуск Zynthian. Без deploy.sh на Pi (из `plugins/tape`): `git pull && sudo ./scripts/install.sh && sudo systemctl restart zynthian`.
 - Адрес Pi и пользователь берутся из `scripts/deploy.env`. Файл в `.gitignore`.
 - Обновление Zynthian может затереть файл виджета в zynthian-ui. `deploy.sh` должен класть его заново.
 
@@ -154,4 +154,4 @@ docs/      ТЗ.md
 - Zynthian отдаёт плагину `time:Position`: темп, такт, доля и транспорт приходят. Запасной путь через MIDI-клок оставлен, но не нужен.
 - jalv шлёт `time:Position` только при пуске или остановке транспорта, скачке позиции и смене темпа. Новый размер такта доходит до плагина только после остановки транспорта. Пользователь считает это допустимым.
 - Кнопка футсвитча через MIDI learn в режиме momentary привязывается к контроллеру-действию; тап и удержание различаются. Для этого прошивка футсвитча (v56) шлёт CC 127 при нажатии и 0 при отпускании.
-- Виджет `zynthian_widget_audio_looper.py` в `zyngui/widgets_user` появляется сам при открытии плагина (как аудиоэффекта), страницы контроллеров видны.
+- Виджет `zynthian_widget_eka_tape.py` в `zyngui/widgets_user` появляется сам при открытии плагина (как аудиоэффекта), страницы контроллеров видны.

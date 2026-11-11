@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Runs the Granular Sampler widget outside Zynthian with stub modules (same approach as Generative Arp).
+# Runs the Eka Mist widget outside Zynthian with stub modules (same approach as Eka Bloom).
 #   python3 test/widget_preview.py          scripted tests (PASS/FAIL)
 #   python3 test/widget_preview.py --show   open a window: tap = "file selector" cycles through the samples
 import importlib.util
@@ -155,7 +155,7 @@ class Control:
         self.shown = True
 
     def add_pages(self, proc):
-        self.list_data = [(None, None, "> Granular Sampler", proc)]
+        self.list_data = [(None, None, "> Eka Mist", proc)]
         for j, (g, t) in enumerate((("g_position", "Position"), ("g_grain", "Grain"), ("g_pitch", "Pitch"),
                                     ("g_voice", "Voice"), ("g_filter", "Filter"), ("g_mod", "Mod"))):
             self.list_data.append((g, j + 1, t, proc, j))
@@ -167,8 +167,8 @@ class Control:
 
 
 def load_widget():
-    path = os.path.join(ROOT, "ui", "zynthian_widget_granular_sampler.py")
-    spec = importlib.util.spec_from_file_location("zynthian_widget_granular_sampler", path)
+    path = os.path.join(ROOT, "ui", "zynthian_widget_eka_mist.py")
+    spec = importlib.util.spec_from_file_location("zynthian_widget_eka_mist", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -186,7 +186,7 @@ def main():
     root = tkinter.Tk()
     root.geometry("480x300")
     proc = Processor()
-    wdg = mod.zynthian_widget_granular_sampler(Control(root))
+    wdg = mod.zynthian_widget_eka_mist(Control(root))
     wdg.set_processor(proc)
     wdg.pack(fill="both", expand=True)
     root.update()

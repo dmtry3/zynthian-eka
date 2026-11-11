@@ -23,7 +23,7 @@ build_test/test_looper: tests/test_looper.cpp $(CORE_H) $(CORE_CPP)
 	$(CXX) $(CXXFLAGS) -o $@ tests/test_looper.cpp $(CORE_CPP) -lm
 
 # Обёртка LV2 без хоста (нужны заголовки lv2, как и для сборки плагина)
-build_test/test_plugin: tests/test_plugin.cpp lv2/audio_looper.cpp $(CORE_H) $(CORE_CPP)
+build_test/test_plugin: tests/test_plugin.cpp lv2/eka_tape.cpp $(CORE_H) $(CORE_CPP)
 	@mkdir -p build_test
 	$(CXX) $(CXXFLAGS) $(shell pkg-config --cflags lv2) -o $@ tests/test_plugin.cpp $(CORE_CPP) -lm
 

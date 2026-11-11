@@ -17,7 +17,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define LOOPER_URI "urn:midilooper:looper"
+#define LOOPER_URI "http://dmtry3.github.io/zynthian-eka/roll"
 #define PPQN 960
 #define MAX_LAYERS 8
 #define MAX_EVENTS 4000
@@ -1203,7 +1203,7 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double rate, const char* 
   L->state = ST_EMPTY; L->arm_clk = -1; L->auto_clk = -1;
 
   /* shared memory for the widget's piano roll */
-  snprintf(L->viz_path, sizeof L->viz_path, "/dev/shm/midi_looper_%d", (int)getpid());
+  snprintf(L->viz_path, sizeof L->viz_path, "/dev/shm/eka_roll_%d", (int)getpid());
   L->viz_size = sizeof(VizHdr) + (size_t)MAX_LAYERS * MAX_EVENTS * sizeof(Ev) + (size_t)MAX_CC * sizeof(Ev) + sizeof(VizCc);
   L->viz_fd = open(L->viz_path, O_RDWR | O_CREAT | O_TRUNC, 0644);
   if (L->viz_fd > 0 && ftruncate(L->viz_fd, (off_t)L->viz_size) == 0) {
@@ -1217,7 +1217,7 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double rate, const char* 
   }
 
   const char* base = getenv("ZYNTHIAN_MY_DATA_DIR");
-  snprintf(L->dir, sizeof L->dir, "%s/midi-looper", (base && *base) ? base : "/zynthian/zynthian-my-data");
+  snprintf(L->dir, sizeof L->dir, "%s/eka-roll", (base && *base) ? base : "/zynthian/zynthian-my-data");
   sem_init(&L->sem, 0, 0);
   if (pthread_create(&L->thr, NULL, worker_main, L) == 0) {
     L->thr_ok = 1;

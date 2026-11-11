@@ -53,7 +53,7 @@ def cc_value(st, d1, d2):
     return d2 / 127.0
 
 
-class zynthian_widget_midi_looper(zynthian_widget_base.zynthian_widget_base):
+class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -117,7 +117,7 @@ class zynthian_widget_midi_looper(zynthian_widget_base.zynthian_widget_base):
             return
         self.rows = n
         try:
-            name = "midi_looper#%s" % self.processor.id
+            name = "eka_roll#%s" % self.processor.id
             self.zyngui.after_idle(self.zyngui_control.display_widget, name)
         except Exception:
             pass
@@ -142,9 +142,9 @@ class zynthian_widget_midi_looper(zynthian_widget_base.zynthian_widget_base):
         path = None
         try:
             pid = self.processor.engine.proc.pid
-            path = "/dev/shm/midi_looper_%d" % pid
+            path = "/dev/shm/eka_roll_%d" % pid
         except Exception:
-            files = glob.glob("/dev/shm/midi_looper_*")
+            files = glob.glob("/dev/shm/eka_roll_*")
             if len(files) == 1:
                 path = files[0]
         if not path or not os.path.exists(path):
@@ -349,7 +349,7 @@ class zynthian_widget_midi_looper(zynthian_widget_base.zynthian_widget_base):
         tempo = int(60000000.0 / max(20.0, bpm))
         tr += b"\x00\xff\x51\x03" + tempo.to_bytes(3, "big")
         tr += b"\x00\xff\x58\x04" + bytes([max(1, min(bpb, 16)), 2, 24, 8])
-        name = b"MIDI Looper"
+        name = b"Eka Roll"
         tr += b"\x00\xff\x03" + bytes([len(name)]) + name
         last = 0
         for (t, _, data) in ev:
@@ -359,7 +359,7 @@ class zynthian_widget_midi_looper(zynthian_widget_base.zynthian_widget_base):
         base = os.environ.get("ZYNTHIAN_MY_DATA_DIR", "/zynthian/zynthian-my-data")
         d = os.path.join(base, "capture")
         os.makedirs(d, exist_ok=True)
-        path = os.path.join(d, time.strftime("midi_looper_%Y%m%d_%H%M%S.mid"))
+        path = os.path.join(d, time.strftime("eka_roll_%Y%m%d_%H%M%S.mid"))
         with open(path, "wb") as f:
             f.write(b"MThd" + struct.pack(">IHHH", 6, 0, 1, PPQN))
             f.write(b"MTrk" + struct.pack(">I", len(tr)) + bytes(tr))
@@ -496,14 +496,14 @@ class zynthian_widget_midi_looper(zynthian_widget_base.zynthian_widget_base):
         mid_ok, pat = False, None
         try:
             path = self._write_smf(notes, ccs, L, float(m.get("bpm", 120.0)), bpb)
-            logging.info("MIDI Looper: exported %s", path)
+            logging.info("Eka Roll: exported %s", path)
             mid_ok = True
         except Exception as e:
-            logging.error("MIDI Looper: MID export failed => %s", e)
+            logging.error("Eka Roll: MID export failed => %s", e)
         try:
             pat = self._write_pattern(notes, ccs, L, bpb, chan)
         except Exception as e:
-            logging.error("MIDI Looper: pattern export failed => %s", e)
+            logging.error("Eka Roll: pattern export failed => %s", e)
         if mid_ok and pat is not None:
             self._toast("Exported: MID + pattern %s" % pat)
         elif mid_ok:
@@ -604,7 +604,7 @@ class zynthian_widget_midi_looper(zynthian_widget_base.zynthian_widget_base):
                 self._sync_n = 0
                 self._sync_cc_ignore()
         except Exception as e:
-            logging.debug("MIDI Looper CC follower: %s", e)
+            logging.debug("Eka Roll CC follower: %s", e)
         self.after(33, self._follow_tick)
 
     def refresh_gui(self):

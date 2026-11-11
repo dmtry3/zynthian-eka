@@ -1,4 +1,4 @@
-# MIDI Looper для Zynthian
+# Eka Roll для Zynthian
 
 [English version](README.md)
 Demo video https://www.youtube.com/watch?v=ChqsykTJQ88
@@ -40,8 +40,8 @@ MIDI-лупер для [Zynthian](https://zynthian.org): **LV2-плагин (MID
 ## Установка
 
 ```bash
-git clone https://github.com/dmtry3/zynthian-midi-looper.git
-cd zynthian-midi-looper
+git clone https://github.com/dmtry3/zynthian-eka.git
+cd zynthian-eka/plugins/roll
 sudo ./scripts/install.sh      # собирает плагин и создаёт две ссылки (см. ниже)
 sudo systemctl restart zynthian
 ```
@@ -50,12 +50,12 @@ sudo systemctl restart zynthian
 
 | Ссылка | Куда ведёт |
 |---|---|
-| `/usr/local/lib/lv2/midi_looper.lv2` | `build/midi_looper.lv2` |
-| `/zynthian/zynthian-ui/zyngui/widgets_user/zynthian_widget_midi_looper.py` | `ui/zynthian_widget_midi_looper.py` |
+| `/usr/local/lib/lv2/eka-roll.lv2` | `build/eka-roll.lv2` |
+| `/zynthian/zynthian-ui/zyngui/widgets_user/zynthian_widget_eka_roll.py` | `ui/zynthian_widget_eka_roll.py` |
 
 Файлы самого Zynthian не изменяются. Удалить: `sudo ./scripts/uninstall.sh`.
 
-Добавьте **MIDI Looper** в цепочку как *MIDI-инструмент* перед синтом.
+Добавьте **Eka Roll** в цепочку как *MIDI-инструмент* перед синтом.
 
 ## Управление
 
@@ -101,18 +101,18 @@ Half, Double, оба Apply и Export срабатывают только на н
 
 ## Экспорт
 
-- `.mid`: `/zynthian/zynthian-my-data/capture/midi_looper_ГГГГММДД_ЧЧММСС.mid` (слои без mute, с применённым
+- `.mid`: `/zynthian/zynthian-my-data/capture/eka_roll_ГГГГММДД_ЧЧММСС.mid` (слои без mute, с применённым
   транспонированием, темп и размер в файле).
 - Паттерн: если ячейка секвенсора цепочки (текущая фраза x MIDI-канал цепочки) играет, её паттерн перезаписывается.
   Иначе заполняется первый пустой паттерн и назначается в эту ячейку, если она свободна. 4 шага на долю, точное
   время нот сохраняется смещением внутри шага (`EXPORT_USE_OFFSET` в виджете), движения CC превращаются в плавные
-  отрезки. Константы в начале `ui/zynthian_widget_midi_looper.py`.
+  отрезки. Константы в начале `ui/zynthian_widget_eka_roll.py`.
 
 ## Ограничения
 
 - Нужен запущенный транспорт. Остановка или перемотка транспорта и смена темпа во время **первой** записи отменяют
   эту запись.
-- Воспроизводимые CC также управляют привязками MIDI-learn Zynthian (параметры синтов и эффектов, ручки на экране). Это делает виджет, поэтому работает после первого открытия страницы MIDI Looper с момента загрузки. Фильтр эха защищает от обратной связи.
+- Воспроизводимые CC также управляют привязками MIDI-learn Zynthian (параметры синтов и эффектов, ручки на экране). Это делает виджет, поэтому работает после первого открытия страницы Eka Roll с момента загрузки. Фильтр эха защищает от обратной связи.
 - Ёмкость: 8 слоёв x 4000 событий, 16384 событий контроллеров.
 - Снапшот хранит только значения контроллеров. Данные лупа лежат в слотах (сохранённый слот подгружается при
   восстановлении снапшота).
@@ -122,24 +122,24 @@ Half, Double, оба Apply и Export срабатывают только на н
 
 | Проблема | Что проверить |
 |---|---|
-| Плагина нет в списке | `lv2ls \| grep midilooper`, перезапуск Zynthian |
+| Плагина нет в списке | `lv2ls \| grep zynthian-eka/roll`, перезапуск Zynthian |
 | CC не записываются | Включить *Route CC* в цепочке; проверить `jack_midi_dump` на выходе роутера цепочки |
 | Нет виджета | Есть ли ссылка в `widgets_user`; `journalctl -u zynthian \| grep -i widget` |
-| Пустой piano roll | `ls /dev/shm \| grep midi_looper` |
+| Пустой piano roll | `ls /dev/shm \| grep eka_roll` |
 | Луп не играет | Транспорт должен идти (нажмите Play в zynseq) |
 
 ## Как устроено
 
-- `src/midi_looper.c`: весь движок. Время в тиках (960 на долю), привязано к JACK-транспорту через `time:Position`.
+- `src/eka_roll.c`: весь движок. Время в тиках (960 на долю), привязано к JACK-транспорту через `time:Position`.
   Воспроизведение сэмпл-точное внутри каждого аудиоблока.
 - Файлы слотов пишет и читает рабочий поток (никогда аудиопоток).
-- Виджет читает луп из общей памяти (`/dev/shm/midi_looper_<pid>`), а состояние из выходных портов плагина
+- Виджет читает луп из общей памяти (`/dev/shm/eka_roll_<pid>`), а состояние из выходных портов плагина
   («мониторы» Zynthian). Записывает он только через обычные контроллеры.
 
 ## Ручная сборка
 
 ```bash
-./scripts/build.sh        # результат в build/midi_looper.lv2
+./scripts/build.sh        # результат в build/eka-roll.lv2
 ```
 
 ## Лицензия

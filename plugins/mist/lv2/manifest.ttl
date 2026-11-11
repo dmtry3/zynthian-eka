@@ -4,121 +4,121 @@
 @prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix state: <http://lv2plug.in/ns/ext/state#> .
 
-<urn:granularsampler:sampler>
+<http://dmtry3.github.io/zynthian-eka/mist>
     a lv2:Plugin ;
-    lv2:binary <granular_sampler.so> ;
-    rdfs:seeAlso <granular_sampler.ttl> .
+    lv2:binary <eka_mist.so> ;
+    rdfs:seeAlso <eka_mist.ttl> .
 
-<urn:granularsampler:sampler#bank_factory>
+<http://dmtry3.github.io/zynthian-eka/mist#bank_factory>
     a pset:Bank ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Factory" .
 
-<urn:granularsampler:sampler#preset_init>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_init>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Init" ;
     rdfs:seeAlso <presets.ttl> .
 
-<urn:granularsampler:sampler#preset_cello_ensemble>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_cello_ensemble>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Cello Ensemble" ;
     rdfs:seeAlso <presets.ttl> .
 
-<urn:granularsampler:sampler#preset_cello_frozen>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_cello_frozen>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Cello Frozen Bow" ;
     rdfs:seeAlso <presets.ttl> .
 
-<urn:granularsampler:sampler#preset_cello_legato>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_cello_legato>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Cello Mono Legato" ;
     rdfs:seeAlso <presets.ttl> .
 
-<urn:granularsampler:sampler#preset_kalimba_shimmer>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_kalimba_shimmer>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Kalimba Shimmer" ;
     rdfs:seeAlso <presets.ttl> .
 
-<urn:granularsampler:sampler#preset_kalimba_box>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_kalimba_box>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Kalimba Music Box" ;
     rdfs:seeAlso <presets.ttl> .
 
-<urn:granularsampler:sampler#preset_kalimba_cloud>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_kalimba_cloud>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Kalimba Melody Cloud" ;
     rdfs:seeAlso <presets.ttl> .
 
-<urn:granularsampler:sampler#preset_bowl_drone>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_bowl_drone>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Bowl Drone" ;
     rdfs:seeAlso <presets.ttl> .
 
-<urn:granularsampler:sampler#preset_bowl_octaves>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_bowl_octaves>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Bowl Octaves" ;
     rdfs:seeAlso <presets.ttl> .
 
-<urn:granularsampler:sampler#preset_cymbal_wash>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_cymbal_wash>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Cymbal Wash" ;
     rdfs:seeAlso <presets.ttl> .
 
-<urn:granularsampler:sampler#preset_cymbal_swell>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_cymbal_swell>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Cymbal Reverse Swell" ;
     rdfs:seeAlso <presets.ttl> .
 
-<urn:granularsampler:sampler#preset_break_stutter>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_break_stutter>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Break Stutter" ;
     rdfs:seeAlso <presets.ttl> .
 
-<urn:granularsampler:sampler#preset_break_scatter>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_break_scatter>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Break Slice Scatter" ;
     rdfs:seeAlso <presets.ttl> .
 
-<urn:granularsampler:sampler#preset_break_filter>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_break_filter>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Break Tempo Filter" ;
     rdfs:seeAlso <presets.ttl> .
 
-<urn:granularsampler:sampler#preset_voice_choir>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_voice_choir>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Voice Granular Choir" ;
     rdfs:seeAlso <presets.ttl> .
 
-<urn:granularsampler:sampler#preset_voice_robot>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_voice_robot>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Voice Robot" ;
     rdfs:seeAlso <presets.ttl> .
 
-<urn:granularsampler:sampler#preset_whisper_texture>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_whisper_texture>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Whisper Texture" ;
     rdfs:seeAlso <presets.ttl> .
 
-<urn:granularsampler:sampler#preset_whisper_pulse>
+<http://dmtry3.github.io/zynthian-eka/mist#preset_whisper_pulse>
     a pset:Preset ;
-    lv2:appliesTo <urn:granularsampler:sampler> ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/mist> ;
     rdfs:label "Whisper Pulse" ;
     rdfs:seeAlso <presets.ttl> .
 

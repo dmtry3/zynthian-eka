@@ -1,4 +1,4 @@
-# Generative Arp for Zynthian
+# Eka Bloom for Zynthian
 
 **English** · [Русский](README.ru.md)
 
@@ -12,14 +12,14 @@ note loop, slow mutation of the pattern, and a touchscreen widget for editing th
 On the Zynthian (it builds on the device):
 
 ```bash
-git clone https://github.com/dmtry3/zynthian-generative-arp.git
-cd zynthian-generative-arp
+git clone https://github.com/dmtry3/zynthian-eka.git
+cd zynthian-eka/plugins/bloom
 sudo ./scripts/install.sh
 sudo systemctl restart zynthian
 ```
 
 `install.sh` builds the plugin and creates two symlinks:
-- `/usr/local/lib/lv2/generative_arp.lv2` → `build/generative_arp.lv2`;
+- `/usr/local/lib/lv2/eka-bloom.lv2` → `build/eka-bloom.lv2`;
 - the widget into `/zynthian/zynthian-ui/zyngui/widgets_user/`.
 
 It also refreshes Zynthian's preset list for this plugin. Nothing else in Zynthian is changed.
@@ -31,7 +31,7 @@ Update:
 git pull && sudo ./scripts/install.sh && sudo systemctl restart zynthian
 ```
 
-In Zynthian, add **Generative Arp** to a chain as a MIDI tool in front of a synth. Zynthian shows it in
+In Zynthian, add **Eka Bloom** to a chain as a MIDI tool in front of a synth. Zynthian shows it in
 the *Other* category: the category can't be set from the plugin, but you can change it in webconf → Engines.
 
 ## How it plays
@@ -225,7 +225,7 @@ What is not saved: the grown mutation (step drift and the note loop). It lives o
 Needs `gcc`, `pkg-config`, `lv2-dev` (and `python3-tk` for the widget preview).
 
 ```bash
-./scripts/build.sh               # build/generative_arp.lv2
+./scripts/build.sh               # build/eka-bloom.lv2
 ./scripts/test.sh                # tests of the arpeggiator logic (src/arp_core.c, no LV2)
 python3 test/widget_preview.py   # widget touch scenarios; --show opens a window
 python3 scripts/gen_presets.py   # regenerate lv2/presets.ttl and lv2/manifest.ttl

@@ -1,4 +1,4 @@
-/* Granular Sampler: LV2 wrapper around grain_core.
+/* Eka Mist: LV2 wrapper around grain_core.
  * The sample file is an LV2 parameter (atom:Path), loaded by the LV2 worker, saved in LV2 State.
  * Knob pages Position, Grain, Voice; Poly/Mono and the number of voices are LV2 parameters set in the widget.
  * Read positions go to output ports for the widget. */
@@ -22,7 +22,7 @@
 #include "grain_core.h"
 #include "sample.h"
 
-#define GS_URI "urn:granularsampler:sampler"
+#define GS_URI "http://dmtry3.github.io/zynthian-eka/mist"
 #define MAX_SECONDS 600.0   /* longest sample, in seconds of the file */
 
 /* Control input ports come first (0..P_END-1): Zynthian numbers LV2 parameters from len(control ports)+1,
@@ -435,7 +435,7 @@ static double atom_num(const Sampler* S, const LV2_Atom* a, double def) {
   return def;
 }
 
-/* Host transport (as in Generative Arp): tempo always; the song position in beats while it rolls.
+/* Host transport (as in Eka Bloom): tempo always; the song position in beats while it rolls.
  * Stopped, the engine's beat clock keeps running at the tempo. */
 static void handle_position(Sampler* S, const LV2_Atom_Object* obj) {
   const LV2_Atom *bpm = NULL, *speed = NULL, *bar = NULL, *bb = NULL, *bpb = NULL;

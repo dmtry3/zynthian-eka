@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Runs the Generative Arp widget outside Zynthian with stub modules.
+# Runs the Eka Bloom widget outside Zynthian with stub modules.
 #   python3 test/widget_preview.py          scripted touch tests (PASS/FAIL)
 #   python3 test/widget_preview.py --show   open a window to try it by hand (needs a display)
 import importlib.util
@@ -115,8 +115,8 @@ class Control:
 
 
 def load_widget():
-    path = os.path.join(ROOT, "ui", "zynthian_widget_generative_arp.py")
-    spec = importlib.util.spec_from_file_location("zynthian_widget_generative_arp", path)
+    path = os.path.join(ROOT, "ui", "zynthian_widget_eka_bloom.py")
+    spec = importlib.util.spec_from_file_location("zynthian_widget_eka_bloom", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -133,7 +133,7 @@ def main():
     root = tkinter.Tk()
     root.geometry("480x300")
     proc = Processor()
-    wdg = mod.zynthian_widget_generative_arp(Control(root))
+    wdg = mod.zynthian_widget_eka_bloom(Control(root))
     wdg.set_processor(proc)
     wdg.pack(fill="both", expand=True)
     root.update()
@@ -307,7 +307,7 @@ def main():
     check("-> Chromatic: unchanged", shifts(2) == [1, 6])
     # a new widget (e.g. after a snapshot load) doesn't rewrite on its first redraw
     proc.controllers_dict["scale"].value = 2
-    w2 = mod.zynthian_widget_generative_arp(Control(root)); w2.set_processor(proc)
+    w2 = mod.zynthian_widget_eka_bloom(Control(root)); w2.set_processor(proc)
     w2.width, w2.height = wdg.width, wdg.height; w2.update()
     check("first redraw of a new widget doesn't touch Shift", shifts(2) == [1, 6])
     w2.destroy(); wdg.last_scale = 2

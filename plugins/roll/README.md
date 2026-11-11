@@ -1,4 +1,4 @@
-# MIDI Looper for Zynthian
+# Eka Roll for Zynthian
 
 [Русская версия](README.ru.md)
 Demo video https://www.youtube.com/watch?v=ChqsykTJQ88
@@ -40,8 +40,8 @@ a loop to a Standard MIDI File and straight into a `zynseq` pattern.
 ## Installation
 
 ```bash
-git clone https://github.com/dmtry3/zynthian-midi-looper.git
-cd zynthian-midi-looper
+git clone https://github.com/dmtry3/zynthian-eka.git
+cd zynthian-eka/plugins/roll
 sudo ./scripts/install.sh      # builds the plugin and creates two symlinks (see below)
 sudo systemctl restart zynthian
 ```
@@ -50,12 +50,12 @@ The script creates:
 
 | Link | Target |
 |---|---|
-| `/usr/local/lib/lv2/midi_looper.lv2` | `build/midi_looper.lv2` |
-| `/zynthian/zynthian-ui/zyngui/widgets_user/zynthian_widget_midi_looper.py` | `ui/zynthian_widget_midi_looper.py` |
+| `/usr/local/lib/lv2/eka-roll.lv2` | `build/eka-roll.lv2` |
+| `/zynthian/zynthian-ui/zyngui/widgets_user/zynthian_widget_eka_roll.py` | `ui/zynthian_widget_eka_roll.py` |
 
 Nothing in Zynthian's own files is modified. To remove: `sudo ./scripts/uninstall.sh`.
 
-Add **MIDI Looper** to a chain as a *MIDI tool* placed before the synth.
+Add **Eka Roll** to a chain as a *MIDI tool* placed before the synth.
 
 ## Controls
 
@@ -101,18 +101,18 @@ they can be mapped to hardware buttons.
 
 ## Export
 
-- `.mid`: `/zynthian/zynthian-my-data/capture/midi_looper_YYYYMMDD_HHMMSS.mid` (unmuted layers, transposition
+- `.mid`: `/zynthian/zynthian-my-data/capture/eka_roll_YYYYMMDD_HHMMSS.mid` (unmuted layers, transposition
   applied, tempo and time signature included).
 - Pattern: if the sequencer cell of the chain (current phrase x chain's MIDI channel) is playing, its pattern is
   overwritten; otherwise the first empty pattern is filled and assigned to that cell if it is free.
   4 steps per beat; sub-step timing is kept with note offsets (`EXPORT_USE_OFFSET` in the widget); CC moves become
-  ramps. Edit the constants at the top of `ui/zynthian_widget_midi_looper.py` to change this.
+  ramps. Edit the constants at the top of `ui/zynthian_widget_eka_roll.py` to change this.
 
 ## Limitations
 
 - Needs a running transport. Stopping/relocating the transport or changing tempo during the *first* recording
   cancels that recording.
-- Played-back CC also drive Zynthian MIDI-learn bindings (synth and effect parameters, on-screen knobs). This is done by the widget, so it starts once the MIDI Looper page has been opened after boot. An echo guard prevents feedback loops.
+- Played-back CC also drive Zynthian MIDI-learn bindings (synth and effect parameters, on-screen knobs). This is done by the widget, so it starts once the Eka Roll page has been opened after boot. An echo guard prevents feedback loops.
 - Capacity: 8 layers x 4000 events, 16384 controller events.
 - Snapshots store control values only; loop data lives in slots (a saved slot is auto-loaded on restore).
 - Loop timing is tied to the transport position at the moment of recording.
@@ -121,24 +121,24 @@ they can be mapped to hardware buttons.
 
 | Problem | Check |
 |---|---|
-| Plugin not listed | `lv2ls \| grep midilooper`, restart Zynthian |
+| Plugin not listed | `lv2ls \| grep zynthian-eka/roll`, restart Zynthian |
 | CC are not recorded | Enable *Route CC* in the chain; check with `jack_midi_dump` on the chain's router output |
 | No widget | Symlink exists in `widgets_user`; `journalctl -u zynthian \| grep -i widget` |
-| Piano roll is empty | `ls /dev/shm \| grep midi_looper` |
+| Piano roll is empty | `ls /dev/shm \| grep eka_roll` |
 | Loop does not play | The transport must be running (press Play in zynseq) |
 
 ## How it works
 
-- `src/midi_looper.c`: the whole engine. Time is kept in ticks (960 per beat) and slaved to the JACK transport via
+- `src/eka_roll.c`: the whole engine. Time is kept in ticks (960 per beat) and slaved to the JACK transport via
   `time:Position`. Playback is sample-accurate inside each audio block.
 - Slot files are written/read by a worker thread (never in the audio thread).
-- The widget reads the loop from shared memory (`/dev/shm/midi_looper_<pid>`) and reads state from the plugin's
+- The widget reads the loop from shared memory (`/dev/shm/eka_roll_<pid>`) and reads state from the plugin's
   output ports (Zynthian "monitors"). It writes only through regular controllers.
 
 ## Building manually
 
 ```bash
-./scripts/build.sh        # output in build/midi_looper.lv2
+./scripts/build.sh        # output in build/eka-roll.lv2
 ```
 
 ## License

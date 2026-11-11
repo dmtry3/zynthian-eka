@@ -12,190 +12,190 @@
 @prefix patch:  <http://lv2plug.in/ns/ext/patch#> .
 @prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 
-<urn:audiolooper:looper#g_rec> a pg:Group ; lv2:symbol "g_rec" ; lv2:name "Record" ; lv2:index 0 ; lv2:displayPriority 60 .
-<urn:audiolooper:looper#g_track> a pg:Group ; lv2:symbol "g_track" ; lv2:name "Track" ; lv2:index 1 ; lv2:displayPriority 50 .
-<urn:audiolooper:looper#g_nav> a pg:Group ; lv2:symbol "g_nav" ; lv2:name "Navigate" ; lv2:index 2 ; lv2:displayPriority 40 .
-<urn:audiolooper:looper#g_screens> a pg:Group ; lv2:symbol "g_screens" ; lv2:name "Screens" ; lv2:index 3 ; lv2:displayPriority 30 .
-<urn:audiolooper:looper#g_mix> a pg:Group ; lv2:symbol "g_mix" ; lv2:name "Mix" ; lv2:index 4 ; lv2:displayPriority 20 .
+<http://dmtry3.github.io/zynthian-eka/tape#g_rec> a pg:Group ; lv2:symbol "g_rec" ; lv2:name "Record" ; lv2:index 0 ; lv2:displayPriority 60 .
+<http://dmtry3.github.io/zynthian-eka/tape#g_track> a pg:Group ; lv2:symbol "g_track" ; lv2:name "Track" ; lv2:index 1 ; lv2:displayPriority 50 .
+<http://dmtry3.github.io/zynthian-eka/tape#g_nav> a pg:Group ; lv2:symbol "g_nav" ; lv2:name "Navigate" ; lv2:index 2 ; lv2:displayPriority 40 .
+<http://dmtry3.github.io/zynthian-eka/tape#g_screens> a pg:Group ; lv2:symbol "g_screens" ; lv2:name "Screens" ; lv2:index 3 ; lv2:displayPriority 30 .
+<http://dmtry3.github.io/zynthian-eka/tape#g_mix> a pg:Group ; lv2:symbol "g_mix" ; lv2:name "Mix" ; lv2:index 4 ; lv2:displayPriority 20 .
 
-<urn:audiolooper:looper>
+<http://dmtry3.github.io/zynthian-eka/tape>
     a lv2:Plugin , lv2:UtilityPlugin ;
-    doap:name "Audio Looper" ;
+    doap:name "Eka Tape" ;
     lv2:minorVersion 0 ;
     lv2:microVersion 1 ;
     lv2:requiredFeature urid:map , work:schedule ;
     lv2:optionalFeature lv2:hardRTCapable ;
     lv2:extensionData work:interface , state:interface ;
     patch:writable
-        <urn:audiolooper:looper#grid> ,
-        <urn:audiolooper:looper#rec_order> ,
-        <urn:audiolooper:looper#mode> ,
-        <urn:audiolooper:looper#len1> ,
-        <urn:audiolooper:looper#len2> ,
-        <urn:audiolooper:looper#len3> ,
-        <urn:audiolooper:looper#len4> ,
-        <urn:audiolooper:looper#len5> ,
-        <urn:audiolooper:looper#len6> ,
-        <urn:audiolooper:looper#fade_out> ,
-        <urn:audiolooper:looper#fade_in> ,
-        <urn:audiolooper:looper#rev_time> ,
-        <urn:audiolooper:looper#mute_q> ,
-        <urn:audiolooper:looper#part_q> ,
-        <urn:audiolooper:looper#lev1> ,
-        <urn:audiolooper:looper#lev2> ,
-        <urn:audiolooper:looper#lev3> ,
-        <urn:audiolooper:looper#lev4> ,
-        <urn:audiolooper:looper#lev5> ,
-        <urn:audiolooper:looper#lev6> ,
-        <urn:audiolooper:looper#lev7> ,
-        <urn:audiolooper:looper#lev8> ,
-        <urn:audiolooper:looper#lev9> ,
-        <urn:audiolooper:looper#lev10> ,
-        <urn:audiolooper:looper#lev11> ,
-        <urn:audiolooper:looper#lev12> ,
-        <urn:audiolooper:looper#lev13> ,
-        <urn:audiolooper:looper#lev14> ,
-        <urn:audiolooper:looper#lev15> ,
-        <urn:audiolooper:looper#lev16> ,
-        <urn:audiolooper:looper#lev17> ,
-        <urn:audiolooper:looper#lev18> ,
-        <urn:audiolooper:looper#lev19> ,
-        <urn:audiolooper:looper#lev20> ,
-        <urn:audiolooper:looper#lev21> ,
-        <urn:audiolooper:looper#lev22> ,
-        <urn:audiolooper:looper#lev23> ,
-        <urn:audiolooper:looper#lev24> ,
-        <urn:audiolooper:looper#lev25> ,
-        <urn:audiolooper:looper#lev26> ,
-        <urn:audiolooper:looper#lev27> ,
-        <urn:audiolooper:looper#lev28> ,
-        <urn:audiolooper:looper#lev29> ,
-        <urn:audiolooper:looper#lev30> ,
-        <urn:audiolooper:looper#lev31> ,
-        <urn:audiolooper:looper#lev32> ,
-        <urn:audiolooper:looper#lev33> ,
-        <urn:audiolooper:looper#lev34> ,
-        <urn:audiolooper:looper#lev35> ,
-        <urn:audiolooper:looper#lev36> ,
-        <urn:audiolooper:looper#pan1> ,
-        <urn:audiolooper:looper#pan2> ,
-        <urn:audiolooper:looper#pan3> ,
-        <urn:audiolooper:looper#pan4> ,
-        <urn:audiolooper:looper#pan5> ,
-        <urn:audiolooper:looper#pan6> ,
-        <urn:audiolooper:looper#pan7> ,
-        <urn:audiolooper:looper#pan8> ,
-        <urn:audiolooper:looper#pan9> ,
-        <urn:audiolooper:looper#pan10> ,
-        <urn:audiolooper:looper#pan11> ,
-        <urn:audiolooper:looper#pan12> ,
-        <urn:audiolooper:looper#pan13> ,
-        <urn:audiolooper:looper#pan14> ,
-        <urn:audiolooper:looper#pan15> ,
-        <urn:audiolooper:looper#pan16> ,
-        <urn:audiolooper:looper#pan17> ,
-        <urn:audiolooper:looper#pan18> ,
-        <urn:audiolooper:looper#pan19> ,
-        <urn:audiolooper:looper#pan20> ,
-        <urn:audiolooper:looper#pan21> ,
-        <urn:audiolooper:looper#pan22> ,
-        <urn:audiolooper:looper#pan23> ,
-        <urn:audiolooper:looper#pan24> ,
-        <urn:audiolooper:looper#pan25> ,
-        <urn:audiolooper:looper#pan26> ,
-        <urn:audiolooper:looper#pan27> ,
-        <urn:audiolooper:looper#pan28> ,
-        <urn:audiolooper:looper#pan29> ,
-        <urn:audiolooper:looper#pan30> ,
-        <urn:audiolooper:looper#pan31> ,
-        <urn:audiolooper:looper#pan32> ,
-        <urn:audiolooper:looper#pan33> ,
-        <urn:audiolooper:looper#pan34> ,
-        <urn:audiolooper:looper#pan35> ,
-        <urn:audiolooper:looper#pan36> ,
-        <urn:audiolooper:looper#chm1> ,
-        <urn:audiolooper:looper#chm2> ,
-        <urn:audiolooper:looper#chm3> ,
-        <urn:audiolooper:looper#chm4> ,
-        <urn:audiolooper:looper#chm5> ,
-        <urn:audiolooper:looper#chm6> ,
-        <urn:audiolooper:looper#chm7> ,
-        <urn:audiolooper:looper#chm8> ,
-        <urn:audiolooper:looper#chm9> ,
-        <urn:audiolooper:looper#chm10> ,
-        <urn:audiolooper:looper#chm11> ,
-        <urn:audiolooper:looper#chm12> ,
-        <urn:audiolooper:looper#chm13> ,
-        <urn:audiolooper:looper#chm14> ,
-        <urn:audiolooper:looper#chm15> ,
-        <urn:audiolooper:looper#chm16> ,
-        <urn:audiolooper:looper#chm17> ,
-        <urn:audiolooper:looper#chm18> ,
-        <urn:audiolooper:looper#chm19> ,
-        <urn:audiolooper:looper#chm20> ,
-        <urn:audiolooper:looper#chm21> ,
-        <urn:audiolooper:looper#chm22> ,
-        <urn:audiolooper:looper#chm23> ,
-        <urn:audiolooper:looper#chm24> ,
-        <urn:audiolooper:looper#chm25> ,
-        <urn:audiolooper:looper#chm26> ,
-        <urn:audiolooper:looper#chm27> ,
-        <urn:audiolooper:looper#chm28> ,
-        <urn:audiolooper:looper#chm29> ,
-        <urn:audiolooper:looper#chm30> ,
-        <urn:audiolooper:looper#chm31> ,
-        <urn:audiolooper:looper#chm32> ,
-        <urn:audiolooper:looper#chm33> ,
-        <urn:audiolooper:looper#chm34> ,
-        <urn:audiolooper:looper#chm35> ,
-        <urn:audiolooper:looper#chm36> ,
-        <urn:audiolooper:looper#mst_db> ,
-        <urn:audiolooper:looper#limiter> ,
-        <urn:audiolooper:looper#tmute> ,
-        <urn:audiolooper:looper#tempo_glide> ,
-        <urn:audiolooper:looper#spd_snap> ,
-        <urn:audiolooper:looper#spd_glide> ,
-        <urn:audiolooper:looper#spd1> ,
-        <urn:audiolooper:looper#spd2> ,
-        <urn:audiolooper:looper#spd3> ,
-        <urn:audiolooper:looper#spd4> ,
-        <urn:audiolooper:looper#spd5> ,
-        <urn:audiolooper:looper#spd6> ,
-        <urn:audiolooper:looper#spd7> ,
-        <urn:audiolooper:looper#spd8> ,
-        <urn:audiolooper:looper#spd9> ,
-        <urn:audiolooper:looper#spd10> ,
-        <urn:audiolooper:looper#spd11> ,
-        <urn:audiolooper:looper#spd12> ,
-        <urn:audiolooper:looper#spd13> ,
-        <urn:audiolooper:looper#spd14> ,
-        <urn:audiolooper:looper#spd15> ,
-        <urn:audiolooper:looper#spd16> ,
-        <urn:audiolooper:looper#spd17> ,
-        <urn:audiolooper:looper#spd18> ,
-        <urn:audiolooper:looper#spd19> ,
-        <urn:audiolooper:looper#spd20> ,
-        <urn:audiolooper:looper#spd21> ,
-        <urn:audiolooper:looper#spd22> ,
-        <urn:audiolooper:looper#spd23> ,
-        <urn:audiolooper:looper#spd24> ,
-        <urn:audiolooper:looper#spd25> ,
-        <urn:audiolooper:looper#spd26> ,
-        <urn:audiolooper:looper#spd27> ,
-        <urn:audiolooper:looper#spd28> ,
-        <urn:audiolooper:looper#spd29> ,
-        <urn:audiolooper:looper#spd30> ,
-        <urn:audiolooper:looper#spd31> ,
-        <urn:audiolooper:looper#spd32> ,
-        <urn:audiolooper:looper#spd33> ,
-        <urn:audiolooper:looper#spd34> ,
-        <urn:audiolooper:looper#spd35> ,
-        <urn:audiolooper:looper#spd36> ,
-        <urn:audiolooper:looper#sreset> ,
-        <urn:audiolooper:looper#hold_ms> ,
-        <urn:audiolooper:looper#reset_ms> ,
-        <urn:audiolooper:looper#latency> ,
-        <urn:audiolooper:looper#pool_mb> ;
+        <http://dmtry3.github.io/zynthian-eka/tape#grid> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#rec_order> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#mode> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#len1> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#len2> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#len3> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#len4> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#len5> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#len6> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#fade_out> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#fade_in> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#rev_time> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#mute_q> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#part_q> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev1> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev2> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev3> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev4> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev5> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev6> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev7> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev8> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev9> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev10> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev11> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev12> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev13> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev14> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev15> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev16> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev17> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev18> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev19> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev20> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev21> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev22> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev23> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev24> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev25> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev26> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev27> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev28> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev29> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev30> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev31> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev32> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev33> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev34> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev35> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#lev36> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan1> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan2> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan3> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan4> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan5> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan6> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan7> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan8> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan9> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan10> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan11> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan12> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan13> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan14> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan15> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan16> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan17> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan18> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan19> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan20> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan21> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan22> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan23> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan24> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan25> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan26> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan27> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan28> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan29> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan30> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan31> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan32> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan33> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan34> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan35> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pan36> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm1> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm2> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm3> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm4> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm5> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm6> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm7> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm8> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm9> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm10> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm11> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm12> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm13> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm14> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm15> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm16> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm17> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm18> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm19> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm20> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm21> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm22> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm23> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm24> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm25> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm26> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm27> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm28> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm29> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm30> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm31> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm32> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm33> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm34> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm35> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#chm36> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#mst_db> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#limiter> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tmute> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tempo_glide> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd_snap> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd_glide> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd1> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd2> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd3> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd4> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd5> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd6> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd7> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd8> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd9> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd10> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd11> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd12> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd13> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd14> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd15> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd16> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd17> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd18> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd19> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd20> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd21> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd22> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd23> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd24> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd25> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd26> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd27> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd28> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd29> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd30> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd31> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd32> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd33> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd34> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd35> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#spd36> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#sreset> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#hold_ms> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#reset_ms> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#latency> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pool_mb> ;
     lv2:port
     [
         a lv2:InputPort , lv2:AudioPort ; lv2:index 18 ; lv2:symbol "in_l" ; lv2:name "In L" ;
@@ -215,92 +215,92 @@
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 0 ; lv2:symbol "rec" ; lv2:name "Rec/Dub" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
-        lv2:displayPriority 40 ; pg:group <urn:audiolooper:looper#g_rec> ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_rec> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 1 ; lv2:symbol "undo" ; lv2:name "Undo" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
-        lv2:displayPriority 30 ; pg:group <urn:audiolooper:looper#g_rec> ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_rec> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 2 ; lv2:symbol "redo" ; lv2:name "Redo" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
-        lv2:displayPriority 20 ; pg:group <urn:audiolooper:looper#g_rec> ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_rec> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 3 ; lv2:symbol "reset" ; lv2:name "Reset" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
-        lv2:displayPriority 10 ; pg:group <urn:audiolooper:looper#g_rec> ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_rec> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 4 ; lv2:symbol "mute" ; lv2:name "Mute" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
-        lv2:displayPriority 40 ; pg:group <urn:audiolooper:looper#g_track> ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_track> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 5 ; lv2:symbol "reverse" ; lv2:name "Reverse" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
-        lv2:displayPriority 30 ; pg:group <urn:audiolooper:looper#g_track> ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_track> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 6 ; lv2:symbol "lock" ; lv2:name "Lock" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
-        lv2:displayPriority 20 ; pg:group <urn:audiolooper:looper#g_track> ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_track> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 7 ; lv2:symbol "trk_next" ; lv2:name "Next Trk" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
-        lv2:displayPriority 10 ; pg:group <urn:audiolooper:looper#g_track> ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_track> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 8 ; lv2:symbol "trk_prev" ; lv2:name "Prev Trk" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
-        lv2:displayPriority 40 ; pg:group <urn:audiolooper:looper#g_nav> ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_nav> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 9 ; lv2:symbol "part_next" ; lv2:name "Next Part" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
-        lv2:displayPriority 30 ; pg:group <urn:audiolooper:looper#g_nav> ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_nav> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 10 ; lv2:symbol "part_prev" ; lv2:name "Prev Part" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
-        lv2:displayPriority 20 ; pg:group <urn:audiolooper:looper#g_nav> ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_nav> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 11 ; lv2:symbol "play" ; lv2:name "Play/Stop" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
-        lv2:displayPriority 10 ; pg:group <urn:audiolooper:looper#g_nav> ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_nav> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 12 ; lv2:symbol "w_loop" ; lv2:name "Loop" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
-        lv2:displayPriority 40 ; pg:group <urn:audiolooper:looper#g_screens> ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_screens> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 13 ; lv2:symbol "w_mixer" ; lv2:name "Mixer" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
-        lv2:displayPriority 30 ; pg:group <urn:audiolooper:looper#g_screens> ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_screens> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 14 ; lv2:symbol "level" ; lv2:name "Level" ;
         lv2:default 75 ; lv2:minimum 0 ; lv2:maximum 100 ;
-        lv2:displayPriority 40 ; pg:group <urn:audiolooper:looper#g_mix> ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_mix> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 15 ; lv2:symbol "pan" ; lv2:name "Pan" ;
         lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
-        lv2:displayPriority 30 ; pg:group <urn:audiolooper:looper#g_mix> ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_mix> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 16 ; lv2:symbol "master" ; lv2:name "Master" ;
         lv2:default 75 ; lv2:minimum 0 ; lv2:maximum 100 ;
-        lv2:displayPriority 20 ; pg:group <urn:audiolooper:looper#g_mix> ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_mix> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 17 ; lv2:symbol "speed" ; lv2:name "Speed" ;
         lv2:default 1 ; lv2:minimum 0.25 ; lv2:maximum 2 ; lv2:portProperty pprops:logarithmic ;
-        lv2:displayPriority 10 ; pg:group <urn:audiolooper:looper#g_mix> ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_mix> ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
         lv2:index 23 ; lv2:symbol "o_track" ; lv2:name "Out: Track" ;
@@ -558,7 +558,7 @@
 
 # Настройки: LV2-параметры (patch:Set), скрыты со страниц, меняются на вкладке настроек виджета.
 # Сетка партов и дорожек: 0 — 2×2, 1 — 4×4, 2 — 6×6. Смена стирает лупы (этап 7).
-<urn:audiolooper:looper#grid>
+<http://dmtry3.github.io/zynthian-eka/tape#grid>
     a lv2:Parameter ;
     lv2:symbol "grid" ;
     rdfs:label "Grid" ;
@@ -567,7 +567,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#rec_order>
+<http://dmtry3.github.io/zynthian-eka/tape#rec_order>
     a lv2:Parameter ;
     lv2:symbol "rec_order" ;
     rdfs:label "Rec Order" ;
@@ -576,7 +576,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#mode>
+<http://dmtry3.github.io/zynthian-eka/tape#mode>
     a lv2:Parameter ;
     lv2:symbol "mode" ;
     rdfs:label "Mode" ;
@@ -585,7 +585,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#len1>
+<http://dmtry3.github.io/zynthian-eka/tape#len1>
     a lv2:Parameter ;
     lv2:symbol "len1" ;
     rdfs:label "Length 1" ;
@@ -594,7 +594,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#len2>
+<http://dmtry3.github.io/zynthian-eka/tape#len2>
     a lv2:Parameter ;
     lv2:symbol "len2" ;
     rdfs:label "Length 2" ;
@@ -603,7 +603,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#len3>
+<http://dmtry3.github.io/zynthian-eka/tape#len3>
     a lv2:Parameter ;
     lv2:symbol "len3" ;
     rdfs:label "Length 3" ;
@@ -612,7 +612,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#len4>
+<http://dmtry3.github.io/zynthian-eka/tape#len4>
     a lv2:Parameter ;
     lv2:symbol "len4" ;
     rdfs:label "Length 4" ;
@@ -621,7 +621,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#len5>
+<http://dmtry3.github.io/zynthian-eka/tape#len5>
     a lv2:Parameter ;
     lv2:symbol "len5" ;
     rdfs:label "Length 5" ;
@@ -630,7 +630,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#len6>
+<http://dmtry3.github.io/zynthian-eka/tape#len6>
     a lv2:Parameter ;
     lv2:symbol "len6" ;
     rdfs:label "Length 6" ;
@@ -639,7 +639,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#fade_out>
+<http://dmtry3.github.io/zynthian-eka/tape#fade_out>
     a lv2:Parameter ;
     lv2:symbol "fade_out" ;
     rdfs:label "Fade Out" ;
@@ -648,7 +648,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#fade_in>
+<http://dmtry3.github.io/zynthian-eka/tape#fade_in>
     a lv2:Parameter ;
     lv2:symbol "fade_in" ;
     rdfs:label "Fade In" ;
@@ -657,7 +657,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#rev_time>
+<http://dmtry3.github.io/zynthian-eka/tape#rev_time>
     a lv2:Parameter ;
     lv2:symbol "rev_time" ;
     rdfs:label "Reverse Time" ;
@@ -666,7 +666,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#mute_q>
+<http://dmtry3.github.io/zynthian-eka/tape#mute_q>
     a lv2:Parameter ;
     lv2:symbol "mute_q" ;
     rdfs:label "Mute Quant" ;
@@ -675,7 +675,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#part_q>
+<http://dmtry3.github.io/zynthian-eka/tape#part_q>
     a lv2:Parameter ;
     lv2:symbol "part_q" ;
     rdfs:label "Part Quant" ;
@@ -685,7 +685,7 @@
     lv2:portProperty pprops:notOnGUI .
 
 # Микшер: уровень, панорама и режим канала 16 дорожек, Dry, Master, ограничитель.
-<urn:audiolooper:looper#lev1>
+<http://dmtry3.github.io/zynthian-eka/tape#lev1>
     a lv2:Parameter ;
     lv2:symbol "lev1" ;
     rdfs:label "Level 1" ;
@@ -694,7 +694,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev2>
+<http://dmtry3.github.io/zynthian-eka/tape#lev2>
     a lv2:Parameter ;
     lv2:symbol "lev2" ;
     rdfs:label "Level 2" ;
@@ -703,7 +703,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev3>
+<http://dmtry3.github.io/zynthian-eka/tape#lev3>
     a lv2:Parameter ;
     lv2:symbol "lev3" ;
     rdfs:label "Level 3" ;
@@ -712,7 +712,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev4>
+<http://dmtry3.github.io/zynthian-eka/tape#lev4>
     a lv2:Parameter ;
     lv2:symbol "lev4" ;
     rdfs:label "Level 4" ;
@@ -721,7 +721,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev5>
+<http://dmtry3.github.io/zynthian-eka/tape#lev5>
     a lv2:Parameter ;
     lv2:symbol "lev5" ;
     rdfs:label "Level 5" ;
@@ -730,7 +730,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev6>
+<http://dmtry3.github.io/zynthian-eka/tape#lev6>
     a lv2:Parameter ;
     lv2:symbol "lev6" ;
     rdfs:label "Level 6" ;
@@ -739,7 +739,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev7>
+<http://dmtry3.github.io/zynthian-eka/tape#lev7>
     a lv2:Parameter ;
     lv2:symbol "lev7" ;
     rdfs:label "Level 7" ;
@@ -748,7 +748,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev8>
+<http://dmtry3.github.io/zynthian-eka/tape#lev8>
     a lv2:Parameter ;
     lv2:symbol "lev8" ;
     rdfs:label "Level 8" ;
@@ -757,7 +757,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev9>
+<http://dmtry3.github.io/zynthian-eka/tape#lev9>
     a lv2:Parameter ;
     lv2:symbol "lev9" ;
     rdfs:label "Level 9" ;
@@ -766,7 +766,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev10>
+<http://dmtry3.github.io/zynthian-eka/tape#lev10>
     a lv2:Parameter ;
     lv2:symbol "lev10" ;
     rdfs:label "Level 10" ;
@@ -775,7 +775,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev11>
+<http://dmtry3.github.io/zynthian-eka/tape#lev11>
     a lv2:Parameter ;
     lv2:symbol "lev11" ;
     rdfs:label "Level 11" ;
@@ -784,7 +784,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev12>
+<http://dmtry3.github.io/zynthian-eka/tape#lev12>
     a lv2:Parameter ;
     lv2:symbol "lev12" ;
     rdfs:label "Level 12" ;
@@ -793,7 +793,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev13>
+<http://dmtry3.github.io/zynthian-eka/tape#lev13>
     a lv2:Parameter ;
     lv2:symbol "lev13" ;
     rdfs:label "Level 13" ;
@@ -802,7 +802,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev14>
+<http://dmtry3.github.io/zynthian-eka/tape#lev14>
     a lv2:Parameter ;
     lv2:symbol "lev14" ;
     rdfs:label "Level 14" ;
@@ -811,7 +811,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev15>
+<http://dmtry3.github.io/zynthian-eka/tape#lev15>
     a lv2:Parameter ;
     lv2:symbol "lev15" ;
     rdfs:label "Level 15" ;
@@ -820,7 +820,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev16>
+<http://dmtry3.github.io/zynthian-eka/tape#lev16>
     a lv2:Parameter ;
     lv2:symbol "lev16" ;
     rdfs:label "Level 16" ;
@@ -829,7 +829,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev17>
+<http://dmtry3.github.io/zynthian-eka/tape#lev17>
     a lv2:Parameter ;
     lv2:symbol "lev17" ;
     rdfs:label "Level 17" ;
@@ -838,7 +838,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev18>
+<http://dmtry3.github.io/zynthian-eka/tape#lev18>
     a lv2:Parameter ;
     lv2:symbol "lev18" ;
     rdfs:label "Level 18" ;
@@ -847,7 +847,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev19>
+<http://dmtry3.github.io/zynthian-eka/tape#lev19>
     a lv2:Parameter ;
     lv2:symbol "lev19" ;
     rdfs:label "Level 19" ;
@@ -856,7 +856,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev20>
+<http://dmtry3.github.io/zynthian-eka/tape#lev20>
     a lv2:Parameter ;
     lv2:symbol "lev20" ;
     rdfs:label "Level 20" ;
@@ -865,7 +865,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev21>
+<http://dmtry3.github.io/zynthian-eka/tape#lev21>
     a lv2:Parameter ;
     lv2:symbol "lev21" ;
     rdfs:label "Level 21" ;
@@ -874,7 +874,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev22>
+<http://dmtry3.github.io/zynthian-eka/tape#lev22>
     a lv2:Parameter ;
     lv2:symbol "lev22" ;
     rdfs:label "Level 22" ;
@@ -883,7 +883,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev23>
+<http://dmtry3.github.io/zynthian-eka/tape#lev23>
     a lv2:Parameter ;
     lv2:symbol "lev23" ;
     rdfs:label "Level 23" ;
@@ -892,7 +892,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev24>
+<http://dmtry3.github.io/zynthian-eka/tape#lev24>
     a lv2:Parameter ;
     lv2:symbol "lev24" ;
     rdfs:label "Level 24" ;
@@ -901,7 +901,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev25>
+<http://dmtry3.github.io/zynthian-eka/tape#lev25>
     a lv2:Parameter ;
     lv2:symbol "lev25" ;
     rdfs:label "Level 25" ;
@@ -910,7 +910,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev26>
+<http://dmtry3.github.io/zynthian-eka/tape#lev26>
     a lv2:Parameter ;
     lv2:symbol "lev26" ;
     rdfs:label "Level 26" ;
@@ -919,7 +919,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev27>
+<http://dmtry3.github.io/zynthian-eka/tape#lev27>
     a lv2:Parameter ;
     lv2:symbol "lev27" ;
     rdfs:label "Level 27" ;
@@ -928,7 +928,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev28>
+<http://dmtry3.github.io/zynthian-eka/tape#lev28>
     a lv2:Parameter ;
     lv2:symbol "lev28" ;
     rdfs:label "Level 28" ;
@@ -937,7 +937,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev29>
+<http://dmtry3.github.io/zynthian-eka/tape#lev29>
     a lv2:Parameter ;
     lv2:symbol "lev29" ;
     rdfs:label "Level 29" ;
@@ -946,7 +946,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev30>
+<http://dmtry3.github.io/zynthian-eka/tape#lev30>
     a lv2:Parameter ;
     lv2:symbol "lev30" ;
     rdfs:label "Level 30" ;
@@ -955,7 +955,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev31>
+<http://dmtry3.github.io/zynthian-eka/tape#lev31>
     a lv2:Parameter ;
     lv2:symbol "lev31" ;
     rdfs:label "Level 31" ;
@@ -964,7 +964,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev32>
+<http://dmtry3.github.io/zynthian-eka/tape#lev32>
     a lv2:Parameter ;
     lv2:symbol "lev32" ;
     rdfs:label "Level 32" ;
@@ -973,7 +973,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev33>
+<http://dmtry3.github.io/zynthian-eka/tape#lev33>
     a lv2:Parameter ;
     lv2:symbol "lev33" ;
     rdfs:label "Level 33" ;
@@ -982,7 +982,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev34>
+<http://dmtry3.github.io/zynthian-eka/tape#lev34>
     a lv2:Parameter ;
     lv2:symbol "lev34" ;
     rdfs:label "Level 34" ;
@@ -991,7 +991,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev35>
+<http://dmtry3.github.io/zynthian-eka/tape#lev35>
     a lv2:Parameter ;
     lv2:symbol "lev35" ;
     rdfs:label "Level 35" ;
@@ -1000,7 +1000,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#lev36>
+<http://dmtry3.github.io/zynthian-eka/tape#lev36>
     a lv2:Parameter ;
     lv2:symbol "lev36" ;
     rdfs:label "Level 36" ;
@@ -1009,7 +1009,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan1>
+<http://dmtry3.github.io/zynthian-eka/tape#pan1>
     a lv2:Parameter ;
     lv2:symbol "pan1" ;
     rdfs:label "Pan 1" ;
@@ -1018,7 +1018,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan2>
+<http://dmtry3.github.io/zynthian-eka/tape#pan2>
     a lv2:Parameter ;
     lv2:symbol "pan2" ;
     rdfs:label "Pan 2" ;
@@ -1027,7 +1027,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan3>
+<http://dmtry3.github.io/zynthian-eka/tape#pan3>
     a lv2:Parameter ;
     lv2:symbol "pan3" ;
     rdfs:label "Pan 3" ;
@@ -1036,7 +1036,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan4>
+<http://dmtry3.github.io/zynthian-eka/tape#pan4>
     a lv2:Parameter ;
     lv2:symbol "pan4" ;
     rdfs:label "Pan 4" ;
@@ -1045,7 +1045,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan5>
+<http://dmtry3.github.io/zynthian-eka/tape#pan5>
     a lv2:Parameter ;
     lv2:symbol "pan5" ;
     rdfs:label "Pan 5" ;
@@ -1054,7 +1054,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan6>
+<http://dmtry3.github.io/zynthian-eka/tape#pan6>
     a lv2:Parameter ;
     lv2:symbol "pan6" ;
     rdfs:label "Pan 6" ;
@@ -1063,7 +1063,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan7>
+<http://dmtry3.github.io/zynthian-eka/tape#pan7>
     a lv2:Parameter ;
     lv2:symbol "pan7" ;
     rdfs:label "Pan 7" ;
@@ -1072,7 +1072,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan8>
+<http://dmtry3.github.io/zynthian-eka/tape#pan8>
     a lv2:Parameter ;
     lv2:symbol "pan8" ;
     rdfs:label "Pan 8" ;
@@ -1081,7 +1081,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan9>
+<http://dmtry3.github.io/zynthian-eka/tape#pan9>
     a lv2:Parameter ;
     lv2:symbol "pan9" ;
     rdfs:label "Pan 9" ;
@@ -1090,7 +1090,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan10>
+<http://dmtry3.github.io/zynthian-eka/tape#pan10>
     a lv2:Parameter ;
     lv2:symbol "pan10" ;
     rdfs:label "Pan 10" ;
@@ -1099,7 +1099,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan11>
+<http://dmtry3.github.io/zynthian-eka/tape#pan11>
     a lv2:Parameter ;
     lv2:symbol "pan11" ;
     rdfs:label "Pan 11" ;
@@ -1108,7 +1108,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan12>
+<http://dmtry3.github.io/zynthian-eka/tape#pan12>
     a lv2:Parameter ;
     lv2:symbol "pan12" ;
     rdfs:label "Pan 12" ;
@@ -1117,7 +1117,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan13>
+<http://dmtry3.github.io/zynthian-eka/tape#pan13>
     a lv2:Parameter ;
     lv2:symbol "pan13" ;
     rdfs:label "Pan 13" ;
@@ -1126,7 +1126,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan14>
+<http://dmtry3.github.io/zynthian-eka/tape#pan14>
     a lv2:Parameter ;
     lv2:symbol "pan14" ;
     rdfs:label "Pan 14" ;
@@ -1135,7 +1135,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan15>
+<http://dmtry3.github.io/zynthian-eka/tape#pan15>
     a lv2:Parameter ;
     lv2:symbol "pan15" ;
     rdfs:label "Pan 15" ;
@@ -1144,7 +1144,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan16>
+<http://dmtry3.github.io/zynthian-eka/tape#pan16>
     a lv2:Parameter ;
     lv2:symbol "pan16" ;
     rdfs:label "Pan 16" ;
@@ -1153,7 +1153,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan17>
+<http://dmtry3.github.io/zynthian-eka/tape#pan17>
     a lv2:Parameter ;
     lv2:symbol "pan17" ;
     rdfs:label "Pan 17" ;
@@ -1162,7 +1162,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan18>
+<http://dmtry3.github.io/zynthian-eka/tape#pan18>
     a lv2:Parameter ;
     lv2:symbol "pan18" ;
     rdfs:label "Pan 18" ;
@@ -1171,7 +1171,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan19>
+<http://dmtry3.github.io/zynthian-eka/tape#pan19>
     a lv2:Parameter ;
     lv2:symbol "pan19" ;
     rdfs:label "Pan 19" ;
@@ -1180,7 +1180,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan20>
+<http://dmtry3.github.io/zynthian-eka/tape#pan20>
     a lv2:Parameter ;
     lv2:symbol "pan20" ;
     rdfs:label "Pan 20" ;
@@ -1189,7 +1189,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan21>
+<http://dmtry3.github.io/zynthian-eka/tape#pan21>
     a lv2:Parameter ;
     lv2:symbol "pan21" ;
     rdfs:label "Pan 21" ;
@@ -1198,7 +1198,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan22>
+<http://dmtry3.github.io/zynthian-eka/tape#pan22>
     a lv2:Parameter ;
     lv2:symbol "pan22" ;
     rdfs:label "Pan 22" ;
@@ -1207,7 +1207,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan23>
+<http://dmtry3.github.io/zynthian-eka/tape#pan23>
     a lv2:Parameter ;
     lv2:symbol "pan23" ;
     rdfs:label "Pan 23" ;
@@ -1216,7 +1216,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan24>
+<http://dmtry3.github.io/zynthian-eka/tape#pan24>
     a lv2:Parameter ;
     lv2:symbol "pan24" ;
     rdfs:label "Pan 24" ;
@@ -1225,7 +1225,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan25>
+<http://dmtry3.github.io/zynthian-eka/tape#pan25>
     a lv2:Parameter ;
     lv2:symbol "pan25" ;
     rdfs:label "Pan 25" ;
@@ -1234,7 +1234,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan26>
+<http://dmtry3.github.io/zynthian-eka/tape#pan26>
     a lv2:Parameter ;
     lv2:symbol "pan26" ;
     rdfs:label "Pan 26" ;
@@ -1243,7 +1243,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan27>
+<http://dmtry3.github.io/zynthian-eka/tape#pan27>
     a lv2:Parameter ;
     lv2:symbol "pan27" ;
     rdfs:label "Pan 27" ;
@@ -1252,7 +1252,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan28>
+<http://dmtry3.github.io/zynthian-eka/tape#pan28>
     a lv2:Parameter ;
     lv2:symbol "pan28" ;
     rdfs:label "Pan 28" ;
@@ -1261,7 +1261,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan29>
+<http://dmtry3.github.io/zynthian-eka/tape#pan29>
     a lv2:Parameter ;
     lv2:symbol "pan29" ;
     rdfs:label "Pan 29" ;
@@ -1270,7 +1270,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan30>
+<http://dmtry3.github.io/zynthian-eka/tape#pan30>
     a lv2:Parameter ;
     lv2:symbol "pan30" ;
     rdfs:label "Pan 30" ;
@@ -1279,7 +1279,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan31>
+<http://dmtry3.github.io/zynthian-eka/tape#pan31>
     a lv2:Parameter ;
     lv2:symbol "pan31" ;
     rdfs:label "Pan 31" ;
@@ -1288,7 +1288,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan32>
+<http://dmtry3.github.io/zynthian-eka/tape#pan32>
     a lv2:Parameter ;
     lv2:symbol "pan32" ;
     rdfs:label "Pan 32" ;
@@ -1297,7 +1297,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan33>
+<http://dmtry3.github.io/zynthian-eka/tape#pan33>
     a lv2:Parameter ;
     lv2:symbol "pan33" ;
     rdfs:label "Pan 33" ;
@@ -1306,7 +1306,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan34>
+<http://dmtry3.github.io/zynthian-eka/tape#pan34>
     a lv2:Parameter ;
     lv2:symbol "pan34" ;
     rdfs:label "Pan 34" ;
@@ -1315,7 +1315,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan35>
+<http://dmtry3.github.io/zynthian-eka/tape#pan35>
     a lv2:Parameter ;
     lv2:symbol "pan35" ;
     rdfs:label "Pan 35" ;
@@ -1324,7 +1324,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pan36>
+<http://dmtry3.github.io/zynthian-eka/tape#pan36>
     a lv2:Parameter ;
     lv2:symbol "pan36" ;
     rdfs:label "Pan 36" ;
@@ -1333,7 +1333,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm1>
+<http://dmtry3.github.io/zynthian-eka/tape#chm1>
     a lv2:Parameter ;
     lv2:symbol "chm1" ;
     rdfs:label "Ch Mode 1" ;
@@ -1342,7 +1342,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm2>
+<http://dmtry3.github.io/zynthian-eka/tape#chm2>
     a lv2:Parameter ;
     lv2:symbol "chm2" ;
     rdfs:label "Ch Mode 2" ;
@@ -1351,7 +1351,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm3>
+<http://dmtry3.github.io/zynthian-eka/tape#chm3>
     a lv2:Parameter ;
     lv2:symbol "chm3" ;
     rdfs:label "Ch Mode 3" ;
@@ -1360,7 +1360,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm4>
+<http://dmtry3.github.io/zynthian-eka/tape#chm4>
     a lv2:Parameter ;
     lv2:symbol "chm4" ;
     rdfs:label "Ch Mode 4" ;
@@ -1369,7 +1369,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm5>
+<http://dmtry3.github.io/zynthian-eka/tape#chm5>
     a lv2:Parameter ;
     lv2:symbol "chm5" ;
     rdfs:label "Ch Mode 5" ;
@@ -1378,7 +1378,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm6>
+<http://dmtry3.github.io/zynthian-eka/tape#chm6>
     a lv2:Parameter ;
     lv2:symbol "chm6" ;
     rdfs:label "Ch Mode 6" ;
@@ -1387,7 +1387,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm7>
+<http://dmtry3.github.io/zynthian-eka/tape#chm7>
     a lv2:Parameter ;
     lv2:symbol "chm7" ;
     rdfs:label "Ch Mode 7" ;
@@ -1396,7 +1396,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm8>
+<http://dmtry3.github.io/zynthian-eka/tape#chm8>
     a lv2:Parameter ;
     lv2:symbol "chm8" ;
     rdfs:label "Ch Mode 8" ;
@@ -1405,7 +1405,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm9>
+<http://dmtry3.github.io/zynthian-eka/tape#chm9>
     a lv2:Parameter ;
     lv2:symbol "chm9" ;
     rdfs:label "Ch Mode 9" ;
@@ -1414,7 +1414,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm10>
+<http://dmtry3.github.io/zynthian-eka/tape#chm10>
     a lv2:Parameter ;
     lv2:symbol "chm10" ;
     rdfs:label "Ch Mode 10" ;
@@ -1423,7 +1423,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm11>
+<http://dmtry3.github.io/zynthian-eka/tape#chm11>
     a lv2:Parameter ;
     lv2:symbol "chm11" ;
     rdfs:label "Ch Mode 11" ;
@@ -1432,7 +1432,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm12>
+<http://dmtry3.github.io/zynthian-eka/tape#chm12>
     a lv2:Parameter ;
     lv2:symbol "chm12" ;
     rdfs:label "Ch Mode 12" ;
@@ -1441,7 +1441,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm13>
+<http://dmtry3.github.io/zynthian-eka/tape#chm13>
     a lv2:Parameter ;
     lv2:symbol "chm13" ;
     rdfs:label "Ch Mode 13" ;
@@ -1450,7 +1450,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm14>
+<http://dmtry3.github.io/zynthian-eka/tape#chm14>
     a lv2:Parameter ;
     lv2:symbol "chm14" ;
     rdfs:label "Ch Mode 14" ;
@@ -1459,7 +1459,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm15>
+<http://dmtry3.github.io/zynthian-eka/tape#chm15>
     a lv2:Parameter ;
     lv2:symbol "chm15" ;
     rdfs:label "Ch Mode 15" ;
@@ -1468,7 +1468,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm16>
+<http://dmtry3.github.io/zynthian-eka/tape#chm16>
     a lv2:Parameter ;
     lv2:symbol "chm16" ;
     rdfs:label "Ch Mode 16" ;
@@ -1477,7 +1477,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm17>
+<http://dmtry3.github.io/zynthian-eka/tape#chm17>
     a lv2:Parameter ;
     lv2:symbol "chm17" ;
     rdfs:label "Ch Mode 17" ;
@@ -1486,7 +1486,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm18>
+<http://dmtry3.github.io/zynthian-eka/tape#chm18>
     a lv2:Parameter ;
     lv2:symbol "chm18" ;
     rdfs:label "Ch Mode 18" ;
@@ -1495,7 +1495,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm19>
+<http://dmtry3.github.io/zynthian-eka/tape#chm19>
     a lv2:Parameter ;
     lv2:symbol "chm19" ;
     rdfs:label "Ch Mode 19" ;
@@ -1504,7 +1504,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm20>
+<http://dmtry3.github.io/zynthian-eka/tape#chm20>
     a lv2:Parameter ;
     lv2:symbol "chm20" ;
     rdfs:label "Ch Mode 20" ;
@@ -1513,7 +1513,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm21>
+<http://dmtry3.github.io/zynthian-eka/tape#chm21>
     a lv2:Parameter ;
     lv2:symbol "chm21" ;
     rdfs:label "Ch Mode 21" ;
@@ -1522,7 +1522,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm22>
+<http://dmtry3.github.io/zynthian-eka/tape#chm22>
     a lv2:Parameter ;
     lv2:symbol "chm22" ;
     rdfs:label "Ch Mode 22" ;
@@ -1531,7 +1531,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm23>
+<http://dmtry3.github.io/zynthian-eka/tape#chm23>
     a lv2:Parameter ;
     lv2:symbol "chm23" ;
     rdfs:label "Ch Mode 23" ;
@@ -1540,7 +1540,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm24>
+<http://dmtry3.github.io/zynthian-eka/tape#chm24>
     a lv2:Parameter ;
     lv2:symbol "chm24" ;
     rdfs:label "Ch Mode 24" ;
@@ -1549,7 +1549,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm25>
+<http://dmtry3.github.io/zynthian-eka/tape#chm25>
     a lv2:Parameter ;
     lv2:symbol "chm25" ;
     rdfs:label "Ch Mode 25" ;
@@ -1558,7 +1558,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm26>
+<http://dmtry3.github.io/zynthian-eka/tape#chm26>
     a lv2:Parameter ;
     lv2:symbol "chm26" ;
     rdfs:label "Ch Mode 26" ;
@@ -1567,7 +1567,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm27>
+<http://dmtry3.github.io/zynthian-eka/tape#chm27>
     a lv2:Parameter ;
     lv2:symbol "chm27" ;
     rdfs:label "Ch Mode 27" ;
@@ -1576,7 +1576,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm28>
+<http://dmtry3.github.io/zynthian-eka/tape#chm28>
     a lv2:Parameter ;
     lv2:symbol "chm28" ;
     rdfs:label "Ch Mode 28" ;
@@ -1585,7 +1585,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm29>
+<http://dmtry3.github.io/zynthian-eka/tape#chm29>
     a lv2:Parameter ;
     lv2:symbol "chm29" ;
     rdfs:label "Ch Mode 29" ;
@@ -1594,7 +1594,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm30>
+<http://dmtry3.github.io/zynthian-eka/tape#chm30>
     a lv2:Parameter ;
     lv2:symbol "chm30" ;
     rdfs:label "Ch Mode 30" ;
@@ -1603,7 +1603,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm31>
+<http://dmtry3.github.io/zynthian-eka/tape#chm31>
     a lv2:Parameter ;
     lv2:symbol "chm31" ;
     rdfs:label "Ch Mode 31" ;
@@ -1612,7 +1612,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm32>
+<http://dmtry3.github.io/zynthian-eka/tape#chm32>
     a lv2:Parameter ;
     lv2:symbol "chm32" ;
     rdfs:label "Ch Mode 32" ;
@@ -1621,7 +1621,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm33>
+<http://dmtry3.github.io/zynthian-eka/tape#chm33>
     a lv2:Parameter ;
     lv2:symbol "chm33" ;
     rdfs:label "Ch Mode 33" ;
@@ -1630,7 +1630,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm34>
+<http://dmtry3.github.io/zynthian-eka/tape#chm34>
     a lv2:Parameter ;
     lv2:symbol "chm34" ;
     rdfs:label "Ch Mode 34" ;
@@ -1639,7 +1639,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm35>
+<http://dmtry3.github.io/zynthian-eka/tape#chm35>
     a lv2:Parameter ;
     lv2:symbol "chm35" ;
     rdfs:label "Ch Mode 35" ;
@@ -1648,7 +1648,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#chm36>
+<http://dmtry3.github.io/zynthian-eka/tape#chm36>
     a lv2:Parameter ;
     lv2:symbol "chm36" ;
     rdfs:label "Ch Mode 36" ;
@@ -1657,7 +1657,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#mst_db>
+<http://dmtry3.github.io/zynthian-eka/tape#mst_db>
     a lv2:Parameter ;
     lv2:symbol "mst_db" ;
     rdfs:label "Master dB" ;
@@ -1666,7 +1666,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#limiter>
+<http://dmtry3.github.io/zynthian-eka/tape#limiter>
     a lv2:Parameter ;
     lv2:symbol "limiter" ;
     rdfs:label "Limiter" ;
@@ -1675,7 +1675,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#tmute>
+<http://dmtry3.github.io/zynthian-eka/tape#tmute>
     a lv2:Parameter ;
     lv2:symbol "tmute" ;
     rdfs:label "Track Mute" ;
@@ -1685,7 +1685,7 @@
     lv2:portProperty pprops:notOnGUI .
 
 # Скорость (этап 5): ручная скорость 36 дорожек (сетка до 6×6), плавная смена темпа, привязка, плавный ход, сброс.
-<urn:audiolooper:looper#tempo_glide>
+<http://dmtry3.github.io/zynthian-eka/tape#tempo_glide>
     a lv2:Parameter ;
     lv2:symbol "tempo_glide" ;
     rdfs:label "Tempo Glide" ;
@@ -1694,7 +1694,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd_snap>
+<http://dmtry3.github.io/zynthian-eka/tape#spd_snap>
     a lv2:Parameter ;
     lv2:symbol "spd_snap" ;
     rdfs:label "Speed Snap" ;
@@ -1703,7 +1703,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd_glide>
+<http://dmtry3.github.io/zynthian-eka/tape#spd_glide>
     a lv2:Parameter ;
     lv2:symbol "spd_glide" ;
     rdfs:label "Speed Glide" ;
@@ -1712,7 +1712,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd1>
+<http://dmtry3.github.io/zynthian-eka/tape#spd1>
     a lv2:Parameter ;
     lv2:symbol "spd1" ;
     rdfs:label "Speed 1" ;
@@ -1721,7 +1721,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd2>
+<http://dmtry3.github.io/zynthian-eka/tape#spd2>
     a lv2:Parameter ;
     lv2:symbol "spd2" ;
     rdfs:label "Speed 2" ;
@@ -1730,7 +1730,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd3>
+<http://dmtry3.github.io/zynthian-eka/tape#spd3>
     a lv2:Parameter ;
     lv2:symbol "spd3" ;
     rdfs:label "Speed 3" ;
@@ -1739,7 +1739,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd4>
+<http://dmtry3.github.io/zynthian-eka/tape#spd4>
     a lv2:Parameter ;
     lv2:symbol "spd4" ;
     rdfs:label "Speed 4" ;
@@ -1748,7 +1748,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd5>
+<http://dmtry3.github.io/zynthian-eka/tape#spd5>
     a lv2:Parameter ;
     lv2:symbol "spd5" ;
     rdfs:label "Speed 5" ;
@@ -1757,7 +1757,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd6>
+<http://dmtry3.github.io/zynthian-eka/tape#spd6>
     a lv2:Parameter ;
     lv2:symbol "spd6" ;
     rdfs:label "Speed 6" ;
@@ -1766,7 +1766,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd7>
+<http://dmtry3.github.io/zynthian-eka/tape#spd7>
     a lv2:Parameter ;
     lv2:symbol "spd7" ;
     rdfs:label "Speed 7" ;
@@ -1775,7 +1775,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd8>
+<http://dmtry3.github.io/zynthian-eka/tape#spd8>
     a lv2:Parameter ;
     lv2:symbol "spd8" ;
     rdfs:label "Speed 8" ;
@@ -1784,7 +1784,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd9>
+<http://dmtry3.github.io/zynthian-eka/tape#spd9>
     a lv2:Parameter ;
     lv2:symbol "spd9" ;
     rdfs:label "Speed 9" ;
@@ -1793,7 +1793,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd10>
+<http://dmtry3.github.io/zynthian-eka/tape#spd10>
     a lv2:Parameter ;
     lv2:symbol "spd10" ;
     rdfs:label "Speed 10" ;
@@ -1802,7 +1802,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd11>
+<http://dmtry3.github.io/zynthian-eka/tape#spd11>
     a lv2:Parameter ;
     lv2:symbol "spd11" ;
     rdfs:label "Speed 11" ;
@@ -1811,7 +1811,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd12>
+<http://dmtry3.github.io/zynthian-eka/tape#spd12>
     a lv2:Parameter ;
     lv2:symbol "spd12" ;
     rdfs:label "Speed 12" ;
@@ -1820,7 +1820,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd13>
+<http://dmtry3.github.io/zynthian-eka/tape#spd13>
     a lv2:Parameter ;
     lv2:symbol "spd13" ;
     rdfs:label "Speed 13" ;
@@ -1829,7 +1829,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd14>
+<http://dmtry3.github.io/zynthian-eka/tape#spd14>
     a lv2:Parameter ;
     lv2:symbol "spd14" ;
     rdfs:label "Speed 14" ;
@@ -1838,7 +1838,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd15>
+<http://dmtry3.github.io/zynthian-eka/tape#spd15>
     a lv2:Parameter ;
     lv2:symbol "spd15" ;
     rdfs:label "Speed 15" ;
@@ -1847,7 +1847,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd16>
+<http://dmtry3.github.io/zynthian-eka/tape#spd16>
     a lv2:Parameter ;
     lv2:symbol "spd16" ;
     rdfs:label "Speed 16" ;
@@ -1856,7 +1856,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd17>
+<http://dmtry3.github.io/zynthian-eka/tape#spd17>
     a lv2:Parameter ;
     lv2:symbol "spd17" ;
     rdfs:label "Speed 17" ;
@@ -1865,7 +1865,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd18>
+<http://dmtry3.github.io/zynthian-eka/tape#spd18>
     a lv2:Parameter ;
     lv2:symbol "spd18" ;
     rdfs:label "Speed 18" ;
@@ -1874,7 +1874,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd19>
+<http://dmtry3.github.io/zynthian-eka/tape#spd19>
     a lv2:Parameter ;
     lv2:symbol "spd19" ;
     rdfs:label "Speed 19" ;
@@ -1883,7 +1883,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd20>
+<http://dmtry3.github.io/zynthian-eka/tape#spd20>
     a lv2:Parameter ;
     lv2:symbol "spd20" ;
     rdfs:label "Speed 20" ;
@@ -1892,7 +1892,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd21>
+<http://dmtry3.github.io/zynthian-eka/tape#spd21>
     a lv2:Parameter ;
     lv2:symbol "spd21" ;
     rdfs:label "Speed 21" ;
@@ -1901,7 +1901,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd22>
+<http://dmtry3.github.io/zynthian-eka/tape#spd22>
     a lv2:Parameter ;
     lv2:symbol "spd22" ;
     rdfs:label "Speed 22" ;
@@ -1910,7 +1910,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd23>
+<http://dmtry3.github.io/zynthian-eka/tape#spd23>
     a lv2:Parameter ;
     lv2:symbol "spd23" ;
     rdfs:label "Speed 23" ;
@@ -1919,7 +1919,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd24>
+<http://dmtry3.github.io/zynthian-eka/tape#spd24>
     a lv2:Parameter ;
     lv2:symbol "spd24" ;
     rdfs:label "Speed 24" ;
@@ -1928,7 +1928,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd25>
+<http://dmtry3.github.io/zynthian-eka/tape#spd25>
     a lv2:Parameter ;
     lv2:symbol "spd25" ;
     rdfs:label "Speed 25" ;
@@ -1937,7 +1937,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd26>
+<http://dmtry3.github.io/zynthian-eka/tape#spd26>
     a lv2:Parameter ;
     lv2:symbol "spd26" ;
     rdfs:label "Speed 26" ;
@@ -1946,7 +1946,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd27>
+<http://dmtry3.github.io/zynthian-eka/tape#spd27>
     a lv2:Parameter ;
     lv2:symbol "spd27" ;
     rdfs:label "Speed 27" ;
@@ -1955,7 +1955,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd28>
+<http://dmtry3.github.io/zynthian-eka/tape#spd28>
     a lv2:Parameter ;
     lv2:symbol "spd28" ;
     rdfs:label "Speed 28" ;
@@ -1964,7 +1964,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd29>
+<http://dmtry3.github.io/zynthian-eka/tape#spd29>
     a lv2:Parameter ;
     lv2:symbol "spd29" ;
     rdfs:label "Speed 29" ;
@@ -1973,7 +1973,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd30>
+<http://dmtry3.github.io/zynthian-eka/tape#spd30>
     a lv2:Parameter ;
     lv2:symbol "spd30" ;
     rdfs:label "Speed 30" ;
@@ -1982,7 +1982,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd31>
+<http://dmtry3.github.io/zynthian-eka/tape#spd31>
     a lv2:Parameter ;
     lv2:symbol "spd31" ;
     rdfs:label "Speed 31" ;
@@ -1991,7 +1991,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd32>
+<http://dmtry3.github.io/zynthian-eka/tape#spd32>
     a lv2:Parameter ;
     lv2:symbol "spd32" ;
     rdfs:label "Speed 32" ;
@@ -2000,7 +2000,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd33>
+<http://dmtry3.github.io/zynthian-eka/tape#spd33>
     a lv2:Parameter ;
     lv2:symbol "spd33" ;
     rdfs:label "Speed 33" ;
@@ -2009,7 +2009,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd34>
+<http://dmtry3.github.io/zynthian-eka/tape#spd34>
     a lv2:Parameter ;
     lv2:symbol "spd34" ;
     rdfs:label "Speed 34" ;
@@ -2018,7 +2018,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd35>
+<http://dmtry3.github.io/zynthian-eka/tape#spd35>
     a lv2:Parameter ;
     lv2:symbol "spd35" ;
     rdfs:label "Speed 35" ;
@@ -2027,7 +2027,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#spd36>
+<http://dmtry3.github.io/zynthian-eka/tape#spd36>
     a lv2:Parameter ;
     lv2:symbol "spd36" ;
     rdfs:label "Speed 36" ;
@@ -2036,7 +2036,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#sreset>
+<http://dmtry3.github.io/zynthian-eka/tape#sreset>
     a lv2:Parameter ;
     lv2:symbol "sreset" ;
     rdfs:label "Speed Reset" ;
@@ -2046,7 +2046,7 @@
     lv2:portProperty pprops:notOnGUI .
 
 # Этап 6: пороги жестов, компенсация задержки (мс).
-<urn:audiolooper:looper#hold_ms>
+<http://dmtry3.github.io/zynthian-eka/tape#hold_ms>
     a lv2:Parameter ;
     lv2:symbol "hold_ms" ;
     rdfs:label "Hold Time" ;
@@ -2055,7 +2055,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#reset_ms>
+<http://dmtry3.github.io/zynthian-eka/tape#reset_ms>
     a lv2:Parameter ;
     lv2:symbol "reset_ms" ;
     rdfs:label "Reset Hold Time" ;
@@ -2064,7 +2064,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#latency>
+<http://dmtry3.github.io/zynthian-eka/tape#latency>
     a lv2:Parameter ;
     lv2:symbol "latency" ;
     rdfs:label "Latency Comp" ;
@@ -2073,7 +2073,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:audiolooper:looper#pool_mb>
+<http://dmtry3.github.io/zynthian-eka/tape#pool_mb>
     a lv2:Parameter ;
     lv2:symbol "pool_mb" ;
     rdfs:label "Memory Pool MB" ;

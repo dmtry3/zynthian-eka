@@ -1,4 +1,4 @@
-# zynthian-granular-sampler
+# Eka Mist (plugins/mist в монорепо zynthian-eka)
 
 ## Цель
 Полифонический гранулярный сэмплер: LV2-инструмент для Zynthian на Raspberry Pi 5 с сенсорным экраном.
@@ -8,7 +8,7 @@
 Полное ТЗ: `docs/TZ.md`. Прочитай его перед началом работы.
 
 ## Образцы
-`../zynthian-generative-arp` и `../zynthian-midi-looper`: мои рабочие LV2-плагины на том же стеке.
+`../bloom` (Eka Bloom) и `../roll` (Eka Roll): мои рабочие LV2-плагины на том же стеке.
 Перед тем как писать новое, смотри, как там сделано: .ttl-файлы, порты и контроллеры, виджет,
 скрипты сборки и установки, сохранение значений. Копируй подход, не изобретай заново.
 `../midi-looper` к проекту НЕ относится (это прошивка для ESP32), не смотри туда.
@@ -37,15 +37,15 @@ Pi 5 не мощный компьютер, а плагин работает в �
 - Виджет работает на том же Pi: форма волны рисуется один раз, перерисовываются только метки зёрен.
 
 ## Сборка и установка
-По образцу `zynthian-generative-arp`: без Makefile, скрипты в `scripts/`.
-- Плагин: бандл `granular_sampler.lv2`, имя в Zynthian «Granular Sampler»,
-  виджет `ui/zynthian_widget_granular_sampler.py` (Zynthian находит его по имени плагина).
+По образцу `../bloom`: без Makefile, скрипты в `scripts/`.
+- Плагин: бандл `eka-mist.lv2`, имя в Zynthian «Eka Mist»,
+  виджет `ui/zynthian_widget_eka_mist.py` (Zynthian находит его по имени плагина).
 - Установка на Zynthian: сборка на устройстве и ссылки в `/usr/local/lib/lv2` и `zyngui/widgets_user`.
-- Свои пресеты Zynthian (jalv) пишет в `zynthian-my-data/presets/lv2/Granular_Sampler.presets.lv2/`.
+- Свои пресеты Zynthian (jalv) пишет в `zynthian-my-data/presets/lv2/Eka_Mist.presets.lv2/`.
   «New bank» дописывает банк в его `manifest.ttl`, но папку не создаёт (её создаёт только jalv при первом
   сохранении), поэтому без неё сохранение в новый банк молча падает. `install.sh` создаёт папку и manifest
-  с префиксами, если их нет (как в `zynthian-generative-arp`).
-- Свои сэмплы: пустая папка `files/Samples/granular-sampler-user` (создаёт `install.sh`).
+  с префиксами, если их нет (как в `../bloom`).
+- Свои сэмплы: пустая папка `files/Samples/eka-mist-user` (создаёт `install.sh`).
 
 ## План этапов
 1. Каркас: загрузка файла в фоновом потоке, сохранение пути в снапшоте, форма волны в виджете.

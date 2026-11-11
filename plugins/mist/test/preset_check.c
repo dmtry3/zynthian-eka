@@ -2,7 +2,7 @@
  * preset, the rest through State restore. Each preset plays a chord (one note for mono presets), with the
  * transport rolling at 140 BPM. Prints peak and loudness, fails on silence, NaN or a missing file, and writes
  * <out dir>/<preset id>.wav to listen to.
- * Usage: preset_check <granular_sampler.so> <presets.ttl> <samples dir> [out dir] */
+ * Usage: preset_check <eka_mist.so> <presets.ttl> <samples dir> [out dir] */
 #include <dlfcn.h>
 #include <lv2/atom/atom.h>
 #include <lv2/atom/forge.h>
@@ -19,8 +19,8 @@
 #define SR 48000
 #define NFR 256
 #define NCTL 24
-#define URI "urn:granularsampler:sampler"
-#define SAMPLES_URI "file:///zynthian/zynthian-my-data/files/Samples/granular-sampler/"
+#define URI "http://dmtry3.github.io/zynthian-eka/mist"
+#define SAMPLES_URI "file:///zynthian/zynthian-my-data/files/Samples/eka-mist/"
 
 static int fails = 0;
 

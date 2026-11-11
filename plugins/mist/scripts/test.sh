@@ -24,8 +24,8 @@ cd "$ROOT/build_test"
 ./test_sample
 ./test_grain
 ./test_stress "${STRESS:-30}"
-./test_plugin "$ROOT/build/granular_sampler.lv2/granular_sampler.so"
+./test_plugin "$ROOT/build/eka-mist.lv2/eka_mist.so"
 # every factory preset loads its sample and plays; renders in build_test/presets/ to listen to
 mkdir -p "$ROOT/build_test/presets"
-./preset_check "$ROOT/build/granular_sampler.lv2/granular_sampler.so" "$ROOT/build/granular_sampler.lv2/presets.ttl" \
+./preset_check "$ROOT/build/eka-mist.lv2/eka_mist.so" "$ROOT/build/eka-mist.lv2/presets.ttl" \
     "$ROOT/samples" "$ROOT/build_test/presets"

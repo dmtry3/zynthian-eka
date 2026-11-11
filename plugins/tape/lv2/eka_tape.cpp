@@ -1,4 +1,4 @@
-// Audio Looper: тонкая LV2-обёртка над ядром из core/.
+// Eka Tape: тонкая LV2-обёртка над ядром из core/.
 // Порты и контроллеры-действия (тап и удержание), темп из time:Position (запасной путь — MIDI-клок),
 // настройки как LV2-параметры (patch:Set, сохраняются через state), undo/redo через LV2 worker.
 #include <cmath>
@@ -26,7 +26,7 @@
 #include "../core/looper.h"
 #include "../core/tempo.h"
 
-#define AL_URI "urn:audiolooper:looper"
+#define AL_URI "http://dmtry3.github.io/zynthian-eka/tape"
 
 namespace {
 
@@ -34,7 +34,7 @@ using namespace alp;
 
 constexpr int kPoolMbDefault = 2048;  // пул при загрузке: 2 ГБ по ТЗ; настройка pool_mb меняет его на ходу
 
-// Порядок совпадает с lv2:index в audio_looper.ttl.
+// Порядок совпадает с lv2:index в eka_tape.ttl.
 // Входные контроллеры идут первыми (0..17): Zynthian нумерует LV2-параметры сразу после
 // их количества, и порт с бо́льшим номером затёрся бы параметром (так пропадала страница Mix).
 enum Port : uint32_t {
@@ -105,7 +105,7 @@ const ButtonDef kDefs[kButtons] = {
     {A_W_MIXER, A_NONE},
 };
 
-// Настройки и микшер: LV2-параметры (patch:Set), сохраняются в снапшотах. Порядок как в audio_looper.ttl.
+// Настройки и микшер: LV2-параметры (patch:Set), сохраняются в снапшотах. Порядок как в eka_tape.ttl.
 enum Param {
   PR_GRID,  // первым: при загрузке снапшота сетка ставится раньше микшера
   PR_REC_ORDER, PR_MODE, PR_LEN1, PR_LEN6 = PR_LEN1 + kMaxSlots - 1, PR_FADE_OUT, PR_FADE_IN, PR_REV, PR_MUTE_Q,
@@ -188,7 +188,7 @@ struct Plugin {
   LV2_Atom_Forge forge;
   LV2_Worker_Schedule* schedule = nullptr;
   Looper* looper = nullptr;
-  PeakShm* peaks = nullptr;  // общая память с виджетом: /dev/shm/audio_looper_<pid>
+  PeakShm* peaks = nullptr;  // общая память с виджетом: /dev/shm/eka_tape_<pid>
   char peaks_path[64] = {};
   Button buttons[kButtons];
   TempoClock clock;
@@ -563,7 +563,7 @@ LV2_Handle instantiate(const LV2_Descriptor*, double rate, const char*, const LV
   pl->apply_all();
 
   // Пики волн для виджета: файл в /dev/shm, виджет находит его по pid процесса jalv.
-  std::snprintf(pl->peaks_path, sizeof pl->peaks_path, "/dev/shm/audio_looper_%d", (int)getpid());
+  std::snprintf(pl->peaks_path, sizeof pl->peaks_path, "/dev/shm/eka_tape_%d", (int)getpid());
   int fd = open(pl->peaks_path, O_RDWR | O_CREAT | O_TRUNC, 0644);
   if (fd >= 0) {
     if (ftruncate(fd, (off_t)sizeof(PeakShm)) == 0) {

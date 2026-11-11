@@ -1,4 +1,4 @@
-# Generative Arp для Zynthian
+# Eka Bloom для Zynthian
 
 [English](README.md) · **Русский**
 
@@ -16,14 +16,14 @@ LV2 MIDI-плагин, генеративный арпеджиатор для [Z
 На Zynthian (собирается прямо на устройстве):
 
 ```bash
-git clone https://github.com/dmtry3/zynthian-generative-arp.git
-cd zynthian-generative-arp
+git clone https://github.com/dmtry3/zynthian-eka.git
+cd zynthian-eka/plugins/bloom
 sudo ./scripts/install.sh
 sudo systemctl restart zynthian
 ```
 
 `install.sh` собирает плагин и ставит две ссылки:
-- `/usr/local/lib/lv2/generative_arp.lv2` → `build/generative_arp.lv2`;
+- `/usr/local/lib/lv2/eka-bloom.lv2` → `build/eka-bloom.lv2`;
 - виджет в `/zynthian/zynthian-ui/zyngui/widgets_user/`.
 
 Ещё он обновляет кэш списка пресетов Zynthian для этого плагина. Больше в Zynthian ничего не меняется.
@@ -35,7 +35,7 @@ sudo systemctl restart zynthian
 git pull && sudo ./scripts/install.sh && sudo systemctl restart zynthian
 ```
 
-В Zynthian добавь **Generative Arp** в цепочку как MIDI tool перед синтом. Он будет в категории *Other*:
+В Zynthian добавь **Eka Bloom** в цепочку как MIDI tool перед синтом. Он будет в категории *Other*:
 плагин не может задать категорию сам, её можно поменять в webconf → Engines.
 
 ## Как играет
@@ -230,7 +230,7 @@ Latch удобно повесить на кнопку MIDI-контроллер�
 Нужны `gcc`, `pkg-config`, `lv2-dev` (и `python3-tk` для проверки виджета).
 
 ```bash
-./scripts/build.sh               # build/generative_arp.lv2
+./scripts/build.sh               # build/eka-bloom.lv2
 ./scripts/test.sh                # тесты логики арпеджиатора (src/arp_core.c, без LV2)
 python3 test/widget_preview.py   # сценарии касаний виджета; --show открывает окно
 python3 scripts/gen_presets.py   # пересоздать lv2/presets.ttl и lv2/manifest.ttl

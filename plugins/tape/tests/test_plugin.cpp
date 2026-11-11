@@ -2,7 +2,7 @@
 #include <cstdio>
 #include <initializer_list>
 
-#include "../lv2/audio_looper.cpp"
+#include "../lv2/eka_tape.cpp"
 
 static int g_fail = 0, g_pass = 0;
 #define CHECK(cond)                                                \

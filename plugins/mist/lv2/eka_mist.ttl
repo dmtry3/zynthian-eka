@@ -14,17 +14,17 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
 # Knob pages, in this order (higher displayPriority first). Later stages add Pitch, Voice (full), Filter, Mod.
-<urn:granularsampler:sampler#g_position> a pg:Group ; lv2:symbol "g_position" ; lv2:name "Position" ; lv2:index 0 ; lv2:displayPriority 60 .
-<urn:granularsampler:sampler#g_grain> a pg:Group ; lv2:symbol "g_grain" ; lv2:name "Grain" ; lv2:index 1 ; lv2:displayPriority 50 .
-<urn:granularsampler:sampler#g_pitch> a pg:Group ; lv2:symbol "g_pitch" ; lv2:name "Pitch" ; lv2:index 2 ; lv2:displayPriority 40 .
-<urn:granularsampler:sampler#g_voice> a pg:Group ; lv2:symbol "g_voice" ; lv2:name "Voice" ; lv2:index 3 ; lv2:displayPriority 30 .
-<urn:granularsampler:sampler#g_filter> a pg:Group ; lv2:symbol "g_filter" ; lv2:name "Filter" ; lv2:index 4 ; lv2:displayPriority 20 .
-<urn:granularsampler:sampler#g_mod> a pg:Group ; lv2:symbol "g_mod" ; lv2:name "Mod" ; lv2:index 5 ; lv2:displayPriority 10 .
+<http://dmtry3.github.io/zynthian-eka/mist#g_position> a pg:Group ; lv2:symbol "g_position" ; lv2:name "Position" ; lv2:index 0 ; lv2:displayPriority 60 .
+<http://dmtry3.github.io/zynthian-eka/mist#g_grain> a pg:Group ; lv2:symbol "g_grain" ; lv2:name "Grain" ; lv2:index 1 ; lv2:displayPriority 50 .
+<http://dmtry3.github.io/zynthian-eka/mist#g_pitch> a pg:Group ; lv2:symbol "g_pitch" ; lv2:name "Pitch" ; lv2:index 2 ; lv2:displayPriority 40 .
+<http://dmtry3.github.io/zynthian-eka/mist#g_voice> a pg:Group ; lv2:symbol "g_voice" ; lv2:name "Voice" ; lv2:index 3 ; lv2:displayPriority 30 .
+<http://dmtry3.github.io/zynthian-eka/mist#g_filter> a pg:Group ; lv2:symbol "g_filter" ; lv2:name "Filter" ; lv2:index 4 ; lv2:displayPriority 20 .
+<http://dmtry3.github.io/zynthian-eka/mist#g_mod> a pg:Group ; lv2:symbol "g_mod" ; lv2:name "Mod" ; lv2:index 5 ; lv2:displayPriority 10 .
 
 # Sample file: Zynthian shows its file selector for an atom:Path parameter (folders by mod:fileTypes).
 # notOnGUI: not on a knob page (that page would show Zynthian's audio_file widget instead of ours);
 # our widget opens the file selector with a tap.
-<urn:granularsampler:sampler#sample>
+<http://dmtry3.github.io/zynthian-eka/mist#sample>
     a lv2:Parameter ;
     lv2:symbol "sample" ;
     rdfs:label "Sample" ;
@@ -34,7 +34,7 @@
     lv2:portProperty pprops:notOnGUI .
 
 # Number of voices (1 = mono, 0 = mono with legato, shown as L): set in the widget (Grain tab), saved in the snapshot and in LV2 State.
-<urn:granularsampler:sampler#voices>
+<http://dmtry3.github.io/zynthian-eka/mist#voices>
     a lv2:Parameter ;
     lv2:symbol "voices" ;
     rdfs:label "Voices" ;
@@ -44,7 +44,7 @@
     lv2:portProperty pprops:notOnGUI .
 
 # Quantize scale and tonic: set in the widget (Pitch tab), saved in the snapshot and in LV2 State.
-<urn:granularsampler:sampler#scale>
+<http://dmtry3.github.io/zynthian-eka/mist#scale>
     a lv2:Parameter ;
     lv2:symbol "scale" ;
     rdfs:label "Scale" ;
@@ -54,7 +54,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#key>
+<http://dmtry3.github.io/zynthian-eka/mist#key>
     a lv2:Parameter ;
     lv2:symbol "key" ;
     rdfs:label "Key" ;
@@ -65,7 +65,7 @@
     lv2:portProperty pprops:notOnGUI .
 
 # Modulation settings and the 7 x 9 grid (cells -100..100 %): set in the widget (Mod tab).
-<urn:granularsampler:sampler#lfo1_shape>
+<http://dmtry3.github.io/zynthian-eka/mist#lfo1_shape>
     a lv2:Parameter ;
     lv2:symbol "lfo1_shape" ;
     rdfs:label "LFO 1 shape" ;
@@ -75,7 +75,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#lfo2_shape>
+<http://dmtry3.github.io/zynthian-eka/mist#lfo2_shape>
     a lv2:Parameter ;
     lv2:symbol "lfo2_shape" ;
     rdfs:label "LFO 2 shape" ;
@@ -85,7 +85,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#lfo1_sync>
+<http://dmtry3.github.io/zynthian-eka/mist#lfo1_sync>
     a lv2:Parameter ;
     lv2:symbol "lfo1_sync" ;
     rdfs:label "LFO 1 sync" ;
@@ -95,7 +95,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#lfo2_sync>
+<http://dmtry3.github.io/zynthian-eka/mist#lfo2_sync>
     a lv2:Parameter ;
     lv2:symbol "lfo2_sync" ;
     rdfs:label "LFO 2 sync" ;
@@ -105,7 +105,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#env1_shape>
+<http://dmtry3.github.io/zynthian-eka/mist#env1_shape>
     a lv2:Parameter ;
     lv2:symbol "env1_shape" ;
     rdfs:label "Env 1 shape" ;
@@ -114,7 +114,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#env2_shape>
+<http://dmtry3.github.io/zynthian-eka/mist#env2_shape>
     a lv2:Parameter ;
     lv2:symbol "env2_shape" ;
     rdfs:label "Env 2 shape" ;
@@ -123,7 +123,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#mark_start>
+<http://dmtry3.github.io/zynthian-eka/mist#mark_start>
     a lv2:Parameter ;
     lv2:symbol "mark_start" ;
     rdfs:label "Start marker 1/10000" ;
@@ -132,7 +132,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#mark_end>
+<http://dmtry3.github.io/zynthian-eka/mist#mark_end>
     a lv2:Parameter ;
     lv2:symbol "mark_end" ;
     rdfs:label "End marker 1/10000" ;
@@ -141,7 +141,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#gain>
+<http://dmtry3.github.io/zynthian-eka/mist#gain>
     a lv2:Parameter ;
     lv2:symbol "gain" ;
     rdfs:label "Sample gain 0.1 dB" ;
@@ -150,7 +150,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#root>
+<http://dmtry3.github.io/zynthian-eka/mist#root>
     a lv2:Parameter ;
     lv2:symbol "root" ;
     rdfs:label "Root note" ;
@@ -159,7 +159,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#tune>
+<http://dmtry3.github.io/zynthian-eka/mist#tune>
     a lv2:Parameter ;
     lv2:symbol "tune" ;
     rdfs:label "Root tune cents" ;
@@ -168,7 +168,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#bend_range>
+<http://dmtry3.github.io/zynthian-eka/mist#bend_range>
     a lv2:Parameter ;
     lv2:symbol "bend_range" ;
     rdfs:label "Bend range" ;
@@ -177,7 +177,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#glide>
+<http://dmtry3.github.io/zynthian-eka/mist#glide>
     a lv2:Parameter ;
     lv2:symbol "glide" ;
     rdfs:label "Glide ms" ;
@@ -186,7 +186,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#mod_depth>
+<http://dmtry3.github.io/zynthian-eka/mist#mod_depth>
     a lv2:Parameter ;
     lv2:symbol "mod_depth" ;
     rdfs:label "Mod Depth" ;
@@ -195,7 +195,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#filter_mix>
+<http://dmtry3.github.io/zynthian-eka/mist#filter_mix>
     a lv2:Parameter ;
     lv2:symbol "filter_mix" ;
     rdfs:label "Filter Mix %" ;
@@ -204,7 +204,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#vowel_lows>
+<http://dmtry3.github.io/zynthian-eka/mist#vowel_lows>
     a lv2:Parameter ;
     lv2:symbol "vowel_lows" ;
     rdfs:label "Vowel Lows %" ;
@@ -213,7 +213,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#vowel_highs>
+<http://dmtry3.github.io/zynthian-eka/mist#vowel_highs>
     a lv2:Parameter ;
     lv2:symbol "vowel_highs" ;
     rdfs:label "Vowel Highs %" ;
@@ -222,7 +222,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#filter_slope>
+<http://dmtry3.github.io/zynthian-eka/mist#filter_slope>
     a lv2:Parameter ;
     lv2:symbol "filter_slope" ;
     rdfs:label "Filter slope (LP HP BP)" ;
@@ -232,7 +232,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#lfo1_uni>
+<http://dmtry3.github.io/zynthian-eka/mist#lfo1_uni>
     a lv2:Parameter ;
     lv2:symbol "lfo1_uni" ;
     rdfs:label "LFO 1 polarity" ;
@@ -242,7 +242,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#lfo2_uni>
+<http://dmtry3.github.io/zynthian-eka/mist#lfo2_uni>
     a lv2:Parameter ;
     lv2:symbol "lfo2_uni" ;
     rdfs:label "LFO 2 polarity" ;
@@ -252,7 +252,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo1_position>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_position>
     a lv2:Parameter ;
     lv2:symbol "m_lfo1_position" ;
     rdfs:label "LFO1>Position" ;
@@ -261,7 +261,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo1_scan>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_scan>
     a lv2:Parameter ;
     lv2:symbol "m_lfo1_scan" ;
     rdfs:label "LFO1>Scan" ;
@@ -270,7 +270,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo1_spray>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_spray>
     a lv2:Parameter ;
     lv2:symbol "m_lfo1_spray" ;
     rdfs:label "LFO1>Spray" ;
@@ -279,7 +279,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo1_size>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_size>
     a lv2:Parameter ;
     lv2:symbol "m_lfo1_size" ;
     rdfs:label "LFO1>Size" ;
@@ -288,7 +288,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo1_density>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_density>
     a lv2:Parameter ;
     lv2:symbol "m_lfo1_density" ;
     rdfs:label "LFO1>Density" ;
@@ -297,7 +297,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo1_pitch>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_pitch>
     a lv2:Parameter ;
     lv2:symbol "m_lfo1_pitch" ;
     rdfs:label "LFO1>Pitch" ;
@@ -306,7 +306,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo1_pan>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_pan>
     a lv2:Parameter ;
     lv2:symbol "m_lfo1_pan" ;
     rdfs:label "LFO1>Pan" ;
@@ -315,7 +315,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo1_level>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_level>
     a lv2:Parameter ;
     lv2:symbol "m_lfo1_level" ;
     rdfs:label "LFO1>Level" ;
@@ -324,7 +324,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo1_cutoff>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_cutoff>
     a lv2:Parameter ;
     lv2:symbol "m_lfo1_cutoff" ;
     rdfs:label "LFO1>Cutoff" ;
@@ -333,7 +333,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo2_position>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_position>
     a lv2:Parameter ;
     lv2:symbol "m_lfo2_position" ;
     rdfs:label "LFO2>Position" ;
@@ -342,7 +342,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo2_scan>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_scan>
     a lv2:Parameter ;
     lv2:symbol "m_lfo2_scan" ;
     rdfs:label "LFO2>Scan" ;
@@ -351,7 +351,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo2_spray>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_spray>
     a lv2:Parameter ;
     lv2:symbol "m_lfo2_spray" ;
     rdfs:label "LFO2>Spray" ;
@@ -360,7 +360,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo2_size>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_size>
     a lv2:Parameter ;
     lv2:symbol "m_lfo2_size" ;
     rdfs:label "LFO2>Size" ;
@@ -369,7 +369,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo2_density>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_density>
     a lv2:Parameter ;
     lv2:symbol "m_lfo2_density" ;
     rdfs:label "LFO2>Density" ;
@@ -378,7 +378,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo2_pitch>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_pitch>
     a lv2:Parameter ;
     lv2:symbol "m_lfo2_pitch" ;
     rdfs:label "LFO2>Pitch" ;
@@ -387,7 +387,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo2_pan>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_pan>
     a lv2:Parameter ;
     lv2:symbol "m_lfo2_pan" ;
     rdfs:label "LFO2>Pan" ;
@@ -396,7 +396,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo2_level>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_level>
     a lv2:Parameter ;
     lv2:symbol "m_lfo2_level" ;
     rdfs:label "LFO2>Level" ;
@@ -405,7 +405,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_lfo2_cutoff>
+<http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_cutoff>
     a lv2:Parameter ;
     lv2:symbol "m_lfo2_cutoff" ;
     rdfs:label "LFO2>Cutoff" ;
@@ -414,7 +414,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env1_position>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env1_position>
     a lv2:Parameter ;
     lv2:symbol "m_env1_position" ;
     rdfs:label "Env1>Position" ;
@@ -423,7 +423,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env1_scan>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env1_scan>
     a lv2:Parameter ;
     lv2:symbol "m_env1_scan" ;
     rdfs:label "Env1>Scan" ;
@@ -432,7 +432,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env1_spray>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env1_spray>
     a lv2:Parameter ;
     lv2:symbol "m_env1_spray" ;
     rdfs:label "Env1>Spray" ;
@@ -441,7 +441,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env1_size>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env1_size>
     a lv2:Parameter ;
     lv2:symbol "m_env1_size" ;
     rdfs:label "Env1>Size" ;
@@ -450,7 +450,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env1_density>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env1_density>
     a lv2:Parameter ;
     lv2:symbol "m_env1_density" ;
     rdfs:label "Env1>Density" ;
@@ -459,7 +459,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env1_pitch>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env1_pitch>
     a lv2:Parameter ;
     lv2:symbol "m_env1_pitch" ;
     rdfs:label "Env1>Pitch" ;
@@ -468,7 +468,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env1_pan>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env1_pan>
     a lv2:Parameter ;
     lv2:symbol "m_env1_pan" ;
     rdfs:label "Env1>Pan" ;
@@ -477,7 +477,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env1_level>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env1_level>
     a lv2:Parameter ;
     lv2:symbol "m_env1_level" ;
     rdfs:label "Env1>Level" ;
@@ -486,7 +486,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env1_cutoff>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env1_cutoff>
     a lv2:Parameter ;
     lv2:symbol "m_env1_cutoff" ;
     rdfs:label "Env1>Cutoff" ;
@@ -495,7 +495,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env2_position>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env2_position>
     a lv2:Parameter ;
     lv2:symbol "m_env2_position" ;
     rdfs:label "Env2>Position" ;
@@ -504,7 +504,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env2_scan>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env2_scan>
     a lv2:Parameter ;
     lv2:symbol "m_env2_scan" ;
     rdfs:label "Env2>Scan" ;
@@ -513,7 +513,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env2_spray>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env2_spray>
     a lv2:Parameter ;
     lv2:symbol "m_env2_spray" ;
     rdfs:label "Env2>Spray" ;
@@ -522,7 +522,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env2_size>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env2_size>
     a lv2:Parameter ;
     lv2:symbol "m_env2_size" ;
     rdfs:label "Env2>Size" ;
@@ -531,7 +531,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env2_density>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env2_density>
     a lv2:Parameter ;
     lv2:symbol "m_env2_density" ;
     rdfs:label "Env2>Density" ;
@@ -540,7 +540,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env2_pitch>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env2_pitch>
     a lv2:Parameter ;
     lv2:symbol "m_env2_pitch" ;
     rdfs:label "Env2>Pitch" ;
@@ -549,7 +549,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env2_pan>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env2_pan>
     a lv2:Parameter ;
     lv2:symbol "m_env2_pan" ;
     rdfs:label "Env2>Pan" ;
@@ -558,7 +558,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env2_level>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env2_level>
     a lv2:Parameter ;
     lv2:symbol "m_env2_level" ;
     rdfs:label "Env2>Level" ;
@@ -567,7 +567,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_env2_cutoff>
+<http://dmtry3.github.io/zynthian-eka/mist#m_env2_cutoff>
     a lv2:Parameter ;
     lv2:symbol "m_env2_cutoff" ;
     rdfs:label "Env2>Cutoff" ;
@@ -576,7 +576,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_vel_position>
+<http://dmtry3.github.io/zynthian-eka/mist#m_vel_position>
     a lv2:Parameter ;
     lv2:symbol "m_vel_position" ;
     rdfs:label "Vel>Position" ;
@@ -585,7 +585,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_vel_scan>
+<http://dmtry3.github.io/zynthian-eka/mist#m_vel_scan>
     a lv2:Parameter ;
     lv2:symbol "m_vel_scan" ;
     rdfs:label "Vel>Scan" ;
@@ -594,7 +594,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_vel_spray>
+<http://dmtry3.github.io/zynthian-eka/mist#m_vel_spray>
     a lv2:Parameter ;
     lv2:symbol "m_vel_spray" ;
     rdfs:label "Vel>Spray" ;
@@ -603,7 +603,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_vel_size>
+<http://dmtry3.github.io/zynthian-eka/mist#m_vel_size>
     a lv2:Parameter ;
     lv2:symbol "m_vel_size" ;
     rdfs:label "Vel>Size" ;
@@ -612,7 +612,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_vel_density>
+<http://dmtry3.github.io/zynthian-eka/mist#m_vel_density>
     a lv2:Parameter ;
     lv2:symbol "m_vel_density" ;
     rdfs:label "Vel>Density" ;
@@ -621,7 +621,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_vel_pitch>
+<http://dmtry3.github.io/zynthian-eka/mist#m_vel_pitch>
     a lv2:Parameter ;
     lv2:symbol "m_vel_pitch" ;
     rdfs:label "Vel>Pitch" ;
@@ -630,7 +630,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_vel_pan>
+<http://dmtry3.github.io/zynthian-eka/mist#m_vel_pan>
     a lv2:Parameter ;
     lv2:symbol "m_vel_pan" ;
     rdfs:label "Vel>Pan" ;
@@ -639,7 +639,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_vel_level>
+<http://dmtry3.github.io/zynthian-eka/mist#m_vel_level>
     a lv2:Parameter ;
     lv2:symbol "m_vel_level" ;
     rdfs:label "Vel>Level" ;
@@ -648,7 +648,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_vel_cutoff>
+<http://dmtry3.github.io/zynthian-eka/mist#m_vel_cutoff>
     a lv2:Parameter ;
     lv2:symbol "m_vel_cutoff" ;
     rdfs:label "Vel>Cutoff" ;
@@ -657,7 +657,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_key_position>
+<http://dmtry3.github.io/zynthian-eka/mist#m_key_position>
     a lv2:Parameter ;
     lv2:symbol "m_key_position" ;
     rdfs:label "Key>Position" ;
@@ -666,7 +666,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_key_scan>
+<http://dmtry3.github.io/zynthian-eka/mist#m_key_scan>
     a lv2:Parameter ;
     lv2:symbol "m_key_scan" ;
     rdfs:label "Key>Scan" ;
@@ -675,7 +675,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_key_spray>
+<http://dmtry3.github.io/zynthian-eka/mist#m_key_spray>
     a lv2:Parameter ;
     lv2:symbol "m_key_spray" ;
     rdfs:label "Key>Spray" ;
@@ -684,7 +684,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_key_size>
+<http://dmtry3.github.io/zynthian-eka/mist#m_key_size>
     a lv2:Parameter ;
     lv2:symbol "m_key_size" ;
     rdfs:label "Key>Size" ;
@@ -693,7 +693,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_key_density>
+<http://dmtry3.github.io/zynthian-eka/mist#m_key_density>
     a lv2:Parameter ;
     lv2:symbol "m_key_density" ;
     rdfs:label "Key>Density" ;
@@ -702,7 +702,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_key_pitch>
+<http://dmtry3.github.io/zynthian-eka/mist#m_key_pitch>
     a lv2:Parameter ;
     lv2:symbol "m_key_pitch" ;
     rdfs:label "Key>Pitch" ;
@@ -711,7 +711,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_key_pan>
+<http://dmtry3.github.io/zynthian-eka/mist#m_key_pan>
     a lv2:Parameter ;
     lv2:symbol "m_key_pan" ;
     rdfs:label "Key>Pan" ;
@@ -720,7 +720,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_key_level>
+<http://dmtry3.github.io/zynthian-eka/mist#m_key_level>
     a lv2:Parameter ;
     lv2:symbol "m_key_level" ;
     rdfs:label "Key>Level" ;
@@ -729,7 +729,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_key_cutoff>
+<http://dmtry3.github.io/zynthian-eka/mist#m_key_cutoff>
     a lv2:Parameter ;
     lv2:symbol "m_key_cutoff" ;
     rdfs:label "Key>Cutoff" ;
@@ -738,7 +738,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_wheel_position>
+<http://dmtry3.github.io/zynthian-eka/mist#m_wheel_position>
     a lv2:Parameter ;
     lv2:symbol "m_wheel_position" ;
     rdfs:label "Wheel>Position" ;
@@ -747,7 +747,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_wheel_scan>
+<http://dmtry3.github.io/zynthian-eka/mist#m_wheel_scan>
     a lv2:Parameter ;
     lv2:symbol "m_wheel_scan" ;
     rdfs:label "Wheel>Scan" ;
@@ -756,7 +756,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_wheel_spray>
+<http://dmtry3.github.io/zynthian-eka/mist#m_wheel_spray>
     a lv2:Parameter ;
     lv2:symbol "m_wheel_spray" ;
     rdfs:label "Wheel>Spray" ;
@@ -765,7 +765,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_wheel_size>
+<http://dmtry3.github.io/zynthian-eka/mist#m_wheel_size>
     a lv2:Parameter ;
     lv2:symbol "m_wheel_size" ;
     rdfs:label "Wheel>Size" ;
@@ -774,7 +774,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_wheel_density>
+<http://dmtry3.github.io/zynthian-eka/mist#m_wheel_density>
     a lv2:Parameter ;
     lv2:symbol "m_wheel_density" ;
     rdfs:label "Wheel>Density" ;
@@ -783,7 +783,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_wheel_pitch>
+<http://dmtry3.github.io/zynthian-eka/mist#m_wheel_pitch>
     a lv2:Parameter ;
     lv2:symbol "m_wheel_pitch" ;
     rdfs:label "Wheel>Pitch" ;
@@ -792,7 +792,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_wheel_pan>
+<http://dmtry3.github.io/zynthian-eka/mist#m_wheel_pan>
     a lv2:Parameter ;
     lv2:symbol "m_wheel_pan" ;
     rdfs:label "Wheel>Pan" ;
@@ -801,7 +801,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_wheel_level>
+<http://dmtry3.github.io/zynthian-eka/mist#m_wheel_level>
     a lv2:Parameter ;
     lv2:symbol "m_wheel_level" ;
     rdfs:label "Wheel>Level" ;
@@ -810,7 +810,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_wheel_cutoff>
+<http://dmtry3.github.io/zynthian-eka/mist#m_wheel_cutoff>
     a lv2:Parameter ;
     lv2:symbol "m_wheel_cutoff" ;
     rdfs:label "Wheel>Cutoff" ;
@@ -819,7 +819,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_rnd_position>
+<http://dmtry3.github.io/zynthian-eka/mist#m_rnd_position>
     a lv2:Parameter ;
     lv2:symbol "m_rnd_position" ;
     rdfs:label "Rnd>Position" ;
@@ -828,7 +828,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_rnd_scan>
+<http://dmtry3.github.io/zynthian-eka/mist#m_rnd_scan>
     a lv2:Parameter ;
     lv2:symbol "m_rnd_scan" ;
     rdfs:label "Rnd>Scan" ;
@@ -837,7 +837,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_rnd_spray>
+<http://dmtry3.github.io/zynthian-eka/mist#m_rnd_spray>
     a lv2:Parameter ;
     lv2:symbol "m_rnd_spray" ;
     rdfs:label "Rnd>Spray" ;
@@ -846,7 +846,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_rnd_size>
+<http://dmtry3.github.io/zynthian-eka/mist#m_rnd_size>
     a lv2:Parameter ;
     lv2:symbol "m_rnd_size" ;
     rdfs:label "Rnd>Size" ;
@@ -855,7 +855,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_rnd_density>
+<http://dmtry3.github.io/zynthian-eka/mist#m_rnd_density>
     a lv2:Parameter ;
     lv2:symbol "m_rnd_density" ;
     rdfs:label "Rnd>Density" ;
@@ -864,7 +864,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_rnd_pitch>
+<http://dmtry3.github.io/zynthian-eka/mist#m_rnd_pitch>
     a lv2:Parameter ;
     lv2:symbol "m_rnd_pitch" ;
     rdfs:label "Rnd>Pitch" ;
@@ -873,7 +873,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_rnd_pan>
+<http://dmtry3.github.io/zynthian-eka/mist#m_rnd_pan>
     a lv2:Parameter ;
     lv2:symbol "m_rnd_pan" ;
     rdfs:label "Rnd>Pan" ;
@@ -882,7 +882,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_rnd_level>
+<http://dmtry3.github.io/zynthian-eka/mist#m_rnd_level>
     a lv2:Parameter ;
     lv2:symbol "m_rnd_level" ;
     rdfs:label "Rnd>Level" ;
@@ -891,7 +891,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#m_rnd_cutoff>
+<http://dmtry3.github.io/zynthian-eka/mist#m_rnd_cutoff>
     a lv2:Parameter ;
     lv2:symbol "m_rnd_cutoff" ;
     rdfs:label "Rnd>Cutoff" ;
@@ -900,7 +900,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_lfo1_lfo1_rate>
+<http://dmtry3.github.io/zynthian-eka/mist#x_lfo1_lfo1_rate>
     a lv2:Parameter ;
     lv2:symbol "x_lfo1_lfo1_rate" ;
     rdfs:label "LFO1>LFO1 Rate" ;
@@ -909,7 +909,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_lfo1_lfo2_rate>
+<http://dmtry3.github.io/zynthian-eka/mist#x_lfo1_lfo2_rate>
     a lv2:Parameter ;
     lv2:symbol "x_lfo1_lfo2_rate" ;
     rdfs:label "LFO1>LFO2 Rate" ;
@@ -918,7 +918,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_lfo1_lfo1_amt>
+<http://dmtry3.github.io/zynthian-eka/mist#x_lfo1_lfo1_amt>
     a lv2:Parameter ;
     lv2:symbol "x_lfo1_lfo1_amt" ;
     rdfs:label "LFO1>LFO1 Amt" ;
@@ -927,7 +927,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_lfo1_lfo2_amt>
+<http://dmtry3.github.io/zynthian-eka/mist#x_lfo1_lfo2_amt>
     a lv2:Parameter ;
     lv2:symbol "x_lfo1_lfo2_amt" ;
     rdfs:label "LFO1>LFO2 Amt" ;
@@ -936,7 +936,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_lfo1_env1_time>
+<http://dmtry3.github.io/zynthian-eka/mist#x_lfo1_env1_time>
     a lv2:Parameter ;
     lv2:symbol "x_lfo1_env1_time" ;
     rdfs:label "LFO1>Env1 Time" ;
@@ -945,7 +945,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_lfo1_env2_time>
+<http://dmtry3.github.io/zynthian-eka/mist#x_lfo1_env2_time>
     a lv2:Parameter ;
     lv2:symbol "x_lfo1_env2_time" ;
     rdfs:label "LFO1>Env2 Time" ;
@@ -954,7 +954,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_lfo2_lfo1_rate>
+<http://dmtry3.github.io/zynthian-eka/mist#x_lfo2_lfo1_rate>
     a lv2:Parameter ;
     lv2:symbol "x_lfo2_lfo1_rate" ;
     rdfs:label "LFO2>LFO1 Rate" ;
@@ -963,7 +963,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_lfo2_lfo2_rate>
+<http://dmtry3.github.io/zynthian-eka/mist#x_lfo2_lfo2_rate>
     a lv2:Parameter ;
     lv2:symbol "x_lfo2_lfo2_rate" ;
     rdfs:label "LFO2>LFO2 Rate" ;
@@ -972,7 +972,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_lfo2_lfo1_amt>
+<http://dmtry3.github.io/zynthian-eka/mist#x_lfo2_lfo1_amt>
     a lv2:Parameter ;
     lv2:symbol "x_lfo2_lfo1_amt" ;
     rdfs:label "LFO2>LFO1 Amt" ;
@@ -981,7 +981,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_lfo2_lfo2_amt>
+<http://dmtry3.github.io/zynthian-eka/mist#x_lfo2_lfo2_amt>
     a lv2:Parameter ;
     lv2:symbol "x_lfo2_lfo2_amt" ;
     rdfs:label "LFO2>LFO2 Amt" ;
@@ -990,7 +990,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_lfo2_env1_time>
+<http://dmtry3.github.io/zynthian-eka/mist#x_lfo2_env1_time>
     a lv2:Parameter ;
     lv2:symbol "x_lfo2_env1_time" ;
     rdfs:label "LFO2>Env1 Time" ;
@@ -999,7 +999,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_lfo2_env2_time>
+<http://dmtry3.github.io/zynthian-eka/mist#x_lfo2_env2_time>
     a lv2:Parameter ;
     lv2:symbol "x_lfo2_env2_time" ;
     rdfs:label "LFO2>Env2 Time" ;
@@ -1008,7 +1008,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_env1_lfo1_rate>
+<http://dmtry3.github.io/zynthian-eka/mist#x_env1_lfo1_rate>
     a lv2:Parameter ;
     lv2:symbol "x_env1_lfo1_rate" ;
     rdfs:label "Env1>LFO1 Rate" ;
@@ -1017,7 +1017,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_env1_lfo2_rate>
+<http://dmtry3.github.io/zynthian-eka/mist#x_env1_lfo2_rate>
     a lv2:Parameter ;
     lv2:symbol "x_env1_lfo2_rate" ;
     rdfs:label "Env1>LFO2 Rate" ;
@@ -1026,7 +1026,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_env1_lfo1_amt>
+<http://dmtry3.github.io/zynthian-eka/mist#x_env1_lfo1_amt>
     a lv2:Parameter ;
     lv2:symbol "x_env1_lfo1_amt" ;
     rdfs:label "Env1>LFO1 Amt" ;
@@ -1035,7 +1035,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_env1_lfo2_amt>
+<http://dmtry3.github.io/zynthian-eka/mist#x_env1_lfo2_amt>
     a lv2:Parameter ;
     lv2:symbol "x_env1_lfo2_amt" ;
     rdfs:label "Env1>LFO2 Amt" ;
@@ -1044,7 +1044,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_env1_env1_time>
+<http://dmtry3.github.io/zynthian-eka/mist#x_env1_env1_time>
     a lv2:Parameter ;
     lv2:symbol "x_env1_env1_time" ;
     rdfs:label "Env1>Env1 Time" ;
@@ -1053,7 +1053,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_env1_env2_time>
+<http://dmtry3.github.io/zynthian-eka/mist#x_env1_env2_time>
     a lv2:Parameter ;
     lv2:symbol "x_env1_env2_time" ;
     rdfs:label "Env1>Env2 Time" ;
@@ -1062,7 +1062,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_env2_lfo1_rate>
+<http://dmtry3.github.io/zynthian-eka/mist#x_env2_lfo1_rate>
     a lv2:Parameter ;
     lv2:symbol "x_env2_lfo1_rate" ;
     rdfs:label "Env2>LFO1 Rate" ;
@@ -1071,7 +1071,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_env2_lfo2_rate>
+<http://dmtry3.github.io/zynthian-eka/mist#x_env2_lfo2_rate>
     a lv2:Parameter ;
     lv2:symbol "x_env2_lfo2_rate" ;
     rdfs:label "Env2>LFO2 Rate" ;
@@ -1080,7 +1080,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_env2_lfo1_amt>
+<http://dmtry3.github.io/zynthian-eka/mist#x_env2_lfo1_amt>
     a lv2:Parameter ;
     lv2:symbol "x_env2_lfo1_amt" ;
     rdfs:label "Env2>LFO1 Amt" ;
@@ -1089,7 +1089,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_env2_lfo2_amt>
+<http://dmtry3.github.io/zynthian-eka/mist#x_env2_lfo2_amt>
     a lv2:Parameter ;
     lv2:symbol "x_env2_lfo2_amt" ;
     rdfs:label "Env2>LFO2 Amt" ;
@@ -1098,7 +1098,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_env2_env1_time>
+<http://dmtry3.github.io/zynthian-eka/mist#x_env2_env1_time>
     a lv2:Parameter ;
     lv2:symbol "x_env2_env1_time" ;
     rdfs:label "Env2>Env1 Time" ;
@@ -1107,7 +1107,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_env2_env2_time>
+<http://dmtry3.github.io/zynthian-eka/mist#x_env2_env2_time>
     a lv2:Parameter ;
     lv2:symbol "x_env2_env2_time" ;
     rdfs:label "Env2>Env2 Time" ;
@@ -1116,7 +1116,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_vel_lfo1_rate>
+<http://dmtry3.github.io/zynthian-eka/mist#x_vel_lfo1_rate>
     a lv2:Parameter ;
     lv2:symbol "x_vel_lfo1_rate" ;
     rdfs:label "Vel>LFO1 Rate" ;
@@ -1125,7 +1125,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_vel_lfo2_rate>
+<http://dmtry3.github.io/zynthian-eka/mist#x_vel_lfo2_rate>
     a lv2:Parameter ;
     lv2:symbol "x_vel_lfo2_rate" ;
     rdfs:label "Vel>LFO2 Rate" ;
@@ -1134,7 +1134,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_vel_lfo1_amt>
+<http://dmtry3.github.io/zynthian-eka/mist#x_vel_lfo1_amt>
     a lv2:Parameter ;
     lv2:symbol "x_vel_lfo1_amt" ;
     rdfs:label "Vel>LFO1 Amt" ;
@@ -1143,7 +1143,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_vel_lfo2_amt>
+<http://dmtry3.github.io/zynthian-eka/mist#x_vel_lfo2_amt>
     a lv2:Parameter ;
     lv2:symbol "x_vel_lfo2_amt" ;
     rdfs:label "Vel>LFO2 Amt" ;
@@ -1152,7 +1152,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_vel_env1_time>
+<http://dmtry3.github.io/zynthian-eka/mist#x_vel_env1_time>
     a lv2:Parameter ;
     lv2:symbol "x_vel_env1_time" ;
     rdfs:label "Vel>Env1 Time" ;
@@ -1161,7 +1161,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_vel_env2_time>
+<http://dmtry3.github.io/zynthian-eka/mist#x_vel_env2_time>
     a lv2:Parameter ;
     lv2:symbol "x_vel_env2_time" ;
     rdfs:label "Vel>Env2 Time" ;
@@ -1170,7 +1170,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_key_lfo1_rate>
+<http://dmtry3.github.io/zynthian-eka/mist#x_key_lfo1_rate>
     a lv2:Parameter ;
     lv2:symbol "x_key_lfo1_rate" ;
     rdfs:label "Key>LFO1 Rate" ;
@@ -1179,7 +1179,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_key_lfo2_rate>
+<http://dmtry3.github.io/zynthian-eka/mist#x_key_lfo2_rate>
     a lv2:Parameter ;
     lv2:symbol "x_key_lfo2_rate" ;
     rdfs:label "Key>LFO2 Rate" ;
@@ -1188,7 +1188,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_key_lfo1_amt>
+<http://dmtry3.github.io/zynthian-eka/mist#x_key_lfo1_amt>
     a lv2:Parameter ;
     lv2:symbol "x_key_lfo1_amt" ;
     rdfs:label "Key>LFO1 Amt" ;
@@ -1197,7 +1197,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_key_lfo2_amt>
+<http://dmtry3.github.io/zynthian-eka/mist#x_key_lfo2_amt>
     a lv2:Parameter ;
     lv2:symbol "x_key_lfo2_amt" ;
     rdfs:label "Key>LFO2 Amt" ;
@@ -1206,7 +1206,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_key_env1_time>
+<http://dmtry3.github.io/zynthian-eka/mist#x_key_env1_time>
     a lv2:Parameter ;
     lv2:symbol "x_key_env1_time" ;
     rdfs:label "Key>Env1 Time" ;
@@ -1215,7 +1215,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_key_env2_time>
+<http://dmtry3.github.io/zynthian-eka/mist#x_key_env2_time>
     a lv2:Parameter ;
     lv2:symbol "x_key_env2_time" ;
     rdfs:label "Key>Env2 Time" ;
@@ -1224,7 +1224,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_wheel_lfo1_rate>
+<http://dmtry3.github.io/zynthian-eka/mist#x_wheel_lfo1_rate>
     a lv2:Parameter ;
     lv2:symbol "x_wheel_lfo1_rate" ;
     rdfs:label "Wheel>LFO1 Rate" ;
@@ -1233,7 +1233,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_wheel_lfo2_rate>
+<http://dmtry3.github.io/zynthian-eka/mist#x_wheel_lfo2_rate>
     a lv2:Parameter ;
     lv2:symbol "x_wheel_lfo2_rate" ;
     rdfs:label "Wheel>LFO2 Rate" ;
@@ -1242,7 +1242,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_wheel_lfo1_amt>
+<http://dmtry3.github.io/zynthian-eka/mist#x_wheel_lfo1_amt>
     a lv2:Parameter ;
     lv2:symbol "x_wheel_lfo1_amt" ;
     rdfs:label "Wheel>LFO1 Amt" ;
@@ -1251,7 +1251,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_wheel_lfo2_amt>
+<http://dmtry3.github.io/zynthian-eka/mist#x_wheel_lfo2_amt>
     a lv2:Parameter ;
     lv2:symbol "x_wheel_lfo2_amt" ;
     rdfs:label "Wheel>LFO2 Amt" ;
@@ -1260,7 +1260,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_wheel_env1_time>
+<http://dmtry3.github.io/zynthian-eka/mist#x_wheel_env1_time>
     a lv2:Parameter ;
     lv2:symbol "x_wheel_env1_time" ;
     rdfs:label "Wheel>Env1 Time" ;
@@ -1269,7 +1269,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_wheel_env2_time>
+<http://dmtry3.github.io/zynthian-eka/mist#x_wheel_env2_time>
     a lv2:Parameter ;
     lv2:symbol "x_wheel_env2_time" ;
     rdfs:label "Wheel>Env2 Time" ;
@@ -1278,7 +1278,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_rnd_lfo1_rate>
+<http://dmtry3.github.io/zynthian-eka/mist#x_rnd_lfo1_rate>
     a lv2:Parameter ;
     lv2:symbol "x_rnd_lfo1_rate" ;
     rdfs:label "Rnd>LFO1 Rate" ;
@@ -1287,7 +1287,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_rnd_lfo2_rate>
+<http://dmtry3.github.io/zynthian-eka/mist#x_rnd_lfo2_rate>
     a lv2:Parameter ;
     lv2:symbol "x_rnd_lfo2_rate" ;
     rdfs:label "Rnd>LFO2 Rate" ;
@@ -1296,7 +1296,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_rnd_lfo1_amt>
+<http://dmtry3.github.io/zynthian-eka/mist#x_rnd_lfo1_amt>
     a lv2:Parameter ;
     lv2:symbol "x_rnd_lfo1_amt" ;
     rdfs:label "Rnd>LFO1 Amt" ;
@@ -1305,7 +1305,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_rnd_lfo2_amt>
+<http://dmtry3.github.io/zynthian-eka/mist#x_rnd_lfo2_amt>
     a lv2:Parameter ;
     lv2:symbol "x_rnd_lfo2_amt" ;
     rdfs:label "Rnd>LFO2 Amt" ;
@@ -1314,7 +1314,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_rnd_env1_time>
+<http://dmtry3.github.io/zynthian-eka/mist#x_rnd_env1_time>
     a lv2:Parameter ;
     lv2:symbol "x_rnd_env1_time" ;
     rdfs:label "Rnd>Env1 Time" ;
@@ -1323,7 +1323,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler#x_rnd_env2_time>
+<http://dmtry3.github.io/zynthian-eka/mist#x_rnd_env2_time>
     a lv2:Parameter ;
     lv2:symbol "x_rnd_env2_time" ;
     rdfs:label "Rnd>Env2 Time" ;
@@ -1332,16 +1332,16 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:granularsampler:sampler>
+<http://dmtry3.github.io/zynthian-eka/mist>
     a lv2:Plugin , lv2:InstrumentPlugin ;
-    doap:name "Granular Sampler" ;
+    doap:name "Eka Mist" ;
     lv2:minorVersion 13 ;
     lv2:microVersion 0 ;
     lv2:requiredFeature urid:map , work:schedule ;
     lv2:optionalFeature lv2:hardRTCapable , state:mapPath , state:freePath ;
     lv2:extensionData state:interface , work:interface ;
-    patch:writable <urn:granularsampler:sampler#sample> , <urn:granularsampler:sampler#voices> , <urn:granularsampler:sampler#scale> , <urn:granularsampler:sampler#key> ,
-        <urn:granularsampler:sampler#lfo1_shape> , <urn:granularsampler:sampler#lfo2_shape> , <urn:granularsampler:sampler#lfo1_sync> , <urn:granularsampler:sampler#lfo2_sync> , <urn:granularsampler:sampler#env1_shape> , <urn:granularsampler:sampler#env2_shape> , <urn:granularsampler:sampler#mod_depth> , <urn:granularsampler:sampler#glide> , <urn:granularsampler:sampler#bend_range> , <urn:granularsampler:sampler#root> , <urn:granularsampler:sampler#tune> , <urn:granularsampler:sampler#gain> , <urn:granularsampler:sampler#mark_start> , <urn:granularsampler:sampler#mark_end> , <urn:granularsampler:sampler#lfo1_uni> , <urn:granularsampler:sampler#lfo2_uni> , <urn:granularsampler:sampler#filter_mix> , <urn:granularsampler:sampler#vowel_lows> , <urn:granularsampler:sampler#vowel_highs> , <urn:granularsampler:sampler#filter_slope> , <urn:granularsampler:sampler#m_lfo1_position> , <urn:granularsampler:sampler#m_lfo1_scan> , <urn:granularsampler:sampler#m_lfo1_spray> , <urn:granularsampler:sampler#m_lfo1_size> , <urn:granularsampler:sampler#m_lfo1_density> , <urn:granularsampler:sampler#m_lfo1_pitch> , <urn:granularsampler:sampler#m_lfo1_pan> , <urn:granularsampler:sampler#m_lfo1_level> , <urn:granularsampler:sampler#m_lfo1_cutoff> , <urn:granularsampler:sampler#m_lfo2_position> , <urn:granularsampler:sampler#m_lfo2_scan> , <urn:granularsampler:sampler#m_lfo2_spray> , <urn:granularsampler:sampler#m_lfo2_size> , <urn:granularsampler:sampler#m_lfo2_density> , <urn:granularsampler:sampler#m_lfo2_pitch> , <urn:granularsampler:sampler#m_lfo2_pan> , <urn:granularsampler:sampler#m_lfo2_level> , <urn:granularsampler:sampler#m_lfo2_cutoff> , <urn:granularsampler:sampler#m_env1_position> , <urn:granularsampler:sampler#m_env1_scan> , <urn:granularsampler:sampler#m_env1_spray> , <urn:granularsampler:sampler#m_env1_size> , <urn:granularsampler:sampler#m_env1_density> , <urn:granularsampler:sampler#m_env1_pitch> , <urn:granularsampler:sampler#m_env1_pan> , <urn:granularsampler:sampler#m_env1_level> , <urn:granularsampler:sampler#m_env1_cutoff> , <urn:granularsampler:sampler#m_env2_position> , <urn:granularsampler:sampler#m_env2_scan> , <urn:granularsampler:sampler#m_env2_spray> , <urn:granularsampler:sampler#m_env2_size> , <urn:granularsampler:sampler#m_env2_density> , <urn:granularsampler:sampler#m_env2_pitch> , <urn:granularsampler:sampler#m_env2_pan> , <urn:granularsampler:sampler#m_env2_level> , <urn:granularsampler:sampler#m_env2_cutoff> , <urn:granularsampler:sampler#m_vel_position> , <urn:granularsampler:sampler#m_vel_scan> , <urn:granularsampler:sampler#m_vel_spray> , <urn:granularsampler:sampler#m_vel_size> , <urn:granularsampler:sampler#m_vel_density> , <urn:granularsampler:sampler#m_vel_pitch> , <urn:granularsampler:sampler#m_vel_pan> , <urn:granularsampler:sampler#m_vel_level> , <urn:granularsampler:sampler#m_vel_cutoff> , <urn:granularsampler:sampler#m_key_position> , <urn:granularsampler:sampler#m_key_scan> , <urn:granularsampler:sampler#m_key_spray> , <urn:granularsampler:sampler#m_key_size> , <urn:granularsampler:sampler#m_key_density> , <urn:granularsampler:sampler#m_key_pitch> , <urn:granularsampler:sampler#m_key_pan> , <urn:granularsampler:sampler#m_key_level> , <urn:granularsampler:sampler#m_key_cutoff> , <urn:granularsampler:sampler#m_wheel_position> , <urn:granularsampler:sampler#m_wheel_scan> , <urn:granularsampler:sampler#m_wheel_spray> , <urn:granularsampler:sampler#m_wheel_size> , <urn:granularsampler:sampler#m_wheel_density> , <urn:granularsampler:sampler#m_wheel_pitch> , <urn:granularsampler:sampler#m_wheel_pan> , <urn:granularsampler:sampler#m_wheel_level> , <urn:granularsampler:sampler#m_wheel_cutoff> , <urn:granularsampler:sampler#m_rnd_position> , <urn:granularsampler:sampler#m_rnd_scan> , <urn:granularsampler:sampler#m_rnd_spray> , <urn:granularsampler:sampler#m_rnd_size> , <urn:granularsampler:sampler#m_rnd_density> , <urn:granularsampler:sampler#m_rnd_pitch> , <urn:granularsampler:sampler#m_rnd_pan> , <urn:granularsampler:sampler#m_rnd_level> , <urn:granularsampler:sampler#m_rnd_cutoff> , <urn:granularsampler:sampler#x_lfo1_lfo1_rate> , <urn:granularsampler:sampler#x_lfo1_lfo2_rate> , <urn:granularsampler:sampler#x_lfo1_lfo1_amt> , <urn:granularsampler:sampler#x_lfo1_lfo2_amt> , <urn:granularsampler:sampler#x_lfo1_env1_time> , <urn:granularsampler:sampler#x_lfo1_env2_time> , <urn:granularsampler:sampler#x_lfo2_lfo1_rate> , <urn:granularsampler:sampler#x_lfo2_lfo2_rate> , <urn:granularsampler:sampler#x_lfo2_lfo1_amt> , <urn:granularsampler:sampler#x_lfo2_lfo2_amt> , <urn:granularsampler:sampler#x_lfo2_env1_time> , <urn:granularsampler:sampler#x_lfo2_env2_time> , <urn:granularsampler:sampler#x_env1_lfo1_rate> , <urn:granularsampler:sampler#x_env1_lfo2_rate> , <urn:granularsampler:sampler#x_env1_lfo1_amt> , <urn:granularsampler:sampler#x_env1_lfo2_amt> , <urn:granularsampler:sampler#x_env1_env1_time> , <urn:granularsampler:sampler#x_env1_env2_time> , <urn:granularsampler:sampler#x_env2_lfo1_rate> , <urn:granularsampler:sampler#x_env2_lfo2_rate> , <urn:granularsampler:sampler#x_env2_lfo1_amt> , <urn:granularsampler:sampler#x_env2_lfo2_amt> , <urn:granularsampler:sampler#x_env2_env1_time> , <urn:granularsampler:sampler#x_env2_env2_time> , <urn:granularsampler:sampler#x_vel_lfo1_rate> , <urn:granularsampler:sampler#x_vel_lfo2_rate> , <urn:granularsampler:sampler#x_vel_lfo1_amt> , <urn:granularsampler:sampler#x_vel_lfo2_amt> , <urn:granularsampler:sampler#x_vel_env1_time> , <urn:granularsampler:sampler#x_vel_env2_time> , <urn:granularsampler:sampler#x_key_lfo1_rate> , <urn:granularsampler:sampler#x_key_lfo2_rate> , <urn:granularsampler:sampler#x_key_lfo1_amt> , <urn:granularsampler:sampler#x_key_lfo2_amt> , <urn:granularsampler:sampler#x_key_env1_time> , <urn:granularsampler:sampler#x_key_env2_time> , <urn:granularsampler:sampler#x_wheel_lfo1_rate> , <urn:granularsampler:sampler#x_wheel_lfo2_rate> , <urn:granularsampler:sampler#x_wheel_lfo1_amt> , <urn:granularsampler:sampler#x_wheel_lfo2_amt> , <urn:granularsampler:sampler#x_wheel_env1_time> , <urn:granularsampler:sampler#x_wheel_env2_time> , <urn:granularsampler:sampler#x_rnd_lfo1_rate> , <urn:granularsampler:sampler#x_rnd_lfo2_rate> , <urn:granularsampler:sampler#x_rnd_lfo1_amt> , <urn:granularsampler:sampler#x_rnd_lfo2_amt> , <urn:granularsampler:sampler#x_rnd_env1_time> , <urn:granularsampler:sampler#x_rnd_env2_time> ;
+    patch:writable <http://dmtry3.github.io/zynthian-eka/mist#sample> , <http://dmtry3.github.io/zynthian-eka/mist#voices> , <http://dmtry3.github.io/zynthian-eka/mist#scale> , <http://dmtry3.github.io/zynthian-eka/mist#key> ,
+        <http://dmtry3.github.io/zynthian-eka/mist#lfo1_shape> , <http://dmtry3.github.io/zynthian-eka/mist#lfo2_shape> , <http://dmtry3.github.io/zynthian-eka/mist#lfo1_sync> , <http://dmtry3.github.io/zynthian-eka/mist#lfo2_sync> , <http://dmtry3.github.io/zynthian-eka/mist#env1_shape> , <http://dmtry3.github.io/zynthian-eka/mist#env2_shape> , <http://dmtry3.github.io/zynthian-eka/mist#mod_depth> , <http://dmtry3.github.io/zynthian-eka/mist#glide> , <http://dmtry3.github.io/zynthian-eka/mist#bend_range> , <http://dmtry3.github.io/zynthian-eka/mist#root> , <http://dmtry3.github.io/zynthian-eka/mist#tune> , <http://dmtry3.github.io/zynthian-eka/mist#gain> , <http://dmtry3.github.io/zynthian-eka/mist#mark_start> , <http://dmtry3.github.io/zynthian-eka/mist#mark_end> , <http://dmtry3.github.io/zynthian-eka/mist#lfo1_uni> , <http://dmtry3.github.io/zynthian-eka/mist#lfo2_uni> , <http://dmtry3.github.io/zynthian-eka/mist#filter_mix> , <http://dmtry3.github.io/zynthian-eka/mist#vowel_lows> , <http://dmtry3.github.io/zynthian-eka/mist#vowel_highs> , <http://dmtry3.github.io/zynthian-eka/mist#filter_slope> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_position> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_scan> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_spray> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_size> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_density> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_pitch> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_pan> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_level> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo1_cutoff> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_position> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_scan> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_spray> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_size> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_density> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_pitch> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_pan> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_level> , <http://dmtry3.github.io/zynthian-eka/mist#m_lfo2_cutoff> , <http://dmtry3.github.io/zynthian-eka/mist#m_env1_position> , <http://dmtry3.github.io/zynthian-eka/mist#m_env1_scan> , <http://dmtry3.github.io/zynthian-eka/mist#m_env1_spray> , <http://dmtry3.github.io/zynthian-eka/mist#m_env1_size> , <http://dmtry3.github.io/zynthian-eka/mist#m_env1_density> , <http://dmtry3.github.io/zynthian-eka/mist#m_env1_pitch> , <http://dmtry3.github.io/zynthian-eka/mist#m_env1_pan> , <http://dmtry3.github.io/zynthian-eka/mist#m_env1_level> , <http://dmtry3.github.io/zynthian-eka/mist#m_env1_cutoff> , <http://dmtry3.github.io/zynthian-eka/mist#m_env2_position> , <http://dmtry3.github.io/zynthian-eka/mist#m_env2_scan> , <http://dmtry3.github.io/zynthian-eka/mist#m_env2_spray> , <http://dmtry3.github.io/zynthian-eka/mist#m_env2_size> , <http://dmtry3.github.io/zynthian-eka/mist#m_env2_density> , <http://dmtry3.github.io/zynthian-eka/mist#m_env2_pitch> , <http://dmtry3.github.io/zynthian-eka/mist#m_env2_pan> , <http://dmtry3.github.io/zynthian-eka/mist#m_env2_level> , <http://dmtry3.github.io/zynthian-eka/mist#m_env2_cutoff> , <http://dmtry3.github.io/zynthian-eka/mist#m_vel_position> , <http://dmtry3.github.io/zynthian-eka/mist#m_vel_scan> , <http://dmtry3.github.io/zynthian-eka/mist#m_vel_spray> , <http://dmtry3.github.io/zynthian-eka/mist#m_vel_size> , <http://dmtry3.github.io/zynthian-eka/mist#m_vel_density> , <http://dmtry3.github.io/zynthian-eka/mist#m_vel_pitch> , <http://dmtry3.github.io/zynthian-eka/mist#m_vel_pan> , <http://dmtry3.github.io/zynthian-eka/mist#m_vel_level> , <http://dmtry3.github.io/zynthian-eka/mist#m_vel_cutoff> , <http://dmtry3.github.io/zynthian-eka/mist#m_key_position> , <http://dmtry3.github.io/zynthian-eka/mist#m_key_scan> , <http://dmtry3.github.io/zynthian-eka/mist#m_key_spray> , <http://dmtry3.github.io/zynthian-eka/mist#m_key_size> , <http://dmtry3.github.io/zynthian-eka/mist#m_key_density> , <http://dmtry3.github.io/zynthian-eka/mist#m_key_pitch> , <http://dmtry3.github.io/zynthian-eka/mist#m_key_pan> , <http://dmtry3.github.io/zynthian-eka/mist#m_key_level> , <http://dmtry3.github.io/zynthian-eka/mist#m_key_cutoff> , <http://dmtry3.github.io/zynthian-eka/mist#m_wheel_position> , <http://dmtry3.github.io/zynthian-eka/mist#m_wheel_scan> , <http://dmtry3.github.io/zynthian-eka/mist#m_wheel_spray> , <http://dmtry3.github.io/zynthian-eka/mist#m_wheel_size> , <http://dmtry3.github.io/zynthian-eka/mist#m_wheel_density> , <http://dmtry3.github.io/zynthian-eka/mist#m_wheel_pitch> , <http://dmtry3.github.io/zynthian-eka/mist#m_wheel_pan> , <http://dmtry3.github.io/zynthian-eka/mist#m_wheel_level> , <http://dmtry3.github.io/zynthian-eka/mist#m_wheel_cutoff> , <http://dmtry3.github.io/zynthian-eka/mist#m_rnd_position> , <http://dmtry3.github.io/zynthian-eka/mist#m_rnd_scan> , <http://dmtry3.github.io/zynthian-eka/mist#m_rnd_spray> , <http://dmtry3.github.io/zynthian-eka/mist#m_rnd_size> , <http://dmtry3.github.io/zynthian-eka/mist#m_rnd_density> , <http://dmtry3.github.io/zynthian-eka/mist#m_rnd_pitch> , <http://dmtry3.github.io/zynthian-eka/mist#m_rnd_pan> , <http://dmtry3.github.io/zynthian-eka/mist#m_rnd_level> , <http://dmtry3.github.io/zynthian-eka/mist#m_rnd_cutoff> , <http://dmtry3.github.io/zynthian-eka/mist#x_lfo1_lfo1_rate> , <http://dmtry3.github.io/zynthian-eka/mist#x_lfo1_lfo2_rate> , <http://dmtry3.github.io/zynthian-eka/mist#x_lfo1_lfo1_amt> , <http://dmtry3.github.io/zynthian-eka/mist#x_lfo1_lfo2_amt> , <http://dmtry3.github.io/zynthian-eka/mist#x_lfo1_env1_time> , <http://dmtry3.github.io/zynthian-eka/mist#x_lfo1_env2_time> , <http://dmtry3.github.io/zynthian-eka/mist#x_lfo2_lfo1_rate> , <http://dmtry3.github.io/zynthian-eka/mist#x_lfo2_lfo2_rate> , <http://dmtry3.github.io/zynthian-eka/mist#x_lfo2_lfo1_amt> , <http://dmtry3.github.io/zynthian-eka/mist#x_lfo2_lfo2_amt> , <http://dmtry3.github.io/zynthian-eka/mist#x_lfo2_env1_time> , <http://dmtry3.github.io/zynthian-eka/mist#x_lfo2_env2_time> , <http://dmtry3.github.io/zynthian-eka/mist#x_env1_lfo1_rate> , <http://dmtry3.github.io/zynthian-eka/mist#x_env1_lfo2_rate> , <http://dmtry3.github.io/zynthian-eka/mist#x_env1_lfo1_amt> , <http://dmtry3.github.io/zynthian-eka/mist#x_env1_lfo2_amt> , <http://dmtry3.github.io/zynthian-eka/mist#x_env1_env1_time> , <http://dmtry3.github.io/zynthian-eka/mist#x_env1_env2_time> , <http://dmtry3.github.io/zynthian-eka/mist#x_env2_lfo1_rate> , <http://dmtry3.github.io/zynthian-eka/mist#x_env2_lfo2_rate> , <http://dmtry3.github.io/zynthian-eka/mist#x_env2_lfo1_amt> , <http://dmtry3.github.io/zynthian-eka/mist#x_env2_lfo2_amt> , <http://dmtry3.github.io/zynthian-eka/mist#x_env2_env1_time> , <http://dmtry3.github.io/zynthian-eka/mist#x_env2_env2_time> , <http://dmtry3.github.io/zynthian-eka/mist#x_vel_lfo1_rate> , <http://dmtry3.github.io/zynthian-eka/mist#x_vel_lfo2_rate> , <http://dmtry3.github.io/zynthian-eka/mist#x_vel_lfo1_amt> , <http://dmtry3.github.io/zynthian-eka/mist#x_vel_lfo2_amt> , <http://dmtry3.github.io/zynthian-eka/mist#x_vel_env1_time> , <http://dmtry3.github.io/zynthian-eka/mist#x_vel_env2_time> , <http://dmtry3.github.io/zynthian-eka/mist#x_key_lfo1_rate> , <http://dmtry3.github.io/zynthian-eka/mist#x_key_lfo2_rate> , <http://dmtry3.github.io/zynthian-eka/mist#x_key_lfo1_amt> , <http://dmtry3.github.io/zynthian-eka/mist#x_key_lfo2_amt> , <http://dmtry3.github.io/zynthian-eka/mist#x_key_env1_time> , <http://dmtry3.github.io/zynthian-eka/mist#x_key_env2_time> , <http://dmtry3.github.io/zynthian-eka/mist#x_wheel_lfo1_rate> , <http://dmtry3.github.io/zynthian-eka/mist#x_wheel_lfo2_rate> , <http://dmtry3.github.io/zynthian-eka/mist#x_wheel_lfo1_amt> , <http://dmtry3.github.io/zynthian-eka/mist#x_wheel_lfo2_amt> , <http://dmtry3.github.io/zynthian-eka/mist#x_wheel_env1_time> , <http://dmtry3.github.io/zynthian-eka/mist#x_wheel_env2_time> , <http://dmtry3.github.io/zynthian-eka/mist#x_rnd_lfo1_rate> , <http://dmtry3.github.io/zynthian-eka/mist#x_rnd_lfo2_rate> , <http://dmtry3.github.io/zynthian-eka/mist#x_rnd_lfo1_amt> , <http://dmtry3.github.io/zynthian-eka/mist#x_rnd_lfo2_amt> , <http://dmtry3.github.io/zynthian-eka/mist#x_rnd_env1_time> , <http://dmtry3.github.io/zynthian-eka/mist#x_rnd_env2_time> ;
     # Control input ports MUST be indices 0..N-1 (before atom and audio ports): Zynthian numbers LV2 parameters
     # from len(control ports)+1 and would overwrite a control port with a higher index.
     # Outputs for the widget: playhead and grain1..16 = read positions, 0..1 of the sample, -1 = none;
@@ -1351,113 +1351,113 @@
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 0 ; lv2:symbol "position" ; lv2:name "Position" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
-        lv2:displayPriority 40 ; pg:group <urn:granularsampler:sampler#g_position> ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_position> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 1 ; lv2:symbol "scan" ; lv2:name "Scan" ;
         lv2:default 100 ; lv2:minimum -200 ; lv2:maximum 200 ;
-        lv2:displayPriority 30 ; pg:group <urn:granularsampler:sampler#g_position> ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_position> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 2 ; lv2:symbol "spray" ; lv2:name "Spray" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
-        lv2:displayPriority 20 ; pg:group <urn:granularsampler:sampler#g_position> ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_position> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 3 ; lv2:symbol "window" ; lv2:name "Window" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
-        lv2:displayPriority 10 ; pg:group <urn:granularsampler:sampler#g_position> ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_position> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 4 ; lv2:symbol "size" ; lv2:name "Size ms" ;
         lv2:default 100 ; lv2:minimum 5 ; lv2:maximum 10000 ;
         lv2:portProperty pprops:logarithmic ;
-        lv2:displayPriority 40 ; pg:group <urn:granularsampler:sampler#g_grain> ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_grain> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 5 ; lv2:symbol "density" ; lv2:name "Density" ;
         lv2:default 20 ; lv2:minimum 0.5 ; lv2:maximum 200 ;
         lv2:portProperty pprops:logarithmic ;
-        lv2:displayPriority 30 ; pg:group <urn:granularsampler:sampler#g_grain> ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_grain> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 6 ; lv2:symbol "shape" ; lv2:name "Shape" ;
         lv2:default 67 ; lv2:minimum 0 ; lv2:maximum 100 ;
-        lv2:displayPriority 20 ; pg:group <urn:granularsampler:sampler#g_grain> ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_grain> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 7 ; lv2:symbol "chaos" ; lv2:name "Chaos" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
-        lv2:displayPriority 10 ; pg:group <urn:granularsampler:sampler#g_grain> ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_grain> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 8 ; lv2:symbol "pitch" ; lv2:name "Pitch" ;
         lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
-        lv2:displayPriority 40 ; pg:group <urn:granularsampler:sampler#g_pitch> ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_pitch> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 9 ; lv2:symbol "pitch_spray" ; lv2:name "Pitch Spray" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 24 ;
-        lv2:displayPriority 30 ; pg:group <urn:granularsampler:sampler#g_pitch> ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_pitch> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 10 ; lv2:symbol "reverse" ; lv2:name "Reverse %" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
-        lv2:displayPriority 20 ; pg:group <urn:granularsampler:sampler#g_pitch> ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_pitch> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 11 ; lv2:symbol "quantize" ; lv2:name "Quantize %" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
-        lv2:displayPriority 10 ; pg:group <urn:granularsampler:sampler#g_pitch> ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_pitch> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 12 ; lv2:symbol "attack" ; lv2:name "Attack ms" ;
         lv2:default 10 ; lv2:minimum 1 ; lv2:maximum 10000 ;
         lv2:portProperty pprops:logarithmic ;
-        lv2:displayPriority 40 ; pg:group <urn:granularsampler:sampler#g_voice> ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_voice> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 13 ; lv2:symbol "release" ; lv2:name "Release ms" ;
         lv2:default 500 ; lv2:minimum 10 ; lv2:maximum 20000 ;
         lv2:portProperty pprops:logarithmic ;
-        lv2:displayPriority 30 ; pg:group <urn:granularsampler:sampler#g_voice> ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_voice> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 14 ; lv2:symbol "spread" ; lv2:name "Stereo Spread" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
-        lv2:displayPriority 20 ; pg:group <urn:granularsampler:sampler#g_voice> ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_voice> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 15 ; lv2:symbol "level" ; lv2:name "Level" ;
         lv2:default 0.8 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
-        lv2:displayPriority 10 ; pg:group <urn:granularsampler:sampler#g_voice> ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_voice> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 16 ; lv2:symbol "cutoff" ; lv2:name "Cutoff" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
-        lv2:displayPriority 40 ; pg:group <urn:granularsampler:sampler#g_filter> ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_filter> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 17 ; lv2:symbol "resonance" ; lv2:name "Resonance" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
-        lv2:displayPriority 30 ; pg:group <urn:granularsampler:sampler#g_filter> ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_filter> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
@@ -1466,41 +1466,41 @@
         lv2:portProperty lv2:integer , lv2:enumeration ;
         lv2:scalePoint [ rdfs:label "LP" ; rdf:value 0 ] , [ rdfs:label "HP" ; rdf:value 1 ] , [ rdfs:label "BP" ; rdf:value 2 ] ,
             [ rdfs:label "Notch" ; rdf:value 3 ] , [ rdfs:label "Comb" ; rdf:value 4 ] , [ rdfs:label "Vowel" ; rdf:value 5 ] ;
-        lv2:displayPriority 20 ; pg:group <urn:granularsampler:sampler#g_filter> ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_filter> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 19 ; lv2:symbol "keytrack" ; lv2:name "Key Track" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
-        lv2:displayPriority 10 ; pg:group <urn:granularsampler:sampler#g_filter> ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_filter> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 20 ; lv2:symbol "lfo1_rate" ; lv2:name "LFO 1 Rate" ;
         lv2:default 61 ; lv2:minimum 0 ; lv2:maximum 100 ;
         lv2:portProperty lv2:integer ;
-        lv2:displayPriority 40 ; pg:group <urn:granularsampler:sampler#g_mod> ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_mod> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 21 ; lv2:symbol "lfo2_rate" ; lv2:name "LFO 2 Rate" ;
         lv2:default 42 ; lv2:minimum 0 ; lv2:maximum 100 ;
         lv2:portProperty lv2:integer ;
-        lv2:displayPriority 30 ; pg:group <urn:granularsampler:sampler#g_mod> ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_mod> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 22 ; lv2:symbol "env1_time" ; lv2:name "Env 1 s" ;
         lv2:default 1 ; lv2:minimum 0.005 ; lv2:maximum 10 ;
         lv2:portProperty pprops:logarithmic ;
-        lv2:displayPriority 20 ; pg:group <urn:granularsampler:sampler#g_mod> ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_mod> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 23 ; lv2:symbol "env2_time" ; lv2:name "Env 2 s" ;
         lv2:default 2 ; lv2:minimum 0.005 ; lv2:maximum 10 ;
         lv2:portProperty pprops:logarithmic ;
-        lv2:displayPriority 10 ; pg:group <urn:granularsampler:sampler#g_mod> ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/mist#g_mod> ;
     ] ,
     [
         a lv2:InputPort , atom:AtomPort ;

@@ -11,37 +11,37 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix state: <http://lv2plug.in/ns/ext/state#> .
 
-<urn:generativearp:arp#g_arp> a pg:Group ; lv2:symbol "g_arp" ; lv2:name "Arp" ; lv2:index 0 ; lv2:displayPriority 60 .
-<urn:generativearp:arp#g_pattern> a pg:Group ; lv2:symbol "g_pattern" ; lv2:name "Pattern" ; lv2:index 1 ; lv2:displayPriority 50 .
-<urn:generativearp:arp#g_groove> a pg:Group ; lv2:symbol "g_groove" ; lv2:name "Groove" ; lv2:index 5 ; lv2:displayPriority 10 .
-<urn:generativearp:arp#g_lengths> a pg:Group ; lv2:symbol "g_lengths" ; lv2:name "Lengths" ; lv2:index 2 ; lv2:displayPriority 40 .
-<urn:generativearp:arp#g_scale> a pg:Group ; lv2:symbol "g_scale" ; lv2:name "Scale" ; lv2:index 3 ; lv2:displayPriority 30 .
-<urn:generativearp:arp#g_mutate> a pg:Group ; lv2:symbol "g_mutate" ; lv2:name "Mutate" ; lv2:index 4 ; lv2:displayPriority 20 .
+<http://dmtry3.github.io/zynthian-eka/bloom#g_arp> a pg:Group ; lv2:symbol "g_arp" ; lv2:name "Arp" ; lv2:index 0 ; lv2:displayPriority 60 .
+<http://dmtry3.github.io/zynthian-eka/bloom#g_pattern> a pg:Group ; lv2:symbol "g_pattern" ; lv2:name "Pattern" ; lv2:index 1 ; lv2:displayPriority 50 .
+<http://dmtry3.github.io/zynthian-eka/bloom#g_groove> a pg:Group ; lv2:symbol "g_groove" ; lv2:name "Groove" ; lv2:index 5 ; lv2:displayPriority 10 .
+<http://dmtry3.github.io/zynthian-eka/bloom#g_lengths> a pg:Group ; lv2:symbol "g_lengths" ; lv2:name "Lengths" ; lv2:index 2 ; lv2:displayPriority 40 .
+<http://dmtry3.github.io/zynthian-eka/bloom#g_scale> a pg:Group ; lv2:symbol "g_scale" ; lv2:name "Scale" ; lv2:index 3 ; lv2:displayPriority 30 .
+<http://dmtry3.github.io/zynthian-eka/bloom#g_mutate> a pg:Group ; lv2:symbol "g_mutate" ; lv2:name "Mutate" ; lv2:index 4 ; lv2:displayPriority 20 .
 
-<urn:generativearp:arp>
+<http://dmtry3.github.io/zynthian-eka/bloom>
     a lv2:Plugin , lv2:UtilityPlugin ;
-    doap:name "Generative Arp" ;
+    doap:name "Eka Bloom" ;
     lv2:minorVersion 18 ;
     lv2:microVersion 0 ;
     lv2:requiredFeature urid:map ;
     lv2:extensionData state:interface ;   # pattern steps go into presets
     patch:writable
-        <urn:generativearp:arp#prob1> , <urn:generativearp:arp#shift1> , <urn:generativearp:arp#vel1> , <urn:generativearp:arp#gate1> ,
-        <urn:generativearp:arp#prob2> , <urn:generativearp:arp#shift2> , <urn:generativearp:arp#vel2> , <urn:generativearp:arp#gate2> ,
-        <urn:generativearp:arp#prob3> , <urn:generativearp:arp#shift3> , <urn:generativearp:arp#vel3> , <urn:generativearp:arp#gate3> ,
-        <urn:generativearp:arp#prob4> , <urn:generativearp:arp#shift4> , <urn:generativearp:arp#vel4> , <urn:generativearp:arp#gate4> ,
-        <urn:generativearp:arp#prob5> , <urn:generativearp:arp#shift5> , <urn:generativearp:arp#vel5> , <urn:generativearp:arp#gate5> ,
-        <urn:generativearp:arp#prob6> , <urn:generativearp:arp#shift6> , <urn:generativearp:arp#vel6> , <urn:generativearp:arp#gate6> ,
-        <urn:generativearp:arp#prob7> , <urn:generativearp:arp#shift7> , <urn:generativearp:arp#vel7> , <urn:generativearp:arp#gate7> ,
-        <urn:generativearp:arp#prob8> , <urn:generativearp:arp#shift8> , <urn:generativearp:arp#vel8> , <urn:generativearp:arp#gate8> ,
-        <urn:generativearp:arp#prob9> , <urn:generativearp:arp#shift9> , <urn:generativearp:arp#vel9> , <urn:generativearp:arp#gate9> ,
-        <urn:generativearp:arp#prob10> , <urn:generativearp:arp#shift10> , <urn:generativearp:arp#vel10> , <urn:generativearp:arp#gate10> ,
-        <urn:generativearp:arp#prob11> , <urn:generativearp:arp#shift11> , <urn:generativearp:arp#vel11> , <urn:generativearp:arp#gate11> ,
-        <urn:generativearp:arp#prob12> , <urn:generativearp:arp#shift12> , <urn:generativearp:arp#vel12> , <urn:generativearp:arp#gate12> ,
-        <urn:generativearp:arp#prob13> , <urn:generativearp:arp#shift13> , <urn:generativearp:arp#vel13> , <urn:generativearp:arp#gate13> ,
-        <urn:generativearp:arp#prob14> , <urn:generativearp:arp#shift14> , <urn:generativearp:arp#vel14> , <urn:generativearp:arp#gate14> ,
-        <urn:generativearp:arp#prob15> , <urn:generativearp:arp#shift15> , <urn:generativearp:arp#vel15> , <urn:generativearp:arp#gate15> ,
-        <urn:generativearp:arp#prob16> , <urn:generativearp:arp#shift16> , <urn:generativearp:arp#vel16> , <urn:generativearp:arp#gate16> ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob1> , <http://dmtry3.github.io/zynthian-eka/bloom#shift1> , <http://dmtry3.github.io/zynthian-eka/bloom#vel1> , <http://dmtry3.github.io/zynthian-eka/bloom#gate1> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob2> , <http://dmtry3.github.io/zynthian-eka/bloom#shift2> , <http://dmtry3.github.io/zynthian-eka/bloom#vel2> , <http://dmtry3.github.io/zynthian-eka/bloom#gate2> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob3> , <http://dmtry3.github.io/zynthian-eka/bloom#shift3> , <http://dmtry3.github.io/zynthian-eka/bloom#vel3> , <http://dmtry3.github.io/zynthian-eka/bloom#gate3> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob4> , <http://dmtry3.github.io/zynthian-eka/bloom#shift4> , <http://dmtry3.github.io/zynthian-eka/bloom#vel4> , <http://dmtry3.github.io/zynthian-eka/bloom#gate4> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob5> , <http://dmtry3.github.io/zynthian-eka/bloom#shift5> , <http://dmtry3.github.io/zynthian-eka/bloom#vel5> , <http://dmtry3.github.io/zynthian-eka/bloom#gate5> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob6> , <http://dmtry3.github.io/zynthian-eka/bloom#shift6> , <http://dmtry3.github.io/zynthian-eka/bloom#vel6> , <http://dmtry3.github.io/zynthian-eka/bloom#gate6> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob7> , <http://dmtry3.github.io/zynthian-eka/bloom#shift7> , <http://dmtry3.github.io/zynthian-eka/bloom#vel7> , <http://dmtry3.github.io/zynthian-eka/bloom#gate7> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob8> , <http://dmtry3.github.io/zynthian-eka/bloom#shift8> , <http://dmtry3.github.io/zynthian-eka/bloom#vel8> , <http://dmtry3.github.io/zynthian-eka/bloom#gate8> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob9> , <http://dmtry3.github.io/zynthian-eka/bloom#shift9> , <http://dmtry3.github.io/zynthian-eka/bloom#vel9> , <http://dmtry3.github.io/zynthian-eka/bloom#gate9> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob10> , <http://dmtry3.github.io/zynthian-eka/bloom#shift10> , <http://dmtry3.github.io/zynthian-eka/bloom#vel10> , <http://dmtry3.github.io/zynthian-eka/bloom#gate10> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob11> , <http://dmtry3.github.io/zynthian-eka/bloom#shift11> , <http://dmtry3.github.io/zynthian-eka/bloom#vel11> , <http://dmtry3.github.io/zynthian-eka/bloom#gate11> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob12> , <http://dmtry3.github.io/zynthian-eka/bloom#shift12> , <http://dmtry3.github.io/zynthian-eka/bloom#vel12> , <http://dmtry3.github.io/zynthian-eka/bloom#gate12> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob13> , <http://dmtry3.github.io/zynthian-eka/bloom#shift13> , <http://dmtry3.github.io/zynthian-eka/bloom#vel13> , <http://dmtry3.github.io/zynthian-eka/bloom#gate13> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob14> , <http://dmtry3.github.io/zynthian-eka/bloom#shift14> , <http://dmtry3.github.io/zynthian-eka/bloom#vel14> , <http://dmtry3.github.io/zynthian-eka/bloom#gate14> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob15> , <http://dmtry3.github.io/zynthian-eka/bloom#shift15> , <http://dmtry3.github.io/zynthian-eka/bloom#vel15> , <http://dmtry3.github.io/zynthian-eka/bloom#gate15> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob16> , <http://dmtry3.github.io/zynthian-eka/bloom#shift16> , <http://dmtry3.github.io/zynthian-eka/bloom#vel16> , <http://dmtry3.github.io/zynthian-eka/bloom#gate16> ;
     # Control input ports MUST be indices 0..N-1 (before atom ports): Zynthian numbers LV2 parameters
     # from len(control ports)+1 and would overwrite a control port with a higher index.
     lv2:port
@@ -64,12 +64,12 @@
         lv2:scalePoint [ rdfs:label "1/4" ; rdf:value 0 ] , [ rdfs:label "1/8" ; rdf:value 1 ] ,
                        [ rdfs:label "1/8T" ; rdf:value 2 ] , [ rdfs:label "1/16" ; rdf:value 3 ] ,
                        [ rdfs:label "1/16T" ; rdf:value 4 ] , [ rdfs:label "1/32" ; rdf:value 5 ] ;
-        lv2:displayPriority 40 ; pg:group <urn:generativearp:arp#g_arp> ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_arp> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 1 ; lv2:symbol "gate" ; lv2:name "Gate %" ;
         lv2:default 50 ; lv2:minimum 5 ; lv2:maximum 100 ; lv2:portProperty lv2:integer ;
-        lv2:displayPriority 30 ; pg:group <urn:generativearp:arp#g_arp> ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_arp> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 2 ; lv2:symbol "order" ; lv2:name "Order" ;
@@ -79,17 +79,17 @@
                        [ rdfs:label "Up-Down" ; rdf:value 2 ] , [ rdfs:label "Down-Up" ; rdf:value 3 ] ,
                        [ rdfs:label "As played" ; rdf:value 4 ] , [ rdfs:label "Random" ; rdf:value 5 ] ,
                        [ rdfs:label "Loop" ; rdf:value 6 ] ;
-        lv2:displayPriority 20 ; pg:group <urn:generativearp:arp#g_arp> ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_arp> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 3 ; lv2:symbol "octaves" ; lv2:name "Octaves" ;
         lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ; lv2:portProperty lv2:integer ;
-        lv2:displayPriority 10 ; pg:group <urn:generativearp:arp#g_arp> ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_arp> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 4 ; lv2:symbol "latch" ; lv2:name "Latch" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
-        lv2:displayPriority 40 ; pg:group <urn:generativearp:arp#g_pattern> ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_pattern> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 15 ; lv2:symbol "transpose" ; lv2:name "Transpose" ;
@@ -97,7 +97,7 @@
         lv2:portProperty lv2:integer , lv2:enumeration ;
         lv2:scalePoint [ rdfs:label "-2 oct" ; rdf:value -2 ] , [ rdfs:label "-1 oct" ; rdf:value -1 ] , [ rdfs:label "0" ; rdf:value 0 ] ,
                        [ rdfs:label "+1 oct" ; rdf:value 1 ] , [ rdfs:label "+2 oct" ; rdf:value 2 ] ;
-        lv2:displayPriority 30 ; pg:group <urn:generativearp:arp#g_pattern> ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_pattern> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 16 ; lv2:symbol "rpt" ; lv2:name "Repeats" ;
@@ -106,7 +106,7 @@
         lv2:scalePoint [ rdfs:label "1" ; rdf:value 1 ] , [ rdfs:label "2" ; rdf:value 2 ] , [ rdfs:label "3" ; rdf:value 3 ] ,
                        [ rdfs:label "4" ; rdf:value 4 ] , [ rdfs:label "5" ; rdf:value 5 ] ,
                        [ rdfs:label "Rnd 3" ; rdf:value 6 ] , [ rdfs:label "Rnd 5" ; rdf:value 7 ] ;
-        lv2:displayPriority 20 ; pg:group <urn:generativearp:arp#g_pattern> ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_pattern> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 17 ; lv2:symbol "rpt_mode" ; lv2:name "Rpt mode" ;
@@ -115,12 +115,12 @@
         lv2:scalePoint [ rdfs:label "Same" ; rdf:value 0 ] , [ rdfs:label "Run up" ; rdf:value 1 ] ,
                        [ rdfs:label "Run down" ; rdf:value 2 ] , [ rdfs:label "Octave" ; rdf:value 3 ] ,
                        [ rdfs:label "Echo" ; rdf:value 4 ] ;
-        lv2:displayPriority 10 ; pg:group <urn:generativearp:arp#g_pattern> ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_pattern> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 18 ; lv2:symbol "swing" ; lv2:name "Swing %" ;
         lv2:default 50 ; lv2:minimum 50 ; lv2:maximum 75 ; lv2:portProperty lv2:integer ;
-        lv2:displayPriority 40 ; pg:group <urn:generativearp:arp#g_groove> ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_groove> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 19 ; lv2:symbol "swing_feel" ; lv2:name "Swing feel" ;
@@ -128,37 +128,37 @@
         lv2:portProperty lv2:integer , lv2:enumeration ;
         lv2:scalePoint [ rdfs:label "Pairs" ; rdf:value 0 ] , [ rdfs:label "Fours" ; rdf:value 1 ] ,
                        [ rdfs:label "Drag" ; rdf:value 2 ] , [ rdfs:label "Threes" ; rdf:value 3 ] ;
-        lv2:displayPriority 30 ; pg:group <urn:generativearp:arp#g_groove> ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_groove> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 20 ; lv2:symbol "drunk" ; lv2:name "Drunk %" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ; lv2:portProperty lv2:integer ;
-        lv2:displayPriority 20 ; pg:group <urn:generativearp:arp#g_groove> ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_groove> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 21 ; lv2:symbol "accent" ; lv2:name "Accent %" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ; lv2:portProperty lv2:integer ;
-        lv2:displayPriority 10 ; pg:group <urn:generativearp:arp#g_groove> ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_groove> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 5 ; lv2:symbol "len_prob" ; lv2:name "Prob len" ;
         lv2:default 16 ; lv2:minimum 1 ; lv2:maximum 16 ; lv2:portProperty lv2:integer ;
-        lv2:displayPriority 40 ; pg:group <urn:generativearp:arp#g_lengths> ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_lengths> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 6 ; lv2:symbol "len_shift" ; lv2:name "Shift len" ;
         lv2:default 16 ; lv2:minimum 1 ; lv2:maximum 16 ; lv2:portProperty lv2:integer ;
-        lv2:displayPriority 30 ; pg:group <urn:generativearp:arp#g_lengths> ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_lengths> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 7 ; lv2:symbol "len_vel" ; lv2:name "Vel len" ;
         lv2:default 16 ; lv2:minimum 1 ; lv2:maximum 16 ; lv2:portProperty lv2:integer ;
-        lv2:displayPriority 20 ; pg:group <urn:generativearp:arp#g_lengths> ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_lengths> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 8 ; lv2:symbol "len_gate" ; lv2:name "Gate len" ;
         lv2:default 16 ; lv2:minimum 1 ; lv2:maximum 16 ; lv2:portProperty lv2:integer ;
-        lv2:displayPriority 10 ; pg:group <urn:generativearp:arp#g_lengths> ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_lengths> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 9 ; lv2:symbol "key" ; lv2:name "Key" ;
@@ -168,7 +168,7 @@
                        [ rdfs:label "E" ; rdf:value 4 ] , [ rdfs:label "F" ; rdf:value 5 ] , [ rdfs:label "F#" ; rdf:value 6 ] , [ rdfs:label "G" ; rdf:value 7 ] ,
                        [ rdfs:label "G#" ; rdf:value 8 ] , [ rdfs:label "A" ; rdf:value 9 ] , [ rdfs:label "A#" ; rdf:value 10 ] , [ rdfs:label "B" ; rdf:value 11 ] ,
                        [ rdfs:label "Auto" ; rdf:value 12 ] ;
-        lv2:displayPriority 40 ; pg:group <urn:generativearp:arp#g_scale> ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_scale> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 10 ; lv2:symbol "scale" ; lv2:name "Scale" ;
@@ -177,12 +177,12 @@
         lv2:scalePoint [ rdfs:label "Chromatic" ; rdf:value 0 ] , [ rdfs:label "Major" ; rdf:value 1 ] , [ rdfs:label "Minor" ; rdf:value 2 ] , [ rdfs:label "Dorian" ; rdf:value 3 ] ,
                        [ rdfs:label "Phrygian" ; rdf:value 4 ] , [ rdfs:label "Lydian" ; rdf:value 5 ] , [ rdfs:label "Mixolydian" ; rdf:value 6 ] , [ rdfs:label "Harm minor" ; rdf:value 7 ] ,
                        [ rdfs:label "Mel minor" ; rdf:value 8 ] , [ rdfs:label "Major pent" ; rdf:value 9 ] , [ rdfs:label "Minor pent" ; rdf:value 10 ] , [ rdfs:label "Blues" ; rdf:value 11 ] ;
-        lv2:displayPriority 30 ; pg:group <urn:generativearp:arp#g_scale> ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_scale> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 22 ; lv2:symbol "passing" ; lv2:name "Passing %" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ; lv2:portProperty lv2:integer ;
-        lv2:displayPriority 20 ; pg:group <urn:generativearp:arp#g_scale> ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_scale> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 23 ; lv2:symbol "pass_style" ; lv2:name "Pass style" ;
@@ -190,27 +190,27 @@
         lv2:portProperty lv2:integer , lv2:enumeration ;
         lv2:scalePoint [ rdfs:label "Neighbor" ; rdf:value 0 ] , [ rdfs:label "Leap" ; rdf:value 1 ] ,
                        [ rdfs:label "Approach" ; rdf:value 2 ] , [ rdfs:label "Mixed" ; rdf:value 3 ] ;
-        lv2:displayPriority 10 ; pg:group <urn:generativearp:arp#g_scale> ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_scale> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 11 ; lv2:symbol "mut_notes" ; lv2:name "Notes %" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ; lv2:portProperty lv2:integer ;
-        lv2:displayPriority 40 ; pg:group <urn:generativearp:arp#g_mutate> ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_mutate> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 12 ; lv2:symbol "loop_len" ; lv2:name "Loop len" ;
         lv2:default 8 ; lv2:minimum 1 ; lv2:maximum 16 ; lv2:portProperty lv2:integer ;
-        lv2:displayPriority 30 ; pg:group <urn:generativearp:arp#g_mutate> ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_mutate> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 13 ; lv2:symbol "mut_steps" ; lv2:name "Steps %" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ; lv2:portProperty lv2:integer ;
-        lv2:displayPriority 20 ; pg:group <urn:generativearp:arp#g_mutate> ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_mutate> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 14 ; lv2:symbol "reset" ; lv2:name "Reset" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
-        lv2:displayPriority 10 ; pg:group <urn:generativearp:arp#g_mutate> ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_mutate> ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
         lv2:index 26 ; lv2:symbol "step_count" ; lv2:name "Step count" ;
@@ -283,7 +283,7 @@
     ] .
 
 # Pattern step values: LV2 parameters (patch:Set), hidden from the encoder pages, edited by the widget.
-<urn:generativearp:arp#prob1>
+<http://dmtry3.github.io/zynthian-eka/bloom#prob1>
     a lv2:Parameter ;
     lv2:symbol "prob1" ;
     rdfs:label "Prob 1" ;
@@ -292,7 +292,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#shift1>
+<http://dmtry3.github.io/zynthian-eka/bloom#shift1>
     a lv2:Parameter ;
     lv2:symbol "shift1" ;
     rdfs:label "Shift 1" ;
@@ -301,7 +301,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#vel1>
+<http://dmtry3.github.io/zynthian-eka/bloom#vel1>
     a lv2:Parameter ;
     lv2:symbol "vel1" ;
     rdfs:label "Vel 1" ;
@@ -310,7 +310,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#gate1>
+<http://dmtry3.github.io/zynthian-eka/bloom#gate1>
     a lv2:Parameter ;
     lv2:symbol "gate1" ;
     rdfs:label "Gate 1" ;
@@ -325,7 +325,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#prob2>
+<http://dmtry3.github.io/zynthian-eka/bloom#prob2>
     a lv2:Parameter ;
     lv2:symbol "prob2" ;
     rdfs:label "Prob 2" ;
@@ -334,7 +334,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#shift2>
+<http://dmtry3.github.io/zynthian-eka/bloom#shift2>
     a lv2:Parameter ;
     lv2:symbol "shift2" ;
     rdfs:label "Shift 2" ;
@@ -343,7 +343,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#vel2>
+<http://dmtry3.github.io/zynthian-eka/bloom#vel2>
     a lv2:Parameter ;
     lv2:symbol "vel2" ;
     rdfs:label "Vel 2" ;
@@ -352,7 +352,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#gate2>
+<http://dmtry3.github.io/zynthian-eka/bloom#gate2>
     a lv2:Parameter ;
     lv2:symbol "gate2" ;
     rdfs:label "Gate 2" ;
@@ -367,7 +367,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#prob3>
+<http://dmtry3.github.io/zynthian-eka/bloom#prob3>
     a lv2:Parameter ;
     lv2:symbol "prob3" ;
     rdfs:label "Prob 3" ;
@@ -376,7 +376,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#shift3>
+<http://dmtry3.github.io/zynthian-eka/bloom#shift3>
     a lv2:Parameter ;
     lv2:symbol "shift3" ;
     rdfs:label "Shift 3" ;
@@ -385,7 +385,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#vel3>
+<http://dmtry3.github.io/zynthian-eka/bloom#vel3>
     a lv2:Parameter ;
     lv2:symbol "vel3" ;
     rdfs:label "Vel 3" ;
@@ -394,7 +394,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#gate3>
+<http://dmtry3.github.io/zynthian-eka/bloom#gate3>
     a lv2:Parameter ;
     lv2:symbol "gate3" ;
     rdfs:label "Gate 3" ;
@@ -409,7 +409,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#prob4>
+<http://dmtry3.github.io/zynthian-eka/bloom#prob4>
     a lv2:Parameter ;
     lv2:symbol "prob4" ;
     rdfs:label "Prob 4" ;
@@ -418,7 +418,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#shift4>
+<http://dmtry3.github.io/zynthian-eka/bloom#shift4>
     a lv2:Parameter ;
     lv2:symbol "shift4" ;
     rdfs:label "Shift 4" ;
@@ -427,7 +427,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#vel4>
+<http://dmtry3.github.io/zynthian-eka/bloom#vel4>
     a lv2:Parameter ;
     lv2:symbol "vel4" ;
     rdfs:label "Vel 4" ;
@@ -436,7 +436,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#gate4>
+<http://dmtry3.github.io/zynthian-eka/bloom#gate4>
     a lv2:Parameter ;
     lv2:symbol "gate4" ;
     rdfs:label "Gate 4" ;
@@ -451,7 +451,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#prob5>
+<http://dmtry3.github.io/zynthian-eka/bloom#prob5>
     a lv2:Parameter ;
     lv2:symbol "prob5" ;
     rdfs:label "Prob 5" ;
@@ -460,7 +460,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#shift5>
+<http://dmtry3.github.io/zynthian-eka/bloom#shift5>
     a lv2:Parameter ;
     lv2:symbol "shift5" ;
     rdfs:label "Shift 5" ;
@@ -469,7 +469,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#vel5>
+<http://dmtry3.github.io/zynthian-eka/bloom#vel5>
     a lv2:Parameter ;
     lv2:symbol "vel5" ;
     rdfs:label "Vel 5" ;
@@ -478,7 +478,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#gate5>
+<http://dmtry3.github.io/zynthian-eka/bloom#gate5>
     a lv2:Parameter ;
     lv2:symbol "gate5" ;
     rdfs:label "Gate 5" ;
@@ -493,7 +493,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#prob6>
+<http://dmtry3.github.io/zynthian-eka/bloom#prob6>
     a lv2:Parameter ;
     lv2:symbol "prob6" ;
     rdfs:label "Prob 6" ;
@@ -502,7 +502,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#shift6>
+<http://dmtry3.github.io/zynthian-eka/bloom#shift6>
     a lv2:Parameter ;
     lv2:symbol "shift6" ;
     rdfs:label "Shift 6" ;
@@ -511,7 +511,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#vel6>
+<http://dmtry3.github.io/zynthian-eka/bloom#vel6>
     a lv2:Parameter ;
     lv2:symbol "vel6" ;
     rdfs:label "Vel 6" ;
@@ -520,7 +520,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#gate6>
+<http://dmtry3.github.io/zynthian-eka/bloom#gate6>
     a lv2:Parameter ;
     lv2:symbol "gate6" ;
     rdfs:label "Gate 6" ;
@@ -535,7 +535,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#prob7>
+<http://dmtry3.github.io/zynthian-eka/bloom#prob7>
     a lv2:Parameter ;
     lv2:symbol "prob7" ;
     rdfs:label "Prob 7" ;
@@ -544,7 +544,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#shift7>
+<http://dmtry3.github.io/zynthian-eka/bloom#shift7>
     a lv2:Parameter ;
     lv2:symbol "shift7" ;
     rdfs:label "Shift 7" ;
@@ -553,7 +553,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#vel7>
+<http://dmtry3.github.io/zynthian-eka/bloom#vel7>
     a lv2:Parameter ;
     lv2:symbol "vel7" ;
     rdfs:label "Vel 7" ;
@@ -562,7 +562,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#gate7>
+<http://dmtry3.github.io/zynthian-eka/bloom#gate7>
     a lv2:Parameter ;
     lv2:symbol "gate7" ;
     rdfs:label "Gate 7" ;
@@ -577,7 +577,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#prob8>
+<http://dmtry3.github.io/zynthian-eka/bloom#prob8>
     a lv2:Parameter ;
     lv2:symbol "prob8" ;
     rdfs:label "Prob 8" ;
@@ -586,7 +586,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#shift8>
+<http://dmtry3.github.io/zynthian-eka/bloom#shift8>
     a lv2:Parameter ;
     lv2:symbol "shift8" ;
     rdfs:label "Shift 8" ;
@@ -595,7 +595,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#vel8>
+<http://dmtry3.github.io/zynthian-eka/bloom#vel8>
     a lv2:Parameter ;
     lv2:symbol "vel8" ;
     rdfs:label "Vel 8" ;
@@ -604,7 +604,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#gate8>
+<http://dmtry3.github.io/zynthian-eka/bloom#gate8>
     a lv2:Parameter ;
     lv2:symbol "gate8" ;
     rdfs:label "Gate 8" ;
@@ -619,7 +619,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#prob9>
+<http://dmtry3.github.io/zynthian-eka/bloom#prob9>
     a lv2:Parameter ;
     lv2:symbol "prob9" ;
     rdfs:label "Prob 9" ;
@@ -628,7 +628,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#shift9>
+<http://dmtry3.github.io/zynthian-eka/bloom#shift9>
     a lv2:Parameter ;
     lv2:symbol "shift9" ;
     rdfs:label "Shift 9" ;
@@ -637,7 +637,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#vel9>
+<http://dmtry3.github.io/zynthian-eka/bloom#vel9>
     a lv2:Parameter ;
     lv2:symbol "vel9" ;
     rdfs:label "Vel 9" ;
@@ -646,7 +646,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#gate9>
+<http://dmtry3.github.io/zynthian-eka/bloom#gate9>
     a lv2:Parameter ;
     lv2:symbol "gate9" ;
     rdfs:label "Gate 9" ;
@@ -661,7 +661,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#prob10>
+<http://dmtry3.github.io/zynthian-eka/bloom#prob10>
     a lv2:Parameter ;
     lv2:symbol "prob10" ;
     rdfs:label "Prob 10" ;
@@ -670,7 +670,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#shift10>
+<http://dmtry3.github.io/zynthian-eka/bloom#shift10>
     a lv2:Parameter ;
     lv2:symbol "shift10" ;
     rdfs:label "Shift 10" ;
@@ -679,7 +679,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#vel10>
+<http://dmtry3.github.io/zynthian-eka/bloom#vel10>
     a lv2:Parameter ;
     lv2:symbol "vel10" ;
     rdfs:label "Vel 10" ;
@@ -688,7 +688,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#gate10>
+<http://dmtry3.github.io/zynthian-eka/bloom#gate10>
     a lv2:Parameter ;
     lv2:symbol "gate10" ;
     rdfs:label "Gate 10" ;
@@ -703,7 +703,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#prob11>
+<http://dmtry3.github.io/zynthian-eka/bloom#prob11>
     a lv2:Parameter ;
     lv2:symbol "prob11" ;
     rdfs:label "Prob 11" ;
@@ -712,7 +712,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#shift11>
+<http://dmtry3.github.io/zynthian-eka/bloom#shift11>
     a lv2:Parameter ;
     lv2:symbol "shift11" ;
     rdfs:label "Shift 11" ;
@@ -721,7 +721,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#vel11>
+<http://dmtry3.github.io/zynthian-eka/bloom#vel11>
     a lv2:Parameter ;
     lv2:symbol "vel11" ;
     rdfs:label "Vel 11" ;
@@ -730,7 +730,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#gate11>
+<http://dmtry3.github.io/zynthian-eka/bloom#gate11>
     a lv2:Parameter ;
     lv2:symbol "gate11" ;
     rdfs:label "Gate 11" ;
@@ -745,7 +745,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#prob12>
+<http://dmtry3.github.io/zynthian-eka/bloom#prob12>
     a lv2:Parameter ;
     lv2:symbol "prob12" ;
     rdfs:label "Prob 12" ;
@@ -754,7 +754,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#shift12>
+<http://dmtry3.github.io/zynthian-eka/bloom#shift12>
     a lv2:Parameter ;
     lv2:symbol "shift12" ;
     rdfs:label "Shift 12" ;
@@ -763,7 +763,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#vel12>
+<http://dmtry3.github.io/zynthian-eka/bloom#vel12>
     a lv2:Parameter ;
     lv2:symbol "vel12" ;
     rdfs:label "Vel 12" ;
@@ -772,7 +772,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#gate12>
+<http://dmtry3.github.io/zynthian-eka/bloom#gate12>
     a lv2:Parameter ;
     lv2:symbol "gate12" ;
     rdfs:label "Gate 12" ;
@@ -787,7 +787,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#prob13>
+<http://dmtry3.github.io/zynthian-eka/bloom#prob13>
     a lv2:Parameter ;
     lv2:symbol "prob13" ;
     rdfs:label "Prob 13" ;
@@ -796,7 +796,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#shift13>
+<http://dmtry3.github.io/zynthian-eka/bloom#shift13>
     a lv2:Parameter ;
     lv2:symbol "shift13" ;
     rdfs:label "Shift 13" ;
@@ -805,7 +805,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#vel13>
+<http://dmtry3.github.io/zynthian-eka/bloom#vel13>
     a lv2:Parameter ;
     lv2:symbol "vel13" ;
     rdfs:label "Vel 13" ;
@@ -814,7 +814,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#gate13>
+<http://dmtry3.github.io/zynthian-eka/bloom#gate13>
     a lv2:Parameter ;
     lv2:symbol "gate13" ;
     rdfs:label "Gate 13" ;
@@ -829,7 +829,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#prob14>
+<http://dmtry3.github.io/zynthian-eka/bloom#prob14>
     a lv2:Parameter ;
     lv2:symbol "prob14" ;
     rdfs:label "Prob 14" ;
@@ -838,7 +838,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#shift14>
+<http://dmtry3.github.io/zynthian-eka/bloom#shift14>
     a lv2:Parameter ;
     lv2:symbol "shift14" ;
     rdfs:label "Shift 14" ;
@@ -847,7 +847,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#vel14>
+<http://dmtry3.github.io/zynthian-eka/bloom#vel14>
     a lv2:Parameter ;
     lv2:symbol "vel14" ;
     rdfs:label "Vel 14" ;
@@ -856,7 +856,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#gate14>
+<http://dmtry3.github.io/zynthian-eka/bloom#gate14>
     a lv2:Parameter ;
     lv2:symbol "gate14" ;
     rdfs:label "Gate 14" ;
@@ -871,7 +871,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#prob15>
+<http://dmtry3.github.io/zynthian-eka/bloom#prob15>
     a lv2:Parameter ;
     lv2:symbol "prob15" ;
     rdfs:label "Prob 15" ;
@@ -880,7 +880,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#shift15>
+<http://dmtry3.github.io/zynthian-eka/bloom#shift15>
     a lv2:Parameter ;
     lv2:symbol "shift15" ;
     rdfs:label "Shift 15" ;
@@ -889,7 +889,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#vel15>
+<http://dmtry3.github.io/zynthian-eka/bloom#vel15>
     a lv2:Parameter ;
     lv2:symbol "vel15" ;
     rdfs:label "Vel 15" ;
@@ -898,7 +898,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#gate15>
+<http://dmtry3.github.io/zynthian-eka/bloom#gate15>
     a lv2:Parameter ;
     lv2:symbol "gate15" ;
     rdfs:label "Gate 15" ;
@@ -913,7 +913,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#prob16>
+<http://dmtry3.github.io/zynthian-eka/bloom#prob16>
     a lv2:Parameter ;
     lv2:symbol "prob16" ;
     rdfs:label "Prob 16" ;
@@ -922,7 +922,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#shift16>
+<http://dmtry3.github.io/zynthian-eka/bloom#shift16>
     a lv2:Parameter ;
     lv2:symbol "shift16" ;
     rdfs:label "Shift 16" ;
@@ -931,7 +931,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#vel16>
+<http://dmtry3.github.io/zynthian-eka/bloom#vel16>
     a lv2:Parameter ;
     lv2:symbol "vel16" ;
     rdfs:label "Vel 16" ;
@@ -940,7 +940,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-<urn:generativearp:arp#gate16>
+<http://dmtry3.github.io/zynthian-eka/bloom#gate16>
     a lv2:Parameter ;
     lv2:symbol "gate16" ;
     rdfs:label "Gate 16" ;
