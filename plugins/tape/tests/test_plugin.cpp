@@ -253,6 +253,28 @@ static void test_sessions() {
   CHECK(!b.pl->looper->view(0).stopped && b.peak_out > 0.1f);
   CHECK(b.ctl[O_SESS] == (float)SS_LOADED);
 
+  // снапшот при стоящем транспорте (проверка 7а): новый экземпляр, транспорт не запущен —
+  // сессия загружается и молчит до пуска
+  {
+    Host f(false);
+    f.blocks(4);
+    f.restore_state(st);
+    for (int i = 0; i < 2000 && f.pl->looper->session_status() != SS_LOADED; ++i) f.block();
+    PositionMsg m;  // первое сообщение jalv: транспорт стоит
+    m.has_speed = m.has_bpm = m.has_pos = true;
+    m.speed = 0;
+    m.bpm = 120;
+    m.bar = m.bar_beat = 0;
+    f.pl->clock.on_position(m);
+    f.peak_out = 0;
+    f.blocks(3 * 96000 / 128);
+    CHECK(f.pl->looper->session_status() == SS_LOADED && f.peak_out < 1e-6f);
+    m.speed = 1;  // пуск: вступает
+    f.pl->clock.on_position(m);
+    f.blocks(96000 / 128);
+    CHECK(f.peak_out > 0.1f);
+  }
+
   // пресет только с настройками: лупы остаются
   {
     std::vector<KV> only;
