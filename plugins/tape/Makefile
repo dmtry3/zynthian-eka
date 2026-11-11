@@ -41,7 +41,7 @@ build_test/test_session: tests/test_session.cpp $(CORE_H) $(CORE_CPP)
 # Обёртка LV2 без хоста (нужны заголовки lv2, как и для сборки плагина)
 build_test/test_plugin: tests/test_plugin.cpp lv2/eka_tape.cpp $(CORE_H) $(CORE_CPP)
 	@mkdir -p build_test
-	$(CXX) $(CXXFLAGS) $(shell pkg-config --cflags lv2) -o $@ tests/test_plugin.cpp $(CORE_CPP) -lm
+	$(CXX) $(CXXFLAGS) $(shell pkg-config --cflags lv2) -o $@ tests/test_plugin.cpp $(CORE_CPP) -lm -pthread
 
 clean:
 	rm -rf build build_test tests/out

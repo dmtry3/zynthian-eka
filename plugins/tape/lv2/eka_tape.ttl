@@ -25,6 +25,8 @@
     lv2:microVersion 1 ;
     lv2:requiredFeature urid:map , work:schedule ;
     lv2:optionalFeature lv2:hardRTCapable ;
+    # сессии (этап 7а): звук пишется рядом с пресетом; restore() не останавливает звук (jalv)
+    lv2:optionalFeature state:makePath , state:mapPath , state:freePath , state:threadSafeRestore ;
     lv2:extensionData work:interface , state:interface ;
     patch:writable
         <http://dmtry3.github.io/zynthian-eka/tape#grid> ,
@@ -554,6 +556,17 @@
         a lv2:OutputPort , lv2:ControlPort ;
         lv2:index 85 ; lv2:symbol "o_pool_mb" ; lv2:name "Out: Pool MB" ;
         lv2:minimum 0 ; lv2:maximum 4096 ;
+    ] ,
+    # сессия: 0 нет, 1 Save ждёт закрытия записи, 2 сохраняется, 3 сохранена, 4 грузится, 5 загружена,
+    # от 10 — ошибки (core/session.h, SessStatus)
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 86 ; lv2:symbol "o_session" ; lv2:name "Out: Session" ;
+        lv2:minimum 0 ; lv2:maximum 20 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 87 ; lv2:symbol "o_sess_prog" ; lv2:name "Out: Session Progress" ;
+        lv2:minimum 0 ; lv2:maximum 1 ;
     ] .
 
 # Настройки: LV2-параметры (patch:Set), скрыты со страниц, меняются на вкладке настроек виджета.

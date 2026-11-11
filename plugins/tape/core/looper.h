@@ -185,6 +185,8 @@ class Looper {
   float session_progress() const;
   uint32_t pool_chunks() const { return pool_chunks_.load(std::memory_order_relaxed); }
   uint64_t session_id() const { return cur_id_.load(std::memory_order_relaxed); }
+  // Есть записанные лупы (или идёт запись). Из потока save(): решить, сохранять ли звук.
+  bool has_loops() const { return has_content(); }
   // Для тестов: что играет дорожка k (все дорожки, не только текущий парт).
   const Pool& pool() const { return pool_; }
   int32_t track_sum(int k) const { return tr_[k].sum; }

@@ -1,14 +1,25 @@
 // Eka Tape: тонкая LV2-обёртка над ядром из core/.
 // Порты и контроллеры-действия (тап и удержание), темп из time:Position (запасной путь — MIDI-клок),
 // настройки как LV2-параметры (patch:Set, сохраняются через state), undo/redo через LV2 worker.
+// Сессии (этап 7а): пресет Zynthian хранит и звук — WAV в своей папке рядом с пресетом (state:makePath).
+#include <atomic>
+#include <cerrno>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
+#include <mutex>
 #include <new>
+#include <string>
+#include <thread>
+#include <vector>
 
+#include <dirent.h>
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include <lv2/atom/atom.h>
@@ -24,6 +35,7 @@
 
 #include "../core/gestures.h"
 #include "../core/looper.h"
+#include "../core/session.h"
 #include "../core/tempo.h"
 
 #define AL_URI "http://dmtry3.github.io/zynthian-eka/tape"
@@ -60,6 +72,7 @@ enum Port : uint32_t {
   O_ST5, O_ST6, O_POS5, O_POS6, O_LEN5, O_LEN6, O_PK5, O_PK6, O_SPD5, O_SPD6, O_ESPD5, O_ESPD6,
   O_MUTES, O_REVS, O_STOPS, O_LOCKS, O_GRID,
   O_POOL_MB,  // фактический размер пула, МБ (0 — меняется)
+  O_SESS, O_SESS_PROG,  // сессия: состояние (SessStatus) и доля записанного или прочитанного
   P_COUNT
 };
 
@@ -178,7 +191,18 @@ struct Uris {
   LV2_URID midi_Event;
   LV2_URID time_Position, time_bar, time_barBeat, time_bpm, time_bpb, time_speed, time_frame;
   LV2_URID patch_Set, patch_Get, patch_property, patch_value;
+  LV2_URID atom_String, atom_Path, sess_text, sess_dir;
   LV2_URID param[PR_COUNT];
+};
+
+// Почтовый ящик настроек: restore() идёт в своём потоке, одновременно с run() (state:threadSafeRestore),
+// поэтому значения не пишутся в ядро, а передаются в run() без блокировок (seqlock).
+struct PendingParams {
+  std::mutex mx;                  // писатели — только не-RT потоки
+  std::atomic<uint32_t> seq{0};   // нечётное — пишется
+  std::atomic<float> val[PR_COUNT];
+  std::atomic<bool> has[PR_COUNT];
+  uint32_t applied = 0;           // RT: последний применённый seq
 };
 
 struct Plugin {
@@ -201,6 +225,7 @@ struct Plugin {
   float vals[PR_COUNT];
   bool dirty[PR_COUNT] = {};  // ядро изменило значение само: сообщить хосту
   int report_next = -1;  // следующий параметр для ответа на patch:Get, -1 = нечего
+  PendingParams pend;
   // ручки страницы 5 (Level, Pan, Master) с захватом (catch): ведут значение,
   // только когда прошли через его текущую величину
   struct Catch {
@@ -325,6 +350,41 @@ void set_param(Plugin* pl, int i, double v) {
   if (x < kParams[i].lo) x = kParams[i].lo;
   if (x > kParams[i].hi) x = kParams[i].hi;
   pl->vals[i] = x;
+}
+
+// Не RT (restore): положить значения в почтовый ящик, run() применит их в начале блока.
+void post_params(Plugin* pl, const float* val, const bool* has) {
+  PendingParams& p = pl->pend;
+  std::lock_guard<std::mutex> lk(p.mx);
+  const uint32_t s = p.seq.load(std::memory_order_relaxed);
+  p.seq.store(s + 1, std::memory_order_relaxed);
+  std::atomic_thread_fence(std::memory_order_release);
+  for (int i = 0; i < PR_COUNT; ++i) {
+    p.val[i].store(val[i], std::memory_order_relaxed);
+    p.has[i].store(has[i], std::memory_order_relaxed);
+  }
+  p.seq.store(s + 2, std::memory_order_release);
+}
+
+// RT, начало run(): новые значения из restore() — в параметры и ядро. Писатель как раз пишет
+// (или переписал во время чтения) — попробуем в следующем блоке.
+void apply_pending(Plugin* pl) {
+  PendingParams& p = pl->pend;
+  const uint32_t s1 = p.seq.load(std::memory_order_acquire);
+  if ((s1 & 1) || s1 == p.applied) return;
+  float val[PR_COUNT];
+  bool has[PR_COUNT];
+  for (int i = 0; i < PR_COUNT; ++i) {
+    val[i] = p.val[i].load(std::memory_order_relaxed);
+    has[i] = p.has[i].load(std::memory_order_relaxed);
+  }
+  std::atomic_thread_fence(std::memory_order_acquire);
+  if (p.seq.load(std::memory_order_relaxed) != s1) return;
+  p.applied = s1;
+  for (int i = 0; i < PR_COUNT; ++i)
+    if (has[i]) set_param(pl, i, val[i]);
+  pl->apply_all();
+  pl->report_next = 0;  // сообщить хосту и виджету новые значения
 }
 
 // Ручки Level и Master: положение 0..100 со шкалой фейдера (как на экране Mixer):
@@ -510,20 +570,12 @@ void report_params(Plugin* pl) {
   lv2_atom_forge_pop(&pl->forge, &frame);
 }
 
-LV2_Handle instantiate(const LV2_Descriptor*, double rate, const char*, const LV2_Feature* const* features) {
-  LV2_URID_Map* map = nullptr;
-  LV2_Worker_Schedule* schedule = nullptr;
-  for (int i = 0; features && features[i]; ++i) {
-    if (!std::strcmp(features[i]->URI, LV2_URID__map)) map = static_cast<LV2_URID_Map*>(features[i]->data);
-    if (!std::strcmp(features[i]->URI, LV2_WORKER__schedule))
-      schedule = static_cast<LV2_Worker_Schedule*>(features[i]->data);
-  }
-  if (!map || !schedule) return nullptr;
-
+// Плагин с пулом pool_mb (instantiate — 2 ГБ по ТЗ; тесты — меньше).
+Plugin* create_plugin(double rate, LV2_URID_Map* map, LV2_Worker_Schedule* schedule, int pool_mb) {
   Plugin* pl = new (std::nothrow) Plugin();
   if (!pl) return nullptr;
   pl->looper = new (std::nothrow) Looper();
-  if (!pl->looper || !pl->looper->init(rate, (size_t)kPoolMbDefault << 20)) {
+  if (!pl->looper || !pl->looper->init(rate, (size_t)pool_mb << 20)) {
     delete pl->looper;
     delete pl;
     return nullptr;
@@ -552,6 +604,10 @@ LV2_Handle instantiate(const LV2_Descriptor*, double rate, const char*, const LV
   u.patch_Get = M(LV2_PATCH__Get);
   u.patch_property = M(LV2_PATCH__property);
   u.patch_value = M(LV2_PATCH__value);
+  u.atom_String = M(LV2_ATOM__String);
+  u.atom_Path = M(LV2_ATOM__Path);
+  u.sess_text = M(AL_URI "#session");
+  u.sess_dir = M(AL_URI "#session_dir");
   init_params();
   for (int i = 0; i < PR_COUNT; ++i) {
     char uri[96];
@@ -587,6 +643,18 @@ LV2_Handle instantiate(const LV2_Descriptor*, double rate, const char*, const LV
   return pl;
 }
 
+LV2_Handle instantiate(const LV2_Descriptor*, double rate, const char*, const LV2_Feature* const* features) {
+  LV2_URID_Map* map = nullptr;
+  LV2_Worker_Schedule* schedule = nullptr;
+  for (int i = 0; features && features[i]; ++i) {
+    if (!std::strcmp(features[i]->URI, LV2_URID__map)) map = static_cast<LV2_URID_Map*>(features[i]->data);
+    if (!std::strcmp(features[i]->URI, LV2_WORKER__schedule))
+      schedule = static_cast<LV2_Worker_Schedule*>(features[i]->data);
+  }
+  if (!map || !schedule) return nullptr;
+  return create_plugin(rate, map, schedule, kPoolMbDefault);
+}
+
 void connect_port(LV2_Handle h, uint32_t port, void* data) {
   if (port < P_COUNT) static_cast<Plugin*>(h)->ports[port] = data;
 }
@@ -594,6 +662,7 @@ void connect_port(LV2_Handle h, uint32_t port, void* data) {
 void run(LV2_Handle h, uint32_t n) {
   Plugin* pl = static_cast<Plugin*>(h);
   Looper* lp = pl->looper;
+  apply_pending(pl);  // настройки из restore() (пресет, снапшот)
 
   // Время блока — по часам на его начало (сообщения о позиции действуют со следующего блока).
   TimeInfo ti;
@@ -701,6 +770,8 @@ void run(LV2_Handle h, uint32_t n) {
   pl->out(O_LOCKS, (float)locks);
   pl->out(O_GRID, (float)n_grid);
   pl->out(O_POOL_MB, (float)(lp->pool_bytes() >> 20));
+  pl->out(O_SESS, (float)lp->session_status());
+  pl->out(O_SESS_PROG, lp->session_progress());
   pl->out(O_POOL, lp->pool_fill());
   pl->out(O_MPK_L, lp->master_peak(0));
   pl->out(O_MPK_R, lp->master_peak(1));
@@ -735,10 +806,156 @@ LV2_Worker_Status work_response(LV2_Handle h, uint32_t size, const void* data) {
   return LV2_WORKER_SUCCESS;
 }
 
-// ---- state: настройки попадают в снапшоты и пресеты Zynthian ----
-LV2_State_Status save(LV2_Handle h, LV2_State_Store_Function store, LV2_State_Handle sh, uint32_t,
-                      const LV2_Feature* const*) {
-  Plugin* pl = static_cast<Plugin*>(h);
+// ---- state: настройки и сессия (звук) попадают в пресеты Zynthian ----
+// Проверено пробой на Zynthian V5 (tape/CLAUDE.md): jalv вызывает save() в отдельном потоке, звук идёт;
+// makePath ведёт в папку пресетов плагина (одна на все пресеты); restore() с threadSafeRestore — тоже
+// в своём потоке, одновременно с run(). Снапшот хранит ссылку на пресет, save() не вызывает.
+
+constexpr int kSaveWaitMs = 120000;   // Save ждёт закрытия записи и овердаба не дольше 2 минут
+constexpr int kOrphanAgeS = 600;      // папку без пресета удаляем, только если ей больше 10 минут
+constexpr char kSessPrefix[] = "tape_";
+
+const void* find_feature(const LV2_Feature* const* fs, const char* uri) {
+  for (int i = 0; fs && fs[i]; ++i)
+    if (!std::strcmp(fs[i]->URI, uri)) return fs[i]->data;
+  return nullptr;
+}
+
+std::string read_file(const std::string& path, size_t max = 4u << 20) {
+  std::string s;
+  FILE* f = std::fopen(path.c_str(), "rb");
+  if (!f) return s;
+  char buf[8192];
+  size_t n;
+  while ((n = std::fread(buf, 1, sizeof buf, f)) > 0 && s.size() < max) s.append(buf, n);
+  std::fclose(f);
+  return s;
+}
+
+// Папка сессии: «tape_2026-11-11_06-44-31» (без пробелов: путь хранится в пресете как URI);
+// k > 1 — в ту же секунду уже сохраняли: «…_2», «…_3».
+std::string session_folder_name(int k) {
+  char name[64];
+  const std::time_t now = std::time(nullptr);
+  std::tm tm{};
+  localtime_r(&now, &tm);
+  std::strftime(name, sizeof name, "tape_%Y-%m-%d_%H-%M-%S", &tm);
+  return k > 1 ? std::string(name) + "_" + std::to_string(k) : std::string(name);
+}
+
+// Папка сессии для человека: что в ней. Имя пресета дописывает уборка (save() его не знает).
+void write_info(const std::string& dir, const SessionDesc& d, const std::string& preset) {
+  std::string s = "Eka Tape session\n";
+  char line[256];
+  const std::time_t now = std::time(nullptr);
+  std::tm tm{};
+  localtime_r(&now, &tm);
+  std::strftime(line, sizeof line, "Saved: %Y-%m-%d %H:%M:%S\n", &tm);
+  s += line;
+  s += "Preset: " + (preset.empty() ? std::string("(not known yet)") : preset) + "\n";
+  std::snprintf(line, sizeof line, "Grid: %dx%d, current part %d, active track %d\nSample rate: %.0f Hz\nTracks:\n",
+                d.grid, d.grid, d.part + 1, d.active + 1, d.sr);
+  s += line;
+  for (int k = 0; k < d.grid * d.grid && k < kTracks; ++k) {
+    const SessionTrack& t = d.t[k];
+    if (!t.used) continue;
+    std::snprintf(line, sizeof line, "  %-18s %7.2f s%s%s%s%s\n", t.file, (double)t.len / d.sr,
+                  t.synced ? ", Quantize" : ", Free", t.muted ? ", mute" : "", t.reversed ? ", reverse" : "",
+                  t.locked ? ", lock" : "");
+    s += line;
+    if (t.synced && t.rec_bpm > 0) {
+      std::snprintf(line, sizeof line, "  %-18s %.0f beats at %.2f BPM\n", "", t.loop_beats, t.rec_bpm);
+      s += line;
+    }
+    if (t.gain > 1.0f) {
+      std::snprintf(line, sizeof line, "  %-18s louder than 0 dB: file is %.1f dB quieter\n", "",
+                    20.0 * std::log10((double)t.gain));
+      s += line;
+    }
+  }
+  FILE* f = std::fopen((dir + "/info.txt").c_str(), "wb");
+  if (!f) return;
+  std::fwrite(s.data(), 1, s.size(), f);
+  std::fclose(f);
+}
+
+// Имя пресета в info.txt (если ещё не то).
+void set_info_preset(const std::string& dir, const std::string& preset) {
+  const std::string path = dir + "/info.txt";
+  std::string s = read_file(path);
+  const size_t a = s.find("Preset: ");
+  if (a == std::string::npos) return;
+  const size_t b = s.find('\n', a);
+  const std::string want = "Preset: " + preset;
+  if (s.compare(a, b - a, want) == 0) return;
+  s.replace(a, b - a, want);
+  FILE* f = std::fopen(path.c_str(), "wb");
+  if (!f) return;
+  std::fwrite(s.data(), 1, s.size(), f);
+  std::fclose(f);
+}
+
+bool is_session_folder(const char* n) {
+  return !std::strncmp(n, kSessPrefix, sizeof kSessPrefix - 1) && std::strlen(n) >= 24 && !std::strchr(n, '/');
+}
+
+// Удалить только то, что пишем мы: part* track*.wav и info.txt; папку — если после этого пустая.
+void remove_session_folder(const std::string& dir) {
+  DIR* d = opendir(dir.c_str());
+  if (!d) return;
+  std::vector<std::string> files;
+  while (dirent* e = readdir(d)) {
+    const char* n = e->d_name;
+    const size_t len = std::strlen(n);
+    const bool ours = !std::strcmp(n, "info.txt") ||
+                      (!std::strncmp(n, "part", 4) && len > 4 && !std::strcmp(n + len - 4, ".wav"));
+    if (ours) files.push_back(n);
+  }
+  closedir(d);
+  for (const auto& f : files) unlink((dir + "/" + f).c_str());
+  rmdir(dir.c_str());  // не пустая (там чужое) — останется
+}
+
+// Уборка в папке пресетов: папки сессий, на которые не ссылается ни один пресет (удалённые или
+// перезаписанные), удаляются; у остальных в info.txt — имя пресета. keep — только что сохранённая
+// (её пресет хост запишет после save()).
+void cleanup_sessions(const std::string& bundle, const std::string& keep) {
+  DIR* d = opendir(bundle.c_str());
+  if (!d) return;
+  std::vector<std::string> folders, ttls;
+  while (dirent* e = readdir(d)) {
+    const char* n = e->d_name;
+    const size_t len = std::strlen(n);
+    if (is_session_folder(n)) folders.push_back(n);
+    else if (len > 4 && !std::strcmp(n + len - 4, ".ttl") && std::strcmp(n, "manifest.ttl")) ttls.push_back(n);
+  }
+  closedir(d);
+  std::vector<std::string> texts;
+  for (const auto& t : ttls) texts.push_back(read_file(bundle + "/" + t, 1u << 20));
+  const std::time_t now = std::time(nullptr);
+  for (const auto& f : folders) {
+    if (f == keep) continue;
+    const std::string dir = bundle + "/" + f;
+    int ref = -1;
+    for (size_t i = 0; i < texts.size() && ref < 0; ++i)
+      if (texts[i].find(f) != std::string::npos) ref = (int)i;
+    if (ref >= 0) {
+      // rdfs:label "Имя" — имя пресета
+      const std::string& tx = texts[ref];
+      const size_t a = tx.find("rdfs:label \"");
+      if (a != std::string::npos) {
+        const size_t b = tx.find('"', a + 12);
+        if (b != std::string::npos) set_info_preset(dir, tx.substr(a + 12, b - a - 12));
+      }
+      continue;
+    }
+    struct stat st;
+    if (stat(dir.c_str(), &st) != 0 || !S_ISDIR(st.st_mode) || now - st.st_mtime < kOrphanAgeS) continue;
+    remove_session_folder(dir);
+  }
+}
+
+void store_params(Plugin* pl, LV2_State_Store_Function store, LV2_State_Handle sh) {
   for (int i = 0; i < PR_COUNT; ++i) {
     if (kParams[i].is_float) {
       store(sh, pl->u.param[i], &pl->vals[i], sizeof(float), pl->u.atom_Float, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
@@ -747,21 +964,131 @@ LV2_State_Status save(LV2_Handle h, LV2_State_Store_Function store, LV2_State_Ha
       store(sh, pl->u.param[i], &v, sizeof v, pl->u.atom_Int, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
     }
   }
+}
+
+// Звук лупера — в папку рядом с пресетом, описание — в пресет. Без makePath (другой хост) или без
+// лупов — только настройки: такой пресет при загрузке лупы не трогает.
+void save_session(Plugin* pl, LV2_State_Store_Function store, LV2_State_Handle sh, const LV2_Feature* const* fs) {
+  const auto* mk = static_cast<const LV2_State_Make_Path*>(find_feature(fs, LV2_STATE__makePath));
+  const auto* mp = static_cast<const LV2_State_Map_Path*>(find_feature(fs, LV2_STATE__mapPath));
+  const auto* fp = static_cast<const LV2_State_Free_Path*>(find_feature(fs, LV2_STATE__freePath));
+  Looper* lp = pl->looper;
+  if (!mk || !mp || !lp->has_loops()) return;
+  auto free_path = [fp](char* p) {
+    if (!p) return;
+    if (fp) fp->free_path(fp->handle, p);
+    else std::free(p);
+  };
+  // Save ждёт, пока закроются запись и овердаб (решение пользователя 2026-11-11)
+  lp->session_set_status(SS_WAIT);
+  lp->session_request_freeze();
+  for (int ms = 0; !lp->session_frozen() && ms < kSaveWaitMs; ms += 5)
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  if (!lp->session_frozen()) {
+    lp->session_unfreeze(false, 0);
+    lp->session_set_status(SS_E_TIMEOUT);
+    return;
+  }
+  // папка: makePath даёт путь в папке пресетов; имя — по времени, своя у каждого сохранения
+  std::string name;
+  char* dir = nullptr;
+  for (int k = 1; k < 100 && !dir; ++k) {
+    name = session_folder_name(k);
+    dir = mk->path(mk->handle, name.c_str());
+    if (dir && mkdir(dir, 0755) != 0) {  // занята (или не создаётся) — следующее имя
+      const bool busy = errno == EEXIST;
+      free_path(dir);
+      dir = nullptr;
+      if (!busy) break;
+    }
+  }
+  std::string bundle = dir ? dir : "";
+  const size_t sl = bundle.rfind('/');
+  bundle = sl == std::string::npos ? std::string() : bundle.substr(0, sl);
+  int st = SS_E_WRITE;
+  SessionDesc d;
+  if (dir) st = lp->session_save_audio(dir, d);
+  lp->session_unfreeze(st == SS_SAVED, d.id);
+  if (st != SS_SAVED) {
+    lp->session_set_status(st);
+    if (dir) remove_session_folder(dir);
+    free_path(dir);
+    return;
+  }
+  write_info(dir, d, "");
+  const std::string text = session_to_text(d);
+  store(sh, pl->u.sess_text, text.c_str(), text.size() + 1, pl->u.atom_String, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+  char* apath = mp->abstract_path(mp->handle, dir);
+  const char* sp = apath ? apath : dir;
+  store(sh, pl->u.sess_dir, sp, std::strlen(sp) + 1, pl->u.atom_Path, LV2_STATE_IS_POD);
+  free_path(apath);
+  if (!bundle.empty()) cleanup_sessions(bundle, name);
+  free_path(dir);
+}
+
+LV2_State_Status save(LV2_Handle h, LV2_State_Store_Function store, LV2_State_Handle sh, uint32_t,
+                      const LV2_Feature* const* features) {
+  Plugin* pl = static_cast<Plugin*>(h);
+  save_session(pl, store, sh, features);
+  store_params(pl, store, sh);
   return LV2_STATE_SUCCESS;
 }
 
+// Пресет или снапшот. Настройки — через почтовый ящик в run(); сессия — проверка и загрузка в фоне.
+// Сессию нельзя загрузить (нет файлов, не помещается, другая частота) — не меняем ничего: ни лупы,
+// ни настройки; причина — в статусе для виджета.
 LV2_State_Status restore(LV2_Handle h, LV2_State_Retrieve_Function retrieve, LV2_State_Handle sh, uint32_t,
-                         const LV2_Feature* const*) {
+                         const LV2_Feature* const* features) {
   Plugin* pl = static_cast<Plugin*>(h);
+  float val[PR_COUNT];
+  bool has[PR_COUNT];
   for (int i = 0; i < PR_COUNT; ++i) {
     size_t size = 0;
     uint32_t type = 0, flags = 0;
     const void* v = retrieve(sh, pl->u.param[i], &size, &type, &flags);
-    if (v && type == pl->u.atom_Int && size == sizeof(int32_t)) set_param(pl, i, *static_cast<const int32_t*>(v));
-    if (v && type == pl->u.atom_Float && size == sizeof(float)) set_param(pl, i, *static_cast<const float*>(v));
+    has[i] = false;
+    val[i] = 0.0f;
+    if (v && type == pl->u.atom_Int && size == sizeof(int32_t)) {
+      val[i] = (float)*static_cast<const int32_t*>(v);
+      has[i] = true;
+    } else if (v && type == pl->u.atom_Float && size == sizeof(float)) {
+      val[i] = *static_cast<const float*>(v);
+      has[i] = true;
+    }
   }
-  pl->apply_all();
-  pl->report_next = 0;  // сообщить хосту и виджету новые значения
+  size_t size = 0;
+  uint32_t type = 0, flags = 0;
+  const void* txt = retrieve(sh, pl->u.sess_text, &size, &type, &flags);
+  if (!txt || type != pl->u.atom_String || size == 0) {  // только настройки: лупы не трогаем
+    post_params(pl, val, has);
+    return LV2_STATE_SUCCESS;
+  }
+  Looper* lp = pl->looper;
+  SessionDesc d;
+  if (!session_from_text(static_cast<const char*>(txt), std::strlen(static_cast<const char*>(txt)), d)) {
+    lp->session_set_status(SS_E_FORMAT);
+    return LV2_STATE_SUCCESS;
+  }
+  std::string dir;
+  const void* dv = retrieve(sh, pl->u.sess_dir, &size, &type, &flags);
+  if (dv && type == pl->u.atom_Path) {
+    const auto* mp = static_cast<const LV2_State_Map_Path*>(find_feature(features, LV2_STATE__mapPath));
+    const auto* fp = static_cast<const LV2_State_Free_Path*>(find_feature(features, LV2_STATE__freePath));
+    char* abs = mp ? mp->absolute_path(mp->handle, static_cast<const char*>(dv)) : nullptr;
+    dir = abs ? abs : static_cast<const char*>(dv);
+    if (abs) {
+      if (fp) fp->free_path(fp->handle, abs);
+      else std::free(abs);
+    }
+  }
+  // та же сессия, что играет, без изменений звука — ядро само ничего не загрузит; проверка всё равно дешёвая
+  const int st = session_check(d, dir.c_str(), pl->sr, lp->pool_chunks());
+  if (st != SS_IDLE) {
+    lp->session_set_status(st);
+    return LV2_STATE_SUCCESS;
+  }
+  post_params(pl, val, has);
+  lp->session_load(d, dir.c_str());
   return LV2_STATE_SUCCESS;
 }
 
