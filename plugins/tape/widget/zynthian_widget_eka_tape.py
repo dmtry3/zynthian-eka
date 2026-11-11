@@ -180,6 +180,25 @@ SETTINGS = [
     ]),
 ]
 SCROLL_START_PX = 8     # палец ушёл по вертикали дальше — это прокрутка, а не касание
+# Сессия (этап 7а): порт o_session — коды SessStatus из core/session.h, o_sess_prog — доля 0..1.
+# Пока идёт (ждёт, пишет, читает) — показываем всё время; итог — несколько секунд, ошибку — дольше.
+SESS_MSG = {
+    1: ("SAVE: CLOSE REC / DUB", ORANGE),
+    2: ("SAVING %d%%", ORANGE),
+    3: ("SESSION SAVED", GREEN),
+    4: ("LOADING %d%%", BLUE),
+    5: ("SESSION LOADED", GREEN),
+    10: ("NOT ENOUGH MEMORY", RED),
+    11: ("WRONG SAMPLE RATE", RED),
+    12: ("SESSION FILES MISSING", RED),
+    13: ("SESSION FILE DAMAGED", RED),
+    14: ("SAVE FAILED: DISK", RED),
+    15: ("SESSION READ ERROR", RED),
+    16: ("NOT SAVED: REC STILL ON", RED),
+}
+SESS_BUSY = (1, 2, 4)
+SESS_DONE_S = 3.0
+SESS_ERR_S = 8.0
 SETTING_DEFAULTS = {"rec_order": 0, "mode": 1, "mute_q": 2, "part_q": 3, "tempo_glide": 500, "spd_snap": 0,
                     "spd_glide": 150, "fade_out": 200, "fade_in": 200, "rev_time": 50,
                     "len1": 0, "len2": 0, "len3": 0, "len4": 0, "len5": 0, "len6": 0, "limiter": 1, "grid": 1,
@@ -354,6 +373,8 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
         self.geo = {}            # картинки волн по строкам
         self.mon_t = 0.0         # когда пришли значения портов (между ними позиция досчитывается)
         self.flash_bar = None
+        self.sess_code = None    # последний код сессии из порта и когда он появился
+        self.sess_since = 0.0
         self.after(FRAME_MS, self._tick)
 
     def on_size(self, event):
@@ -699,6 +720,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             })
         if not 0 <= st["act"] < len(ACTIONS):
             st["act"] = 0
+        st["sess"] = self._session_msg(m, now)
         # между обновлениями портов доли и позиции идут по времени; пока транспорт стоит и ничего
         # не звучит и не пишется, счёт стоит в 0 — не досчитываем (иначе цифры и точки дёргаются)
         ticking = m.get("o_rolling", 1.0) >= 0.5 or any(
@@ -754,14 +776,30 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
         self._tabs(st, 0, h - tab_h, w, h, now)
         c.commit()
 
+    def _session_msg(self, m, now):
+        """Строка сессии для полосы темпа: (текст, цвет) или None."""
+        code = int(round(m.get("o_session", 0.0)))
+        if code != self.sess_code:
+            self.sess_code = code
+            self.sess_since = now
+        if code not in SESS_MSG:
+            return None
+        if code not in SESS_BUSY and now - self.sess_since > (SESS_ERR_S if code >= 10 else SESS_DONE_S):
+            return None
+        text, color = SESS_MSG[code]
+        if "%d" in text:
+            text = text % int(min(1.0, max(0.0, m.get("o_sess_prog", 0.0))) * 100)
+        return text, color
+
     def _tempo_bar(self, st, x0, y0, x1, y1, now):
         c = self.cv
         hh, w = y1 - y0, x1 - x0
         flash = int(24 + 120 * (self.flash_until - now) / FLASH_S) if now < self.flash_until else None
         beat_i = min(st["bpb"] - 1, max(0, int(st["beat"]))) if st["src"] else -1
-        # меняется раз в долю (и во время вспышки сильной доли)
+        sess = st.get("sess")
+        # меняется раз в долю (и во время вспышки сильной доли, и когда меняется строка сессии)
         if c.section("tempo", (x0, y0, x1, y1, flash, st["src"], st["bpm"], st["bpb"], st["bar"], beat_i,
-                               self.settings_open)):
+                               self.settings_open, sess)):
             return
         if flash is not None:  # вспышка: сразу светло-серый, гаснет к чёрному
             v = flash
@@ -779,6 +817,13 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
         # точки долей: первая крупнее и ярче, текущая горит
         gear_w = hh * 1.3
         dx0, dx1 = x0 + w * 0.47, x1 - gear_w - w * 0.01
+        if sess:  # сохранение или загрузка сессии: строка вместо точек долей (темп и такт видны)
+            text, color = sess
+            c.create_rectangle(dx0, y0 + hh * 0.12, dx1, y1 - hh * 0.12, fill=TAB, outline=color, width=2)
+            self._text((dx0 + dx1) / 2, cy, text, (dx1 - dx0) * 0.92, hh * 0.6, color)
+            self._gear(x1 - gear_w / 2, cy, hh * 0.32, GREEN if self.settings_open else "#9a9a9a")
+            self.hits.append((x1 - gear_w, y0, x1, y1, "gear", None))
+            return
         n = st["bpb"]
         step = (dx1 - dx0) / n
         rmax = min(hh * 0.3, step * 0.4)

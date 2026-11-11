@@ -593,6 +593,43 @@ def main():
     wdg.settings_open = False
     wdg.update()
 
+    # сессия (этап 7а): строка в полосе темпа вместо точек долей
+    m["o_session"], m["o_sess_prog"] = 1.0, 0.0
+    wdg.update()
+    check("Save ждёт закрытия записи — видно", "SAVE: CLOSE REC / DUB" in texts(wdg))
+    m["o_session"], m["o_sess_prog"] = 2.0, 0.4
+    wdg.update()
+    check("сохранение с процентами", "SAVING 40%" in texts(wdg))
+    no_overlap("800x480, сессия сохраняется")
+    wdg.sess_since -= 60.0
+    wdg.update()
+    check("пока сохраняется — строка не гаснет", "SAVING 40%" in texts(wdg))
+    m["o_session"] = 3.0
+    wdg.update()
+    check("сохранено — видно", "SESSION SAVED" in texts(wdg))
+    wdg.sess_since -= 3.5
+    wdg.update()
+    check("сохранено — гаснет через 3 с, точки долей на месте",
+          "SESSION SAVED" not in texts(wdg) and "BPM" in texts(wdg))
+    m["o_session"], m["o_sess_prog"] = 4.0, 0.755
+    wdg.update()
+    check("загрузка с процентами", "LOADING 75%" in texts(wdg))
+    m["o_session"] = 10.0
+    wdg.update()
+    check("ошибка: не хватает памяти", "NOT ENOUGH MEMORY" in texts(wdg))
+    wdg.sess_since -= 5.0
+    wdg.update()
+    check("ошибка держится дольше итога", "NOT ENOUGH MEMORY" in texts(wdg))
+    wdg.sess_since -= 4.0
+    wdg.update()
+    check("ошибка гаснет через 8 с", "NOT ENOUGH MEMORY" not in texts(wdg))
+    m["o_session"] = 16.0
+    wdg.update()
+    check("Save не дождался закрытия записи", "NOT SAVED: REC STILL ON" in texts(wdg))
+    no_overlap("800x480, ошибка сессии")
+    m["o_session"] = 0.0
+    wdg.update()
+
     # виджет в Zynthian занимает только часть экрана: проверяем и маленькие размеры
     m["o_bpm"], m["o_bar"], m["o_bpb"] = 133.5, 127.0, 7.0
     for size in ("640x360", "480x272", "360x220"):
@@ -627,6 +664,13 @@ def main():
         wdg.update()
         no_overlap(size + ", Speed")
         wdg.speed_slot = None
+        m["o_session"], m["o_sess_prog"] = 2.0, 1.0  # самая длинная строка с процентами
+        wdg.update()
+        no_overlap(size + ", сессия")
+        m["o_session"] = 16.0
+        wdg.update()
+        no_overlap(size + ", ошибка сессии")
+        m["o_session"] = 0.0
 
     root.destroy()
     print("%s" % ("OK" if not fails else "%d FAILED" % fails))
