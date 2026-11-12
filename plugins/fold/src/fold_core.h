@@ -7,7 +7,7 @@
  * a vactrol (fast to open, slow to close, slower the darker it gets) driven by function generator 1 and the
  * velocity, which sets a 2-pole low-pass (LP), the level (VCA) or both (Combo). The mod matrix (stage 4b) moves
  * the knobs of a voice from its function generators, the Mod OSC, Random, velocity, key, mod wheel and aftertouch.
- * A soft clip on the output.
+ * Stage 5a: a waveguide / delay in each voice after the gate. A soft clip on the output.
  * SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef FOLD_CORE_H
 #define FOLD_CORE_H
@@ -85,6 +85,34 @@ float fc_decay_ms(float decay);   /* Decay 0..1 -> ms */
 enum { FC_SRC_SINE, FC_SRC_VA, FC_SRC_FM2, FC_SRC_WAVE, FC_NSOURCES };
 #define FC_SRC_FADE_MS 10.0f
 
+/* Waveguide / delay (TZ 4.6), in each voice after the lopass gate: a delay line whose output goes through a
+ * peaking EQ and a soft shaper, times Feedback (100 % = FC_DL_FB_MAX: a string still ends), back into the line; the
+ * voice hears (1 - Mix) of the gate and Mix of the line. Modes: Off (no CPU), Tuned (the line is a period of the
+ * note moved by Time, -24..+24 semitones: a string, Karplus-Strong), Free (Time FC_DL_MIN_MS..FC_DL_MAX_MS,
+ * logarithmic: echoes). Tuned subtracts the delay of the EQ at the note's frequency, so it stays in tune. The EQ
+ * acts on every pass: in Tuned a cut of 1 dB already damps the string (high notes pass hundreds of times a second;
+ * a fixed damping low-pass was tried and dropped: at 10 kHz it killed a C8 string in 0.1 s).
+ * Shaper: 0 = linear .. 1 = tanh; then a limit at FC_DL_LIM (the loop cannot run away, even at Feedback 100 %
+ * with the EQ up). The voice lives on while its line is above FC_DL_OFF, after the gate has closed; a new note
+ * clears the line. Time knob 0..FC_DL_TIME_MAX, read by the mode, like Mod Freq. */
+enum { FC_DL_OFF_MODE, FC_DL_TUNED, FC_DL_FREE, FC_NDL_MODES };
+#define FC_DL_TIME_MAX 100.0f
+#define FC_DL_SEMIS 24.0f
+#define FC_DL_MIN_MS 1.0f
+#define FC_DL_MAX_MS 1000.0f
+#define FC_DL_LEN 131072          /* samples per voice (power of two): 1.36 s at 2 x 48 kHz, 0.68 s at 2 x 96 kHz */
+#define FC_DL_FB_MAX 0.999f
+#define FC_DL_EQ_Q 0.7f
+#define FC_DL_EQ_MIN_HZ 100.0f    /* EQ Freq 0..100 % : 100 Hz .. 10 kHz, logarithmic */
+#define FC_DL_EQ_MAX_HZ 10000.0f
+#define FC_DL_EQ_DB 18.0f         /* EQ Gain -18..+18 dB (the LV2 parameter in tenths) */
+#define FC_DL_LIM 2.0f
+#define FC_DL_OFF 1e-4f           /* -80 dB: the tail is over */
+#define FC_DL_FREE_MS 50.0f       /* Free: Time glides over this (tape-like); Tuned follows in FC_SMOOTH_MS */
+float fc_dl_semis(float units);   /* Tuned: Time knob -> semitones */
+float fc_dl_ms(float units);      /* Free: Time knob -> ms */
+float fc_dl_eq_hz(float units);   /* EQ Freq 0..100 -> Hz */
+
 /* Mod matrix (TZ 4.5): cell[source][destination], -1..1 (-100..100 %), adds source x cell to the destination knob,
  * of each voice, every FC_COEF_EVERY samples; empty cells cost nothing. The order is that of the widget's grid
  * and of the LV2 parameters m_<source>_<destination> (fc_msrc_names, fc_mdst_names).
@@ -93,15 +121,17 @@ enum { FC_SRC_SINE, FC_SRC_VA, FC_SRC_FM2, FC_SRC_WAVE, FC_NSOURCES };
  * Aftertouch 0..1 (channel or polyphonic, the larger).
  * Destinations: Pitch (100 % = FC_MOD_SEMIS semitones), Harmonics, Color, Morph, Mod Index, Order, Timbre (100 % =
  * the whole knob), Symmetry (100 % = from 0 to the end), LPG (the opening of the gate: x (1 + sum), so -100 %
- * keeps it shut and +100 % opens it twice as wide, up to fully; the voice still ends with FG1). */
+ * keeps it shut and +100 % opens it twice as wide, up to fully; the voice still ends with FG1), Delay Time (100 %
+ * = the whole Time knob), Delay Feedback (100 % = from 0 to the end). */
 enum { FC_MS_FG1, FC_MS_FG2, FC_MS_MOD, FC_MS_RND, FC_MS_VEL, FC_MS_KEY, FC_MS_WHEEL, FC_MS_AT, FC_NMSRC };
 enum { FC_MD_PITCH, FC_MD_HARM, FC_MD_COLOR, FC_MD_MORPH, FC_MD_INDEX, FC_MD_ORDER, FC_MD_SYM, FC_MD_TIMBRE,
-       FC_MD_LPG, FC_NMDST };
+       FC_MD_LPG, FC_MD_DTIME, FC_MD_DFB, FC_NMDST };
 #define FC_NCELLS (FC_NMSRC * FC_NMDST)
 #define FC_MOD_SEMIS 12.0f
 #define FC_KEY_SPAN 48.0f
 extern const char* const fc_msrc_names[FC_NMSRC];   /* fg1 fg2 mod rnd vel key wheel at */
-extern const char* const fc_mdst_names[FC_NMDST];   /* pitch harmonics color morph index order symmetry timbre lpg */
+extern const char* const fc_mdst_names[FC_NMDST];   /* pitch harmonics color morph index order symmetry timbre lpg
+                                                       dtime dfb */
 
 /* Mod OSC shapes and modes: the order of the scale points in lv2/eka_fold.ttl and of the widget's lists. */
 enum { FC_MOD_TRI, FC_MOD_SINE, FC_MOD_SAW, FC_MOD_SQUARE, FC_NMOD_SHAPES };
@@ -130,6 +160,13 @@ typedef struct {
   int gate_mode;
   float gate_decay, gate_res, level;   /* 0..1 */
   float matrix[FC_NMSRC][FC_NMDST];   /* -1..1, see above */
+  int delay_mode;                 /* FC_DL_* */
+  float delay_time;               /* 0..FC_DL_TIME_MAX, read by the mode */
+  float delay_fb;                 /* -1..1 */
+  float delay_mix;                /* 0..1 */
+  float delay_shaper;             /* 0..1 */
+  float delay_eq_freq;            /* 0..1 -> fc_dl_eq_hz */
+  float delay_eq_db;              /* -FC_DL_EQ_DB..FC_DL_EQ_DB */
   float mod_freq;                 /* units, see above */
   float mod_index;                /* 0..1 */
   int mod_shape, mod_mode;
@@ -160,6 +197,16 @@ typedef struct {
   float cheb_a[FC_CHEB_MAX + 1];  /* the Saw / M weights, recomputed when Order or the pitch moves */
   float cheb_o, cheb_inc;         /* what they were computed for (cheb_o < 0: not yet) */
   int cheb_n;
+  int tail;                       /* the gate has closed, only the delay line still sounds */
+  float dl_len, dl_len_g;         /* the delay in samples (smoothed), its target */
+  float dl_fb, dl_fb_g;           /* Feedback, its target with the matrix */
+  float dl_mix;                   /* Mix, smoothed (to 0 in Off: the line fades, then costs nothing) */
+  float dl_pk;                    /* peak of what goes into the line, decaying over two of its lengths */
+  float dl_pk_r;                  /* its decay per sample */
+  int dl_wi;                      /* write index */
+  int dl_used;                    /* samples of the line written since it was cleared (to clear only those) */
+  float eq_x1, eq_x2, eq_y1, eq_y2;   /* EQ state */
+  float dl_buf[FC_DL_LEN];
   FcFg fg[2];
   float vac;                      /* vactrol state g, 0..1 */
   float wv, wl, lvl, res;         /* gate mode (VCA, LP shares), Level, Resonance: smoothed */
@@ -214,6 +261,10 @@ typedef struct {
   float idx_t, fm_t, am_t, tim_route_t;   /* targets of the smoothed values */
   float tim_t, ord_t, sym_t, drv_t;
   float hb[FC_HB_TAPS];           /* halfband taps 2x -> 1x */
+  int dl_mode;                    /* FC_DL_* */
+  float dl_time_u, dl_fb_t, dl_mix_t, dl_shape;
+  float eq_b0, eq_b1, eq_b2, eq_a1, eq_a2;   /* peaking EQ at the voices' rate */
+  float dl_glide;                 /* Free: one-pole step of the delay time per sample */
   float hbuf[FC_HB_TAPS - 1 + FC_OS * FC_CHUNK];        /* 2x mix: history, then the chunk */
   int sync;
   int ncells;                     /* the non-empty matrix cells */
@@ -247,6 +298,8 @@ int fc_active_voices(const FoldCore* c);
 float fc_mod_phase(const FoldCore* c);
 float fc_gate_level(const FoldCore* c);
 float fc_fg_pos(const FoldCore* c, int i);
+/* Peak level in the delay line of the newest sounding voice (-1 = none, 0 with the delay Off). */
+float fc_delay_level(const FoldCore* c);
 /* Flush denormals to zero in this thread (call at the start of run()). */
 void fc_enable_ftz(void);
 

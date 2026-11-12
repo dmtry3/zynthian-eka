@@ -23,9 +23,9 @@ static int fails = 0;
 /* ports, as in lv2/eka_fold.ttl */
 enum { P_SOURCE, P_HARMONICS, P_COLOR, P_MORPH, P_MOD_FREQ, P_MOD_INDEX, P_MOD_SHAPE, P_MOD_MODE,
        P_TIMBRE, P_ORDER, P_SYMMETRY, P_DRIVE, P_GATE_MODE, P_GATE_DECAY, P_GATE_RES, P_LEVEL,
-       P_FG1_RISE, P_FG1_FALL, P_FG2_RISE, P_FG2_FALL,
+       P_FG1_RISE, P_FG1_FALL, P_FG2_RISE, P_FG2_FALL, P_DELAY_MODE, P_DELAY_TIME, P_DELAY_FB, P_DELAY_MIX,
        P_MIDI_IN, P_OUT_L, P_OUT_R, P_NOTIFY, P_NOTE1, P_NOTE4 = P_NOTE1 + 3, P_PEAK, P_MOD_PHASE,
-       P_GATE_LEVEL, P_FG1, P_FG2, P_COUNT };
+       P_GATE_LEVEL, P_FG1, P_FG2, P_DELAY_LEVEL, P_COUNT };
 
 static char* uris[256];
 static int nuris = 0;
@@ -302,7 +302,7 @@ int main(int argc, char** argv) {
   /* State: save, change, restore; the restored values are reported on the next run */
   nitems = 0;
   CHECK(si->save(h, store, NULL, 0, NULL) == LV2_STATE_SUCCESS);
-  CHECK(nitems == 8 + 72);                          /* the settings and the 72 matrix cells */
+  CHECK(nitems == 11 + 88);                         /* the settings and the 88 matrix cells */
   seq_set("route_am", 0.0f);
   seq_set("route_sync", 0.0f);
   seq_set("route_fm", 1.0f);
@@ -349,6 +349,16 @@ int main(int argc, char** argv) {
   run_reports();
   CHECK(reported("fg1_mode") == 0 && reported("fg2_mode") == 1 && reported("m_fg2_timbre") == -100);
   seq_set("m_fg2_timbre", 0.0f);
+  /* the delay's widget parameters: EQ Gain in tenths of a dB, clamped to +-18.0 dB */
+  seq_set("delay_eq_gain", 500.0f);
+  seq_set("delay_shaper", 70.0f);
+  run_seq();
+  seq_get();
+  run_reports();
+  CHECK(reported("delay_eq_gain") == 180 && reported("delay_shaper") == 70 && reported("delay_eq_freq") == 50 &&
+        reported("m_wheel_dtime") == 0);
+  seq_set("delay_eq_gain", 0.0f);
+  seq_set("delay_shaper", 30.0f);
   for (int i = 0; i < 400; i++) run_seq();
   seq_midi(0, 0x90, 64, 127);
   run_seq();

@@ -15,6 +15,7 @@
 
 static FoldCore core;
 static int full_matrix;                           /* every mod-matrix cell at 10 % */
+static int delay_mode;                            /* FC_DL_* for every voice */
 static float l[BLOCK], r[BLOCK];
 
 static double now(void) {
@@ -30,6 +31,8 @@ static void bench(const char* label, int source, int shape, float index, int fm,
   fc_default_params(&p);
   /* the defaults: FG1 Gate, the lopass gate in Combo (low-pass and level): the full voice */
   p.source = source;
+  p.delay_mode = delay_mode; p.delay_fb = 0.9f; p.delay_mix = 0.5f; p.delay_shaper = 0.5f;
+  p.delay_eq_db = -0.5f; p.delay_time = delay_mode == FC_DL_FREE ? 80.0f : 50.0f;   /* Free: 250 ms */
   for (int s = 0; s < FC_NMSRC; s++)
     for (int d = 0; d < FC_NMDST; d++) p.matrix[s][d] = full_matrix ? 0.1f : 0.0f;
   p.mod_shape = shape; p.mod_index = index; p.route_fm = fm; p.route_am = am; p.route_sync = sync;
@@ -55,9 +58,14 @@ int main(void) {
   bench("saw Mod, FM+AM+Sync, folder", FC_SRC_SINE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
   bench("saw Mod, FM+AM+Sync, folder + Saw shaper", FC_SRC_SINE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.25f);
   full_matrix = 1;
-  bench("saw Mod, FM+AM+Sync, folder, all 72 cells", FC_SRC_SINE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
-  bench("VA, FM+AM+Sync, folder, all 72 cells", FC_SRC_VA, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  bench("saw Mod, FM+AM+Sync, folder, all cells", FC_SRC_SINE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  bench("VA, FM+AM+Sync, folder, all cells", FC_SRC_VA, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
   full_matrix = 0;
+  delay_mode = FC_DL_TUNED;
+  bench("saw Mod, FM+AM+Sync, folder, delay Tuned", FC_SRC_SINE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  delay_mode = FC_DL_FREE;
+  bench("saw Mod, FM+AM+Sync, folder, delay Free", FC_SRC_SINE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  delay_mode = FC_DL_OFF_MODE;
   bench("VA, FM+AM+Sync, folder", FC_SRC_VA, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
   bench("FM2, FM+AM+Sync, folder", FC_SRC_FM2, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
   bench("Wave, FM+AM+Sync, folder", FC_SRC_WAVE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);

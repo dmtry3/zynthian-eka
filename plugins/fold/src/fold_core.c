@@ -24,6 +24,12 @@ const float fc_ratios[FC_NRATIOS] = { 1.0f / 8, 1.0f / 6, 1.0f / 4, 1.0f / 3, 1.
 
 static float clampf(float v, float lo, float hi) { return v < lo ? lo : v > hi ? hi : v; }
 
+float fc_dl_semis(float u) { return (clampf(u, 0.0f, FC_DL_TIME_MAX) / FC_DL_TIME_MAX * 2.0f - 1.0f) * FC_DL_SEMIS; }
+float fc_dl_ms(float u) {
+  return FC_DL_MIN_MS * powf(FC_DL_MAX_MS / FC_DL_MIN_MS, clampf(u, 0.0f, FC_DL_TIME_MAX) / FC_DL_TIME_MAX);
+}
+float fc_dl_eq_hz(float u) { return FC_DL_EQ_MIN_HZ * powf(FC_DL_EQ_MAX_HZ / FC_DL_EQ_MIN_HZ, clampf(u, 0.0f, 1.0f)); }
+
 float fc_free_hz(float u) {
   return FC_FREE_MIN * powf(FC_FREE_MAX / FC_FREE_MIN, clampf(u, 0.0f, FC_FREQ_MAX) / FC_FREQ_MAX);
 }
@@ -52,6 +58,13 @@ void fc_default_params(FcParams* p) {
   p->gate_res = 0.0f;
   p->level = 0.8f;
   memset(p->matrix, 0, sizeof p->matrix);
+  p->delay_mode = FC_DL_OFF_MODE; /* the voice as before until the delay is turned on */
+  p->delay_time = 50.0f;          /* Tuned: the note itself; Free: 32 ms */
+  p->delay_fb = 0.5f;
+  p->delay_mix = 0.3f;
+  p->delay_shaper = 0.3f;
+  p->delay_eq_freq = 0.5f;        /* 1 kHz */
+  p->delay_eq_db = 0.0f;
   p->mod_freq = 30.0f;            /* Ratio x1 */
   p->mod_index = 0.0f;            /* a plain sine until the Index is turned up */
   p->mod_shape = FC_MOD_SINE;
@@ -101,12 +114,13 @@ static void set_rate(FoldCore* c) {
   r->smooth = 1.0f - expf(-1.0f / (FC_SMOOTH_MS * 0.001f * r->sr));
   r->dc_r = 1.0f - 2.0f * (float)M_PI * FC_DC_HZ / r->sr;
   r->src_fade = 1.0f / (FC_SRC_FADE_MS * 0.001f * r->sr);
+  c->dl_glide = 1.0f - expf(-1.0f / (FC_DL_FREE_MS * 0.001f * r->sr));
   memset(c->hbuf, 0, sizeof c->hbuf);
 }
 
 const char* const fc_msrc_names[FC_NMSRC] = { "fg1", "fg2", "mod", "rnd", "vel", "key", "wheel", "at" };
 const char* const fc_mdst_names[FC_NMDST] = { "pitch", "harmonics", "color", "morph", "index", "order", "symmetry",
-                                              "timbre", "lpg" };
+                                              "timbre", "lpg", "dtime", "dfb" };
 
 void fc_init(FoldCore* c, float sr) {
   memset(c, 0, sizeof *c);
@@ -180,11 +194,44 @@ void fc_set_params(FoldCore* c, const FcParams* p) {
   c->ord_t = clampf(p->order, 0.0f, 1.0f);
   c->sym_t = clampf(p->symmetry, -1.0f, 1.0f);
   c->drv_t = clampf(p->drive, 0.0f, 1.0f);
+  c->dl_mode = p->delay_mode >= 0 && p->delay_mode < FC_NDL_MODES ? p->delay_mode : FC_DL_OFF_MODE;
+  c->dl_time_u = clampf(p->delay_time, 0.0f, FC_DL_TIME_MAX);
+  c->dl_fb_t = clampf(p->delay_fb, -1.0f, 1.0f);
+  c->dl_mix_t = clampf(p->delay_mix, 0.0f, 1.0f);
+  c->dl_shape = clampf(p->delay_shaper, 0.0f, 1.0f);
+  {                                                  /* peaking EQ (RBJ cookbook) at the voices' rate */
+    const float sr = c->rt.sr;
+    const float f0 = fminf(fc_dl_eq_hz(p->delay_eq_freq), 0.45f * c->sr_out);
+    const float A = powf(10.0f, clampf(p->delay_eq_db, -FC_DL_EQ_DB, FC_DL_EQ_DB) / 40.0f);
+    const float w0 = 2.0f * (float)M_PI * f0 / sr;
+    const float al = sinf(w0) / (2.0f * FC_DL_EQ_Q), cw = cosf(w0);
+    const float a0 = 1.0f + al / A;
+    c->eq_b0 = (1.0f + al * A) / a0;
+    c->eq_b1 = -2.0f * cw / a0;
+    c->eq_b2 = (1.0f - al * A) / a0;
+    c->eq_a1 = -2.0f * cw / a0;
+    c->eq_a2 = (1.0f - al / A) / a0;
+  }
 }
 
 static void trigger(FoldCore* c, FcVoice* v) {
   (void)c;
   for (int i = 0; i < 2; i++) v->fg[i].seg = FC_SEG_RISE;   /* from where it is: a retrigger does not jump */
+  v->tail = 0;                                       /* the gate opens again over the ringing line */
+}
+
+/* Empty delay line (only what was written since the last clear). */
+static void dl_clear(FcVoice* v) {
+  const int n = v->dl_used < FC_DL_LEN ? v->dl_used : FC_DL_LEN;
+  const int start = (v->dl_wi - n) & (FC_DL_LEN - 1);
+  if (start + n <= FC_DL_LEN) memset(v->dl_buf + start, 0, (size_t)n * sizeof(float));
+  else {
+    memset(v->dl_buf + start, 0, (size_t)(FC_DL_LEN - start) * sizeof(float));
+    memset(v->dl_buf, 0, (size_t)(n - (FC_DL_LEN - start)) * sizeof(float));
+  }
+  v->dl_used = 0;
+  v->dl_pk = 0.0f;
+  v->eq_x1 = v->eq_x2 = v->eq_y1 = v->eq_y2 = 0.0f;
 }
 
 /* Random: -1..1 (a linear congruential generator; the top bits). */
@@ -205,6 +252,8 @@ static void start_voice(FoldCore* c, FcVoice* v, int note, int vel) {
   v->snap = 1;                                       /* the first matrix values at once, not glided to */
   v->cheb_o = -1.0f;
   v->cheb_n = 0;
+  dl_clear(v);                                       /* no tail of the stolen note in the new one */
+  v->dl_mix = c->dl_mode != FC_DL_OFF_MODE ? c->dl_mix_t : 0.0f;
   v->phase = 0.0f;
   v->src = v->src_prev = c->src_t;
   v->xf = 1.0f;
@@ -483,6 +532,62 @@ static void voice_blocks(const FoldCore* c, const FcRate* r, const FcVoice* v, f
     fe_block(&blk[1], v->src_prev - 1, h, co, mo, hz, r->sr, c->table, FC_SINE_N);
 }
 
+/* Delay of the EQ at w radians per sample, in samples: Tuned takes it off the line. */
+static float loop_delay(const FoldCore* c, float w) {
+  const float c1 = cosf(w), s1 = sinf(w), c2 = cosf(2.0f * w), s2 = sinf(2.0f * w);
+  const float nr = c->eq_b0 + c->eq_b1 * c1 + c->eq_b2 * c2, ni = -(c->eq_b1 * s1 + c->eq_b2 * s2);
+  const float dr = 1.0f + c->eq_a1 * c1 + c->eq_a2 * c2, di = -(c->eq_a1 * s1 + c->eq_a2 * s2);
+  const float ph = atan2f(ni, nr) - atan2f(di, dr);
+  return -ph / w;
+}
+
+/* The delay's targets for a voice playing at inc (cycles per sample, the matrix's pitch in it). */
+static void delay_control(const FoldCore* c, FcVoice* v, const FcRate* r, float inc) {
+  v->dl_fb_g = FC_DL_FB_MAX * clampf(c->dl_fb_t + v->md[FC_MD_DFB], -1.0f, 1.0f);
+  const float u = clampf(c->dl_time_u + FC_DL_TIME_MAX * v->md[FC_MD_DTIME], 0.0f, FC_DL_TIME_MAX);
+  float len;
+  if (c->dl_mode == FC_DL_TUNED) {
+    const float f = inc * exp2f(fc_dl_semis(u) * (1.0f / 12.0f));      /* cycles per sample */
+    const float fc = f < 0.45f ? f : 0.45f;
+    len = 1.0f / fc - loop_delay(c, 2.0f * (float)M_PI * fc);   /* the 4-point read is exact to 0.001 sample */
+  } else {
+    len = fc_dl_ms(u) * 0.001f * r->sr;
+  }
+  v->dl_len_g = clampf(len, 3.0f, (float)(FC_DL_LEN - 4));
+  v->dl_pk_r = 1.0f - 1.0f / (2.0f * v->dl_len_g);   /* the peak forgets over two lengths of the line */
+}
+
+/* One sample of the delay line of a voice: x goes in, the line's output comes out. */
+static inline float delay_tick(const FoldCore* c, FcVoice* v, float x, float k) {
+  v->dl_len += (v->dl_len_g - v->dl_len) * (c->dl_mode == FC_DL_FREE ? c->dl_glide : k);
+  v->dl_fb += (v->dl_fb_g - v->dl_fb) * k;
+  const float rp = (float)v->dl_wi - v->dl_len;
+  const float fl = floorf(rp);
+  const float t = rp - fl;
+  const int i = (int)fl;
+  const int M = FC_DL_LEN - 1;
+  const float ym = v->dl_buf[(i - 1) & M], y0 = v->dl_buf[i & M], y1 = v->dl_buf[(i + 1) & M],
+              y2 = v->dl_buf[(i + 2) & M];
+  /* 4-point Hermite */
+  const float c1 = 0.5f * (y1 - ym), c3 = 1.5f * (y0 - y1) + 0.5f * (y2 - ym);
+  const float c2 = ym - y0 + c1 - c3;
+  const float d = ((c3 * t + c2) * t + c1) * t + y0;
+  /* the loop: peaking EQ, shaper, limit */
+  const float e = c->eq_b0 * d + c->eq_b1 * v->eq_x1 + c->eq_b2 * v->eq_x2 - c->eq_a1 * v->eq_y1 - c->eq_a2 * v->eq_y2;
+  v->eq_x2 = v->eq_x1; v->eq_x1 = d;
+  v->eq_y2 = v->eq_y1; v->eq_y1 = e;
+  float sh = e;
+  if (c->dl_shape > 0.0f) sh += c->dl_shape * (fast_tanh(3.0f * sh) - sh);
+  sh = FC_DL_LIM * fast_tanh(sh * (1.0f / FC_DL_LIM));
+  const float w = x + v->dl_fb * sh;
+  v->dl_buf[v->dl_wi] = w;
+  v->dl_wi = (v->dl_wi + 1) & M;
+  if (v->dl_used < FC_DL_LEN) v->dl_used++;
+  const float aw = fabsf(w);
+  v->dl_pk = aw > v->dl_pk * v->dl_pk_r ? aw : v->dl_pk * v->dl_pk_r;
+  return d;
+}
+
 /* What a voice computes every FC_COEF_EVERY samples: the matrix, then what depends on it. */
 typedef struct {
   float inc, dm;                  /* Principal and Mod OSC cycles per sample */
@@ -508,11 +613,13 @@ static void voice_control(const FoldCore* c, FcVoice* v, const FcRate* r, FcCtl*
   v->sym_g = clampf(c->sym_t + v->md[FC_MD_SYM], -1.0f, 1.0f);
   v->tim_g = clampf(c->tim_t + v->md[FC_MD_TIMBRE], 0.0f, 1.0f);
   v->lpg_g = clampf(1.0f + v->md[FC_MD_LPG], 0.0f, 2.0f);
+  x->inc = note_inc(c, r->sr, v->note, FC_MOD_SEMIS * v->md[FC_MD_PITCH]);
+  delay_control(c, v, r, x->inc);
   if (v->snap) {
     v->idx = v->idx_g; v->ord = v->ord_g; v->sym = v->sym_g; v->tim = v->tim_g;
+    v->dl_len = v->dl_len_g; v->dl_fb = v->dl_fb_g;
     v->snap = 0;
   }
-  x->inc = note_inc(c, r->sr, v->note, FC_MOD_SEMIS * v->md[FC_MD_PITCH]);
   x->dm = mod_inc(c, r->sr, x->inc);
   voice_blocks(c, r, v, x->inc, x->blk);
   /* the Saw / M weights (Order changes slowly; the crossfade with the folder is per sample), only when they are
@@ -552,6 +659,14 @@ static void render_voice(FoldCore* c, FcVoice* v, const FcRate* r, float* l, uin
   const float k = r->smooth;
   FcCtl cx;
   voice_control(c, v, r, &cx);                        /* at the start of every chunk, then every FC_COEF_EVERY */
+  /* the delay runs while it is on or still fading out (Off: nothing once Mix has gone); turned on again, its line
+   * starts empty */
+  const float mix_t = c->dl_mode != FC_DL_OFF_MODE ? c->dl_mix_t : 0.0f;
+  const int dl_on = c->dl_mode != FC_DL_OFF_MODE || v->dl_mix > 1e-4f;
+  if (!dl_on) {
+    v->dl_mix = 0.0f;
+    if (v->dl_used > 0) dl_clear(v);                 /* once, after it has faded out */
+  }
   {
     for (uint32_t s = 0; s < n; s++) {
       if (v->stage == FC_STEAL) {
@@ -574,8 +689,16 @@ static void render_voice(FoldCore* c, FcVoice* v, const FcRate* r, float* l, uin
       if (drive_in > v->vac) v->vac += (drive_in - v->vac) * r->vac_rise;
       else v->vac += (drive_in - v->vac) * r->vac_fall / (1.0f + FC_VAC_SLOW * (1.0f - v->vac));
       if (v->stage == FC_PLAY && v->fg[0].seg == FC_SEG_IDLE && v->vac < FC_GATE_OFF) {
-        v->stage = FC_IDLE;
-        break;
+        if (dl_on && v->dl_pk >= FC_DL_OFF) v->tail = 1;   /* the gate is shut, the line still rings */
+        else {
+          v->stage = FC_IDLE;
+          break;
+        }
+      }
+      if (v->tail) {                                   /* only the line: the rest of the voice is silent */
+        v->dl_mix += (mix_t - v->dl_mix) * k;
+        l[s] += v->dl_mix * delay_tick(c, v, 0.0f, k) * v->lvl * v->sg * FC_GAIN;
+        continue;
       }
       v->idx += (v->idx_g - v->idx) * k;
       v->gfm += (c->fm_t - v->gfm) * k;
@@ -663,8 +786,13 @@ static void render_voice(FoldCore* c, FcVoice* v, const FcRate* r, float* l, uin
       const float filtered = dc + v->wl * (v2 - dc);
       float fade = (v->vac - FC_GATE_OFF) * (1.0f / FC_GATE_OFF);
       fade = fade < 0.0f ? 0.0f : fade > 1.0f ? 1.0f : fade;
-      const float gain = (1.0f - v->wv + v->wv * v->vac) * fade * v->lvl * v->sg * FC_GAIN;
-      l[s] += filtered * gain;
+      float g = filtered * (1.0f - v->wv + v->wv * v->vac) * fade;
+      if (dl_on) {                                     /* the waveguide / delay after the gate */
+        v->dl_mix += (mix_t - v->dl_mix) * k;
+        const float d = delay_tick(c, v, g, k);
+        g += v->dl_mix * (d - g);
+      }
+      l[s] += g * v->lvl * v->sg * FC_GAIN;
     }
     if (v->stage == FC_IDLE) v->note = -1;
   }
@@ -723,6 +851,12 @@ static const FcVoice* newest(const FoldCore* c) {
 float fc_mod_phase(const FoldCore* c) {
   const FcVoice* v = newest(c);
   return v ? v->mphase : -1.0f;
+}
+
+float fc_delay_level(const FoldCore* c) {
+  const FcVoice* v = newest(c);
+  if (!v) return -1.0f;
+  return c->dl_mode != FC_DL_OFF_MODE ? v->dl_pk : 0.0f;
 }
 
 float fc_gate_level(const FoldCore* c) {

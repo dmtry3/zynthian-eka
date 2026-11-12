@@ -1245,6 +1245,218 @@ static void test_matrix_extremes(void) {
   }
 }
 
+/* ---------- waveguide / delay (stage 5a) ---------- */
+static void pluck_params(FcParams* p) {
+  base_params(p);
+  p->gate_mode = FC_GATE_COMBO; p->gate_decay = 0.1f;
+  p->fg_mode[0] = FC_FG_ONCE; p->fg_rise_ms[0] = 1.0f; p->fg_fall_ms[0] = 5.0f;   /* a short strike */
+  p->timbre = 0.6f;                                 /* some harmonics to excite the string */
+  p->delay_mode = FC_DL_TUNED; p->delay_time = 50.0f; p->delay_fb = 0.999f; p->delay_mix = 1.0f;
+  p->delay_shaper = 0.0f; p->delay_eq_db = 0.0f;
+}
+
+/* Frequency of the strongest line within +-60 cents of `near`: the Hann-windowed spectrum's peak, searched finely
+ * (a ringing string has many harmonics: zero crossings would not do). */
+static double hann_amp(const float* x, uint32_t n, double f) {
+  double re = 0, im = 0;
+  for (uint32_t i = 0; i < n; i++) {
+    const double w = 0.5 - 0.5 * cos(2.0 * M_PI * i / (n - 1));
+    const double a = 2.0 * M_PI * f * i / SR;
+    re += w * x[i] * cos(a);
+    im += w * x[i] * sin(a);
+  }
+  return sqrt(re * re + im * im);
+}
+
+static double peak_freq(const float* x, uint32_t n, double near) {
+  double lo = near * pow(2.0, -60.0 / 1200.0), hi = near * pow(2.0, 60.0 / 1200.0);
+  double best = near, ba = -1;
+  for (int k = 0; k <= 60; k++) {                    /* coarse: every 2 cents */
+    const double f = lo * pow(hi / lo, k / 60.0), a = hann_amp(x, n, f);
+    if (a > ba) { ba = a; best = f; }
+  }
+  lo = best * pow(2.0, -2.0 / 1200.0); hi = best * pow(2.0, 2.0 / 1200.0);
+  for (int it = 0; it < 30; it++) {                  /* then golden-section on the peak */
+    const double m1 = hi - (hi - lo) * 0.618, m2 = lo + (hi - lo) * 0.618;
+    if (hann_amp(x, n, m1) > hann_amp(x, n, m2)) hi = m2; else lo = m1;
+  }
+  return 0.5 * (lo + hi);
+}
+
+static void test_delay_tuned(void) {
+  /* Tuned: the string sounds at the note (Time 0) or Time semitones above it, in tune within 1 cent, low to high
+   * notes, also with the EQ cutting near the note (its delay is taken off the line) */
+  const int notes[] = { 36, 48, 60, 72, 84, 96 };
+  const float times[] = { 50.0f, 50.0f + 50.0f * 7.0f / 24.0f };   /* 0 and +7 semitones */
+  const float eqs[] = { 0.0f, -0.5f, -0.5f };       /* the EQ acts on every pass: -0.5 dB is already a damper */
+  double worst = 0.0;
+  for (int e = 0; e < 3; e++)
+    for (int ti = 0; ti < 2; ti++)
+      for (unsigned ni = 0; ni < sizeof notes / sizeof notes[0]; ni++) {
+        reset(SR);
+        FcParams p;
+        pluck_params(&p);
+        p.delay_time = times[ti];
+        p.delay_eq_db = eqs[e];
+        p.delay_eq_freq = e == 1 ? 0.4f : 0.7f;       /* 631 Hz or 2.5 kHz: near some of the notes */
+        if (e) p.delay_fb = 1.0f;
+        fc_set_params(&core, &p);
+        fc_note_on(&core, notes[ni], 127);
+        render(&core, 0, SR);
+        const double want = 440.0 * pow(2.0, (notes[ni] - 69 + (ti ? 7.0 : 0.0)) / 12.0);
+        /* with the EQ near the note the string dies fast: an early window (0.1 s is fine enough) */
+        const double win = fmin(fmax(60.0 / want, 0.1), 0.5);   /* about 60 periods */
+        const double f = e ? peak_freq(L + SR / 40, (uint32_t)(win * SR), want) : peak_freq(L + SR / 4, SR / 2, want);
+        const double cents = 1200.0 * log2(f / want);
+        if (fabs(cents) > fabs(worst)) worst = cents;
+        const double tol = e ? 1.5 : 1.0;             /* a short window with the EQ */
+        if (fabs(cents) > tol)
+          printf("  Tuned note %d, +%d st, EQ %+.0f dB: %.2f Hz, %.2f cents\n", notes[ni], ti ? 7 : 0, eqs[e], f, cents);
+        CHECK(fabs(cents) <= tol);
+        if (!e && notes[ni] <= 84 && fc_active_voices(&core) != 1) printf("  note %d +%d: the string has ended within 1 s\n", notes[ni], ti ? 7 : 0);
+        if (!e && notes[ni] <= 84) CHECK(fc_active_voices(&core) == 1);   /* the gate shut at 10 ms, the string rings */
+      }
+  printf("delay Tuned: C2..C7, Time 0 / +7, EQ 0 / -0.5 dB: worst %.2f cents\n", worst);
+}
+
+static void test_delay_free(void) {
+  /* Free 100 ms, Mix 100 %, Feedback 0: the voice is heard once, 100 ms late; Feedback 50 %: echoes at 200, 300 ms,
+   * each half the one before */
+  FcParams p;
+  float onset[2];
+  for (int k = 0; k < 2; k++) {
+    reset(SR);
+    pluck_params(&p);
+    p.delay_mode = FC_DL_FREE; p.delay_fb = 0.0f; p.delay_mix = k ? 1.0f : 0.0f;
+    p.delay_time = 100.0f * logf(100.0f) / logf(1000.0f);   /* 100 ms */
+    fc_set_params(&core, &p);
+    fc_note_on(&core, 69, 127);
+    render(&core, 0, SR / 2);
+    int i = 0;
+    while (i < SR / 2 && fabsf(L[i]) < 1e-3f) i++;
+    onset[k] = (float)i;
+  }
+  const float late = (onset[1] - onset[0]) * 1000.0f / SR;
+  printf("delay Free 100 ms: the voice comes %.2f ms late\n", late);
+  CHECK(fabsf(late - 100.0f) < 0.1f);
+  reset(SR);
+  pluck_params(&p);
+  p.delay_mode = FC_DL_FREE; p.delay_fb = 0.5f; p.delay_mix = 1.0f;
+  p.delay_time = 100.0f * logf(100.0f) / logf(1000.0f);
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 69, 127);
+  render(&core, 0, SR / 2);
+  const uint32_t o = (uint32_t)onset[0];
+  const float e1 = peak(L, o + SR / 10, o + SR / 10 + SR / 50), e2 = peak(L, o + SR / 5, o + SR / 5 + SR / 50),
+              e3 = peak(L, o + 3 * SR / 10, o + 3 * SR / 10 + SR / 50);
+  printf("delay Free 100 ms, Feedback 50 %%: echoes %.3f %.3f %.3f\n", e1, e2, e3);
+  CHECK(fabsf(e2 / e1 - 0.5f) < 0.05f && fabsf(e3 / e2 - 0.5f) < 0.05f);
+}
+
+static void test_delay_tail(void) {
+  /* the line keeps the voice alive after the gate, then lets it go at -80 dB; Off: as without a delay */
+  FcParams p;
+  reset(SR);
+  pluck_params(&p);
+  p.delay_mode = FC_DL_FREE; p.delay_fb = 0.7f; p.delay_mix = 0.5f;
+  p.delay_time = 100.0f * logf(200.0f) / logf(1000.0f);   /* 200 ms */
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 60, 127);
+  fc_note_off(&core, 60);
+  render(&core, 0, SR / 2);
+  CHECK(fc_active_voices(&core) == 1 && core.v[0].tail == 1);
+  int ms = 500;
+  while (fc_active_voices(&core) && ms < 20000) { render(&core, 0, SR / 100); ms += 10; }
+  /* 0.7 per 200 ms: -80 dB from about 0.3 after 200 ms x log(0.3e-4) / log(0.7) = 5.8 s */
+  printf("delay Free 200 ms, Feedback 70 %%: the voice ends after %.1f s\n", ms / 1000.0);
+  CHECK(ms > 4000 && ms < 9000);
+  /* Off: the same as no delay at all, whatever its other knobs */
+  static float ref[SR / 4];
+  reset(SR);
+  base_params(&p);
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 57, 127);
+  render(&core, 0, SR / 4);
+  memcpy(ref, L, sizeof ref);
+  reset(SR);
+  base_params(&p);
+  p.delay_mode = FC_DL_OFF_MODE; p.delay_fb = 1.0f; p.delay_mix = 1.0f; p.delay_time = 3.0f;
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 57, 127);
+  render(&core, 0, SR / 4);
+  float diff = 0.0f;
+  for (int i = 0; i < SR / 4; i++) diff = fmaxf(diff, fabsf(L[i] - ref[i]));
+  CHECK(diff == 0.0f && core.v[0].dl_used == 0);   /* not a sample through the line */
+}
+
+static void test_delay_smooth(void) {
+  /* Tuned on a held note, then Off: the line fades out with Mix (no click), and is cleared after; a new note in
+   * a ringing voice (the same note again: retrigger; another one stealing it) starts without a click */
+  FcParams p;
+  reset(SR);
+  base_params(&p);
+  p.delay_mode = FC_DL_TUNED; p.delay_fb = 0.9f; p.delay_mix = 0.5f;
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 57, 127);
+  render(&core, 0, SR / 4);
+  p.delay_mode = FC_DL_OFF_MODE;
+  fc_set_params(&core, &p);
+  render(&core, SR / 4, SR / 4);
+  const float steady = max_curve(L, SR / 4 - SR / 20, SR / 4);
+  const float sw = max_curve(L, SR / 4, SR / 4 + SR / 50);
+  printf("delay Tuned -> Off on a held note: max second difference %.4f (steady %.4f)\n", sw, steady);
+  CHECK(sw <= 1.2f * steady);
+  CHECK(core.v[0].dl_used == 0 && core.v[0].dl_mix == 0.0f);
+  /* every voice ringing (Free), a fifth note steals one */
+  reset(SR);
+  pluck_params(&p);
+  p.delay_mode = FC_DL_FREE; p.delay_fb = 0.9f; p.delay_mix = 0.6f; p.delay_time = 40.0f;
+  fc_set_params(&core, &p);
+  for (int i = 0; i < FC_VOICES; i++) fc_note_on(&core, 48 + 5 * i, 100);
+  render(&core, 0, SR / 2);
+  fc_note_on(&core, 79, 100);
+  render(&core, SR / 2, SR / 2);
+  CHECK(all_finite(L, SR));
+  int found = 0;
+  for (int i = 0; i < FC_VOICES; i++) if (core.v[i].note == 79) found = 1;
+  CHECK(found);
+  const float st2 = fmaxf(max_step(L, SR / 2 - SR / 10, SR / 2), max_step(L, SR / 2 + SR / 10, SR / 2 + SR / 5));
+  const float sw2 = max_step(L, SR / 2, SR / 2 + SR / 100);
+  printf("delay: a note stealing a ringing voice: max step %.4f (steady %.4f)\n", sw2, st2);
+  CHECK(sw2 <= 1.5f * st2);
+}
+
+static void test_delay_extremes(void) {
+  /* Feedback +-100 %, the EQ at +18 dB, no shaper: the limit holds it; every Time, both modes, the matrix on Time */
+  for (int m = FC_DL_TUNED; m <= FC_DL_FREE; m++)
+    for (int sg = -1; sg <= 1; sg += 2) {
+      reset(SR);
+      FcParams p;
+      pluck_params(&p);
+      p.delay_mode = m; p.delay_fb = (float)sg; p.delay_shaper = 0.0f;
+      p.delay_eq_db = 18.0f; p.delay_eq_freq = 0.3f; p.delay_time = sg > 0 ? 100.0f : 0.0f;
+      p.matrix[FC_MS_MOD][FC_MD_DTIME] = 0.5f;
+      p.matrix[FC_MS_RND][FC_MD_DFB] = 1.0f;
+      p.mod_mode = FC_MODE_FREE; p.mod_freq = free_units(3.0);
+      fc_set_params(&core, &p);
+      for (int i = 0; i < FC_VOICES; i++) fc_note_on(&core, 24 + 30 * i, 127);
+      render(&core, 0, 2 * SR);
+      CHECK(all_finite(L, 2 * SR) && peak(L, 0, 2 * SR) <= 1.0f);
+    }
+  /* the matrix moves Time and Feedback */
+  reset(SR);
+  FcParams p;
+  pluck_params(&p);
+  p.delay_mode = FC_DL_FREE; p.delay_time = 50.0f; p.delay_fb = 0.0f;
+  p.matrix[FC_MS_WHEEL][FC_MD_DTIME] = 0.5f;
+  p.matrix[FC_MS_WHEEL][FC_MD_DFB] = -0.5f;
+  fc_set_params(&core, &p);
+  fc_set_wheel(&core, 1.0f);
+  fc_note_on(&core, 60, 127);
+  render(&core, 0, 256);
+  CHECK(fabsf(core.v[0].dl_len_g - 2.0f * SR) < 1.0f && fabsf(core.v[0].dl_fb_g + 0.5f * FC_DL_FB_MAX) < 1e-6f);   /* 1 s at 2x */
+}
+
 int main(void) {
   test_pitch();
   test_release();
@@ -1277,6 +1489,11 @@ int main(void) {
   test_matrix_sources();
   test_matrix_smooth();
   test_matrix_extremes();
+  test_delay_tuned();
+  test_delay_free();
+  test_delay_tail();
+  test_delay_smooth();
+  test_delay_extremes();
   test_soft_clip();
   test_engine_pitch();
   test_engine_knobs();

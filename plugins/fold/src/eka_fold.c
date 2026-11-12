@@ -1,6 +1,6 @@
 /* Eka Fold: LV2 wrapper around fold_core.
- * Knob pages Osc (Source, Harmonics, Color, Morph), Mod, Timbre, Gate, Env. Pitch and Fine, the routing switches
- * FM / AM / Sync / Timbre, the function generator modes and the mod matrix (m_<source>_<destination>, -100..100)
+ * Knob pages Osc (Source, Harmonics, Color, Morph), Mod, Timbre, Gate, Env, Delay. Pitch and Fine, the routing
+ * switches FM / AM / Sync / Timbre, the function generator modes, the delay's Shaper and EQ, and the mod matrix (m_<source>_<destination>, -100..100)
  * are LV2 parameters
  * (patch:writable, notOnGUI) set in the widget and saved in LV2 State: jalv in Zynthian does not
  * register ports with notOnGUI, so they could not be hidden ports.
@@ -31,23 +31,25 @@ enum {
   P_TIMBRE, P_ORDER, P_SYMMETRY, P_DRIVE,
   P_GATE_MODE, P_GATE_DECAY, P_GATE_RES, P_LEVEL,
   P_FG1_RISE, P_FG1_FALL, P_FG2_RISE, P_FG2_FALL,
+  P_DELAY_MODE, P_DELAY_TIME, P_DELAY_FB, P_DELAY_MIX,
   P_END,                                 /* number of control inputs */
   P_MIDI_IN = P_END, P_OUT_L, P_OUT_R, P_NOTIFY,
   P_NOTE0,                               /* note1..4 */
   P_PEAK = P_NOTE0 + FC_VOICES,
-  P_MOD_PHASE, P_GATE_LEVEL, P_FG1, P_FG2
+  P_MOD_PHASE, P_GATE_LEVEL, P_FG1, P_FG2, P_DELAY_LEVEL
 };
 
 /* Integer LV2 parameters set in the widget, saved in State. */
 /* The mod matrix follows: cell (s, d) is IP_MATRIX + s x FC_NMDST + d, named m_<source>_<destination>. */
 enum { IP_ROUTE_FM, IP_ROUTE_AM, IP_ROUTE_SYNC, IP_ROUTE_TIMBRE, IP_FG1_MODE, IP_FG2_MODE, IP_PITCH, IP_FINE,
-       IP_MATRIX, N_IPARAMS = IP_MATRIX + FC_NCELLS };
+       IP_DL_SHAPER, IP_DL_EQ_FREQ, IP_DL_EQ_GAIN, IP_MATRIX, N_IPARAMS = IP_MATRIX + FC_NCELLS };
 static const char* const ip_names[IP_MATRIX] = { "route_fm", "route_am", "route_sync", "route_timbre",
-  "fg1_mode", "fg2_mode", "pitch", "fine" };
+  "fg1_mode", "fg2_mode", "pitch", "fine", "delay_shaper", "delay_eq_freq", "delay_eq_gain" };
 static const int ip_range[IP_MATRIX + 1][3] = {    /* default, min, max */
   { 1, 0, 1 }, { 0, 0, 1 }, { 0, 0, 1 }, { 0, 0, 1 },
   { FC_FG_GATE, 0, FC_NFG_MODES - 1 }, { FC_FG_GATE, 0, FC_NFG_MODES - 1 },
   { 0, -24, 24 }, { 0, -100, 100 },               /* pitch (semitones), fine (cents) */
+  { 30, 0, 100 }, { 50, 0, 100 }, { 0, -180, 180 },   /* delay: Shaper %, EQ Freq % (100 Hz..10 kHz), EQ Gain 0.1 dB */
   { 0, -100, 100 } };                              /* every matrix cell (%) */
 static const int* range(int i) { return ip_range[i < IP_MATRIX ? i : IP_MATRIX]; }
 #define REPORT_PER_RUN 16                /* patch:Set replies per run() after patch:Get */
@@ -63,6 +65,7 @@ typedef struct {
   float* mod_phase_out;
   float* gate_level_out;
   float* fg_out[2];
+  float* delay_level_out;
 
   LV2_Atom_Forge forge;
   LV2_URID midi_Event, atom_Object, atom_URID, atom_Int, atom_Long, atom_Float, atom_Double;
@@ -125,6 +128,7 @@ static void connect_port(LV2_Handle h, uint32_t port, void* data) {
   else if (port == P_GATE_LEVEL) S->gate_level_out = (float*)data;
   else if (port == P_FG1) S->fg_out[0] = (float*)data;
   else if (port == P_FG2) S->fg_out[1] = (float*)data;
+  else if (port == P_DELAY_LEVEL) S->delay_level_out = (float*)data;
 }
 
 static void activate(LV2_Handle h) { (void)h; }
@@ -167,6 +171,13 @@ static void read_params(Fold* S) {
   p.order = ctl(S, P_ORDER, p.order * 100.0f) * 0.01f;
   p.symmetry = ctl(S, P_SYMMETRY, p.symmetry * 100.0f) * 0.01f;
   p.drive = ctl(S, P_DRIVE, p.drive * 100.0f) * 0.01f;
+  p.delay_mode = (int)lrintf(ctl(S, P_DELAY_MODE, (float)p.delay_mode));
+  p.delay_time = ctl(S, P_DELAY_TIME, p.delay_time);
+  p.delay_fb = ctl(S, P_DELAY_FB, p.delay_fb * 100.0f) * 0.01f;
+  p.delay_mix = ctl(S, P_DELAY_MIX, p.delay_mix * 100.0f) * 0.01f;
+  p.delay_shaper = (float)S->ip[IP_DL_SHAPER] * 0.01f;
+  p.delay_eq_freq = (float)S->ip[IP_DL_EQ_FREQ] * 0.01f;
+  p.delay_eq_db = (float)S->ip[IP_DL_EQ_GAIN] * 0.1f;
   fc_set_params(&S->core, &p);
 }
 
@@ -284,6 +295,7 @@ static void run(LV2_Handle h, uint32_t n) {
   if (S->gate_level_out) *S->gate_level_out = fc_gate_level(&S->core);
   for (int i = 0; i < 2; i++)
     if (S->fg_out[i]) *S->fg_out[i] = fc_fg_pos(&S->core, i);
+  if (S->delay_level_out) *S->delay_level_out = fc_delay_level(&S->core);
 }
 
 static void cleanup(LV2_Handle h) { free(h); }
