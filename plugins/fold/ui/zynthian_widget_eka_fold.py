@@ -51,8 +51,8 @@
 # - Buttons Off / Tuned / Free (the Delay knob). Left: the shaper in the loop (line output -> what goes back, Shaper
 #   0 = straight, 1 = tanh, then the limit at 2); right: the response of the peaking EQ in the loop (per pass: in
 #   Tuned it acts hundreds of times a second), with a live bar of the newest voice's line (output delay_level).
-# - Shaper %, EQ Freq, EQ Gain (LV2 parameters delay_shaper, delay_eq_freq, delay_eq_gain in tenths of a dB): a
-#   finger up/down on their box, a double tap resets. The bottom line: Time (Tuned: semitones and the frequency
+# - Shaper %, EQ Freq, EQ Gain (LV2 parameters delay_shaper, delay_eq_freq, delay_eq_gain in tenths of a dB): sliders,
+#   a finger left/right (the bar inside shows the value; EQ Gain from the middle), a double tap resets. The bottom line: Time (Tuned: semitones and the frequency
 #   for the sounding note, or A4; Free: ms), Feedback, Mix. The formulas of fold_core.c.
 # Matrix (no knob page; the page shown stays):
 # - The mod matrix as in Eka Mist: sources (rows) x destinations (columns), LV2 parameters m_<source>_<destination>,
@@ -82,8 +82,10 @@ DL_SEMIS = 24.0                               # FC_DL_SEMIS, FC_DL_MIN_MS, FC_DL
 DL_MIN_MS, DL_MAX_MS = 1.0, 1000.0
 DL_EQ_MIN_HZ, DL_EQ_MAX_HZ, DL_EQ_Q = 100.0, 10000.0, 0.7
 DL_LIM = 2.0
+DL_DRIVE = 9.0                                # FC_DL_DRIVE
 DL_DEFAULTS = {"delay_shaper": 30, "delay_eq_freq": 50, "delay_eq_gain": 0}   # what a double tap resets to
 DL_BAR_DB = 60.0                              # the line's level bar: -60..0 dB
+SLIDER_COLOR = "#1f4f73"                      # the bar inside a slider
 # Mod matrix: FC_MS_* and FC_MD_* of fold_core.h, in their order (symbol, name on the grid, what it is)
 MATRIX_SRCS = [("fg1", "FG1", "FG1"), ("fg2", "FG2", "FG2"), ("mod", "Mod", "Mod OSC"), ("rnd", "Rnd", "Random"),
                ("vel", "Vel", "Velocity"), ("key", "Key", "Key"), ("wheel", "Wheel", "Mod wheel"),
@@ -559,9 +561,16 @@ def dl_eq_hz(u):
 
 
 def dl_shape(e, k):
-    """The loop's shaper of fold_core.c delay_tick: e + k (tanh(e) - e), then the limit."""
-    s = e + k * (fast_tanh(e) - e)
-    return DL_LIM * fast_tanh(s / DL_LIM)
+    """The loop's shaper of fold_core.c delay_tick: tanh(g e) / g, g = 1 + DL_DRIVE k^2, blended in over the first
+    quarter, then the limit (straight up to 1, softly to DL_LIM)."""
+    if k > 0.0:
+        g = 1.0 + DL_DRIVE * k * k
+        e += min(1.0, 4.0 * k) * (fast_tanh(g * e) / g - e)
+    a = abs(e)
+    if a <= 1.0:
+        return e
+    lim = 1.0 + (DL_LIM - 1.0) * fast_tanh((a - 1.0) / (DL_LIM - 1.0))
+    return lim if e > 0 else -lim
 
 
 def peaking_db(f, f0, gain_db, sr=VOICE_SR):
@@ -618,6 +627,7 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         self.widget_canvas.bind("<B1-Motion>", self._on_motion)
         self.widget_canvas.bind("<ButtonRelease-1>", self._on_release)
         self.drag = None             # (symbol, start value, start y, min, max, px per step) on a value box
+        self.hdrag = None            # the same with x, on a slider (Delay tab)
         self.last_tap = (None, 0.0)  # (symbol, time) for a double tap
         self.mx_sel = None           # Matrix: the cell touched last (si, di)
         self._clear()
@@ -843,13 +853,13 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                     if self.last_tap[0] == sym and now - self.last_tap[1] < DOUBLE_TAP:
                         self._zset(sym, DL_DEFAULTS[sym])  # double tap: reset
                         self.last_tap = (None, 0.0)
-                        self.drag = None
+                        self.hdrag = None
                         self.dl_view = None
                         self.dl_drawn = 0.0
                         self.refresh_gui()
                         return
                     self.last_tap = (sym, now)
-                    self.drag = (sym, int(round(self._zval(sym, DL_DEFAULTS[sym]))), event.y, lo, hi, px)
+                    self.hdrag = (sym, int(round(self._zval(sym, DL_DEFAULTS[sym]))), event.x, lo, hi, px)
                     return
         if self.tab == MATRIX_TAB:
             cell = self._mx_cell(event.x, event.y)
@@ -889,6 +899,15 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                     return
 
     def _on_motion(self, event):
+        if self.hdrag:                                  # a slider: left / right
+            sym, start, x0, lo, hi, px = self.hdrag
+            value = max(lo, min(hi, start + int((event.x - x0) / px)))
+            if value != int(round(self._zval(sym, start))):
+                self._zset(sym, value)
+                self.dl_view = None
+                self.dl_drawn = 0.0
+                self.refresh_gui()
+            return
         if not self.drag:
             return
         sym, start, y0, lo, hi, px = self.drag
@@ -901,6 +920,7 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
 
     def _on_release(self, event):
         self.drag = None
+        self.hdrag = None
 
     # ---------- drawing ----------
     def refresh_gui(self):
@@ -1644,16 +1664,27 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         # the value boxes
         self.dl_boxes = []
         vx0, vy0, vx1, vy1 = values
-        texts = [("delay_shaper", "Shaper %d%%" % shp, 0, 100, DRAG_PX),
-                 ("delay_eq_freq", "EQ %s" % hz_text(f0), 0, 100, DRAG_PX),
-                 ("delay_eq_gain", "EQ %+.1f dB" % g, -180, 180, 1.0)]
+        texts = [("delay_shaper", "Shaper %d%%" % shp, 0, 100, shp, False),
+                 ("delay_eq_freq", "EQ %s" % hz_text(f0), 0, 100, eqf, False),
+                 ("delay_eq_gain", "EQ %+.1f dB" % g, -180, 180, eqg, True)]
         bw = (vx1 - vx0) / float(len(texts))
-        for i, (sym, text, lo, hi, px) in enumerate(texts):
+        for i, (sym, text, lo, hi, v, mid) in enumerate(texts):
             x = vx0 + i * bw
-            c.create_rectangle(x, vy0, x + bw - 6, vy1, outline=ROUTE_OFF, tags="delay")
-            c.create_text(x + (bw - 6) / 2, (vy0 + vy1) / 2, text=text, font=self._fit_font(text, bw - 10), fill=tx,
+            sx0, sx1 = x, x + bw - 6
+            c.create_rectangle(sx0, vy0, sx1, vy1, outline=ROUTE_OFF, fill=TILE_OFF, tags="delay")
+            # the bar: from the left (or from the middle for EQ Gain) to the value
+            f = (v - lo) / float(hi - lo)
+            xv = sx0 + 1 + f * (sx1 - sx0 - 2)
+            xa = (sx0 + sx1) / 2.0 if mid else sx0 + 1
+            if abs(xv - xa) >= 1:
+                c.create_rectangle(min(xa, xv), vy0 + 1, max(xa, xv), vy1 - 1, outline="", fill=SLIDER_COLOR,
+                                   tags="delay")
+            c.create_line(xv, vy0 + 1, xv, vy1 - 1, fill=MARK_COLOR, width=2, tags="delay")   # the knob of the slider
+            c.create_text((sx0 + sx1) / 2, (vy0 + vy1) / 2, text=text, font=self._fit_font(text, bw - 10), fill=tx,
                           tags="delay")
-            self.dl_boxes.append((x, vy0, x + bw - 6, vy1, sym, lo, hi, px))
+            # px per step: the whole range over the slider's width (EQ Gain, 360 tenths, at least 1 px each)
+            px = max(1.0, (sx1 - sx0) / float(hi - lo))
+            self.dl_boxes.append((sx0, vy0, sx1, vy1, sym, lo, hi, px))
         # bottom: Time, Feedback, Mix
         line = "%s   Fb %+d%%   Mix %d%%" % (self._delay_time_text(mode, time_u, note, pitch, fine), round(fb),
                                               round(dmix)) if mode else "Delay off (no CPU)"

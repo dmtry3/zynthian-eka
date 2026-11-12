@@ -199,6 +199,8 @@ void fc_set_params(FoldCore* c, const FcParams* p) {
   c->dl_fb_t = clampf(p->delay_fb, -1.0f, 1.0f);
   c->dl_mix_t = clampf(p->delay_mix, 0.0f, 1.0f);
   c->dl_shape = clampf(p->delay_shaper, 0.0f, 1.0f);
+  c->dl_g = 1.0f + FC_DL_DRIVE * c->dl_shape * c->dl_shape;
+  c->dl_wsh = c->dl_shape * 4.0f < 1.0f ? c->dl_shape * 4.0f : 1.0f;
   {                                                  /* peaking EQ (RBJ cookbook) at the voices' rate */
     const float sr = c->rt.sr;
     const float f0 = fminf(fc_dl_eq_hz(p->delay_eq_freq), 0.45f * c->sr_out);
@@ -558,7 +560,7 @@ static void delay_control(const FoldCore* c, FcVoice* v, const FcRate* r, float 
   v->dl_pk_r = 1.0f - 1.0f / (2.0f * v->dl_len_g);   /* the peak forgets over two lengths of the line */
 }
 
-/* One sample of the delay line of a voice: x goes in, the line's output comes out. */
+/* One sample of the delay line of a voice: x goes in, the line's output (through the EQ and the shaper) comes out. */
 static inline float delay_tick(const FoldCore* c, FcVoice* v, float x, float k) {
   v->dl_len += (v->dl_len_g - v->dl_len) * (c->dl_mode == FC_DL_FREE ? c->dl_glide : k);
   v->dl_fb += (v->dl_fb_g - v->dl_fb) * k;
@@ -578,15 +580,23 @@ static inline float delay_tick(const FoldCore* c, FcVoice* v, float x, float k) 
   v->eq_x2 = v->eq_x1; v->eq_x1 = d;
   v->eq_y2 = v->eq_y1; v->eq_y1 = e;
   float sh = e;
-  if (c->dl_shape > 0.0f) sh += c->dl_shape * (fast_tanh(sh) - sh);   /* slope 1 at 0: it squeezes, never lifts */
-  sh = FC_DL_LIM * fast_tanh(sh * (1.0f / FC_DL_LIM));
+  if (c->dl_shape > 0.0f) {                         /* tanh(g x) / g: slope 1 at 0 (never lifts), squeezes from 1/g */
+    sh += c->dl_wsh * (fast_tanh(c->dl_g * sh) * (1.0f / c->dl_g) - sh);
+  }
+  {                                                  /* the limit: straight up to 1, then softly to FC_DL_LIM */
+    const float a = fabsf(sh);
+    if (a > 1.0f) {
+      const float lim = 1.0f + (FC_DL_LIM - 1.0f) * fast_tanh((a - 1.0f) * (1.0f / (FC_DL_LIM - 1.0f)));
+      sh = sh > 0.0f ? lim : -lim;
+    }
+  }
   const float w = x + v->dl_fb * sh;
   v->dl_buf[v->dl_wi] = w;
   v->dl_wi = (v->dl_wi + 1) & M;
   if (v->dl_used < FC_DL_LEN) v->dl_used++;
   const float aw = fabsf(w);
   v->dl_pk = aw > v->dl_pk * v->dl_pk_r ? aw : v->dl_pk * v->dl_pk_r;
-  return d;
+  return sh;                                         /* what the voice hears: the line through EQ and shaper */
 }
 
 /* What a voice computes every FC_COEF_EVERY samples: the matrix, then what depends on it. */

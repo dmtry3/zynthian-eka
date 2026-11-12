@@ -92,9 +92,11 @@ enum { FC_SRC_SINE, FC_SRC_VA, FC_SRC_FM2, FC_SRC_WAVE, FC_NSOURCES };
  * logarithmic: echoes). Tuned subtracts the delay of the EQ at the note's frequency, so it stays in tune. The EQ
  * acts on every pass: in Tuned a cut of 1 dB already damps the string (high notes pass hundreds of times a second;
  * a fixed damping low-pass was tried and dropped: at 10 kHz it killed a C8 string in 0.1 s).
- * Shaper: 0 = linear .. 1 = tanh (slope 1 at 0: a quiet loop keeps its gain; tanh(3x) was tried and lifted it
- * x1.6 at Shaper 30 %, the loop ran away above Feedback 85 %, found on the device 2026-11-12); then a limit at
- * FC_DL_LIM (the loop stays bounded even at Feedback 100 % with the EQ up). The voice lives on while its line is above FC_DL_OFF, after the gate has closed; a new note
+ * Shaper: tanh(g x) / g with g = 1 + FC_DL_DRIVE x Shaper^2, blended in over the first quarter of the knob: slope 1
+ * at 0, so a quiet loop keeps its gain (tanh(3x) was tried and lifted it x1.6 at Shaper 30 %: the loop ran away
+ * above Feedback 85 %, found on the device 2026-11-12), and it squeezes from 1 / g (tanh(x) alone squeezed only
+ * above 1, where the line seldom goes: it was not heard). Then a limit: straight up to 1, softly to FC_DL_LIM above
+ * (the loop stays bounded even at Feedback 100 % with the EQ up; a tanh limit coloured Shaper 0 at -37 dB). The voice hears the line after the EQ and the shaper (from the first pass). The voice lives on while its line is above FC_DL_OFF, after the gate has closed; a new note
  * clears the line. Time knob 0..FC_DL_TIME_MAX, read by the mode, like Mod Freq. */
 enum { FC_DL_OFF_MODE, FC_DL_TUNED, FC_DL_FREE, FC_NDL_MODES };
 #define FC_DL_TIME_MAX 100.0f
@@ -108,6 +110,7 @@ enum { FC_DL_OFF_MODE, FC_DL_TUNED, FC_DL_FREE, FC_NDL_MODES };
 #define FC_DL_EQ_MAX_HZ 10000.0f
 #define FC_DL_EQ_DB 18.0f         /* EQ Gain -18..+18 dB (the LV2 parameter in tenths) */
 #define FC_DL_LIM 2.0f
+#define FC_DL_DRIVE 9.0f
 #define FC_DL_OFF 1e-4f           /* -80 dB: the tail is over */
 #define FC_DL_FREE_MS 50.0f       /* Free: Time glides over this (tape-like); Tuned follows in FC_SMOOTH_MS */
 float fc_dl_semis(float units);   /* Tuned: Time knob -> semitones */
@@ -264,6 +267,7 @@ typedef struct {
   float hb[FC_HB_TAPS];           /* halfband taps 2x -> 1x */
   int dl_mode;                    /* FC_DL_* */
   float dl_time_u, dl_fb_t, dl_mix_t, dl_shape;
+  float dl_g, dl_wsh;             /* the shaper's drive and its share */
   float eq_b0, eq_b1, eq_b2, eq_a1, eq_a2;   /* peaking EQ at the voices' rate */
   float dl_glide;                 /* Free: one-pole step of the delay time per sample */
   float hbuf[FC_HB_TAPS - 1 + FC_OS * FC_CHUNK];        /* 2x mix: history, then the chunk */

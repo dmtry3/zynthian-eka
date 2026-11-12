@@ -1447,6 +1447,25 @@ static void test_delay_stable(void) {
     }
 }
 
+static void test_delay_shaper(void) {
+  /* a held sine through Free 50 ms, Mix 100 %, Feedback 0: Shaper 0 leaves it clean, 50 % and 100 % add odd
+   * harmonics already on the first pass (the first shaper only squeezed above 1, it was not heard) */
+  double h3[3];
+  for (int k = 0; k < 3; k++) {
+    reset(SR);
+    FcParams p;
+    base_params(&p);
+    p.delay_mode = FC_DL_FREE; p.delay_fb = 0.0f; p.delay_mix = 1.0f; p.delay_shaper = k / 2.0f;
+    p.delay_time = 100.0f * logf(50.0f) / logf(1000.0f);
+    fc_set_params(&core, &p);
+    fc_note_on(&core, 57, 100);
+    render(&core, 0, SR / 2);
+    h3[k] = amp_at(L + SR / 4, 4800, 660, SR) / amp_at(L + SR / 4, 4800, 220, SR);
+  }
+  printf("delay Shaper 0 / 50 / 100 %%: h3 %.1f / %.1f / %.1f dB\n", db(h3[0]), db(h3[1]), db(h3[2]));
+  CHECK(h3[0] < 1e-4 && h3[1] > 0.03 && h3[2] > h3[1]);
+}
+
 static void test_delay_extremes(void) {
   /* Feedback +-100 %, the EQ at +18 dB, no shaper: the limit holds it; every Time, both modes, the matrix on Time */
   for (int m = FC_DL_TUNED; m <= FC_DL_FREE; m++)
@@ -1515,6 +1534,7 @@ int main(void) {
   test_delay_tail();
   test_delay_smooth();
   test_delay_stable();
+  test_delay_shaper();
   test_delay_extremes();
   test_soft_clip();
   test_engine_pitch();

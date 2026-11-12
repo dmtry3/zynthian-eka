@@ -787,9 +787,9 @@ def main():
     # ---------- Delay ----------
     check("peaking EQ: the gain at its frequency, flat far away", abs(mod.peaking_db(1000.0, 1000.0, -6.0) + 6.0) < 1e-6
           and abs(mod.peaking_db(30.0, 1000.0, -6.0)) < 0.2 and abs(mod.peaking_db(1000.0, 1000.0, 0.0)) < 1e-9)
-    check("loop shaper: straight at 0, tanh at 1, limited at 2", abs(mod.dl_shape(0.5, 0.0) - 2 * mod.fast_tanh(0.25))
-          < 1e-9 and abs(mod.dl_shape(3.0, 1.0) - 2 * mod.fast_tanh(0.5)) < 1e-9 and
-          abs(mod.dl_shape(0.01, 1.0) - 0.01) < 1e-5 and abs(mod.dl_shape(10, 0)) <= 2.0)
+    check("loop shaper: straight at 0, squeezes at 1, limited at 2", mod.dl_shape(0.5, 0.0) == 0.5 and
+          abs(mod.dl_shape(3.0, 1.0) - 0.1) < 1e-9 and abs(mod.dl_shape(0.001, 1.0) - 0.001) < 1e-5 and
+          1.0 < mod.dl_shape(10, 0) <= 2.0)
     check("Delay Time read by the mode", abs(mod.dl_semis(50) ) < 1e-9 and abs(mod.dl_semis(100) - 24) < 1e-9 and
           abs(mod.dl_ms(0) - 1) < 1e-9 and abs(mod.dl_ms(100) - 1000) < 1e-6 and abs(mod.dl_eq_hz(50) - 1000) < 1e-6)
     ctl.selected = []
@@ -817,10 +817,20 @@ def main():
     cx_, cy_ = (bx[0] + bx[2]) / 2, (bx[1] + bx[3]) / 2
     wdg.last_tap = (None, 0.0)
     wdg._on_press(Tap(cx_, cy_))
-    wdg._on_motion(Tap(cx_, cy_ + 5))
-    wdg._on_release(Tap(cx_, cy_ + 5))
-    check("EQ Gain: a finger down 5 px = -0.5 dB", proc.controllers_dict["delay_eq_gain"].value == -5 and
+    wdg._on_motion(Tap(cx_ - 5 * bx[7], cy_ + 40))           # 5 steps to the left (up / down does nothing)
+    wdg._on_release(Tap(cx_ - 5 * bx[7], cy_))
+    check("EQ Gain slider: a finger 5 steps left = -0.5 dB", proc.controllers_dict["delay_eq_gain"].value == -5 and
           "EQ -0.5 dB" in texts("delay"))
+    bx = [b for b in wdg.dl_boxes if b[4] == "delay_eq_freq"][0]
+    wdg.last_tap = (None, 0.0)
+    wdg._on_press(Tap(bx[0] + 5, (bx[1] + bx[3]) / 2))
+    wdg._on_motion(Tap(bx[2], (bx[1] + bx[3]) / 2))
+    wdg._on_release(Tap(bx[2], (bx[1] + bx[3]) / 2))
+    check("EQ Freq slider: across its width = most of the range", proc.controllers_dict["delay_eq_freq"].value >= 95)
+    bars = [i for i in c.find_withtag("delay") if c.type(i) == "rectangle" and c.itemcget(i, "fill") == mod.SLIDER_COLOR]
+    check("sliders: Shaper and EQ Freq bars from the left, EQ Gain from the middle to the left", len(bars) == 3 and
+          any(abs(c.coords(b)[2] - (wdg.dl_boxes[2][0] + wdg.dl_boxes[2][2]) / 2) < 1 for b in bars))
+    proc.controllers_dict["delay_eq_freq"].value = 50
     bx = [b for b in wdg.dl_boxes if b[4] == "delay_shaper"][0]
     cx_, cy_ = (bx[0] + bx[2]) / 2, (bx[1] + bx[3]) / 2
     proc.controllers_dict["delay_shaper"].value = 80
