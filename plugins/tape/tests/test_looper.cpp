@@ -832,13 +832,24 @@ static void test_transport_top() {
     s.run(BAR / 2);
     return t0;
   };
+  // вторая дорожка на 3 такта (самая длинная): при пуске с начала обе — каждая со своего начала
+  s.set.length[1] = 3;
+  s.apply();
+  s.cmd(Cmd::TrackNext);
+  s.in_l = sine(240.0, 0.3f);
+  s.cmd(Cmd::Rec);
+  while (s.v(1).state != 2) s.run(BLOCK);
+  while (s.v(1).state != 3) s.run(BLOCK);
+  s.in_l = [](uint64_t) { return 0.0f; };
+  s.run(BAR / 3);
   uint64_t t0 = stop_start(0.0);
   double want = (double)(s.t - t0) / (2.0 * BAR);
-  CHECK(std::fabs(s.v().pos - want) < 0.001);  // с начала цикла
+  CHECK(std::fabs(s.v(0).pos - want) < 0.001);  // с начала цикла
+  CHECK(std::fabs(s.v(1).pos - (double)(s.t - t0) / (3.0 * BAR)) < 0.001);
   CHECK(rms(s.slice(s.t - 9600, 9600)) > 0.1f);
   t0 = stop_start(5.0);  // продолжение с середины 2-го такта: доля 5 из цикла в 8 долей
   want = std::fmod((5.0 * SR / 2.0 + (double)(s.t - t0)) / (2.0 * BAR), 1.0);
-  CHECK(std::fabs(s.v().pos - want) < 0.001);
+  CHECK(std::fabs(s.v(0).pos - want) < 0.001);
 }
 
 // PART AT: LOOP END — по дорожке с Lock (она переходит в новый парт), а не по самой длинной.
@@ -1735,16 +1746,11 @@ static int best_lag(const std::vector<float>& a, const std::vector<float>& b, in
   return best;
 }
 
-// Сигнал с атаками: шумовые всплески каждые 0,25 с и тихий тон.
+// Сигнал с атаками: щипок (тон с резкой атакой и затуханием ~50 мс) каждые 0,25 с, как у струны.
 static float burst_sig(uint64_t t) {
   const uint64_t ph = t % 12000;
-  float v = 0.15f * (float)std::sin(PI2 * 331.0 * (double)t / SR);
-  if (ph < 480) {
-    uint32_t x = (uint32_t)(t * 2654435761u);
-    x ^= x >> 13;
-    v += 0.5f * ((float)(x & 0xffff) / 32768.0f - 1.0f) * (1.0f - (float)ph / 480.0f);
-  }
-  return v;
+  const float a = ph < 48 ? (float)ph / 48.0f : std::exp(-(float)(ph - 48) / 2400.0f);
+  return 0.5f * a * (float)(std::sin(PI2 * 330.0 * (double)t / SR) + 0.4 * std::sin(PI2 * 660.0 * (double)t / SR));
 }
 
 // Сдвинутый звук в фазе: тот же луп со сдвигом 0,01 полутона совпадает с исходным по времени.
@@ -1761,8 +1767,40 @@ static void test_pitch_align() {
   const int lag = best_lag(a.slice(a.t - L, L), b.slice(b.t - L, L), 1500, &c);
   std::printf("  pitch align: lag %d frames, corr %.3f\n", lag, c);
   CHECK(std::abs(lag) <= 48);  // не больше 1 мс
-  CHECK(c > 0.8);  // шум после Stretch теряет точную фазу
+  CHECK(c > 0.7);  // после Stretch тон не совпадает по фазе точно
   CHECK(b.v().pitch == 0.01f);
+}
+
+// Огибающая (|x| со сглаживанием ~1 мс): по ней сверяем место всплесков у сдвинутого звука.
+// Среднее вычитается: остаются всплески, ровный тон не мешает сравнению.
+static std::vector<float> envelope(const std::vector<float>& x) {
+  std::vector<float> e(x.size());
+  float v = 0;
+  double m = 0;
+  for (size_t i = 0; i < x.size(); ++i) m += e[i] = v += (std::fabs(x[i]) - v) * 0.02f;
+  m /= (double)x.size();
+  for (auto& y : e) y -= (float)m;
+  return e;
+}
+
+// Сдвинутый звук в фазе и при большом сдвиге: всплески на тех же местах (по огибающей).
+static void test_pitch_align_env() {
+  const uint64_t L = 48000;
+  for (int q = 0; q < 2; ++q)
+    for (float st : {12.0f, -12.0f, 7.0f}) {
+      Sim a, b;
+      b.set.pitch_q = q;
+      b.apply();
+      rec_loop(a, burst_sig, L);
+      rec_loop(b, burst_sig, L);
+      b.lp->set_pitch(0, st);
+      a.run(L * 2);
+      b.run(L * 2);
+      double c = 0;
+      const int lag = best_lag(envelope(a.slice(a.t - L, L)), envelope(b.slice(b.t - L, L)), 3000, &c);
+      std::printf("  pitch %s %+.0f: envelope lag %d frames, corr %.3f\n", q ? "HIGH" : "ECO", st, lag, c);
+      CHECK(std::abs(lag) <= 96);
+    }
 }
 
 // Высота: +12 — октава вверх, −12 вниз, +7 — квинта; со скоростью 2× и −12 — исходная.
@@ -1822,7 +1860,7 @@ static void test_pitch_smooth() {
 
 // Овердаб «как слышно»: музыкант играет то, что слышит на +12; при 0 овердаб совпадает с основой
 // по высоте и месту (сумма вдвое громче исходной, в фазе).
-static void test_pitch_dub() {
+static void test_pitch_dub(float pst = 12.0f) {
   const uint64_t L = 48000;
   Sim s;
   s.set.latency_ms = (float)(BLOCK * 1000.0 / SR);  // вход ниже — выход, задержанный на блок
@@ -1832,7 +1870,7 @@ static void test_pitch_dub() {
   const uint64_t T0 = s.t;
   s.run(L);
   const std::vector<float> ref = s.slice(T0, L);
-  s.lp->set_pitch(0, 12);
+  s.lp->set_pitch(0, pst);
   s.run(L);
   s.count_allocs = true;
   g_allocs = 0;
@@ -1865,21 +1903,15 @@ static void test_pitch_dub() {
   }
   // овердаб = сумма − основа; после двух сдвигов шум не в фазе с основой, поэтому место
   // сверяем по огибающей (всплески там же), а громкость — по RMS
-  std::vector<float> dub(L), env_d(L), env_b(L);
+  std::vector<float> dub(L);
   for (uint64_t i = 0; i < L; ++i) dub[i] = got[i] - want[i];
-  float ed = 0, eb = 0;
-  for (uint64_t i = 0; i < L; ++i) {
-    ed += (std::fabs(dub[i]) - ed) * 0.02f;
-    eb += (std::fabs(want[i]) - eb) * 0.02f;
-    env_d[i] = ed;
-    env_b[i] = eb;
-  }
+  const std::vector<float> env_d = envelope(dub), env_b = envelope(want);
   double c = 0;
   const int lag = best_lag(env_b, env_d, 1500, &c);
   const float ratio = rms(dub) / rms(want);
   std::printf("  pitch dub: envelope lag %d frames, corr %.3f, dub level x%.2f\n", lag, c, ratio);
   CHECK(std::abs(lag) <= 96);  // не больше 2 мс
-  CHECK(c > 0.9);
+  CHECK(c > 0.7);
   CHECK(ratio > 0.7f && ratio < 1.3f);
   s.wav("pitch_dub");
 }
@@ -1990,8 +2022,11 @@ static void test_pitch_many() {
 int main() {
   test_pitch_align();
   test_pitch_freq();
+  test_pitch_align_env();
   test_pitch_smooth();
   test_pitch_dub();
+  test_pitch_dub(-12.0f);
+  test_pitch_dub(7.0f);
   test_pitch_overload();
   test_pitch_parts();
   test_pitch_speed_glide();

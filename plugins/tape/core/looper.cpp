@@ -461,14 +461,17 @@ void Looper::start_dub(int ti) {
   dub_release(t);
   t.ddrain = false;
   t.dgate = 1.0f;
+  // Stretch овердаба всегда HIGH: звук овердаба сдвигается дважды (обратно и при воспроизведении),
+  // призвуки складываются; он один и работает только во время овердаба
   if (pb_ && t.pit != 0.0f && !pitch_over_) {
+    constexpr int dq = 1;
     for (int e = 0; e < kDubEng; ++e)
-      if (!pb_->dused[pq_][e]) {
-        pb_->dused[pq_][e] = true;
+      if (!pb_->dused[dq][e]) {
+        pb_->dused[dq][e] = true;
         t.deng = (int8_t)e;
-        t.dq = (int8_t)pq_;
-        t.dlat = (uint32_t)pb_->lat[pq_];
-        pb_->dub[pq_][e].reset();
+        t.dq = (int8_t)dq;
+        t.dlat = (uint32_t)pb_->lat[dq];
+        pb_->dub[dq][e].reset();
         break;
       }
   }
@@ -1431,15 +1434,21 @@ void Looper::set_time(const TimeInfo& ti) {
   rolling_ = ti.rolling;
   if (rolling_) beats_ = ti.beats;  // сетка Zynthian; иначе продолжаем свой счёт
   // Транспорт пошёл или перескочил: лупы в Quantize встают в фазу с позицией Zynthian.
-  // Пуск или перескок на начало (такт 1, доля 1): лупы — с начала цикла, во взаимной фазе
-  // (решение пользователя 2026-11-12); с другого места — в фазе с позицией, как раньше.
+  // Пуск или перескок на начало (такт 1, доля 1): каждый луп Quantize — со своего начала цикла
+  // (решения пользователя 2026-11-12); с другого места — в фазе с позицией, как раньше.
   const bool at_top = rolling_ && beats_ < 0.5;
   if (time_seen_ && pool_.ok()) {
     if (started) {
-      if (at_top) rebase_pending_ = true;
+      if (at_top) {
+        rebase_pending_ = false;  // загруженная сессия тоже с начала
+        for (auto& t : tr_)
+          if (t.synced) t.b0 = 0.0;
+      }
       transport_start();
     } else if (jumped) {
-      if (at_top) session_rebase(0.0);
+      if (at_top)
+        for (auto& t : tr_)
+          if (t.synced) t.b0 = 0.0;
       for (int k = idx(0); k < idx(0) + ns_; ++k) resync(k);
     } else if (stopped_now) {
       transport_stop();
@@ -1485,7 +1494,7 @@ void Looper::transport_stop() {
 // (записанные в Free — с начала цикла), остальные встают в фазу.
 void Looper::transport_start() {
   tstop_ = false;
-  if (rebase_pending_) {  // загруженная сессия или пуск с начала: фаза от точки пуска (черта такта)
+  if (rebase_pending_) {  // загруженная сессия: фаза от точки пуска (черта такта)
     rebase_pending_ = false;
     session_rebase(std::floor(beats_ / bpb_ + 1e-9) * bpb_);
   }
