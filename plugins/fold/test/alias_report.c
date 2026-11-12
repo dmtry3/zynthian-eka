@@ -1,5 +1,5 @@
-/* Aliasing of the folder, the other shapers and FM as the plugin makes them: voices at 2x, ADAA on the folder,
- * halfband decimator. Chosen on 2026-11-11 from four modes; their table then (to 16 kHz, dB):
+/* Aliasing of the folder, the other shapers and FM as the plugin makes them: voices at 2x (the engines at 4x since
+ * 2026-11-12), ADAA on the folder, halfband decimators. Chosen on 2026-11-11 from four modes; their table then (to 16 kHz, dB):
  *   folder Timbre 70 %   C4  C5  C6  C7:   1x -45 -37 -28 -18   ADAA -57 -49 -44 -33
  *                                          2x -58 -50 -40 -30   2x + ADAA -75 -70 -59 -55
  *   ADAA alone cost -1.4 dB at 8.4 kHz (an average over a sample), at 2x -0.3 dB.
@@ -10,7 +10,8 @@
  * Stage 4: the engines VA, FM2, Wave at harmonic settings (VA: Harmonics 50 % = unison; FM2: Harmonics 30/128 =
  * ratio 1), with FM and Sync. Known limits (2026-11-12): a bright Wave on high notes (most of its 64 harmonics
  * above the voices' Nyquist, as in the original engine), and a VA saw under strong FM from a saw Mod OSC (the
- * frequency step bends the saw's slope; polyBLEP corrects only steps of the wave).
+ * frequency step bends the saw's slope; polyBLEP corrects only steps of the wave). At 4x, on C5 (at 2x before):
+ * VA saw + folder 70 % -44 (-36), Wave bright -71 (-54), VA saw + saw FM -51 (-29).
  * Usage: alias_report (prints a table; no pass/fail) */
 #include <math.h>
 #include <stdio.h>
@@ -124,7 +125,8 @@ int main(void) {
     { "Wave bright (H 10%, C 95%, M 50%)", WAVE, 0.1f, 0.95f, 0.5f, 1, 1, 0, FC_MOD_SINE, 0, 0, 0, 0, 0 },
     { "Wave middle, Sync 3/2", WAVE, 0.5f, 0.5f, 0.5f, 1.5f, 2, 0, FC_MOD_SINE, 0, 0, 0, 0, 1 },
   };
-  printf("Aliasing to 16 kHz, dB below the harmonics (voices at 2x, ADAA on the folder). Lower is better;\n"
+  printf("Aliasing to 16 kHz, dB below the harmonics (Sine voices at 2x, engines at 4x, ADAA on the folder).\n"
+         "Lower is better; "
          "about -60 dB is inaudible, above -30 dB is clearly audible.\n\n");
   printf("%-44s %6s %6s %6s %6s\n", "", "C4", "C5", "C6", "C7");
   for (unsigned c = 0; c < sizeof cases / sizeof cases[0]; c++) {
