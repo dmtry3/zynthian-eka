@@ -1,7 +1,8 @@
 /* Eka Bloom: LV2 wrapper around arp_core.
  * Transport rolling: ticks follow time:Position (steps on the song grid).
  * Transport stopped: ticks come from an internal clock at the host tempo.
- * Rolling, the pattern step follows the song grid (step 1 on tick 0), see arp_set_sync(). */
+ * Rolling, the pattern step follows the song grid (step 1 on tick 0), see arp_set_sync().
+ * The widget's note roll reads the played notes from shared memory /dev/shm/eka_bloom_<pid>, see Viz. */
 #include <lv2/core/lv2.h>
 #include <lv2/atom/atom.h>
 #include <lv2/atom/forge.h>
@@ -11,12 +12,15 @@
 #include <lv2/state/state.h>
 #include <lv2/time/time.h>
 #include <lv2/urid/urid.h>
+#include <fcntl.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <time.h>
+#include <unistd.h>
 #include "arp_core.h"
 
 #define ARP_URI "http://dmtry3.github.io/zynthian-eka/bloom"
@@ -45,6 +49,18 @@ static const int field_defaults[N_FIELDS] = { 100, 0, 100, ARP_GATE_GLOBAL, 1 };
 
 typedef struct { LV2_Atom_Event ev; uint8_t msg[3]; } MidiOut;
 
+/* Shared memory for the widget's note roll (written only in run(), plain memory writes).
+ * seq is odd while run() writes; the widget copies the block and retries if seq changed. */
+#define VIZ_MAGIC 0x4D4F4C42u   /* "BLOM" */
+#define VIZ_NOTES 512           /* ring of the last played notes (4 bars of 1/32 with 4 hits each) */
+typedef struct { double on, off; uint8_t note, vel, ch, pad[5]; } VizNote;   /* off < 0: still sounding */
+typedef struct {
+  uint32_t magic, seq, head, bpb, nheld, rolling;   /* head: notes written so far (ring index head % VIZ_NOTES) */
+  double clk;                                        /* current position in ticks */
+  uint8_t held[ARP_MAX_NOTES];                       /* keys being arpeggiated */
+  VizNote ring[VIZ_NOTES];
+} Viz;
+
 typedef struct {
   const LV2_Atom_Sequence* in;
   LV2_Atom_Sequence* out;
@@ -66,6 +82,8 @@ typedef struct {
   int bpb, rolling;
   int reset_prev;        /* last value of the reset port, -1 before the first run */
   ArpCore core;
+  Viz* viz;
+  char viz_path[64];
 } Arp;
 
 static double tps(const Arp* A) { return A->bpm * ARP_PPQN / (60.0 * A->sr); }
@@ -81,9 +99,27 @@ static void emit(Arp* A, uint32_t frame, uint8_t st, uint8_t d1, uint8_t d2) {
   lv2_atom_sequence_append_event(A->out, A->out_cap, &e.ev);
 }
 
+/* A generated note for the widget: note-on opens a ring entry, note-off closes the latest open one. */
+static void viz_note(Arp* A, double tick, uint8_t st, uint8_t d1, uint8_t d2) {
+  Viz* v = A->viz;
+  if (!v) return;
+  const uint8_t type = st & 0xF0, ch = st & 0x0F;
+  if (type == 0x90 && d2 > 0) {
+    VizNote* e = &v->ring[v->head % VIZ_NOTES];
+    e->on = tick; e->off = -1.0; e->note = d1; e->vel = d2; e->ch = ch;
+    v->head++;
+    return;
+  }
+  for (uint32_t k = 1; k <= 16 && k <= v->head; k++) {
+    VizNote* e = &v->ring[(v->head - k) % VIZ_NOTES];
+    if (e->off < 0 && e->note == d1 && e->ch == ch) { e->off = tick; return; }
+  }
+}
+
 /* arp_core callback: convert tick to a frame of the current block */
 static void core_emit(void* user, double tick, uint8_t st, uint8_t d1, uint8_t d2) {
   Arp* A = (Arp*)user;
+  viz_note(A, tick, st, d1, d2);
   double d = (tick - A->clk) / tps(A);
   uint32_t f = A->cur_frame + (d > 1e-6 ? (uint32_t)ceil(d - 1e-6) : 0);
   emit(A, f, st, d1, d2);
@@ -205,6 +241,21 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double rate, const char* 
   A->reset_prev = -1;
   A->report_next = -1;
   lv2_atom_forge_init(&A->forge, m);
+  /* shared memory for the widget (one jalv process per plugin in Zynthian: the pid names it) */
+  snprintf(A->viz_path, sizeof A->viz_path, "/dev/shm/eka_bloom_%d", (int)getpid());
+  int fd = open(A->viz_path, O_RDWR | O_CREAT | O_TRUNC, 0644);
+  if (fd >= 0) {
+    if (ftruncate(fd, (off_t)sizeof(Viz)) == 0) {
+      void* mp = mmap(NULL, sizeof(Viz), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+      if (mp != MAP_FAILED) {
+        A->viz = (Viz*)mp;
+        memset(A->viz, 0, sizeof(Viz));
+        A->viz->bpb = 4;
+        A->viz->magic = VIZ_MAGIC;
+      }
+    }
+    close(fd);
+  }
   return A;
 }
 
@@ -257,6 +308,8 @@ static void run(LV2_Handle h, uint32_t n) {
   lv2_atom_sequence_clear(A->out);
   A->out->atom.type = A->in->atom.type;
   A->nframes = n; A->cur_frame = 0;
+  uint32_t vseq = 0;
+  if (A->viz) { vseq = A->viz->seq; __atomic_store_n(&A->viz->seq, vseq + 1, __ATOMIC_RELEASE); }
   arp_set_params(&A->core, ctl_int(A, P_RATE, ARP_RATE_16), ctl_int(A, P_GATE, 50),
                  ctl_int(A, P_ORDER, ARP_UP), ctl_int(A, P_OCTAVES, 1));
   arp_set_latch(&A->core, ctl_int(A, P_LATCH, 0) != 0);
@@ -292,9 +345,20 @@ static void run(LV2_Handle h, uint32_t n) {
   if (A->step_count_out) *A->step_count_out = (float)(A->core.step_count & 0xFFFFFFu);
   for (int i = 0; i < ARP_MAX_STEPS; i++)
     if (A->dev_out[i]) *A->dev_out[i] = pack_dev(A->core.dev[i]);
+  if (A->viz) {
+    Viz* v = A->viz;
+    v->clk = A->clk; v->bpb = (uint32_t)A->bpb; v->rolling = (uint32_t)A->rolling;
+    v->nheld = (uint32_t)A->core.nheld;
+    for (int i = 0; i < A->core.nheld; i++) v->held[i] = A->core.held[i].note;
+    __atomic_store_n(&v->seq, vseq + 2, __ATOMIC_RELEASE);
+  }
 }
 
-static void cleanup(LV2_Handle h) { free(h); }
+static void cleanup(LV2_Handle h) {
+  Arp* A = (Arp*)h;
+  if (A->viz) { munmap(A->viz, sizeof(Viz)); unlink(A->viz_path); }
+  free(h);
+}
 /* LV2 State: the pattern steps (LV2 parameters) go into presets; control ports are saved by the host. */
 static LV2_State_Status save(LV2_Handle h, LV2_State_Store_Function store, LV2_State_Handle sh,
                              uint32_t flags, const LV2_Feature* const* features) {

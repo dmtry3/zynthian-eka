@@ -3,7 +3,14 @@
 # Touchscreen editor of the Eka Bloom pattern steps.
 # Step values live in plugin parameters (prob1..16, shift1..16, vel1..16, gate1..16, ratch1..16);
 # the widget only writes them through regular Zynthian controllers, so snapshots keep them.
+# The Roll tab shows the notes Bloom has played, read from shared memory /dev/shm/eka_bloom_<pid>
+# (written by the plugin, see Viz in eka_bloom.c).
+import glob
 import logging
+import math
+import mmap
+import os
+import struct
 import time
 import tkinter
 
@@ -33,6 +40,19 @@ SCALE_STEPS = [list(range(12)), [0, 2, 4, 5, 7, 9, 11], [0, 2, 3, 5, 7, 8, 10], 
 MUT_MAX = (3, 3, 3, 4)      # drift limits per row (prob, shift, vel, gate), as in arp_core.h; Ratch doesn't drift
 DOUBLE_TAP = 0.35            # seconds: second tap on the same step resets it
 
+# ---------- Roll tab ----------
+ROLL = len(LANES)            # tab index of the note roll, after the rows
+ROLL_COLOR = "#ffd43b"
+ROLL_BARS = (1, 2, 4)        # window lengths, a tap on the roll cycles them
+PPQN = 960
+VIZ_MAGIC = 0x4D4F4C42
+VIZ_HDR = struct.Struct("<6Id32s")       # magic, seq, head, bpb, nheld, rolling, clk, held[32]
+VIZ_NOTE = struct.Struct("<ddBBB5x")     # on, off (< 0: sounding), note, vel, ch
+VIZ_NOTES = 512
+VIZ_SIZE = VIZ_HDR.size + VIZ_NOTES * VIZ_NOTE.size
+BLACK_KEYS = (1, 3, 6, 8, 10)
+NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
 
 def dim(col, f):
     r, g, b = int(col[1:3], 16), int(col[3:5], 16), int(col[5:7], 16)
@@ -57,6 +77,9 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         self.last_tap = (-1, -1, 0.0)  # (lane, column, time) for double tap
         self.last_scale = None       # scale seen on the previous redraw (None until the first one)
         self.geo = None
+        self.roll_bars = 2           # Roll window in bars
+        self.mm = None               # shared memory of the plugin (Roll tab)
+        self.mm_path = None
         self.widget_canvas = tkinter.Canvas(
             self, highlightthickness=0, relief='flat',
             bg=zynthian_gui_config.color_bg)
@@ -208,12 +231,18 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         if not self.geo:
             self._layout()
         w, h, pad, tab_h, num_h, x0, x1, y0, y1, cw = self.geo
-        if event.y < tab_h:                                  # lane tabs
+        if event.y < tab_h:                                  # lane tabs and Roll
             self.last_tap = (-1, -1, 0.0)
-            tw = w / float(len(LANES))
+            tw = w / float(len(LANES) + 1)
             i = int(event.x / tw)
-            if 0 <= i < len(LANES):
+            if 0 <= i <= len(LANES):
                 self.lane = i
+                self._draw()
+            return
+        if self.lane == ROLL:                                # tap on the roll: 1 / 2 / 4 bars
+            if event.y <= y1:
+                k = ROLL_BARS.index(self.roll_bars) if self.roll_bars in ROLL_BARS else 0
+                self.roll_bars = ROLL_BARS[(k + 1) % len(ROLL_BARS)]
                 self._draw()
             return
         col = self._col_at(event.x)
@@ -286,19 +315,25 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         except Exception:
             count = 0
         lane = self.lane
+
+        # tabs: the rows, then Roll
+        tw = w / float(len(LANES) + 1)
+        for i in range(len(LANES) + 1):
+            sel = (i == lane)
+            tcol = LANE_COLORS[i] if i < len(LANES) else ROLL_COLOR
+            text = "%s %d" % (LANES[i][1], self._lane_len(i)) if i < len(LANES) else "Roll"
+            c.create_rectangle(int(i * tw) + 1, 1, int((i + 1) * tw) - 2, tab_h - 2, tags="dyn",
+                               fill=(tcol if sel else ""), outline=tcol)
+            c.create_text(int((i + 0.5) * tw), tab_h // 2, text=text, tags="dyn",
+                          fill=("#000000" if sel else tcol), font=(fam, fs_tab))
+        if lane == ROLL:
+            self._draw_roll()
+            return
+
         length = self._lane_len(lane)
         cur = (count - 1) % length + 1 if count > 0 else 0     # step playing in this row
         key, title, lo, hi, dflt = LANES[lane]
         col = LANE_COLORS[lane]
-
-        # tabs
-        tw = w / float(len(LANES))
-        for i, (_, t, _, _, _) in enumerate(LANES):
-            sel = (i == lane)
-            c.create_rectangle(int(i * tw) + 1, 1, int((i + 1) * tw) - 2, tab_h - 2, tags="dyn",
-                               fill=(LANE_COLORS[i] if sel else ""), outline=LANE_COLORS[i])
-            c.create_text(int((i + 0.5) * tw), tab_h // 2, text="%s %d" % (t, self._lane_len(i)), tags="dyn",
-                          fill=("#000000" if sel else LANE_COLORS[i]), font=(fam, fs_tab))
 
         # reference lines
         def yv(v):
@@ -364,3 +399,156 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
             c.create_text(cx, h - num_h // 2 - 1, text=str(i + 1), tags="dyn",
                           fill=(tx if i < length else tx_off),
                           font=(fam, fs_num, "bold" if i + 1 == length else "normal"))
+
+    # ---------- Roll tab: the notes Bloom has played ----------
+    def _open_mm(self):
+        path = None
+        try:
+            path = "/dev/shm/eka_bloom_%d" % int(self.processor.engine.proc.pid)
+        except Exception:
+            files = glob.glob("/dev/shm/eka_bloom_*")
+            if len(files) == 1:
+                path = files[0]
+        if not path or not os.path.exists(path):
+            return False
+        if path == self.mm_path and self.mm:
+            return True
+        try:
+            if self.mm:
+                self.mm.close()
+            with open(path, "rb") as f:
+                self.mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+            if len(self.mm) < VIZ_SIZE:
+                raise ValueError("short")
+            self.mm_path = path
+            return True
+        except Exception:
+            self.mm = None
+            self.mm_path = None
+            return False
+
+    def _read_viz(self):
+        """(clk, bpb, held notes, [(on, off, note, vel)]) from the plugin, or None."""
+        if not self._open_mm():
+            return None
+        mm = self.mm
+        for _ in range(3):
+            try:
+                h = VIZ_HDR.unpack_from(mm, 0)
+                raw = mm[VIZ_HDR.size:VIZ_SIZE]
+                seq2 = struct.unpack_from("<I", mm, 4)[0]
+            except Exception:
+                return None
+            magic, seq, head, bpb, nheld = h[:5]
+            if magic != VIZ_MAGIC:
+                return None
+            if (seq & 1) or seq2 != seq:                     # the plugin is writing: try again
+                continue
+            n = min(head, VIZ_NOTES)
+            notes = []
+            for k in range(n):
+                on, off, note, vel, ch = VIZ_NOTE.unpack_from(raw, ((head - n + k) % VIZ_NOTES) * VIZ_NOTE.size)
+                notes.append((on, off, note, vel))
+            held = list(h[7][:min(nheld, 32)])
+            return h[6], (bpb or 4), held, notes
+        return None
+
+    def _scale_set(self, held):
+        """Pitch classes of the current scale (None for Chromatic); Key Auto follows the lowest held key."""
+        sc = self._scale()
+        if sc == 0:
+            return None
+        k = int(round(self._zval("key", 0)))
+        if k >= 12:
+            if not held:
+                return None
+            k = min(held) % 12
+        return set((k + x) % 12 for x in SCALE_STEPS[sc])
+
+    def _draw_roll(self):
+        c = self.widget_canvas
+        w, h, pad, tab_h, num_h, x0, x1, y0, y1, cw = self.geo
+        fam = zynthian_gui_config.font_family
+        tx_off = zynthian_gui_config.color_tx_off
+        fs = max(6, int(tab_h * 0.3))
+        viz = self._read_viz()
+        if viz is None:
+            c.create_text((x0 + x1) // 2, (y0 + y1) // 2, text="no data from the plugin", tags="dyn",
+                          fill=tx_off, font=(fam, fs + 2))
+            return
+        clk, bpb, held, notes = viz
+        bar_t = bpb * PPQN
+        W = self.roll_bars * bar_t
+        sweep0 = math.floor(clk / W) * W                    # start of the window the playhead is in
+        start = clk - W
+        vis = [nt for nt in notes if start < (nt[1] if nt[1] >= 0 else clk) and nt[0] <= clk]
+
+        # pitch range: whole octaves around the shown and held notes (changes only across an octave)
+        pitches = [nt[2] for nt in vis] + held
+        if pitches:
+            lo = 12 * (min(pitches) // 12)
+            hi = 12 * (max(pitches) // 12) + 11
+        else:
+            lo, hi = 48, 71
+        span = hi - lo + 1
+        kw = max(8, int(cw * 0.6))                           # key strip on the left
+        nx0, nx1 = x0 + kw + 2, x1
+        nw = float(nx1 - nx0)
+        rh = (y1 - y0) / float(span)
+
+        def ry(p):
+            return y1 - (p - lo + 1) * rh
+
+        scale = self._scale_set(held)
+        held_set = set(held)
+        for p in range(lo, hi + 1):
+            pc = p % 12
+            in_sc = (pc in scale) if scale is not None else (pc not in BLACK_KEYS)
+            if in_sc:                                        # rows of the scale (white keys for Chromatic)
+                c.create_rectangle(nx0, ry(p), nx1, ry(p) + rh, fill="#161616", width=0, tags="dyn")
+            key_col = "#3a3a3a" if pc in BLACK_KEYS else "#9a9a9a"
+            if p in held_set:
+                key_col = ROLL_COLOR
+            c.create_rectangle(x0, ry(p) + 0.5, x0 + kw, ry(p) + rh - 0.5, fill=key_col, width=0,
+                               tags=("dyn", "held") if p in held_set else "dyn")
+            if pc == 0 and rh * 12 >= 3 * fs:                # octave label on C
+                c.create_text(nx0 + 2, ry(p) + rh / 2.0, anchor="w", text="C%d" % (p // 12 - 1), tags="dyn",
+                              fill=tx_off, font=(fam, fs))
+        # beats and bars
+        nbeats = self.roll_bars * bpb
+        for b in range(nbeats + 1):
+            x = nx0 + nw * b / nbeats
+            c.create_line(x, y0, x, y1, fill=("#5a5a5a" if b % bpb == 0 else "#2a2a2a"), tags="dyn")
+
+        def tx(t, prev):
+            return nx0 + nw * (t - (sweep0 - W if prev else sweep0)) / W
+
+        # notes: this pass bright, the previous pass dim ahead of the playhead (overwritten as it moves)
+        n_drawn = 0
+        for (on, off, note, vel) in vis:
+            if not (lo <= note <= hi):
+                continue
+            end = off if off >= 0 else clk
+            f = 0.35 + 0.65 * min(vel, 127) / 127.0
+            yt, yb = ry(note) + 0.5, ry(note) + max(2.0, rh - 0.5)
+            for (a, b, prev) in ((max(on, start), min(end, sweep0), True), (max(on, sweep0), end, False)):
+                if b <= a and not (b == a and not prev and off < 0):
+                    continue
+                xa, xb = tx(a, prev), tx(b, prev)
+                c.create_rectangle(xa, yt, max(xb, xa + 2), yb, width=0, tags=("dyn", "note"),
+                                   fill=dim(ROLL_COLOR, f * (0.35 if prev else 1.0)))
+                n_drawn += 1
+        # playhead
+        px = tx(clk, False)
+        c.create_line(px, y0, px, y1, fill="#ffffff", width=2, tags=("dyn", "playhead"))
+        c.create_rectangle(nx0, y0, nx1, y1, outline="#555555", tags="dyn")
+        # bar numbers of the song under the roll, window length in the corner
+        first_bar = int(sweep0 // bar_t)
+        for k in range(self.roll_bars):
+            c.create_text(nx0 + nw * k / self.roll_bars + 3, h - num_h // 2 - 1, anchor="w",
+                          text=str(first_bar + k + 1), tags="dyn", fill=tx_off, font=(fam, max(7, num_h // 2 + 1)))
+        c.create_text(x1 - 2, h - num_h // 2 - 1, anchor="e", text="%d bar%s" % (self.roll_bars, "s" if self.roll_bars > 1 else ""),
+                      tags="dyn", fill=ROLL_COLOR, font=(fam, max(7, num_h // 2 + 1)))
+        if not vis:
+            c.create_text((nx0 + nx1) // 2, (y0 + y1) // 2, text="play a chord", tags="dyn",
+                          fill=tx_off, font=(fam, fs + 2))

@@ -145,6 +145,12 @@ The plugin's screen in Zynthian shows a touch editor for the 16 steps of the pat
 - **Mutation marks:** a white mark on a bar shows the value the step plays now after mutation. The bar
   keeps the drawn value.
 
+**Roll tab.** The notes Bloom has actually played (with mutation, passing notes, repeats and ratchets),
+on a window of 2 bars of the song grid. The playhead sweeps left to right: notes of this pass are bright
+(brighter = louder), the last pass stays dim ahead of the playhead until it is overwritten. The key strip
+on the left lights the held keys; lighter rows are the notes of the scale (white keys with Chromatic). The
+pitch range follows the notes in whole octaves. **Tap the roll** to switch 1 / 2 / 4 bars.
+
 | Row | Values | Default | Meaning |
 |---|---|---|---|
 | Prob | 0–100 % | 100 | chance that the step plays |

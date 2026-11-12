@@ -3,7 +3,9 @@
 #   python3 test/widget_preview.py          scripted touch tests (PASS/FAIL)
 #   python3 test/widget_preview.py --show   open a window to try it by hand (needs a display)
 import importlib.util
+import math
 import os
+import struct
 import sys
 import time
 import tkinter
@@ -74,8 +76,61 @@ class Ctrl:
         self.writes += 1
 
 
+class FakeViz:
+    """Shared memory as the plugin writes it (see Viz in eka_bloom.c), with a toy arpeggio."""
+    HDR = struct.Struct("<6Id32s")
+    NOTE = struct.Struct("<ddBBB5x")
+
+    def __init__(self):
+        self.pid = 900000 + os.getpid() % 90000
+        self.path = "/dev/shm/eka_bloom_%d" % self.pid
+        self.clk, self.held, self.notes, self.seq = 0.0, [], [], 0
+        self.write()
+
+    def write(self, magic=0x4D4F4C42):
+        buf = bytearray(self.HDR.size + 512 * self.NOTE.size)
+        head = len(self.notes)
+        self.HDR.pack_into(buf, 0, magic, self.seq, head, 4, len(self.held), 1, self.clk,
+                           bytes(self.held + [0] * (32 - len(self.held))))
+        for i, (on, off, note, vel) in enumerate(self.notes[-512:]):
+            k = (head - min(head, 512) + i) % 512
+            self.NOTE.pack_into(buf, self.HDR.size + k * self.NOTE.size, on, off, note, vel, 0)
+        with open(self.path, "wb") as f:
+            f.write(buf)
+
+    def play_to(self, clk, chord=(60, 64, 67), step=240, ratch=None):
+        """Up arpeggio (gate 50 %) up to clk; ratch: {step number: hits}."""
+        self.held = list(chord)
+        t = 0.0 if not self.notes else self.notes[-1][0]
+        k = int(round(t / step)) + (1 if self.notes else 0)
+        while k * step <= clk:
+            hits = (ratch or {}).get(k % 16, 1)
+            for j in range(hits):
+                on = k * step + j * step / hits
+                if on > clk:
+                    break
+                off = on + step / hits / 2
+                self.notes.append((on, off if off <= clk else -1.0, chord[k % len(chord)], 100))
+            k += 1
+        self.clk = clk
+        self.write()
+
+    def remove(self):
+        try:
+            os.unlink(self.path)
+        except OSError:
+            pass
+
+
+class Proc:
+    def __init__(self, pid):
+        self.pid = pid
+
+
 class Engine:
     def __init__(self):
+        self.viz = FakeViz()
+        self.proc = Proc(self.viz.pid)
         self.step_count = 7
         self.dev = {}             # step -> (prob, shift, vel, gate) drift in notches
 
@@ -144,10 +199,13 @@ def main():
     if show:
         def tick():
             proc.engine.step_count += 1
+            v = proc.engine.viz
+            v.play_to(v.clk + 60, ratch={3: 2, 7: 3, 13: 4})
             wdg.update()
-            root.after(250, tick)
+            root.after(62, tick)
         tick()
         root.mainloop()
+        proc.engine.viz.remove()
         return 0
 
     fails = 0
@@ -159,7 +217,7 @@ def main():
 
     w, h, pad, tab_h, num_h, x0, x1, y0, y1, cw = wdg.geo
     cx = lambda i: int(x0 + (i + 0.5) * cw)
-    tab = lambda i: int(w / 5.0 * (i + 0.5))
+    tab = lambda i: int(w / 6.0 * (i + 0.5))
 
     check("widget sized to the window", w >= 400 and h >= 250)
 
@@ -378,6 +436,51 @@ def main():
     proc.engine.dev = {}
     proc.controllers_dict["len_ratch"].value = 16
 
+    # Roll tab: notes from shared memory
+    viz = proc.engine.viz
+    notes = lambda: wdg.widget_canvas.find_withtag("note")
+    wdg._on_press(Ev(tab(5), tab_h // 2)); wdg.update()
+    check("Roll tab selected, empty: 'play a chord'", wdg.lane == 5 and "play a chord" in texts() and len(notes()) == 0)
+    check("tabs: 5 rows and Roll", "Roll" in texts() and "Ratch 16" in texts())
+    viz.play_to(1919, ratch={3: 2, 5: 4})            # 8 steps of 1/16 (half a bar), step 3 x2, step 5 x4
+    wdg.update()
+    check("Roll: 8 steps + 1 + 3 extra hits = 12 notes (got %d)" % len(notes()), len(notes()) == 12)
+    xs = sorted(wdg.widget_canvas.coords(n)[0] for n in notes())
+    nx0 = min(xs)
+    check("Roll: first note at the window start, 2 bars", "2 bars" in texts() and abs(nx0 - xs[0]) < 1e-6)
+    check("Roll: held keys lit on the key strip", len(wdg.widget_canvas.find_withtag("held")) == 3)
+    check("Roll: octave label C4", "C4" in texts())
+    px = wdg.widget_canvas.coords(wdg.widget_canvas.find_withtag("playhead")[0])[0]
+    check("Roll: playhead at 1/4 after half a bar of 2", abs((px - nx0) / (wdg.geo[6] - nx0) - 0.25) < 0.02)
+    # second window: the notes of the last pass stay dim ahead of the playhead
+    viz.play_to(7680 + 960)                           # a beat into bars 3-4: steps 32..36
+    wdg.update()
+    bright = mod.dim(mod.ROLL_COLOR, 0.35 + 0.65 * 100 / 127.0)
+    dimc = mod.dim(mod.ROLL_COLOR, (0.35 + 0.65 * 100 / 127.0) * 0.35)
+    px = wdg.widget_canvas.coords(wdg.widget_canvas.find_withtag("playhead")[0])[0]
+    br = [n for n in notes() if wdg.widget_canvas.itemcget(n, "fill") == bright]
+    dm = [n for n in notes() if wdg.widget_canvas.itemcget(n, "fill") == dimc]
+    check("Roll: new pass bright (5 notes) behind the playhead, last pass dim ahead of it (got %d / %d)"
+          % (len(br), len(dm)), len(br) == 5 and len(dm) == 31 and   # steps 4..31 after tick 960, step 5 x4
+          all(wdg.widget_canvas.coords(n)[0] <= px for n in br) and
+          all(wdg.widget_canvas.coords(n)[0] >= px - 1 for n in dm))
+    check("Roll: bar numbers of the song (3, 4)", {"3", "4"} <= set(texts()))
+    wdg._on_press(Ev(cx(4), int((y0 + y1) / 2))); wdg.update()
+    check("Roll: tap -> 4 bars", wdg.roll_bars == 4 and "4 bars" in texts())
+    wdg._on_press(Ev(cx(4), int((y0 + y1) / 2)))
+    wdg._on_press(Ev(cx(4), int((y0 + y1) / 2))); wdg.update()
+    check("Roll: tap -> 1 bar -> 2 bars", wdg.roll_bars == 2)
+    check("Roll: taps don't touch the steps", proc.v("prob5") == 100 and proc.v("ratch5") == 1)
+    viz.notes.append((viz.clk - 10, -1.0, 72, 127)); viz.held = [60, 64, 67, 72]; viz.write(); wdg.update()
+    check("Roll: a sounding note is drawn up to the playhead, range grows to C5", "C5" in texts())
+    viz.seq = 1; viz.write(); wdg.update()
+    check("Roll: plugin busy (odd seq): no crash", True)
+    viz.seq = 2; viz.write(magic=0); wdg.update()
+    check("Roll: wrong magic: 'no data from the plugin'", "no data from the plugin" in texts())
+    viz.remove(); wdg.mm = None; wdg.mm_path = None; wdg.update()
+    check("Roll: no shared memory: 'no data from the plugin'", "no data from the plugin" in texts())
+    wdg._on_press(Ev(tab(0), tab_h // 2)); wdg.update()
+
     # drawing does not crash with the playing step and resizes
     for cs in (0, 1, 16, 1000):
         proc.engine.step_count = cs
@@ -385,6 +488,7 @@ def main():
     root.geometry("320x180"); root.update(); wdg.update(); root.update()
     check("redraw at another size and step counts 0/1/16/1000", True)
 
+    proc.engine.viz.remove()
     print("\n%s" % ("ALL PASSED" if fails == 0 else "%d FAILED" % fails))
     root.destroy()
     return 1 if fails else 0
