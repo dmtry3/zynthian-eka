@@ -1973,10 +1973,15 @@ void Looper::switch_part(int p) {
     }
     active_ = first_free >= 0 ? first_free : 0;
   } else {
+    // лупы парта — с начала цикла, и сетка Quantize считается от этого момента: иначе подстройка
+    // фазы сразу вернула бы дорожку в фазу со старой сеткой (с середины цикла)
+    double e = beats_;
+    if (std::fabs(e - std::round(e)) < 0.02) e = std::round(e);  // переход на доле или черте
     for (int i = 0; i < ns_; ++i) {
       const int k = p * ns_ + i;
       Track& t = tr_[k];
       if (t.sum < 0 || (t.st != TState::Play && t.st != TState::Dub)) continue;
+      if (t.synced) t.b0 = e;
       t.pos = t.dir > 0 ? 0.0 : (double)(t.len - 1);
       t.rate = (double)t.dir;
       t.rate_step = 0.0;

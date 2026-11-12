@@ -863,6 +863,18 @@ static void test_part_at_lock() {
   while (s.beats_now() < 24.2) s.run(BLOCK);
   CHECK(s.lp->part() == 1);
   CHECK(s.v(0).state == 3);  // копия с Lock играет в новом парте
+  // назад в парт 1 (записанный): обе дорожки с начала цикла, и подстройка фазы их не сдвигает
+  // (дорожка 2 на 2 такта со старой сеткой была бы на середине)
+  while (s.beats_now() < 29.5) s.run(BLOCK);  // переход на доле 32: по старой сетке дорожка 2 на середине
+  s.cmd(Cmd::PartPrev);
+  while (s.beats_now() < 32.0) s.run(BLOCK);
+  const uint64_t t_sw = s.t;
+  s.run(BAR / 2);
+  CHECK(s.lp->part() == 0);
+  const double el = (double)(s.t - t_sw) / SR * 2.0;  // долей после перехода (≈)
+  std::printf("  back to part 1: track 2 pos %.3f (want ~%.3f)\n", s.v(1).pos, el / 8.0);
+  CHECK(std::fabs(s.v(1).pos - el / 8.0) < 0.02);
+  CHECK(std::fabs(s.v(0).pos - std::fmod(el / 4.0, 1.0)) < 0.02);
 }
 
 // Play/Stop: стоп на границе такта (транспорт идёт дальше), старт с начала такта в фазе.
