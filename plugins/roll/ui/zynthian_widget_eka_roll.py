@@ -79,6 +79,8 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         self.cc_seq = 0
         self._sync_n = 0
         self._roll = False
+        self._rng = None
+        self._geo = None
         self.after(300, self._follow_tick)
 
     def on_size(self, event):
@@ -181,7 +183,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             raw = mm[HDR.size:HDR.size + (total + ncc) * EV.size]
             if HDR.unpack_from(mm, 0)[1] != seq:
                 continue
-            layers, ccs, fnotes, off = [], [], [], 0
+            layers, ccs, fnotes, opens, off = [], [], [], [], 0
             for i in range(nl):
                 chunk = raw[off * EV.size:(off + ns[i]) * EV.size]
                 notes, fl = [], []
@@ -190,6 +192,8 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                     if typ == 0x90 and d > 0:
                         notes.append((t, d, p))
                         fl.append((t, d, st, p, v))
+                    elif typ == 0x90 and v > 0:                       # still sounding (being recorded)
+                        opens.append((i, t, p))
                     elif typ in (0xB0, 0xA0, 0xD0, 0xE0):          # old layers could contain CC
                         ccs.append((t, st, p, v))
                 layers.append(notes)
@@ -199,22 +203,23 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             for (t, d, st, p, v, _) in EV.iter_unpack(chunk):
                 ccs.append((t, st, p, v))
             self.data = {"loop_len": h[3], "bpb": h[5] or 4, "mute": h[7],
-                         "transp": list(h[16:24]), "layers": layers, "ccs": ccs, "fnotes": fnotes}
+                         "transp": list(h[16:24]), "layers": layers, "ccs": ccs, "fnotes": fnotes,
+                         "opens": opens}
             self.cache_ver = ver
             return True
         return False
 
     # ---------- piano roll + CC ----------
-    def _draw_roll(self, x0, y0, x1, y1, sel, pend, h):
+    def _draw_roll(self, x0, y0, x1, y1, sel, pend, h, L, recording):
         c = self.widget_canvas
         c.delete("roll")
+        self._geo = None
         d = self.data
         fam = zynthian_gui_config.font_family
-        if not d or d["loop_len"] <= 0 or not d["layers"]:
+        if not d or L <= 0 or not d["layers"]:
             c.create_text((x0 + x1) // 2, (y0 + y1) // 2, text="no loop", fill="#808080",
                           tags="roll", font=(fam, 9))
             return
-        L = d["loop_len"]
         bar = d["bpb"] * PPQN
         w = x1 - x0
         has_cc = bool(d["ccs"])
@@ -228,6 +233,8 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                 pitches.append(p + cur)
                 if i == sel and pend:
                     pitches.append(p + cur + pend)
+        for (i, t, p) in d.get("opens", []):
+            pitches.append(p + d["transp"][i])
         if pitches:
             lo, hi = max(0, min(pitches) - 1), min(127, max(pitches) + 1)
         else:
@@ -235,6 +242,9 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         if hi - lo < 11:
             mid = (hi + lo) // 2
             lo, hi = mid - 6, mid + 6
+        if recording and self._rng:              # while recording the range only grows (no jumps)
+            lo, hi = min(lo, self._rng[0]), max(hi, self._rng[1])
+        self._rng = (lo, hi) if recording else None
         span = hi - lo + 1
         rh = (ny1 - y0) / float(span)
 
@@ -250,6 +260,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                 bar_no += 1
             tick += PPQN
         c.create_rectangle(x0, y0, x1, ny1, outline="#555555", tags="roll")
+        self._geo = (x0, y0, ny1, w, L, lo, hi, rh)
         if has_cc:
             c.create_rectangle(x0, cy0, x1, cy1, outline="#555555", tags="roll")
             c.create_text(x0 + 3, cy0 + 1, anchor="nw", text="CC", fill="#808080", tags="roll", font=(fam, 7))
@@ -715,14 +726,46 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                         c.create_rectangle(x, ya, x + lw, yb, outline="#303030", tags="dyn")
                 y0 = int(h * 0.25)
             x0, x1, y1 = 8, w - 8, int(h * 0.95)
-            key = (mode, self.cache_ver, sel, pend, w, h, ok)
+            d = self.data
+            bar_t = int(bpb) * PPQN
+            recording = st in (2, 3, 5)
+            Ld = d["loop_len"] if d else 0
+            now_t = None                                  # current tick inside the shown length
+            if d and st in (2, 3) and Ld <= 0:
+                # first recording: the length is not known yet
+                el = bars * bar_t
+                fixed = (0, 1, 2, 4, 8, 16)[max(0, min(5, int(self._zval("length", 0))))]
+                if fixed:
+                    nb_ = fixed
+                else:
+                    nb_ = 1
+                    while nb_ * bar_t < el:
+                        nb_ *= 2
+                Ld = nb_ * bar_t
+                now_t = min(el, Ld)
+                pos = now_t / float(Ld)
+            elif Ld > 0:
+                now_t = pos * Ld
+            key = (mode, self.cache_ver, sel, pend, w, h, ok, Ld, recording)
             if key != self.roll_key:
                 self.roll_key = key
-                self._draw_roll(x0, y0, x1, y1, sel, pend, h)
-            d = self.data
-            if mode == "main" and run and d and d["loop_len"] > 0:
+                self._draw_roll(x0, y0, x1, y1, sel, pend, h, Ld, recording)
+            if self._geo and recording and now_t is not None and d.get("opens"):
+                # notes still held: grow up to the playhead
+                gx0, gy0, gny1, gw, gL, glo, ghi, grh = self._geo
+                for (i, t, p) in d["opens"]:
+                    q = p + d["transp"][i]
+                    if not (glo <= q <= ghi):
+                        continue
+                    yq = gny1 - (q - glo + 1) * grh
+                    parts = [(t, now_t)] if now_t >= t else [(t, gL), (0, now_t)]
+                    for (a, b) in parts:
+                        xa, xb = gx0 + gw * a / gL, gx0 + gw * b / gL
+                        c.create_rectangle(xa, yq, max(xb, xa + 2), yq + max(2.0, grh - 1),
+                                           fill=LAYER_COLORS[i % 8], width=0, tags="dyn")
+            if mode == "main" and run and d and Ld > 0:
                 # metronome on the grid: soft band over the current beat
-                nbeats = max(1, int(round(d["loop_len"] / float(PPQN))))
+                nbeats = max(1, int(round(Ld / float(PPQN))))
                 bi = min(int(pos * nbeats), nbeats - 1)
                 bw = (x1 - x0) / float(nbeats)
                 xb = x0 + bw * bi
