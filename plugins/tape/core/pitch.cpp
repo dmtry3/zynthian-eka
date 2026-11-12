@@ -14,11 +14,10 @@ struct PitchShifter::Impl {
 
 PitchShifter::~PitchShifter() { delete p_; }
 
-bool PitchShifter::init(double sample_rate, bool high) {
+bool PitchShifter::init(double sample_rate) {
   if (!p_) p_ = new (std::nothrow) Impl();
   if (!p_) return false;
-  if (high) p_->st.presetDefault(2, (float)sample_rate, true);
-  else p_->st.presetCheaper(2, (float)sample_rate, true);
+  p_->st.presetDefault(2, (float)sample_rate, true);
   p_->semis = 0.0f;
   p_->st.setTransposeSemitones(0.0f);
   return true;

@@ -42,7 +42,6 @@ struct Settings {
   float latency_ms = 0.0f;        // компенсация задержки аудиоинтерфейса (выход + вход), 0..100
   int count_in = 0;               // счёт перед записью основы, тактов: 0 выкл, 1, 2 (этап 8)
   int rec_thresh_db = 0;          // старт записи основы по порогу входа (только Free): 0 выкл, −60..−12 дБ
-  int pitch_q = 0;                // качество сдвига высоты: 0 ECO, 1 HIGH (этап 8)
 };
 
 constexpr float kMinSpeed = 0.25f, kMaxSpeed = 2.0f;  // ручная скорость дорожки, как у ленты
@@ -171,7 +170,7 @@ class Looper {
   float pitch(int k) const { return tr_[k].pit; }
   // Процессор не успевает: сдвиг высоты отключён (дорожки звучат без него), пока его не поменяют.
   bool pitch_overload() const { return pitch_over_; }
-  int pitch_latency() const;  // задержка Stretch в текущем качестве, кадров (для тестов)
+  int pitch_latency() const;  // задержка Stretch, кадров (0 — Stretch недоступен)
   void set_pitch_budget(float frac) { pitch_budget_ = frac; }  // доля блока на сдвиг (тесты)
   const Mix& mix(int k) const { return mix_[k]; }
   void set_master_db(float db) { master_db_ = db; }
@@ -304,7 +303,6 @@ class Looper {
     float ag = 1.0f;          // кроссфейд старой суммы в Stretch (1 — только новая)
     bool axf = false;
     int8_t deng = -1;         // Stretch овердаба (вход сдвигается обратно), -1 — нет
-    int8_t dq = 0;            // его качество
     uint32_t dlat = 0;        // его задержка, кадров
     bool ddrain = false;      // овердаб закрыт: дописываем то, что ещё в Stretch
     uint32_t ddrain_n = 0;
@@ -442,15 +440,12 @@ class Looper {
   float mpeak_[2] = {};
   uint32_t mix_epoch_ = 0;
   PitchBank* pb_ = nullptr;
-  int pq_ = 0;                 // качество Stretch воспроизведения сейчас
   bool pblock_ = false;        // в этом блоке сдвиг считается
   uint32_t oseek_gap_ = 1u << 20;  // кадров с последнего запуска Stretch (не чаще раза в 256 кадров)
   float pitch_budget_ = 0.5f;  // доля блока: дольше в среднем — перегрузка
   double pitch_load_ = 0.0;
   bool pitch_over_ = false;
   uint32_t last_n_ = 128;      // размер прошлого блока
-  float qg_ = 1.0f;            // смена качества: сдвинутый звук затихает (10 мс), Stretch меняются, нарастает
-  bool qdip_ = false;
 
   // ---- сессии ----
   void session_step();            // RT, в начале блока: заморозка и шаги загрузки

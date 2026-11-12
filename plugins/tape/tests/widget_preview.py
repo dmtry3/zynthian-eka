@@ -128,7 +128,6 @@ class Processor:
         for i in range(1, 37):
             self.controllers_dict["pit%d" % i] = Ctrl("pit%d" % i, 0.0, -12.0, 12.0)
         self.controllers_dict["pit_reset"] = Ctrl("pit_reset", 0, 0, 6)
-        self.controllers_dict["pitch_q"] = Ctrl("pitch_q", 0, 0, 1)
 
 
 class Control:
@@ -691,15 +690,6 @@ def main():
     cd["rec_thresh"].value = 0
     m["o_st1"] = 0.0
     cd["count_in"].value = 0
-    wdg.update()
-    # качество сдвига высоты (этап 8)
-    wdg.settings_open = True
-    into_view("sseg", "pitch_q")
-    check("в настройках PITCH QUALITY", "PITCH QUALITY" in texts(wdg) and "HIGH" in texts(wdg))
-    tap_seg("pitch_q", 1)
-    check("PITCH QUALITY: HIGH", cd["pitch_q"].value == 1)
-    cd["pitch_q"].value = 0
-    wdg.settings_open = False
     wdg.update()
 
     # сессия (этап 7а): строка в полосе темпа вместо точек долей

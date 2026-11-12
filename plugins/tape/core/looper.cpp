@@ -48,11 +48,11 @@ constexpr uint32_t kOseekGap = 256;     // запуск Stretch (прогон в
 // Банк Stretch: память выделяется в init(), в аудиопотоке только берётся и отдаётся.
 // Воспроизведение: до kPitchEng дорожек сразу (текущий парт и затихающий), овердаб: до kDubEng.
 struct Looper::PitchBank {
-  PitchShifter play[2][kPitchEng];
-  PitchShifter dub[2][kDubEng];
-  bool used[2][kPitchEng] = {};
-  bool dused[2][kDubEng] = {};
-  int lat[2] = {0, 0}, slen[2] = {0, 0}, wlen[2] = {0, 0};
+  PitchShifter play[kPitchEng];
+  PitchShifter dub[kDubEng];
+  bool used[kPitchEng] = {};
+  bool dused[kDubEng] = {};
+  int lat = 0, slen = 0, wlen = 0;
   float wet[kPitchEng][2][kPitchBlock];
   float dout[kDubEng][2][kPitchBlock];
   float ain[2][kPitchBlock];
@@ -76,16 +76,14 @@ bool Looper::init(double sample_rate, size_t pool_bytes) {
   if (!pb_) {
     pb_ = new (std::nothrow) PitchBank();
     bool ok = pb_ != nullptr;
-    for (int q = 0; ok && q < 2; ++q) {
-      for (int e = 0; ok && e < kPitchEng; ++e) ok = pb_->play[q][e].init(sr_, q == 1);
-      for (int e = 0; ok && e < kDubEng; ++e) ok = pb_->dub[q][e].init(sr_, q == 1);
-      if (ok) {
-        pb_->lat[q] = pb_->play[q][0].latency();
-        pb_->slen[q] = pb_->play[q][0].seek_len();
-        pb_->wlen[q] = pb_->play[q][0].warm_len();
-        ok = pb_->lat[q] > 0 && pb_->slen[q] > 0 && pb_->slen[q] <= (int)kSeekMax && pb_->wlen[q] > 0 &&
-             pb_->wlen[q] <= (int)kSeekMax && pb_->wlen[q] <= pb_->lat[q] && pb_->dub[q][0].latency() == pb_->lat[q];
-      }
+    for (int e = 0; ok && e < kPitchEng; ++e) ok = pb_->play[e].init(sr_);
+    for (int e = 0; ok && e < kDubEng; ++e) ok = pb_->dub[e].init(sr_);
+    if (ok) {
+      pb_->lat = pb_->play[0].latency();
+      pb_->slen = pb_->play[0].seek_len();
+      pb_->wlen = pb_->play[0].warm_len();
+      ok = pb_->lat > 0 && pb_->slen > 0 && pb_->slen <= (int)kSeekMax && pb_->wlen > 0 &&
+           pb_->wlen <= (int)kSeekMax && pb_->wlen <= pb_->lat && pb_->dub[0].latency() == pb_->lat;
     }
     if (!ok) {
       delete pb_;
@@ -461,17 +459,13 @@ void Looper::start_dub(int ti) {
   dub_release(t);
   t.ddrain = false;
   t.dgate = 1.0f;
-  // Stretch овердаба всегда HIGH: звук овердаба сдвигается дважды (обратно и при воспроизведении),
-  // призвуки складываются; он один и работает только во время овердаба
   if (pb_ && t.pit != 0.0f && !pitch_over_) {
-    constexpr int dq = 1;
     for (int e = 0; e < kDubEng; ++e)
-      if (!pb_->dused[dq][e]) {
-        pb_->dused[dq][e] = true;
+      if (!pb_->dused[e]) {
+        pb_->dused[e] = true;
         t.deng = (int8_t)e;
-        t.dq = (int8_t)dq;
-        t.dlat = (uint32_t)pb_->lat[dq];
-        pb_->dub[dq][e].reset();
+        t.dlat = (uint32_t)pb_->lat;
+        pb_->dub[e].reset();
         break;
       }
   }
@@ -1338,8 +1332,8 @@ void Looper::track_sample(int ti, uint32_t i, float il, float ir, float& ol, flo
     else if (t.eng >= 0) t.pw = std::fmin(1.0f, t.pw + ps);
     float wl = 0.0f, wr = 0.0f;
     if (t.eng >= 0 && pblock_ && pb_) {
-      wl = pb_->wet[t.eng][0][i] * fade_in * qg_;
-      wr = pb_->wet[t.eng][1][i] * fade_in * qg_;
+      wl = pb_->wet[t.eng][0][i] * fade_in;
+      wr = pb_->wet[t.eng][1][i] * fade_in;
     }
     l = l * (1.0f - t.pw) + wl * t.pw;
     r = r * (1.0f - t.pw) + wr * t.pw;
@@ -1646,16 +1640,16 @@ void Looper::set_pitch(int k, float st) {
   }
 }
 
-int Looper::pitch_latency() const { return pb_ ? pb_->lat[pq_] : 0; }
+int Looper::pitch_latency() const { return pb_ ? pb_->lat : 0; }
 
 void Looper::pitch_release(Track& t) {
-  if (t.eng >= 0 && pb_) pb_->used[pq_][t.eng] = false;
+  if (t.eng >= 0 && pb_) pb_->used[t.eng] = false;
   t.eng = -1;
   t.axf = false;
 }
 
 void Looper::dub_release(Track& t) {
-  if (t.deng >= 0 && pb_) pb_->dused[t.dq][t.deng] = false;
+  if (t.deng >= 0 && pb_) pb_->dused[t.deng] = false;
   t.deng = -1;
 }
 
@@ -1677,28 +1671,12 @@ void Looper::pitch_block(const float* in_l, const float* in_r, uint32_t n) {
   if (!pb_) return;
   PitchBank& b = *pb_;
   if (oseek_gap_ < (1u << 20)) oseek_gap_ += n;
-  // другое качество: сдвинутый звук затихает, Stretch меняются (дорожки перезапускаются с текущего
-  // места), звук нарастает. Два Stretch одной дорожки звучат не в фазе — переключать их сразу нельзя.
-  const int q = set_.pitch_q ? 1 : 0;
-  if (q != pq_) {
-    bool busy = false;
-    for (const auto& t : tr_) busy = busy || t.eng >= 0;
-    if (!busy || qg_ <= 0.0f) {
-      for (auto& t : tr_) pitch_release(t);
-      pq_ = q;
-      qdip_ = false;
-    } else {
-      qdip_ = true;
-    }
-  } else {
-    qdip_ = false;
-  }
   const bool ok = pool_.ok() && n > 0 && n <= kPitchBlock;
   const auto t0 = std::chrono::steady_clock::now();
   bool any = false;
   const double sg = (double)set_.spd_glide_ms / 1000.0 / 4.0 * sr_;
   const double ks = sg < 1.0 ? 1.0 : 1.0 - std::exp(-(double)n / sg);
-  const int D = b.lat[pq_];
+  const int D = b.lat;
   const double jump = kPitchJumpS * sr_;
   for (int k = 0; k < kTracks; ++k) {
     Track& t = tr_[k];
@@ -1735,17 +1713,17 @@ void Looper::pitch_block(const float* in_l, const float* in_r, uint32_t n) {
       if (oseek_gap_ < kOseekGap) continue;  // очередь: запуск дорогой, не больше одного за раз
       int e = -1;
       for (int j = 0; j < kPitchEng && e < 0; ++j)
-        if (!b.used[pq_][j]) e = j;
+        if (!b.used[j]) e = j;
       if (e < 0) {  // все заняты: дорожка звучит без сдвига
         t.pw = 0.0f;
         continue;
       }
-      b.used[pq_][e] = true;
+      b.used[e] = true;
       t.eng = (int8_t)e;
-      PitchShifter& sh = b.play[pq_][e];
+      PitchShifter& sh = b.play[e];
       sh.set_semitones((float)t.pcur);
       // запуск с готовым выходом: история и прогон так, чтобы выход сейчас был звуком под головкой
-      const int S = b.slen[pq_], W = b.wlen[pq_];
+      const int S = b.slen, W = b.wlen;
       const double X = t.pos + (double)(D - W) * step0;
       pitch_fill(t, b.sbuf[0], b.sbuf[1], (uint32_t)S, X - (double)S * step0, step0);
       pitch_fill(t, b.pbuf[0], b.pbuf[1], (uint32_t)W, X, step0);
@@ -1762,15 +1740,15 @@ void Looper::pitch_block(const float* in_l, const float* in_r, uint32_t n) {
       if (err > L / 2) err -= L;
       else if (err < -L / 2) err += L;
       if (std::fabs(err) > jump) {
-        const int S = b.slen[pq_];
+        const int S = b.slen;
         pitch_fill(t, b.sbuf[0], b.sbuf[1], (uint32_t)S, target - (double)S * step0, step0);
         const float* in[2] = {b.sbuf[0], b.sbuf[1]};
-        b.play[pq_][t.eng].seek(in, S);
+        b.play[t.eng].seek(in, S);
         t.apos = target;
         t.axf = false;
       }
     }
-    PitchShifter& sh = b.play[pq_][t.eng];
+    PitchShifter& sh = b.play[t.eng];
     sh.set_semitones((float)t.pcur);
     // undo, redo, reset дорожки: кроссфейд старой суммы и в Stretch (успевает до конца основного)
     const bool swap = t.xf_len > 0 && t.xf_from >= 0 && t.xf_from != t.sum;
@@ -1828,7 +1806,7 @@ void Looper::pitch_block(const float* in_l, const float* in_r, uint32_t n) {
       dub_release(t);
       continue;
     }
-    PitchShifter& sh = b.dub[t.dq][t.deng];
+    PitchShifter& sh = b.dub[t.deng];
     sh.set_semitones(t.pit != 0.0f ? -(float)t.pcur : 0.0f);
     const float gs = 1.0f / (float)xf_;
     for (uint32_t i = 0; i < n; ++i) {
@@ -2165,8 +2143,6 @@ void Looper::process(const float* in_l, const float* in_r, float* out_l, float* 
     const float il = in_l ? in_l[i] : 0.0f;
     const float ir = in_r ? in_r[i] : 0.0f;
     float ol = 0.0f, orr = 0.0f;
-    if (qdip_) qg_ = std::fmax(0.0f, qg_ - 1.0f / (float)xf_);
-    else if (qg_ < 1.0f) qg_ = std::fmin(1.0f, qg_ + 1.0f / (float)xf_);
     if (pool_.ok())
       for (int k = 0; k < kTracks; ++k) {
         const Track& t = tr_[k];  // пустая без затухания: делать нечего (дорожек до 36)

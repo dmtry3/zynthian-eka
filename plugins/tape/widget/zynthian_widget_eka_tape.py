@@ -181,7 +181,6 @@ SETTINGS = [
         ("sl", "tempo_glide", "TEMPO GLIDE", [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 4000], _ms),
         ("seg", "spd_snap", "SPEED SNAP", SNAP_NAMES),
         ("sl", "spd_glide", "SPEED GLIDE", GLIDE_STEPS, lambda v: "OFF" if v == 0 else _ms(v)),
-        ("seg", "pitch_q", "PITCH QUALITY", ("ECO", "HIGH")),
     ]),
     ("TRACK LENGTH", [
         ("sl", "len%d" % k, "TRACK %d" % k, list(range(17)), _len) for k in range(1, 7)
@@ -221,7 +220,7 @@ SETTING_DEFAULTS = {"rec_order": 0, "mode": 1, "mute_q": 2, "part_q": 3, "tempo_
                     "spd_glide": 150, "fade_out": 200, "fade_in": 200, "rev_time": 50,
                     "len1": 0, "len2": 0, "len3": 0, "len4": 0, "len5": 0, "len6": 0, "limiter": 1, "grid": 1,
                     "latency": 0, "hold_ms": 500, "reset_ms": 1000,
-                    "pool_mb": 2048, "count_in": 0, "rec_thresh": 0, "pitch_q": 0}
+                    "pool_mb": 2048, "count_in": 0, "rec_thresh": 0}
 
 
 def mix(c1, c2, f):

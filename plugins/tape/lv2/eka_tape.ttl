@@ -239,8 +239,7 @@
         <http://dmtry3.github.io/zynthian-eka/tape#pit34> ,
         <http://dmtry3.github.io/zynthian-eka/tape#pit35> ,
         <http://dmtry3.github.io/zynthian-eka/tape#pit36> ,
-        <http://dmtry3.github.io/zynthian-eka/tape#pit_reset> ,
-        <http://dmtry3.github.io/zynthian-eka/tape#pitch_q> ;
+        <http://dmtry3.github.io/zynthian-eka/tape#pit_reset> ;
     lv2:port
     [
         a lv2:InputPort , lv2:AudioPort ; lv2:index 18 ; lv2:symbol "in_l" ; lv2:name "In L" ;
@@ -2526,15 +2525,5 @@
     rdfs:label "Pitch Reset" ;
     rdfs:range atom:Int ;
     lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
-    pprops:notOnGUI true ;
-    lv2:portProperty pprops:notOnGUI .
-
-# Качество сдвига высоты: 0 ECO (дешевле), 1 HIGH (чище на аккордах, нагрузка в 1,5–2 раза больше).
-<http://dmtry3.github.io/zynthian-eka/tape#pitch_q>
-    a lv2:Parameter ;
-    lv2:symbol "pitch_q" ;
-    rdfs:label "Pitch Quality" ;
-    rdfs:range atom:Int ;
-    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .

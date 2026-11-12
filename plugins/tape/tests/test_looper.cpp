@@ -1786,21 +1786,18 @@ static std::vector<float> envelope(const std::vector<float>& x) {
 // Сдвинутый звук в фазе и при большом сдвиге: всплески на тех же местах (по огибающей).
 static void test_pitch_align_env() {
   const uint64_t L = 48000;
-  for (int q = 0; q < 2; ++q)
-    for (float st : {12.0f, -12.0f, 7.0f}) {
-      Sim a, b;
-      b.set.pitch_q = q;
-      b.apply();
-      rec_loop(a, burst_sig, L);
-      rec_loop(b, burst_sig, L);
-      b.lp->set_pitch(0, st);
-      a.run(L * 2);
-      b.run(L * 2);
-      double c = 0;
-      const int lag = best_lag(envelope(a.slice(a.t - L, L)), envelope(b.slice(b.t - L, L)), 3000, &c);
-      std::printf("  pitch %s %+.0f: envelope lag %d frames, corr %.3f\n", q ? "HIGH" : "ECO", st, lag, c);
-      CHECK(std::abs(lag) <= 96);
-    }
+  for (float st : {12.0f, -12.0f, 7.0f}) {
+    Sim a, b;
+    rec_loop(a, burst_sig, L);
+    rec_loop(b, burst_sig, L);
+    b.lp->set_pitch(0, st);
+    a.run(L * 2);
+    b.run(L * 2);
+    double c = 0;
+    const int lag = best_lag(envelope(a.slice(a.t - L, L)), envelope(b.slice(b.t - L, L)), 3000, &c);
+    std::printf("  pitch %+.0f: envelope lag %d frames, corr %.3f\n", st, lag, c);
+    CHECK(std::abs(lag) <= 96);
+  }
 }
 
 // Высота: +12 — октава вверх, −12 вниз, +7 — квинта; со скоростью 2× и −12 — исходная.
@@ -1842,9 +1839,6 @@ static void test_pitch_smooth() {
   s.cmd(Cmd::Mute);
   s.run(L / 2);
   s.cmd(Cmd::Reverse);
-  s.run(L);
-  s.set.pitch_q = 1;  // HIGH: дорожка перезапускается в другом качестве
-  s.apply();
   s.run(L);
   CHECK(s.lp->pitch_latency() > 4000);
   const float ms = s.max_step(t0, s.t);

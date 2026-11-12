@@ -151,7 +151,6 @@ enum Param {
   PR_RTHRESH,                   // старт записи основы по порогу (только Free): 0 выкл, −60..−12 дБ
   PR_PIT0,                      // pit1..pit36: сдвиг высоты дорожки, полутонов (этап 8)
   PR_PRESET = PR_PIT0 + kTracks,  // команда виджета: сдвиг дорожки 1..6 текущего парта в 0
-  PR_PQUAL,                     // качество сдвига: 0 ECO, 1 HIGH
   PR_COUNT
 };
 struct ParamDef {
@@ -204,7 +203,6 @@ void init_params() {
     std::snprintf(kParams[PR_PIT0 + t].sym, 16, "pit%d", t + 1);
   }
   kParams[PR_PRESET] = ParamDef{"pit_reset", 0.0f, 0.0f, 6.0f, false};
-  kParams[PR_PQUAL] = ParamDef{"pitch_q", 0.0f, 0.0f, 1.0f, false};
 }
 constexpr uint32_t kReportPerRun = 4;  // ответов на patch:Get за один run()
 
@@ -297,7 +295,6 @@ struct Plugin {
     s.latency_ms = vals[PR_LAT];
     s.count_in = (int)vals[PR_COUNTIN];
     s.rec_thresh_db = (int)vals[PR_RTHRESH];
-    s.pitch_q = (int)vals[PR_PQUAL];
     looper->set_settings(s);
     configure_buttons();
     // пул — только когда изменился сам параметр: смена стирает лупы
@@ -351,7 +348,7 @@ struct Plugin {
     }
   }
   static bool is_setting(int i) {
-    return i < PR_LEV0 || i == PR_TGLIDE || i == PR_SSNAP || i == PR_SGLIDE || (i >= PR_HOLD && i <= PR_POOL) || i == PR_COUNTIN || i == PR_RTHRESH || i == PR_PQUAL;
+    return i < PR_LEV0 || i == PR_TGLIDE || i == PR_SSNAP || i == PR_SGLIDE || (i >= PR_HOLD && i <= PR_POOL) || i == PR_COUNTIN || i == PR_RTHRESH;
   }
   void apply_all() {
     apply_settings();

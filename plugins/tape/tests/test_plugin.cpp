@@ -474,7 +474,7 @@ static void test_touch() {
   CHECK(f.pl->looper->view(0).state == 2);
 
   // сдвиг высоты (этап 8): pit доходит до ядра (с ограничением ±12), pit_reset — в 0,
-  // pitch_q — настройка; новая основа — с 0, и об этом узнаёт хост
+  // новая основа — с 0, и об этом узнаёт хост
   Host p;
   set_param(p.pl, PR_MODE, 0);  // Free: запись сразу
   on_param(p.pl, PR_MODE);
@@ -490,9 +490,6 @@ static void test_touch() {
   set_param(p.pl, PR_PRESET, 2);
   on_param(p.pl, PR_PRESET);
   CHECK(p.pl->vals[PR_PRESET] == 0.0f && p.pl->looper->pitch(1) == 0.0f);
-  set_param(p.pl, PR_PQUAL, 1);
-  on_param(p.pl, PR_PQUAL);
-  CHECK(p.pl->looper->settings().pitch_q == 1);
   set_param(p.pl, PR_PIT0, 5.0);
   on_param(p.pl, PR_PIT0);
   p.blocks(2);
