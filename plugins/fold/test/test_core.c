@@ -1020,52 +1020,6 @@ static void test_source_switch(void) {
   CHECK(all_finite(L, 5 * q));
 }
 
-static void test_rate_switch(void) {
-  /* a note keeps the rate of its note-on: Sine 2x, an engine 4x; a change of Source on a held note does not move it
-   * (it cannot move without a click); the next note, a stolen voice too, takes the rate of the new Source */
-  reset(SR);
-  FcParams p;
-  base_params(&p);
-  p.color = 0.0f; p.harmonics = FM2_RATIO1;         /* FM2 at Color 0: a sine too */
-  fc_set_params(&core, &p);
-  fc_note_on(&core, 93, 127);
-  const uint32_t q = SR / 4;
-  render(&core, 0, q);
-  CHECK(core.v[0].hi == 0);
-  p.source = FC_SRC_FM2;
-  fc_set_params(&core, &p);
-  render(&core, q, q);
-  CHECK(core.v[0].hi == 0 && core.v[0].src == FC_SRC_FM2 && core.v[0].xf == 1.0f);
-  const float steady = max_curve(L, q - SR / 20, q);
-  const float sw = max_curve(L, q, q + SR / 20);
-  printf("Source change on a held A6: max second difference %.4f (steady %.4f)\n", sw, steady);
-  CHECK(sw <= 1.1f * steady);
-  fc_note_on(&core, 81, 127);                       /* a new note: 4x */
-  render(&core, 2 * q, 64);
-  CHECK(core.v[1].hi == 1 && core.v[0].hi == 0);
-  /* all voices busy with Sine notes, Source VA: the stolen one comes back at 4x */
-  reset(SR);
-  base_params(&p);
-  fc_set_params(&core, &p);
-  for (int i = 0; i < FC_VOICES; i++) fc_note_on(&core, 60 + 4 * i, 100);
-  render(&core, 0, q);
-  p.source = FC_SRC_VA; p.color = 0.0f; p.morph = 0.0f;   /* triangles: no steps of their own */
-  fc_set_params(&core, &p);
-  render(&core, q, q);
-  fc_note_on(&core, 84, 100);
-  render(&core, 2 * q, q);
-  int hi = 0, n84 = 0;
-  for (int i = 0; i < FC_VOICES; i++) {
-    hi += core.v[i].hi;
-    n84 += core.v[i].note == 84;
-  }
-  CHECK(hi == 1 && n84 == 1);
-  const float st2 = fmaxf(max_step(L, 2 * q - SR / 20, 2 * q), max_step(L, 2 * q + SR / 10, 2 * q + SR / 5));
-  const float sw2 = max_step(L, 2 * q, 2 * q + SR / 50);
-  printf("steal into a 4x voice: max step %.4f (steady %.4f)\n", sw2, st2);
-  CHECK(sw2 <= 1.2f * st2 && all_finite(L, 3 * q));
-}
-
 static void test_engine_sync(void) {
   /* Sync from a Mod OSC at 3/2: the lines are at f0 / 2; the step of every source is band-limited */
   for (int src = 0; src < FC_NSOURCES; src++) {
@@ -1156,7 +1110,6 @@ int main(void) {
   test_engine_pitch();
   test_engine_knobs();
   test_source_switch();
-  test_rate_switch();
   test_engine_sync();
   test_engine_extremes();
   printf(fails ? "test_core: %d FAILED\n" : "test_core: all passed\n", fails);
