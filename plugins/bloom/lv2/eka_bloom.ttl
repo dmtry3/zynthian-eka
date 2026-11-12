@@ -21,27 +21,27 @@
 <http://dmtry3.github.io/zynthian-eka/bloom>
     a lv2:Plugin , lv2:UtilityPlugin ;
     doap:name "Eka Bloom" ;
-    lv2:minorVersion 18 ;
+    lv2:minorVersion 19 ;
     lv2:microVersion 0 ;
     lv2:requiredFeature urid:map ;
     lv2:extensionData state:interface ;   # pattern steps go into presets
     patch:writable
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob1> , <http://dmtry3.github.io/zynthian-eka/bloom#shift1> , <http://dmtry3.github.io/zynthian-eka/bloom#vel1> , <http://dmtry3.github.io/zynthian-eka/bloom#gate1> ,
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob2> , <http://dmtry3.github.io/zynthian-eka/bloom#shift2> , <http://dmtry3.github.io/zynthian-eka/bloom#vel2> , <http://dmtry3.github.io/zynthian-eka/bloom#gate2> ,
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob3> , <http://dmtry3.github.io/zynthian-eka/bloom#shift3> , <http://dmtry3.github.io/zynthian-eka/bloom#vel3> , <http://dmtry3.github.io/zynthian-eka/bloom#gate3> ,
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob4> , <http://dmtry3.github.io/zynthian-eka/bloom#shift4> , <http://dmtry3.github.io/zynthian-eka/bloom#vel4> , <http://dmtry3.github.io/zynthian-eka/bloom#gate4> ,
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob5> , <http://dmtry3.github.io/zynthian-eka/bloom#shift5> , <http://dmtry3.github.io/zynthian-eka/bloom#vel5> , <http://dmtry3.github.io/zynthian-eka/bloom#gate5> ,
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob6> , <http://dmtry3.github.io/zynthian-eka/bloom#shift6> , <http://dmtry3.github.io/zynthian-eka/bloom#vel6> , <http://dmtry3.github.io/zynthian-eka/bloom#gate6> ,
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob7> , <http://dmtry3.github.io/zynthian-eka/bloom#shift7> , <http://dmtry3.github.io/zynthian-eka/bloom#vel7> , <http://dmtry3.github.io/zynthian-eka/bloom#gate7> ,
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob8> , <http://dmtry3.github.io/zynthian-eka/bloom#shift8> , <http://dmtry3.github.io/zynthian-eka/bloom#vel8> , <http://dmtry3.github.io/zynthian-eka/bloom#gate8> ,
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob9> , <http://dmtry3.github.io/zynthian-eka/bloom#shift9> , <http://dmtry3.github.io/zynthian-eka/bloom#vel9> , <http://dmtry3.github.io/zynthian-eka/bloom#gate9> ,
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob10> , <http://dmtry3.github.io/zynthian-eka/bloom#shift10> , <http://dmtry3.github.io/zynthian-eka/bloom#vel10> , <http://dmtry3.github.io/zynthian-eka/bloom#gate10> ,
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob11> , <http://dmtry3.github.io/zynthian-eka/bloom#shift11> , <http://dmtry3.github.io/zynthian-eka/bloom#vel11> , <http://dmtry3.github.io/zynthian-eka/bloom#gate11> ,
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob12> , <http://dmtry3.github.io/zynthian-eka/bloom#shift12> , <http://dmtry3.github.io/zynthian-eka/bloom#vel12> , <http://dmtry3.github.io/zynthian-eka/bloom#gate12> ,
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob13> , <http://dmtry3.github.io/zynthian-eka/bloom#shift13> , <http://dmtry3.github.io/zynthian-eka/bloom#vel13> , <http://dmtry3.github.io/zynthian-eka/bloom#gate13> ,
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob14> , <http://dmtry3.github.io/zynthian-eka/bloom#shift14> , <http://dmtry3.github.io/zynthian-eka/bloom#vel14> , <http://dmtry3.github.io/zynthian-eka/bloom#gate14> ,
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob15> , <http://dmtry3.github.io/zynthian-eka/bloom#shift15> , <http://dmtry3.github.io/zynthian-eka/bloom#vel15> , <http://dmtry3.github.io/zynthian-eka/bloom#gate15> ,
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob16> , <http://dmtry3.github.io/zynthian-eka/bloom#shift16> , <http://dmtry3.github.io/zynthian-eka/bloom#vel16> , <http://dmtry3.github.io/zynthian-eka/bloom#gate16> ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob1> , <http://dmtry3.github.io/zynthian-eka/bloom#shift1> , <http://dmtry3.github.io/zynthian-eka/bloom#vel1> , <http://dmtry3.github.io/zynthian-eka/bloom#gate1> , <http://dmtry3.github.io/zynthian-eka/bloom#ratch1> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob2> , <http://dmtry3.github.io/zynthian-eka/bloom#shift2> , <http://dmtry3.github.io/zynthian-eka/bloom#vel2> , <http://dmtry3.github.io/zynthian-eka/bloom#gate2> , <http://dmtry3.github.io/zynthian-eka/bloom#ratch2> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob3> , <http://dmtry3.github.io/zynthian-eka/bloom#shift3> , <http://dmtry3.github.io/zynthian-eka/bloom#vel3> , <http://dmtry3.github.io/zynthian-eka/bloom#gate3> , <http://dmtry3.github.io/zynthian-eka/bloom#ratch3> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob4> , <http://dmtry3.github.io/zynthian-eka/bloom#shift4> , <http://dmtry3.github.io/zynthian-eka/bloom#vel4> , <http://dmtry3.github.io/zynthian-eka/bloom#gate4> , <http://dmtry3.github.io/zynthian-eka/bloom#ratch4> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob5> , <http://dmtry3.github.io/zynthian-eka/bloom#shift5> , <http://dmtry3.github.io/zynthian-eka/bloom#vel5> , <http://dmtry3.github.io/zynthian-eka/bloom#gate5> , <http://dmtry3.github.io/zynthian-eka/bloom#ratch5> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob6> , <http://dmtry3.github.io/zynthian-eka/bloom#shift6> , <http://dmtry3.github.io/zynthian-eka/bloom#vel6> , <http://dmtry3.github.io/zynthian-eka/bloom#gate6> , <http://dmtry3.github.io/zynthian-eka/bloom#ratch6> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob7> , <http://dmtry3.github.io/zynthian-eka/bloom#shift7> , <http://dmtry3.github.io/zynthian-eka/bloom#vel7> , <http://dmtry3.github.io/zynthian-eka/bloom#gate7> , <http://dmtry3.github.io/zynthian-eka/bloom#ratch7> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob8> , <http://dmtry3.github.io/zynthian-eka/bloom#shift8> , <http://dmtry3.github.io/zynthian-eka/bloom#vel8> , <http://dmtry3.github.io/zynthian-eka/bloom#gate8> , <http://dmtry3.github.io/zynthian-eka/bloom#ratch8> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob9> , <http://dmtry3.github.io/zynthian-eka/bloom#shift9> , <http://dmtry3.github.io/zynthian-eka/bloom#vel9> , <http://dmtry3.github.io/zynthian-eka/bloom#gate9> , <http://dmtry3.github.io/zynthian-eka/bloom#ratch9> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob10> , <http://dmtry3.github.io/zynthian-eka/bloom#shift10> , <http://dmtry3.github.io/zynthian-eka/bloom#vel10> , <http://dmtry3.github.io/zynthian-eka/bloom#gate10> , <http://dmtry3.github.io/zynthian-eka/bloom#ratch10> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob11> , <http://dmtry3.github.io/zynthian-eka/bloom#shift11> , <http://dmtry3.github.io/zynthian-eka/bloom#vel11> , <http://dmtry3.github.io/zynthian-eka/bloom#gate11> , <http://dmtry3.github.io/zynthian-eka/bloom#ratch11> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob12> , <http://dmtry3.github.io/zynthian-eka/bloom#shift12> , <http://dmtry3.github.io/zynthian-eka/bloom#vel12> , <http://dmtry3.github.io/zynthian-eka/bloom#gate12> , <http://dmtry3.github.io/zynthian-eka/bloom#ratch12> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob13> , <http://dmtry3.github.io/zynthian-eka/bloom#shift13> , <http://dmtry3.github.io/zynthian-eka/bloom#vel13> , <http://dmtry3.github.io/zynthian-eka/bloom#gate13> , <http://dmtry3.github.io/zynthian-eka/bloom#ratch13> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob14> , <http://dmtry3.github.io/zynthian-eka/bloom#shift14> , <http://dmtry3.github.io/zynthian-eka/bloom#vel14> , <http://dmtry3.github.io/zynthian-eka/bloom#gate14> , <http://dmtry3.github.io/zynthian-eka/bloom#ratch14> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob15> , <http://dmtry3.github.io/zynthian-eka/bloom#shift15> , <http://dmtry3.github.io/zynthian-eka/bloom#vel15> , <http://dmtry3.github.io/zynthian-eka/bloom#gate15> , <http://dmtry3.github.io/zynthian-eka/bloom#ratch15> ,
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob16> , <http://dmtry3.github.io/zynthian-eka/bloom#shift16> , <http://dmtry3.github.io/zynthian-eka/bloom#vel16> , <http://dmtry3.github.io/zynthian-eka/bloom#gate16> , <http://dmtry3.github.io/zynthian-eka/bloom#ratch16> ;
     # Control input ports MUST be indices 0..N-1 (before atom ports): Zynthian numbers LV2 parameters
     # from len(control ports)+1 and would overwrite a control port with a higher index.
     lv2:port
@@ -50,12 +50,12 @@
         atom:bufferType atom:Sequence ;
         atom:supports midi:MidiEvent , time:Position , patch:Message ;
         lv2:designation lv2:control ;
-        lv2:index 24 ; lv2:symbol "midi_in" ; lv2:name "MIDI In" ;
+        lv2:index 25 ; lv2:symbol "midi_in" ; lv2:name "MIDI In" ;
     ] , [
         a lv2:OutputPort , atom:AtomPort ;
         atom:bufferType atom:Sequence ;
         atom:supports midi:MidiEvent , patch:Message ;
-        lv2:index 25 ; lv2:symbol "midi_out" ; lv2:name "MIDI Out" ;
+        lv2:index 26 ; lv2:symbol "midi_out" ; lv2:name "MIDI Out" ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 0 ; lv2:symbol "rate" ; lv2:name "Rate" ;
@@ -161,6 +161,11 @@
         lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_lengths> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 24 ; lv2:symbol "len_ratch" ; lv2:name "Ratch len" ;
+        lv2:default 16 ; lv2:minimum 1 ; lv2:maximum 16 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 5 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_lengths> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
         lv2:index 9 ; lv2:symbol "key" ; lv2:name "Key" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 12 ;
         lv2:portProperty lv2:integer , lv2:enumeration ;
@@ -213,72 +218,72 @@
         lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_mutate> ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 26 ; lv2:symbol "step_count" ; lv2:name "Step count" ;
+        lv2:index 27 ; lv2:symbol "step_count" ; lv2:name "Step count" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 16777215 ; lv2:portProperty lv2:integer ;
-        # dev1..dev16 (ports 19..34): drift of each step for the widget, packed (prob+3) + 7*(shift+3) + 49*(vel+3) + 343*(gate+4)
+        # dev1..dev16 (ports 28..43): drift of each step for the widget, packed (prob+3) + 7*(shift+3) + 49*(vel+3) + 343*(gate+4)
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 27 ; lv2:symbol "dev1" ; lv2:name "Drift 1" ;
+        lv2:index 28 ; lv2:symbol "dev1" ; lv2:name "Drift 1" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 28 ; lv2:symbol "dev2" ; lv2:name "Drift 2" ;
+        lv2:index 29 ; lv2:symbol "dev2" ; lv2:name "Drift 2" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 29 ; lv2:symbol "dev3" ; lv2:name "Drift 3" ;
+        lv2:index 30 ; lv2:symbol "dev3" ; lv2:name "Drift 3" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 30 ; lv2:symbol "dev4" ; lv2:name "Drift 4" ;
+        lv2:index 31 ; lv2:symbol "dev4" ; lv2:name "Drift 4" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 31 ; lv2:symbol "dev5" ; lv2:name "Drift 5" ;
+        lv2:index 32 ; lv2:symbol "dev5" ; lv2:name "Drift 5" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 32 ; lv2:symbol "dev6" ; lv2:name "Drift 6" ;
+        lv2:index 33 ; lv2:symbol "dev6" ; lv2:name "Drift 6" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 33 ; lv2:symbol "dev7" ; lv2:name "Drift 7" ;
+        lv2:index 34 ; lv2:symbol "dev7" ; lv2:name "Drift 7" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 34 ; lv2:symbol "dev8" ; lv2:name "Drift 8" ;
+        lv2:index 35 ; lv2:symbol "dev8" ; lv2:name "Drift 8" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 35 ; lv2:symbol "dev9" ; lv2:name "Drift 9" ;
+        lv2:index 36 ; lv2:symbol "dev9" ; lv2:name "Drift 9" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 36 ; lv2:symbol "dev10" ; lv2:name "Drift 10" ;
+        lv2:index 37 ; lv2:symbol "dev10" ; lv2:name "Drift 10" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 37 ; lv2:symbol "dev11" ; lv2:name "Drift 11" ;
+        lv2:index 38 ; lv2:symbol "dev11" ; lv2:name "Drift 11" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 38 ; lv2:symbol "dev12" ; lv2:name "Drift 12" ;
+        lv2:index 39 ; lv2:symbol "dev12" ; lv2:name "Drift 12" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 39 ; lv2:symbol "dev13" ; lv2:name "Drift 13" ;
+        lv2:index 40 ; lv2:symbol "dev13" ; lv2:name "Drift 13" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 40 ; lv2:symbol "dev14" ; lv2:name "Drift 14" ;
+        lv2:index 41 ; lv2:symbol "dev14" ; lv2:name "Drift 14" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 41 ; lv2:symbol "dev15" ; lv2:name "Drift 15" ;
+        lv2:index 42 ; lv2:symbol "dev15" ; lv2:name "Drift 15" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 42 ; lv2:symbol "dev16" ; lv2:name "Drift 16" ;
+        lv2:index 43 ; lv2:symbol "dev16" ; lv2:name "Drift 16" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] .
 
@@ -325,6 +330,15 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
+<http://dmtry3.github.io/zynthian-eka/bloom#ratch1>
+    a lv2:Parameter ;
+    lv2:symbol "ratch1" ;
+    rdfs:label "Ratch 1" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
 <http://dmtry3.github.io/zynthian-eka/bloom#prob2>
     a lv2:Parameter ;
     lv2:symbol "prob2" ;
@@ -364,6 +378,15 @@
                    [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
                    [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
                    [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/bloom#ratch2>
+    a lv2:Parameter ;
+    lv2:symbol "ratch2" ;
+    rdfs:label "Ratch 2" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ;
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
@@ -409,6 +432,15 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
+<http://dmtry3.github.io/zynthian-eka/bloom#ratch3>
+    a lv2:Parameter ;
+    lv2:symbol "ratch3" ;
+    rdfs:label "Ratch 3" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
 <http://dmtry3.github.io/zynthian-eka/bloom#prob4>
     a lv2:Parameter ;
     lv2:symbol "prob4" ;
@@ -448,6 +480,15 @@
                    [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
                    [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
                    [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/bloom#ratch4>
+    a lv2:Parameter ;
+    lv2:symbol "ratch4" ;
+    rdfs:label "Ratch 4" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ;
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
@@ -493,6 +534,15 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
+<http://dmtry3.github.io/zynthian-eka/bloom#ratch5>
+    a lv2:Parameter ;
+    lv2:symbol "ratch5" ;
+    rdfs:label "Ratch 5" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
 <http://dmtry3.github.io/zynthian-eka/bloom#prob6>
     a lv2:Parameter ;
     lv2:symbol "prob6" ;
@@ -532,6 +582,15 @@
                    [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
                    [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
                    [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/bloom#ratch6>
+    a lv2:Parameter ;
+    lv2:symbol "ratch6" ;
+    rdfs:label "Ratch 6" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ;
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
@@ -577,6 +636,15 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
+<http://dmtry3.github.io/zynthian-eka/bloom#ratch7>
+    a lv2:Parameter ;
+    lv2:symbol "ratch7" ;
+    rdfs:label "Ratch 7" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
 <http://dmtry3.github.io/zynthian-eka/bloom#prob8>
     a lv2:Parameter ;
     lv2:symbol "prob8" ;
@@ -616,6 +684,15 @@
                    [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
                    [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
                    [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/bloom#ratch8>
+    a lv2:Parameter ;
+    lv2:symbol "ratch8" ;
+    rdfs:label "Ratch 8" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ;
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
@@ -661,6 +738,15 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
+<http://dmtry3.github.io/zynthian-eka/bloom#ratch9>
+    a lv2:Parameter ;
+    lv2:symbol "ratch9" ;
+    rdfs:label "Ratch 9" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
 <http://dmtry3.github.io/zynthian-eka/bloom#prob10>
     a lv2:Parameter ;
     lv2:symbol "prob10" ;
@@ -700,6 +786,15 @@
                    [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
                    [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
                    [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/bloom#ratch10>
+    a lv2:Parameter ;
+    lv2:symbol "ratch10" ;
+    rdfs:label "Ratch 10" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ;
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
@@ -745,6 +840,15 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
+<http://dmtry3.github.io/zynthian-eka/bloom#ratch11>
+    a lv2:Parameter ;
+    lv2:symbol "ratch11" ;
+    rdfs:label "Ratch 11" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
 <http://dmtry3.github.io/zynthian-eka/bloom#prob12>
     a lv2:Parameter ;
     lv2:symbol "prob12" ;
@@ -784,6 +888,15 @@
                    [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
                    [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
                    [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/bloom#ratch12>
+    a lv2:Parameter ;
+    lv2:symbol "ratch12" ;
+    rdfs:label "Ratch 12" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ;
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
@@ -829,6 +942,15 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
+<http://dmtry3.github.io/zynthian-eka/bloom#ratch13>
+    a lv2:Parameter ;
+    lv2:symbol "ratch13" ;
+    rdfs:label "Ratch 13" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
 <http://dmtry3.github.io/zynthian-eka/bloom#prob14>
     a lv2:Parameter ;
     lv2:symbol "prob14" ;
@@ -868,6 +990,15 @@
                    [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
                    [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
                    [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/bloom#ratch14>
+    a lv2:Parameter ;
+    lv2:symbol "ratch14" ;
+    rdfs:label "Ratch 14" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ;
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
@@ -913,6 +1044,15 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
+<http://dmtry3.github.io/zynthian-eka/bloom#ratch15>
+    a lv2:Parameter ;
+    lv2:symbol "ratch15" ;
+    rdfs:label "Ratch 15" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
 <http://dmtry3.github.io/zynthian-eka/bloom#prob16>
     a lv2:Parameter ;
     lv2:symbol "prob16" ;
@@ -952,6 +1092,15 @@
                    [ rdfs:label "60%" ; rdf:value 60 ] , [ rdfs:label "65%" ; rdf:value 65 ] , [ rdfs:label "70%" ; rdf:value 70 ] , [ rdfs:label "75%" ; rdf:value 75 ] ,
                    [ rdfs:label "80%" ; rdf:value 80 ] , [ rdfs:label "85%" ; rdf:value 85 ] , [ rdfs:label "90%" ; rdf:value 90 ] , [ rdfs:label "95%" ; rdf:value 95 ] ,
                    [ rdfs:label "100%" ; rdf:value 100 ] , [ rdfs:label "Tie" ; rdf:value 101 ] ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/bloom#ratch16>
+    a lv2:Parameter ;
+    lv2:symbol "ratch16" ;
+    rdfs:label "Ratch 16" ;
+    rdfs:range atom:Int ;
+    lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 4 ;
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 

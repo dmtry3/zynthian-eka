@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 # Touchscreen editor of the Eka Bloom pattern steps.
-# Step values live in hidden plugin ports (prob1..16, shift1..16, vel1..16, gate1..16);
+# Step values live in plugin parameters (prob1..16, shift1..16, vel1..16, gate1..16, ratch1..16);
 # the widget only writes them through regular Zynthian controllers, so snapshots keep them.
 import logging
 import time
@@ -20,8 +20,9 @@ LANES = [
     ("shift", "Shift", -24, 24, 0),
     ("vel", "Vel", 0, 200, 100),
     ("gate", "Gate", 0, 101, 0),
+    ("ratch", "Ratch", 1, 4, 1),      # hits inside the step; drawn as that many slim bars
 ]
-LANE_COLORS = ["#4dabf7", "#ffa94d", "#69db7c", "#9775fa"]
+LANE_COLORS = ["#4dabf7", "#ffa94d", "#69db7c", "#9775fa", "#ff6b6b"]
 KEYS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 SCALES = ["Chromatic", "major", "minor", "dorian", "phrygian", "lydian", "mixolydian",
           "harm. minor", "mel. minor", "major pent.", "minor pent.", "blues"]
@@ -29,7 +30,7 @@ SCALES = ["Chromatic", "major", "minor", "dorian", "phrygian", "lydian", "mixoly
 SCALE_STEPS = [list(range(12)), [0, 2, 4, 5, 7, 9, 11], [0, 2, 3, 5, 7, 8, 10], [0, 2, 3, 5, 7, 9, 10],
                [0, 1, 3, 5, 7, 8, 10], [0, 2, 4, 6, 7, 9, 11], [0, 2, 4, 5, 7, 9, 10], [0, 2, 3, 5, 7, 8, 11],
                [0, 2, 3, 5, 7, 9, 11], [0, 2, 4, 7, 9], [0, 3, 5, 7, 10], [0, 3, 5, 6, 7, 10]]
-MUT_MAX = (3, 3, 3, 4)      # drift limits per row (prob, shift, vel, gate), as in arp_core.h
+MUT_MAX = (3, 3, 3, 4)      # drift limits per row (prob, shift, vel, gate), as in arp_core.h; Ratch doesn't drift
 DOUBLE_TAP = 0.35            # seconds: second tap on the same step resets it
 
 
@@ -111,6 +112,8 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         if key == "gate":
             v = min(GATE_VALUES, key=lambda g: abs(g - v))
             return GATE_VALUES.index(v) / float(len(GATE_VALUES) - 1)
+        if key == "ratch":                                   # 1 hit = a quarter, 4 hits = full height
+            return v / float(hi)
         return (v - lo) / float(hi - lo)
 
     def _value_at(self, lane, y):
@@ -119,6 +122,8 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         key, _, lo, hi, _ = LANES[lane]
         if key == "gate":
             return GATE_VALUES[int(round(f * (len(GATE_VALUES) - 1)))]
+        if key == "ratch":
+            return min(max(int(f * hi + 0.5), lo), hi)
         v = lo + f * (hi - lo)
         if key == "shift":
             return self._snap_shift(v)
@@ -158,6 +163,8 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
 
     def _drift(self, lane, i):
         """Drift of row `lane` of step i in notches, from the dev<i> output port of the plugin."""
+        if lane >= len(MUT_MAX):
+            return 0
         try:
             packed = int(round(float((self.monitors or {}).get("dev%d" % (i + 1), 0))))
         except Exception:
@@ -324,10 +331,19 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
             vy = yv(v)
             if key == "gate" and v <= 0:
                 c.create_rectangle(bx0, y1 - 3, bx1, y1, fill=dim(fill, 0.6), width=0, tags="dyn")
+            elif key == "ratch":                             # one slim bar per hit
+                n = min(max(v, 1), hi)
+                gap = 2 if (bx1 - bx0) > 4 * n else 1
+                sw = (bx1 - bx0 - gap * (n - 1)) / float(n)
+                for k in range(n):
+                    sx = bx0 + k * (sw + gap)
+                    c.create_rectangle(sx, vy, sx + sw, base, fill=fill, width=0, tags=("dyn", "hit"))
             elif vy != base:
                 c.create_rectangle(bx0, min(vy, base), bx1, max(vy, base), fill=fill, width=0, tags="dyn")
             if key == "gate":
                 label = gate_label(v)
+            elif key == "ratch":
+                label = "x%d" % v if v > 1 else "1"
             elif key == "shift":
                 label = "%+d" % v if v else "0"
             else:

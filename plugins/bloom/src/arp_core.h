@@ -10,6 +10,7 @@
 #define ARP_MAX_STEPS 16
 #define ARP_GATE_GLOBAL 0     /* step gate: use the global Gate */
 #define ARP_GATE_TIE 101      /* step gate: legato into the next step */
+#define ARP_MAX_RATCH 4       /* step ratchet: 1..4 even hits inside the step */
 /* Step mutation: one notch of each row and how far a step may drift from the drawn value (in notches). */
 #define ARP_MUT_PROB_NOTCH 20 /* % */
 #define ARP_MUT_VEL_NOTCH 20  /* % */
@@ -17,8 +18,11 @@
 #define ARP_MUT_MAX 3         /* prob, shift (scale notes), vel */
 #define ARP_MUT_MAX_GATE 4
 
-/* Rows (lanes) of the pattern; each has its own length (polyrhythm). */
+/* Rows (lanes) of the pattern; each has its own length (polyrhythm). Mutation drifts the first
+ * ARP_NLANES rows; Ratch (hits per step) has a length but does not drift. */
 enum { ARP_LANE_PROB, ARP_LANE_SHIFT, ARP_LANE_VEL, ARP_LANE_GATE, ARP_NLANES };
+#define ARP_LANE_RATCH ARP_NLANES
+#define ARP_NROWS (ARP_NLANES + 1)
 
 /* Scales: Shift is in semitones; with a scale the shifted note is pulled to the nearest scale note. */
 enum { ARP_SCALE_CHROMATIC, ARP_SCALE_MAJOR, ARP_SCALE_MINOR, ARP_SCALE_DORIAN, ARP_SCALE_PHRYGIAN,
@@ -52,6 +56,7 @@ typedef struct {
   int shift;   /* -24..+24 semitones added to the chosen note */
   int vel;     /* 0..200 % of the key velocity (result clamped to 1..127) */
   int gate;    /* ARP_GATE_GLOBAL, 5..100 % of the step, or ARP_GATE_TIE */
+  int ratch;   /* 1..ARP_MAX_RATCH hits inside the step (same note and velocity) */
 } ArpStep;
 
 typedef struct {
@@ -66,7 +71,7 @@ typedef struct {
   int rate, gate_pct, order, octaves;
   int step_ticks, gate_ticks;
   ArpStep steps[ARP_MAX_STEPS];
-  int lane_len[ARP_NLANES];     /* length of each row 1..16 */
+  int lane_len[ARP_NROWS];      /* length of each row 1..16 (prob, shift, vel, gate, ratch) */
   int key, scale;               /* key 0..11 (C..B), scale ARP_SCALE_* */
   int key_auto;                 /* Key = Auto: key follows the lowest held note */
   int passing, pass_style;      /* 0..100 % chance of a passing note before a new chord note, ARP_PASS_* */
@@ -103,6 +108,13 @@ typedef struct {
   int8_t dev[ARP_MAX_STEPS][ARP_NLANES];   /* drift from the drawn steps, in notches */
   uint32_t mrng;
 
+  /* ratchet: hits still to play in the current step */
+  int rat_left;                 /* hits left after the one sounding */
+  double rat_next, rat_len;     /* tick of the next hit, distance between hits */
+  int rat_gate;                 /* gate of one hit in ticks */
+  int rat_tie;                  /* the last hit is tied into the next step */
+  uint8_t rat_vel;
+
   int sounding;                 /* a generated note is on */
   int tied;                     /* the sounding note is tied into the next step */
   uint8_t on_ch, on_note;
@@ -117,6 +129,10 @@ void arp_seed(ArpCore* a, uint32_t seed);
 void arp_set_lane_length(ArpCore* a, int lane, int length);
 void arp_set_length(ArpCore* a, int length);
 void arp_set_step(ArpCore* a, int i, int prob, int shift, int vel, int gate);
+/* Ratchet of step i: 1..ARP_MAX_RATCH even hits inside the step. The hits end at the next grid step,
+ * so a step delayed by the groove plays them closer together. Each hit gets the step's gate share
+ * of its own length (Tie: the hits touch and the last one ties into the next step). */
+void arp_set_ratch(ArpCore* a, int i, int hits);
 /* Loop order: length 1..16 and mutation 0..100 % (0 = the loop is frozen). */
 void arp_set_loop(ArpCore* a, int notes_pct, int loop_len);
 /* Step mutation 0..100 %: when a step plays, with this chance one of its rows (the step that row

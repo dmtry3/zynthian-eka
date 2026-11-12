@@ -32,7 +32,7 @@ void arp_init(ArpCore* a) {
   arp_set_params(a, ARP_RATE_16, 50, ARP_UP, 1);
   arp_set_length(a, ARP_MAX_STEPS);
   arp_set_scale(a, 0, ARP_SCALE_CHROMATIC);
-  for (int i = 0; i < ARP_MAX_STEPS; i++) arp_set_step(a, i, 100, 0, 100, ARP_GATE_GLOBAL);
+  for (int i = 0; i < ARP_MAX_STEPS; i++) { arp_set_step(a, i, 100, 0, 100, ARP_GATE_GLOBAL); arp_set_ratch(a, i, 1); }
   arp_set_loop(a, 0, 8);
   arp_set_repeats(a, 1, ARP_RPT_SAME);
   arp_set_groove(a, 50, ARP_FEEL_PAIRS, 0, 0);
@@ -87,11 +87,11 @@ void arp_set_groove(ArpCore* a, int swing, int feel, int drunk, int accent) {
 }
 
 void arp_set_lane_length(ArpCore* a, int lane, int length) {
-  if (lane >= 0 && lane < ARP_NLANES) a->lane_len[lane] = clampi(length, 1, ARP_MAX_STEPS);
+  if (lane >= 0 && lane < ARP_NROWS) a->lane_len[lane] = clampi(length, 1, ARP_MAX_STEPS);
 }
 
 void arp_set_length(ArpCore* a, int length) {
-  for (int r = 0; r < ARP_NLANES; r++) arp_set_lane_length(a, r, length);
+  for (int r = 0; r < ARP_NROWS; r++) arp_set_lane_length(a, r, length);
 }
 
 void arp_set_step(ArpCore* a, int i, int prob, int shift, int vel, int gate) {
@@ -101,6 +101,10 @@ void arp_set_step(ArpCore* a, int i, int prob, int shift, int vel, int gate) {
   st->shift = clampi(shift, -24, 24);
   st->vel = clampi(vel, 0, 200);
   st->gate = (gate <= ARP_GATE_GLOBAL) ? ARP_GATE_GLOBAL : clampi(gate, 5, ARP_GATE_TIE);
+}
+
+void arp_set_ratch(ArpCore* a, int i, int hits) {
+  if (i >= 0 && i < ARP_MAX_STEPS) a->steps[i].ratch = clampi(hits, 1, ARP_MAX_RATCH);
 }
 
 void arp_set_params(ArpCore* a, int rate, int gate_pct, int order, int octaves) {
@@ -150,6 +154,7 @@ static int key_less(uint8_t n1, uint8_t c1, uint8_t n2, uint8_t c2) {
 static void reset_order(ArpCore* a) {
   a->has_last = 0; a->played_idx = 0; a->count = 0; a->loop_pos = 0;
   a->rpt_left = 0; a->rpt_k = 0;
+  a->rat_left = 0;
 }
 
 void arp_set_sync(ArpCore* a, int on) { a->sync = on != 0; }
@@ -330,6 +335,7 @@ static void note_off_at(ArpCore* a, double tick, arp_emit_fn emit, void* user) {
 }
 
 void arp_silence(ArpCore* a, double tick, arp_emit_fn emit, void* user) {
+  a->rat_left = 0;
   if (a->sounding) note_off_at(a, tick, emit, user);
 }
 
@@ -387,6 +393,7 @@ void arp_mutate_step(ArpCore* a, int i, int r) {
 
 /* One step of the grid: grid step number g (from tick 0), played at tick s (grid step + groove offset). */
 static void do_step(ArpCore* a, long long g, double s, arp_emit_fn emit, void* user) {
+  a->rat_left = 0;                                        /* hits of the last step are over by now */
   if (a->nheld == 0) {
     if (a->sounding && a->tied) note_off_at(a, s, emit, user);   /* a tie has nothing to go to */
     a->step_count = 0;
@@ -421,8 +428,8 @@ static void do_step(ArpCore* a, long long g, double s, arp_emit_fn emit, void* u
 
   /* each row reads its own step */
   const uint64_t pos = a->sync ? (uint64_t)(g > 0 ? g : 0) : a->count;
-  int idx[ARP_NLANES];
-  for (int r = 0; r < ARP_NLANES; r++) idx[r] = (int)(pos % (uint64_t)a->lane_len[r]);
+  int idx[ARP_NROWS];
+  for (int r = 0; r < ARP_NROWS; r++) idx[r] = (int)(pos % (uint64_t)a->lane_len[r]);
   if (chance(a, a->mut_steps)) {                          /* mutation: one row drifts, heard right away */
     const int r = (int)(mrnd(a) % ARP_NLANES);
     arp_mutate_step(a, idx[r], r);
@@ -477,15 +484,42 @@ static void do_step(ArpCore* a, long long g, double s, arp_emit_fn emit, void* u
     emit(user, s, (uint8_t)(0x90 | n->ch), (uint8_t)pitch, (uint8_t)vel);
   }
   a->sounding = 1; a->on_ch = n->ch; a->on_note = (uint8_t)pitch;
-  if (gate == ARP_GATE_TIE) {
+  int gt = 0;                                           /* gate of the step in ticks (not Tie) */
+  if (gate != ARP_GATE_TIE) {
+    gt = (gate == ARP_GATE_GLOBAL) ? a->gate_ticks : a->step_ticks * gate / 100;
+    if (a->accent) gt = gt * (1200 - a->accent * a->off_sixths) / 1200;   /* delayed steps shorter, down to 1/2 */
+  }
+  const int hits = a->steps[idx[ARP_LANE_RATCH]].ratch;
+  if (hits > 1) {   /* ratchet: even hits from s to the next grid step, each with the step's gate share */
+    const double span = (double)(g + 1) * a->step_ticks - s;
+    a->rat_len = span / hits;
+    a->rat_left = hits - 1;
+    a->rat_next = s + a->rat_len;
+    a->rat_vel = (uint8_t)vel;
+    a->rat_tie = (gate == ARP_GATE_TIE);
+    a->rat_gate = (int)(a->rat_len * gt / a->step_ticks);
+    if (a->rat_gate < 1) a->rat_gate = 1;
+    a->tied = 0;
+    a->off_tick = a->rat_tie ? a->rat_next : s + a->rat_gate;
+  } else if (gate == ARP_GATE_TIE) {
     a->tied = 1;
     a->off_tick = INFINITY;                             /* ends at the next step */
   } else {
-    int g = (gate == ARP_GATE_GLOBAL) ? a->gate_ticks : a->step_ticks * gate / 100;
-    if (a->accent) g = g * (1200 - a->accent * a->off_sixths) / 1200;   /* delayed steps shorter, down to 1/2 */
     a->tied = 0;
-    a->off_tick = s + (g < 1 ? 1 : g);
+    a->off_tick = s + (gt < 1 ? 1 : gt);
   }
+}
+
+/* The next hit of a ratchet: the step's note again at the same velocity. */
+static void do_hit(ArpCore* a, double t, arp_emit_fn emit, void* user) {
+  if (a->nheld == 0) { a->rat_left = 0; return; }        /* keys released: the rest of the hits is dropped */
+  if (a->sounding) note_off_at(a, t, emit, user);
+  emit(user, t, (uint8_t)(0x90 | a->on_ch), a->on_note, a->rat_vel);
+  a->sounding = 1;
+  a->rat_left--;
+  if (a->rat_tie && a->rat_left == 0) { a->tied = 1; a->off_tick = INFINITY; }
+  else a->off_tick = a->rat_tie ? a->rat_next + a->rat_len : t + a->rat_gate;
+  a->rat_next += a->rat_len;
 }
 
 void arp_process(ArpCore* a, double from, double to, arp_emit_fn emit, void* user) {
@@ -500,8 +534,13 @@ void arp_process(ArpCore* a, double from, double to, arp_emit_fn emit, void* use
     if (e < from) { a->done_s = s; s += step; continue; }  /* missed (jump into the middle) */
     int off_due = a->sounding && a->off_tick < to;
     int step_due = e < to;
-    if (off_due && (!step_due || a->off_tick <= e)) {
+    int hit_due = a->rat_left > 0 && a->rat_next < to;   /* hits always come before the next step */
+    if (off_due && (!step_due || a->off_tick <= e) && (!hit_due || a->off_tick <= a->rat_next)) {
       note_off_at(a, a->off_tick > from ? a->off_tick : from, emit, user);
+      continue;
+    }
+    if (hit_due && (!step_due || a->rat_next < e)) {
+      do_hit(a, a->rat_next > from ? a->rat_next : from, emit, user);
       continue;
     }
     if (!step_due) break;

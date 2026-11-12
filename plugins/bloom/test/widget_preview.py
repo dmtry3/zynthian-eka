@@ -92,7 +92,7 @@ class Processor:
         gate_ticks = [0] + list(range(5, 101, 5)) + [101]
         self.engine = Engine()
         self.id = 1
-        self.controllers_dict = {k: Ctrl(k, 16, 1, 16) for k in ("len_prob", "len_shift", "len_vel", "len_gate")}
+        self.controllers_dict = {k: Ctrl(k, 16, 1, 16) for k in ("len_prob", "len_shift", "len_vel", "len_gate", "len_ratch")}
         self.controllers_dict["key"] = Ctrl("key", 0, 0, 12)
         self.controllers_dict["scale"] = Ctrl("scale", 0, 0, 11)
         self.controllers_dict["gate"] = Ctrl("gate", 50, 5, 100)
@@ -101,6 +101,7 @@ class Processor:
             self.controllers_dict["shift%d" % i] = Ctrl("shift%d" % i, 0, -24, 24)
             self.controllers_dict["vel%d" % i] = Ctrl("vel%d" % i, 100, 0, 200)
             self.controllers_dict["gate%d" % i] = Ctrl("gate%d" % i, 0, 0, 101, gate_ticks)
+            self.controllers_dict["ratch%d" % i] = Ctrl("ratch%d" % i, 1, 1, 4)
 
     def v(self, sym):
         return self.controllers_dict[sym].value
@@ -158,7 +159,7 @@ def main():
 
     w, h, pad, tab_h, num_h, x0, x1, y0, y1, cw = wdg.geo
     cx = lambda i: int(x0 + (i + 0.5) * cw)
-    tab = lambda i: int(w / 4.0 * (i + 0.5))
+    tab = lambda i: int(w / 5.0 * (i + 0.5))
 
     check("widget sized to the window", w >= 400 and h >= 250)
 
@@ -354,6 +355,28 @@ def main():
     proc.engine.dev = {}
     proc.controllers_dict["scale"].value = 0; wdg.last_scale = 0
     proc.controllers_dict["shift3"].value = 0
+
+    # Ratch tab: bottom = 1 hit, top = 4 hits, each step drawn as that many slim bars
+    wdg._on_press(Ev(tab(4), tab_h // 2)); wdg.update()
+    check("Ratch tab selected", wdg.lane == 4)
+    time.sleep(DT); wdg._on_press(Ev(cx(0), y0 + 1)); wdg._on_release(None)
+    time.sleep(DT); wdg._on_press(Ev(cx(1), y1 - 1)); wdg._on_release(None)
+    time.sleep(DT); wdg._on_press(Ev(cx(2), int(y0 + (y1 - y0) * 0.5))); wdg._on_release(None)
+    check("ratch: top 4, bottom 1, middle 2 (got %d %d %d)" % (proc.v("ratch1"), proc.v("ratch2"), proc.v("ratch3")),
+          (proc.v("ratch1"), proc.v("ratch2"), proc.v("ratch3")) == (4, 1, 2))
+    wdg.update()
+    hits = len(wdg.widget_canvas.find_withtag("hit"))
+    check("ratch: one bar per hit (4 + 1 + 2 + 13 x 1 = 20, got %d)" % hits, hits == 20)
+    check("ratch: labels x4 and x2", {"x4", "x2"} <= set(texts()))
+    time.sleep(DT); wdg._on_press(Ev(cx(0), y1 - 1)); wdg._on_press(Ev(cx(0), y1 - 1)); wdg._on_release(None)
+    check("ratch: double tap resets to 1", proc.v("ratch1") == 1)
+    wdg._on_press(Ev(cx(5), h - 3))
+    check("ratch: tap on step number 6 sets Ratch length 6", proc.v("len_ratch") == 6)
+    check("Ratch tab shows its length", "Ratch 6" in texts())
+    proc.engine.dev = {3: (1, 1, 1, 1)}; wdg.update()
+    check("Ratch tab: no drift marks", marks() == [])
+    proc.engine.dev = {}
+    proc.controllers_dict["len_ratch"].value = 16
 
     # drawing does not crash with the playing step and resizes
     for cs in (0, 1, 16, 1000):

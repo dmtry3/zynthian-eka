@@ -64,7 +64,7 @@ The controllers are grouped into pages of four:
 | | Transpose | −2 … +2 octaves | added to every note at the very end |
 | | Repeats | 1–5, Rnd 3, Rnd 5 | how many steps each chord note plays |
 | | Rpt mode | Same, Run up, Run down, Octave, Echo | what the repeats do |
-| Lengths | Prob len, Shift len, Vel len, Gate len | 1–16 | length of each pattern row (polyrhythm) |
+| Lengths | Prob len, Shift len, Vel len, Gate len, Ratch len | 1–16 | length of each pattern row (polyrhythm) |
 | Scale | Key | C … B, Auto | tonic (Auto: the lowest held key) |
 | | Scale | Chromatic, Major, Minor, Dorian, Phrygian, Lydian, Mixolydian, Harm minor, Mel minor, Major pent, Minor pent, Blues | scale for Shift, Run, drift and passing notes |
 | | Passing % | 0–100 | chance of a passing note before a new chord note |
@@ -137,7 +137,7 @@ Steps can only be delayed, never played early (the plugin does not look ahead).
 
 The plugin's screen in Zynthian shows a touch editor for the 16 steps of the pattern.
 
-- **Tabs Prob · Shift · Vel · Gate** choose the row. Each tab shows the length of its row.
+- **Tabs Prob · Shift · Vel · Gate · Ratch** choose the row. Each tab shows the length of its row.
 - **Touch or drag a bar** to set the step's value by height. A fast swipe fills the steps in between.
 - **Double tap a bar** to reset that step to its default.
 - **Tap a step number** under the bars to set the length of the current row.
@@ -151,6 +151,13 @@ The plugin's screen in Zynthian shows a touch editor for the 16 steps of the pat
 | Shift | −24 … +24 semitones | 0 | added to the chosen chord note |
 | Vel | 0–200 % | 100 | of the key velocity (result 1–127) |
 | Gate | Global, 5–100 %, Tie | Global | note length; Global uses the Gate % control |
+| Ratch | 1–4 | 1 | hits inside the step (ratchet); drawn as that many slim bars |
+
+**Ratch.** A step with 2–4 hits plays its note that many times, evenly, at the same velocity: 2 = twice
+as fast, 3 = a triplet, 4 = four times as fast. Each hit gets the step's gate share of its own length;
+with Tie the hits touch and the last one ties into the next step. The hits end at the next grid step, so a
+step delayed by swing plays them closer together. A silent step has no hits; releasing the keys drops the
+rest. Ratch does not mutate.
 
 **Tie.** The note holds until the next step.
 - If the next note is the same pitch, it just continues (several Ties make one long note).
@@ -160,7 +167,7 @@ The plugin's screen in Zynthian shows a touch editor for the 16 steps of the pat
 
 **Polyrhythm.** Every row runs on its own length over the same step counter, e.g. notes every 3 steps
 and accents every 4 meet again after 12. The counter starts at the first key after all keys were
-released. *Loop len* is a fifth such length, for the Loop order.
+released. *Loop len* is one more such length, for the Loop order.
 
 ## Scales
 

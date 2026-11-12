@@ -1433,6 +1433,83 @@ static void test_sync(void) {
   if (!ok) { print_log("got", &l); failures++; }
 }
 
+static int count_ons(const Log* l) {
+  int k = 0;
+  for (int i = 0; i < l->n; i++) if ((l->ev[i].st & 0xF0) == 0x90) k++;
+  return k;
+}
+
+static void test_ratchet(void) {
+  ArpCore a; Log l;
+
+  /* 2 hits on step 1, gate 50 %: each hit gets half of its own length */
+  arp_init(&a); chord(&a); arp_set_ratch(&a, 0, 2);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 720, collect, &l);
+  static const double e2[][3] = { {0, 1, 60}, {60, 0, 60}, {120, 1, 60}, {180, 0, 60},
+                                  {240, 1, 64}, {360, 0, 64}, {480, 1, 67}, {600, 0, 67} };
+  check("ratchet 2 on step 1 (hits at 0 and 120, 60 ticks each), other steps as usual", &l, e2, 8);
+  if (l.n == 8 && l.ev[2].d2 == l.ev[0].d2) printf("PASS: ratchet hits keep the step velocity\n");
+  else { printf("FAIL: ratchet hits keep the step velocity\n"); failures++; }
+
+  /* 3 hits: a triplet inside the step */
+  arp_init(&a); chord(&a); arp_set_ratch(&a, 0, 3);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 240, collect, &l);
+  static const double e3[][3] = { {0, 1, 60}, {40, 0, 60}, {80, 1, 60}, {120, 0, 60}, {160, 1, 60}, {200, 0, 60} };
+  check("ratchet 3: hits at 0, 80, 160", &l, e3, 6);
+
+  /* 4 hits with Tie: the hits touch, the last one ties into the next step (legato) */
+  arp_init(&a); chord(&a); arp_set_ratch(&a, 0, 4); arp_set_step(&a, 0, 100, 0, 100, ARP_GATE_TIE);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 300, collect, &l);
+  static const double e4[][3] = { {0, 1, 60}, {60, 0, 60}, {60, 1, 60}, {120, 0, 60}, {120, 1, 60},
+                                  {180, 0, 60}, {180, 1, 60}, {240, 1, 64}, {240, 0, 60} };
+  check("ratchet 4 + Tie: off before each next hit, last hit legato into step 2", &l, e4, 9);
+
+  /* swing: the delayed step plays its hits closer, they still end at the next grid step */
+  arp_init(&a); chord(&a); arp_set_groove(&a, 75, ARP_FEEL_PAIRS, 0, 0); arp_set_ratch(&a, 1, 2);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 720, collect, &l);
+  static const double es[][3] = { {0, 1, 60}, {120, 0, 60}, {360, 1, 64}, {390, 0, 64}, {420, 1, 64},
+                                  {450, 0, 64}, {480, 1, 67}, {600, 0, 67} };
+  check("ratchet 2 on a swung step (360): hits at 360 and 420", &l, es, 8);
+
+  /* keys released in the middle: the remaining hits are dropped */
+  arp_init(&a); chord(&a); arp_set_ratch(&a, 0, 4);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 70, collect, &l);
+  arp_note_off(&a, 0, 60); arp_note_off(&a, 0, 64); arp_note_off(&a, 0, 67);
+  arp_process(&a, 70, 480, collect, &l);
+  static const double er[][3] = { {0, 1, 60}, {30, 0, 60}, {60, 1, 60}, {90, 0, 60} };
+  check("ratchet: release at 70 drops the hits at 120 and 180", &l, er, 4);
+
+  /* silent step (prob 0): no hits */
+  arp_init(&a); chord(&a); arp_set_ratch(&a, 0, 4); arp_set_step(&a, 0, 0, 0, 100, ARP_GATE_GLOBAL);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 240, collect, &l);
+  check("ratchet on a silent step: nothing", &l, NULL, 0);
+
+  /* blocks of any size give the same events */
+  Log ref; memset(&ref, 0, sizeof ref);
+  arp_init(&a); chord(&a); arp_set_ratch(&a, 0, 3); arp_set_ratch(&a, 2, 4); arp_set_groove(&a, 66, ARP_FEEL_FOURS, 0, 0);
+  arp_process(&a, 0, 1920, collect, &ref);
+  memset(&l, 0, sizeof l);
+  arp_init(&a); chord(&a); arp_set_ratch(&a, 0, 3); arp_set_ratch(&a, 2, 4); arp_set_groove(&a, 66, ARP_FEEL_FOURS, 0, 0);
+  for (double t = 0; t < 1920; t += 7.3) arp_process(&a, t, t + 7.3 > 1920 ? 1920 : t + 7.3, collect, &l);
+  if (same_logs(&ref, &l) && count_ons(&ref) == 8 + 2 + 3) printf("PASS: ratchets: blocks of 7.3 ticks = one block\n");
+  else { printf("FAIL: ratchets: blocks of 7.3 ticks = one block\n"); print_log("ref", &ref); print_log("got", &l); failures++; }
+
+  /* own row length: Ratch 3 with 2 hits on step 1 -> steps 1, 4, 7 have 2 hits */
+  arp_init(&a); chord(&a); arp_set_ratch(&a, 0, 2); arp_set_lane_length(&a, ARP_LANE_RATCH, 3);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 1680, collect, &l);
+  if (count_ons(&l) == 7 + 3 && l.ev[2].tick == 120 && l.ev[10].tick == 720 + 120 && l.ev[18].tick == 1440 + 120)
+    printf("PASS: Ratch row with its own length 3 (steps 1, 4, 7)\n");
+  else { printf("FAIL: Ratch row with its own length 3 (steps 1, 4, 7)\n"); print_log("got", &l); failures++; }
+
+  /* 1 hit = no change */
+  Log one; memset(&one, 0, sizeof one); memset(&l, 0, sizeof l);
+  arp_init(&a); chord(&a); arp_process(&a, 0, 1920, collect, &one);
+  arp_init(&a); chord(&a); for (int i = 0; i < 16; i++) arp_set_ratch(&a, i, 1); arp_set_ratch(&a, 5, 9);
+  if (a.steps[5].ratch == 4 && (arp_set_ratch(&a, 5, 1), 1)) arp_process(&a, 0, 1920, collect, &l);
+  if (same_logs(&one, &l)) printf("PASS: Ratch 1 everywhere plays as before; values clamped to 1..4\n");
+  else { printf("FAIL: Ratch 1 everywhere plays as before; values clamped to 1..4\n"); failures++; }
+}
+
 int main(void) {
   test_up_one_block();
   test_chunks();
@@ -1473,6 +1550,7 @@ int main(void) {
   test_groove();
   test_passing();
   test_sync();
+  test_ratchet();
   printf(failures ? "\n%d FAILED\n" : "\nALL PASSED\n", failures);
   return failures ? 1 : 0;
 }

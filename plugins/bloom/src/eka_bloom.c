@@ -32,14 +32,15 @@ enum { P_RATE = 0, P_GATE, P_ORDER, P_OCTAVES, P_LATCH,
        P_RPT, P_RPT_MODE,                                 /* repeats 1..5 / Rnd 3 / Rnd 5, ARP_RPT_* mode */
        P_SWING, P_FEEL, P_DRUNK, P_ACCENT,                /* groove */
        P_PASSING, P_PASS_STYLE,                           /* passing notes */
+       P_LEN_RATCH,                                       /* length of the Ratch row */
        P_END, P_MIDI_IN = P_END, P_MIDI_OUT, P_STEP_COUNT,     /* step_count: output, for the widget */
        P_DEV0 };   /* dev1..dev16 outputs: drift of each step for the widget, see pack_dev() */
 
 /* Pattern step values are LV2 parameters (patch:Set on midi_in), not ports: Zynthian's jalv does not
  * register notOnGUI ports, but it does register parameters. Order of fields per step: */
-enum { F_PROB, F_SHIFT, F_VEL, F_GATE, N_FIELDS };
-static const char* const field_names[N_FIELDS] = { "prob", "shift", "vel", "gate" };
-static const int field_defaults[N_FIELDS] = { 100, 0, 100, ARP_GATE_GLOBAL };
+enum { F_PROB, F_SHIFT, F_VEL, F_GATE, F_RATCH, N_FIELDS };
+static const char* const field_names[N_FIELDS] = { "prob", "shift", "vel", "gate", "ratch" };
+static const int field_defaults[N_FIELDS] = { 100, 0, 100, ARP_GATE_GLOBAL, 1 };
 #define N_CTL (P_END - P_RATE)
 
 typedef struct { LV2_Atom_Event ev; uint8_t msg[3]; } MidiOut;
@@ -126,6 +127,7 @@ static void handle_pos(Arp* A, const LV2_Atom_Object* obj) {
 static void apply_step(Arp* A, int i) {
   const int* v = A->stepv[i];
   arp_set_step(&A->core, i, v[F_PROB], v[F_SHIFT], v[F_VEL], v[F_GATE]);
+  arp_set_ratch(&A->core, i, v[F_RATCH]);
 }
 
 static void handle_patch_set(Arp* A, const LV2_Atom_Object* obj) {
@@ -138,7 +140,7 @@ static void handle_patch_set(Arp* A, const LV2_Atom_Object* obj) {
       if (A->param[i][f] == key) {
         A->stepv[i][f] = (int)lrint(numv(A, val, field_defaults[f]));
         apply_step(A, i);
-        arp_clear_mutation(&A->core, i, f);   /* an edited step starts again from the drawn value */
+        arp_clear_mutation(&A->core, i, f);   /* an edited step starts again from the drawn value (not Ratch) */
         return;
       }
 }
@@ -259,6 +261,7 @@ static void run(LV2_Handle h, uint32_t n) {
                  ctl_int(A, P_ORDER, ARP_UP), ctl_int(A, P_OCTAVES, 1));
   arp_set_latch(&A->core, ctl_int(A, P_LATCH, 0) != 0);
   for (int r = 0; r < ARP_NLANES; r++) arp_set_lane_length(&A->core, r, ctl_int(A, P_LEN0 + r, ARP_MAX_STEPS));
+  arp_set_lane_length(&A->core, ARP_LANE_RATCH, ctl_int(A, P_LEN_RATCH, ARP_MAX_STEPS));
   arp_set_scale(&A->core, ctl_int(A, P_KEY, 0), ctl_int(A, P_SCALE, ARP_SCALE_CHROMATIC));
   arp_set_loop(&A->core, ctl_int(A, P_MUT_NOTES, 0), ctl_int(A, P_LOOP_LEN, 8));
   arp_set_mut_steps(&A->core, ctl_int(A, P_MUT_STEPS, 0));
