@@ -661,30 +661,74 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         else:
             mode = "main"
 
-        self._roll = (mode == "roll")
-        self._set_rows(self.rows_edit if mode == "roll" else self.rows_normal)
+        big = mode in ("roll", "main")         # pages with the piano roll use the taller widget
+        self._roll = big
+        self._set_rows(self.rows_edit if big else self.rows_normal)
 
         info = f"{bars:.1f} bars" if st in (2, 3) else (f"{bars:g} bars" if bars > 0 else "")
         self.hits = []
 
-        if mode == "roll":
-            sel = int(self._zval("elayer", 1)) - 1
-            pend = int(round(self._zval("transp", 0)))
+        if big:
             ok = self._read()
-            cur = 0
-            if self.data and 0 <= sel < len(self.data["transp"]):
-                cur = self.data["transp"][sel]
-            c.create_text(8, 2, anchor="nw", tags="dyn", fill=col, text=STATES[st],
-                          font=self._font(h, 11, 9))
-            c.create_text(w // 2, 2, anchor="n", tags="dyn", fill=LAYER_COLORS[max(sel, 0) % 8],
-                          text="Layer %d" % (sel + 1), font=self._font(h, 11, 9))
-            c.create_text(w - 8, 3, anchor="ne", tags="dyn", fill=zynthian_gui_config.color_tx,
-                          text=info, font=self._font(h, 15, 8))
-            x0, y0, x1, y1 = 8, int(h * 0.22), w - 8, int(h * 0.95)
-            key = (self.cache_ver, sel, pend, w, h, ok)
+            bpb = (self.data or {}).get("bpb", 4) or 4
+            fh = self._font(h, 11, 9)
+            c.create_text(8, 2, anchor="nw", tags="dyn", fill=col, text=STATES[st], font=fh)
+            if mode == "roll":
+                sel = int(self._zval("elayer", 1)) - 1
+                pend = int(round(self._zval("transp", 0)))
+                c.create_text(w // 2, 2, anchor="n", tags="dyn", fill=LAYER_COLORS[max(sel, 0) % 8],
+                              text="Layer %d" % (sel + 1), font=fh)
+                c.create_text(w - 8, 3, anchor="ne", tags="dyn", fill=zynthian_gui_config.color_tx,
+                              text=info, font=self._font(h, 15, 8))
+                y0 = int(h * 0.22)
+            else:
+                sel = int(self._zval("layer", 1)) - 1
+                pend = 0
+                c.create_text(w - 8, 3, anchor="ne", tags="dyn", fill=zynthian_gui_config.color_tx,
+                              text=f"{info}   {bpm:.0f} BPM", font=self._font(h, 15, 8))
+                # metronome: one box per beat of the bar, the downbeat is brighter
+                nb = max(1, min(int(bpb), 8))
+                mw = max(6, int(w * 0.035))
+                mx = w // 2 - (nb * mw + (nb - 1) * 4) // 2
+                ma, mb = int(h * 0.03), int(h * 0.10)
+                for i in range(nb):
+                    x = mx + i * (mw + 4)
+                    on = run and (int(beat) % nb == i)
+                    c.create_rectangle(x, ma, x + mw, mb, tags="dyn",
+                                       outline=zynthian_gui_config.color_tx_off,
+                                       fill=("#e0e0e0" if on and i == 0 else ("#808080" if on else "")))
+                # layer strip: tap to select the layer
+                lw = (w - 16 - 7 * 4) // 8
+                ya, yb = int(h * 0.14), int(h * 0.21)
+                for i in range(8):
+                    x = 8 + i * (lw + 4)
+                    lc = LAYER_COLORS[i]
+                    if i < nl:
+                        muted = (mask >> i) & 1
+                        c.create_rectangle(x, ya, x + lw, yb, tags="dyn",
+                                           outline=("#ffffff" if i == sel else lc),
+                                           width=(3 if i == sel else 1),
+                                           fill=("" if muted else lc))
+                        self.hits.append((x, ya - 6, x + lw, yb + 6, "l", i))
+                    else:
+                        c.create_rectangle(x, ya, x + lw, yb, outline="#303030", tags="dyn")
+                y0 = int(h * 0.25)
+            x0, x1, y1 = 8, w - 8, int(h * 0.95)
+            key = (mode, self.cache_ver, sel, pend, w, h, ok)
             if key != self.roll_key:
                 self.roll_key = key
                 self._draw_roll(x0, y0, x1, y1, sel, pend, h)
+            d = self.data
+            if mode == "main" and run and d and d["loop_len"] > 0:
+                # metronome on the grid: soft band over the current beat
+                nbeats = max(1, int(round(d["loop_len"] / float(PPQN))))
+                bi = min(int(pos * nbeats), nbeats - 1)
+                bw = (x1 - x0) / float(nbeats)
+                xb = x0 + bw * bi
+                c.create_rectangle(xb, y0, xb + bw, y1, outline="", tags=("dyn", "band"),
+                                   fill=("#9a9a9a" if bi % int(bpb) == 0 else "#5a5a5a"),
+                                   stipple="gray12")
+                c.tag_lower("band", "roll")
             c.create_line(x0 + (x1 - x0) * pos, y0, x0 + (x1 - x0) * pos, y1,
                           fill="#ffffff", width=2, tags="dyn")
         else:
@@ -699,28 +743,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             c.create_rectangle(8, y0, w - 8, y1, outline=zynthian_gui_config.color_tx_off, tags="dyn")
             c.create_rectangle(8, y0, 8 + int((w - 16) * pos), y1, fill=col, width=0, tags="dyn")
 
-            if mode == "main":
-                bw = (w - 16 - 18) // 4
-                for i in range(4):
-                    x = 8 + i * (bw + 6)
-                    on = run and (int(beat) == i)
-                    c.create_rectangle(x, int(h * 0.45), x + bw, int(h * 0.55), tags="dyn",
-                                       outline=zynthian_gui_config.color_tx_off,
-                                       fill=("#e0e0e0" if on and i == 0 else ("#808080" if on else "")))
-                lw = (w - 16 - 7 * 4) // 8
-                for i in range(8):
-                    x = 8 + i * (lw + 4)
-                    ya, yb = int(h * 0.63), int(h * 0.83)
-                    lc = LAYER_COLORS[i]
-                    if i < nl:
-                        muted = (mask >> i) & 1
-                        c.create_rectangle(x, ya, x + lw, yb, outline=lc, tags="dyn", width=2,
-                                           fill=("" if muted else lc))
-                        c.create_text(x + lw // 2, (ya + yb) // 2, text=str(i + 1), tags="dyn",
-                                      fill=(lc if muted else "#000000"), font=self._font(h, 18, 7))
-                    else:
-                        c.create_rectangle(x, ya, x + lw, yb, outline=zynthian_gui_config.color_tx_off, tags="dyn")
-            elif mode == "layers":
+            if mode == "layers":
                 sel = int(self._zval("layer", 1)) - 1
                 c.create_text(8, int(h * 0.44), anchor="nw", text="Layers (tap to select):",
                               fill=zynthian_gui_config.color_tx, tags="dyn", font=self._font(h, 15, 8))
