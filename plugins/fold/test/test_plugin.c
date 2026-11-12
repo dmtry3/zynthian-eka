@@ -28,7 +28,7 @@ enum { P_SOURCE, P_HARMONICS, P_COLOR, P_MORPH, P_MOD_FREQ, P_MOD_INDEX, P_MOD_S
        P_MIDI_IN, P_OUT_L, P_OUT_R, P_NOTIFY, P_NOTE1, P_NOTE4 = P_NOTE1 + 3, P_PEAK, P_MOD_PHASE,
        P_GATE_LEVEL, P_FG1, P_FG2, P_COUNT };
 
-static char* uris[64];
+static char* uris[256];
 static int nuris = 0;
 static LV2_URID map_uri(LV2_URID_Map_Handle h, const char* uri) {
   (void)h;
@@ -87,31 +87,41 @@ static void notify_reset(void) {
   notify->atom.size = sizeof notify_buf - sizeof(LV2_Atom);
 }
 
-/* Value the plugin reported for a parameter on the notify port, or -1000. */
-static int reported(const char* sym) {
-  char uri[128];
-  snprintf(uri, sizeof uri, FOLD_URI "#%s", sym);
-  int v = -1000;
+/* What the plugin reported on the notify port since run_reports() began (it reports 16 parameters per run). */
+static int rep_val[257];
+static int rep_set[257];
+
+static void collect_reports(void) {
   LV2_ATOM_SEQUENCE_FOREACH(notify, ev) {
     const LV2_Atom_Object* o = (const LV2_Atom_Object*)&ev->body;
     if (o->atom.type != U(LV2_ATOM__Object) || o->body.otype != U(LV2_PATCH__Set)) continue;
     const LV2_Atom *prop = NULL, *val = NULL;
     lv2_atom_object_get(o, U(LV2_PATCH__property), &prop, U(LV2_PATCH__value), &val, 0);
-    if (prop && ((const LV2_Atom_URID*)prop)->body == U(uri) && val && val->type == U(LV2_ATOM__Int))
-      v = ((const LV2_Atom_Int*)val)->body;
+    if (!prop || !val || val->type != U(LV2_ATOM__Int)) continue;
+    const LV2_URID k = ((const LV2_Atom_URID*)prop)->body;
+    if (k > 256) continue;
+    rep_val[k] = ((const LV2_Atom_Int*)val)->body;
+    rep_set[k] = 1;
   }
-  return v;
+}
+
+/* Value the plugin reported for a parameter, or -1000. */
+static int reported(const char* sym) {
+  char uri[128];
+  snprintf(uri, sizeof uri, FOLD_URI "#%s", sym);
+  const LV2_URID k = U(uri);
+  return k <= 256 && rep_set[k] ? rep_val[k] : -1000;
 }
 
 /* ---------- state: a small key -> value store ---------- */
 typedef struct { uint32_t key, type; size_t size; uint8_t value[64]; } Item;
-static Item items[16];
+static Item items[128];
 static int nitems = 0;
 
 static LV2_State_Status store(LV2_State_Handle h, uint32_t key, const void* value, size_t size,
                               uint32_t type, uint32_t flags) {
   (void)h; (void)flags;
-  if (nitems >= 16 || size > 64) return LV2_STATE_ERR_UNKNOWN;
+  if (nitems >= 128 || size > 64) return LV2_STATE_ERR_UNKNOWN;
   items[nitems].key = key; items[nitems].type = type; items[nitems].size = size;
   memcpy(items[nitems].value, value, size);
   nitems++;
@@ -155,7 +165,14 @@ static void run_seq(void) {
   lv2_atom_forge_pop(&forge, &seq_frame);
   notify_reset();
   d->run(h, N);
+  collect_reports();
   seq_clear();
+}
+
+/* Runs until every parameter has been reported (after patch:Get or a restore); what came before is forgotten. */
+static void run_reports(void) {
+  memset(rep_set, 0, sizeof rep_set);
+  for (int i = 0; i < 8; i++) run_seq();
 }
 
 int main(int argc, char** argv) {
@@ -238,7 +255,7 @@ int main(int argc, char** argv) {
   printf("A4 + 12: %d crossings in 2 s\n", cross);
   CHECK(cross >= 1758 && cross <= 1762);
   seq_get();
-  run_seq();
+  run_reports();
   CHECK(reported("pitch") == 12 && reported("fine") == 0);
   /* Fine -100 cents with Pitch +12: 11 semitones up */
   seq_set("fine", -100.0f);
@@ -250,12 +267,12 @@ int main(int argc, char** argv) {
   seq_set("pitch", 99.0f);                                              /* clamped to +24 */
   run_seq();
   seq_get();
-  run_seq();
+  run_reports();
   CHECK(reported("pitch") == 24);
 
   /* patch:Get: the plugin reports the routing switches (defaults FM on, AM, Sync and Timbre off) */
   seq_get();
-  run_seq();
+  run_reports();
   CHECK(reported("route_fm") == 1 && reported("route_am") == 0 && reported("route_sync") == 0 &&
         reported("route_timbre") == 0);
 
@@ -280,24 +297,24 @@ int main(int argc, char** argv) {
   seq_set("route_sync", 5.0f);
   run_seq();
   seq_get();
-  run_seq();
+  run_reports();
   CHECK(reported("route_sync") == 1 && reported("route_am") == 1 && reported("route_fm") == 0);
 
   /* State: save, change, restore; the restored values are reported on the next run */
   nitems = 0;
   CHECK(si->save(h, store, NULL, 0, NULL) == LV2_STATE_SUCCESS);
-  CHECK(nitems == 9);
+  CHECK(nitems == 8 + 72);                          /* the settings and the 72 matrix cells */
   seq_set("route_am", 0.0f);
   seq_set("route_sync", 0.0f);
   seq_set("route_fm", 1.0f);
   run_seq();
   CHECK(si->restore(h, retrieve, NULL, 0, NULL) == LV2_STATE_SUCCESS);
-  run_seq();
+  run_reports();
   CHECK(reported("route_sync") == 1 && reported("route_am") == 1 && reported("route_fm") == 0);
   /* a preset without these values (older version): defaults */
   nitems = 0;
   CHECK(si->restore(h, retrieve, NULL, 0, NULL) == LV2_STATE_SUCCESS);
-  run_seq();
+  run_reports();
   CHECK(reported("route_fm") == 1 && reported("route_am") == 0 && reported("route_sync") == 0);
   /* FM on (the default again), Index 100 %: the sound is no longer a plain sine at 440 */
   for (int i = 0; i < 10; i++) run_seq();
@@ -319,7 +336,7 @@ int main(int argc, char** argv) {
   seq_set("route_timbre", 1.0f);
   run_seq();
   seq_get();
-  run_seq();
+  run_reports();
   CHECK(reported("route_timbre") == 1);
   ctl[P_TIMBRE] = 0;
 
@@ -330,7 +347,7 @@ int main(int argc, char** argv) {
   seq_midi(0, 0xB0, 123, 0);
   run_seq();
   seq_get();
-  run_seq();
+  run_reports();
   CHECK(reported("fg1_mode") == 0 && reported("fg2_mode") == 1 && reported("m_fg2_timbre") == -100);
   seq_set("m_fg2_timbre", 0.0f);
   for (int i = 0; i < 400; i++) run_seq();
@@ -363,7 +380,7 @@ int main(int argc, char** argv) {
   /* no notify port connected (a host may leave it): runs anyway */
   d->connect_port(h, P_NOTIFY, NULL);
   seq_get();
-  run_seq();
+  run_reports();
 
   d->deactivate(h);
   d->cleanup(h);

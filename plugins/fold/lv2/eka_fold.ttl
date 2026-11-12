@@ -76,8 +76,7 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
-# Function generator modes and FG2 -> Timbre (-100..100 %): set in the widget (Env tab). m_fg2_timbre is named
-# as a mod-matrix cell (m_<source>_<destination>): it becomes one at stage 4.
+# Function generator modes: set in the widget (Env tab).
 <http://dmtry3.github.io/zynthian-eka/fold#fg1_mode>
     a lv2:Parameter ;
     lv2:symbol "fg1_mode" ;
@@ -98,10 +97,653 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
+# Mod matrix (TZ 4.5): m_<source>_<destination>, -100..100 %, set in the widget (Matrix tab; m_fg2_timbre also on
+# the Env tab). Sources: FG1, FG2, Mod OSC, Random, Velocity, Key, Mod wheel, Aftertouch; destinations: Pitch
+# (100 % = 12 semitones), Harmonics, Color, Morph, Mod Index, Order, Symmetry, Timbre, LPG (src/fold_core.h).
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch>
+    a lv2:Parameter ;
+    lv2:symbol "m_fg1_pitch" ;
+    rdfs:label "FG1 to Pitch" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics>
+    a lv2:Parameter ;
+    lv2:symbol "m_fg1_harmonics" ;
+    rdfs:label "FG1 to Harmonics" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color>
+    a lv2:Parameter ;
+    lv2:symbol "m_fg1_color" ;
+    rdfs:label "FG1 to Color" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_fg1_morph>
+    a lv2:Parameter ;
+    lv2:symbol "m_fg1_morph" ;
+    rdfs:label "FG1 to Morph" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_fg1_index>
+    a lv2:Parameter ;
+    lv2:symbol "m_fg1_index" ;
+    rdfs:label "FG1 to Mod Index" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_fg1_order>
+    a lv2:Parameter ;
+    lv2:symbol "m_fg1_order" ;
+    rdfs:label "FG1 to Order" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_fg1_symmetry>
+    a lv2:Parameter ;
+    lv2:symbol "m_fg1_symmetry" ;
+    rdfs:label "FG1 to Symmetry" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_fg1_timbre>
+    a lv2:Parameter ;
+    lv2:symbol "m_fg1_timbre" ;
+    rdfs:label "FG1 to Timbre" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_fg1_lpg>
+    a lv2:Parameter ;
+    lv2:symbol "m_fg1_lpg" ;
+    rdfs:label "FG1 to LPG" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_fg2_pitch>
+    a lv2:Parameter ;
+    lv2:symbol "m_fg2_pitch" ;
+    rdfs:label "FG2 to Pitch" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_fg2_harmonics>
+    a lv2:Parameter ;
+    lv2:symbol "m_fg2_harmonics" ;
+    rdfs:label "FG2 to Harmonics" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_fg2_color>
+    a lv2:Parameter ;
+    lv2:symbol "m_fg2_color" ;
+    rdfs:label "FG2 to Color" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_fg2_morph>
+    a lv2:Parameter ;
+    lv2:symbol "m_fg2_morph" ;
+    rdfs:label "FG2 to Morph" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_fg2_index>
+    a lv2:Parameter ;
+    lv2:symbol "m_fg2_index" ;
+    rdfs:label "FG2 to Mod Index" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_fg2_order>
+    a lv2:Parameter ;
+    lv2:symbol "m_fg2_order" ;
+    rdfs:label "FG2 to Order" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_fg2_symmetry>
+    a lv2:Parameter ;
+    lv2:symbol "m_fg2_symmetry" ;
+    rdfs:label "FG2 to Symmetry" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
 <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_timbre>
     a lv2:Parameter ;
     lv2:symbol "m_fg2_timbre" ;
     rdfs:label "FG2 to Timbre" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_fg2_lpg>
+    a lv2:Parameter ;
+    lv2:symbol "m_fg2_lpg" ;
+    rdfs:label "FG2 to LPG" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_mod_pitch>
+    a lv2:Parameter ;
+    lv2:symbol "m_mod_pitch" ;
+    rdfs:label "Mod OSC to Pitch" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_mod_harmonics>
+    a lv2:Parameter ;
+    lv2:symbol "m_mod_harmonics" ;
+    rdfs:label "Mod OSC to Harmonics" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_mod_color>
+    a lv2:Parameter ;
+    lv2:symbol "m_mod_color" ;
+    rdfs:label "Mod OSC to Color" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_mod_morph>
+    a lv2:Parameter ;
+    lv2:symbol "m_mod_morph" ;
+    rdfs:label "Mod OSC to Morph" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_mod_index>
+    a lv2:Parameter ;
+    lv2:symbol "m_mod_index" ;
+    rdfs:label "Mod OSC to Mod Index" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_mod_order>
+    a lv2:Parameter ;
+    lv2:symbol "m_mod_order" ;
+    rdfs:label "Mod OSC to Order" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_mod_symmetry>
+    a lv2:Parameter ;
+    lv2:symbol "m_mod_symmetry" ;
+    rdfs:label "Mod OSC to Symmetry" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_mod_timbre>
+    a lv2:Parameter ;
+    lv2:symbol "m_mod_timbre" ;
+    rdfs:label "Mod OSC to Timbre" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_mod_lpg>
+    a lv2:Parameter ;
+    lv2:symbol "m_mod_lpg" ;
+    rdfs:label "Mod OSC to LPG" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_rnd_pitch>
+    a lv2:Parameter ;
+    lv2:symbol "m_rnd_pitch" ;
+    rdfs:label "Random to Pitch" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_rnd_harmonics>
+    a lv2:Parameter ;
+    lv2:symbol "m_rnd_harmonics" ;
+    rdfs:label "Random to Harmonics" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_rnd_color>
+    a lv2:Parameter ;
+    lv2:symbol "m_rnd_color" ;
+    rdfs:label "Random to Color" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_rnd_morph>
+    a lv2:Parameter ;
+    lv2:symbol "m_rnd_morph" ;
+    rdfs:label "Random to Morph" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_rnd_index>
+    a lv2:Parameter ;
+    lv2:symbol "m_rnd_index" ;
+    rdfs:label "Random to Mod Index" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_rnd_order>
+    a lv2:Parameter ;
+    lv2:symbol "m_rnd_order" ;
+    rdfs:label "Random to Order" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_rnd_symmetry>
+    a lv2:Parameter ;
+    lv2:symbol "m_rnd_symmetry" ;
+    rdfs:label "Random to Symmetry" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_rnd_timbre>
+    a lv2:Parameter ;
+    lv2:symbol "m_rnd_timbre" ;
+    rdfs:label "Random to Timbre" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_rnd_lpg>
+    a lv2:Parameter ;
+    lv2:symbol "m_rnd_lpg" ;
+    rdfs:label "Random to LPG" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_vel_pitch>
+    a lv2:Parameter ;
+    lv2:symbol "m_vel_pitch" ;
+    rdfs:label "Velocity to Pitch" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_vel_harmonics>
+    a lv2:Parameter ;
+    lv2:symbol "m_vel_harmonics" ;
+    rdfs:label "Velocity to Harmonics" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_vel_color>
+    a lv2:Parameter ;
+    lv2:symbol "m_vel_color" ;
+    rdfs:label "Velocity to Color" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_vel_morph>
+    a lv2:Parameter ;
+    lv2:symbol "m_vel_morph" ;
+    rdfs:label "Velocity to Morph" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_vel_index>
+    a lv2:Parameter ;
+    lv2:symbol "m_vel_index" ;
+    rdfs:label "Velocity to Mod Index" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_vel_order>
+    a lv2:Parameter ;
+    lv2:symbol "m_vel_order" ;
+    rdfs:label "Velocity to Order" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_vel_symmetry>
+    a lv2:Parameter ;
+    lv2:symbol "m_vel_symmetry" ;
+    rdfs:label "Velocity to Symmetry" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_vel_timbre>
+    a lv2:Parameter ;
+    lv2:symbol "m_vel_timbre" ;
+    rdfs:label "Velocity to Timbre" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_vel_lpg>
+    a lv2:Parameter ;
+    lv2:symbol "m_vel_lpg" ;
+    rdfs:label "Velocity to LPG" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_key_pitch>
+    a lv2:Parameter ;
+    lv2:symbol "m_key_pitch" ;
+    rdfs:label "Key to Pitch" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_key_harmonics>
+    a lv2:Parameter ;
+    lv2:symbol "m_key_harmonics" ;
+    rdfs:label "Key to Harmonics" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_key_color>
+    a lv2:Parameter ;
+    lv2:symbol "m_key_color" ;
+    rdfs:label "Key to Color" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_key_morph>
+    a lv2:Parameter ;
+    lv2:symbol "m_key_morph" ;
+    rdfs:label "Key to Morph" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_key_index>
+    a lv2:Parameter ;
+    lv2:symbol "m_key_index" ;
+    rdfs:label "Key to Mod Index" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_key_order>
+    a lv2:Parameter ;
+    lv2:symbol "m_key_order" ;
+    rdfs:label "Key to Order" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_key_symmetry>
+    a lv2:Parameter ;
+    lv2:symbol "m_key_symmetry" ;
+    rdfs:label "Key to Symmetry" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_key_timbre>
+    a lv2:Parameter ;
+    lv2:symbol "m_key_timbre" ;
+    rdfs:label "Key to Timbre" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_key_lpg>
+    a lv2:Parameter ;
+    lv2:symbol "m_key_lpg" ;
+    rdfs:label "Key to LPG" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_wheel_pitch>
+    a lv2:Parameter ;
+    lv2:symbol "m_wheel_pitch" ;
+    rdfs:label "Mod wheel to Pitch" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_wheel_harmonics>
+    a lv2:Parameter ;
+    lv2:symbol "m_wheel_harmonics" ;
+    rdfs:label "Mod wheel to Harmonics" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_wheel_color>
+    a lv2:Parameter ;
+    lv2:symbol "m_wheel_color" ;
+    rdfs:label "Mod wheel to Color" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_wheel_morph>
+    a lv2:Parameter ;
+    lv2:symbol "m_wheel_morph" ;
+    rdfs:label "Mod wheel to Morph" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_wheel_index>
+    a lv2:Parameter ;
+    lv2:symbol "m_wheel_index" ;
+    rdfs:label "Mod wheel to Mod Index" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_wheel_order>
+    a lv2:Parameter ;
+    lv2:symbol "m_wheel_order" ;
+    rdfs:label "Mod wheel to Order" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_wheel_symmetry>
+    a lv2:Parameter ;
+    lv2:symbol "m_wheel_symmetry" ;
+    rdfs:label "Mod wheel to Symmetry" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_wheel_timbre>
+    a lv2:Parameter ;
+    lv2:symbol "m_wheel_timbre" ;
+    rdfs:label "Mod wheel to Timbre" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_wheel_lpg>
+    a lv2:Parameter ;
+    lv2:symbol "m_wheel_lpg" ;
+    rdfs:label "Mod wheel to LPG" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_at_pitch>
+    a lv2:Parameter ;
+    lv2:symbol "m_at_pitch" ;
+    rdfs:label "Aftertouch to Pitch" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_at_harmonics>
+    a lv2:Parameter ;
+    lv2:symbol "m_at_harmonics" ;
+    rdfs:label "Aftertouch to Harmonics" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_at_color>
+    a lv2:Parameter ;
+    lv2:symbol "m_at_color" ;
+    rdfs:label "Aftertouch to Color" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_at_morph>
+    a lv2:Parameter ;
+    lv2:symbol "m_at_morph" ;
+    rdfs:label "Aftertouch to Morph" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_at_index>
+    a lv2:Parameter ;
+    lv2:symbol "m_at_index" ;
+    rdfs:label "Aftertouch to Mod Index" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_at_order>
+    a lv2:Parameter ;
+    lv2:symbol "m_at_order" ;
+    rdfs:label "Aftertouch to Order" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_at_symmetry>
+    a lv2:Parameter ;
+    lv2:symbol "m_at_symmetry" ;
+    rdfs:label "Aftertouch to Symmetry" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_at_timbre>
+    a lv2:Parameter ;
+    lv2:symbol "m_at_timbre" ;
+    rdfs:label "Aftertouch to Timbre" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#m_at_lpg>
+    a lv2:Parameter ;
+    lv2:symbol "m_at_lpg" ;
+    rdfs:label "Aftertouch to LPG" ;
     rdfs:range atom:Int ;
     lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
     pprops:notOnGUI true ;
@@ -113,13 +755,21 @@
     doap:name "Eka Fold" ;
     doap:license <http://opensource.org/licenses/GPL-3.0> ;
     lv2:minorVersion 0 ;
-    lv2:microVersion 3 ;
+    lv2:microVersion 4 ;
     lv2:requiredFeature urid:map ;
     lv2:optionalFeature lv2:hardRTCapable ;
     lv2:extensionData state:interface ;
     patch:writable <http://dmtry3.github.io/zynthian-eka/fold#route_fm> , <http://dmtry3.github.io/zynthian-eka/fold#route_am> , <http://dmtry3.github.io/zynthian-eka/fold#route_sync> , <http://dmtry3.github.io/zynthian-eka/fold#route_timbre> ,
-        <http://dmtry3.github.io/zynthian-eka/fold#fg1_mode> , <http://dmtry3.github.io/zynthian-eka/fold#fg2_mode> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_timbre> ,
-        <http://dmtry3.github.io/zynthian-eka/fold#pitch> , <http://dmtry3.github.io/zynthian-eka/fold#fine> ;
+        <http://dmtry3.github.io/zynthian-eka/fold#fg1_mode> , <http://dmtry3.github.io/zynthian-eka/fold#fg2_mode> ,
+        <http://dmtry3.github.io/zynthian-eka/fold#pitch> , <http://dmtry3.github.io/zynthian-eka/fold#fine> ,
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_morph> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_index> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_order> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_symmetry> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_timbre> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_lpg> ,
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_pitch> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_harmonics> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_color> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_morph> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_index> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_order> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_symmetry> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_timbre> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_lpg> ,
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_pitch> , <http://dmtry3.github.io/zynthian-eka/fold#m_mod_harmonics> , <http://dmtry3.github.io/zynthian-eka/fold#m_mod_color> , <http://dmtry3.github.io/zynthian-eka/fold#m_mod_morph> , <http://dmtry3.github.io/zynthian-eka/fold#m_mod_index> , <http://dmtry3.github.io/zynthian-eka/fold#m_mod_order> , <http://dmtry3.github.io/zynthian-eka/fold#m_mod_symmetry> , <http://dmtry3.github.io/zynthian-eka/fold#m_mod_timbre> , <http://dmtry3.github.io/zynthian-eka/fold#m_mod_lpg> ,
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_pitch> , <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_harmonics> , <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_color> , <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_morph> , <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_index> , <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_order> , <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_symmetry> , <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_timbre> , <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_lpg> ,
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_pitch> , <http://dmtry3.github.io/zynthian-eka/fold#m_vel_harmonics> , <http://dmtry3.github.io/zynthian-eka/fold#m_vel_color> , <http://dmtry3.github.io/zynthian-eka/fold#m_vel_morph> , <http://dmtry3.github.io/zynthian-eka/fold#m_vel_index> , <http://dmtry3.github.io/zynthian-eka/fold#m_vel_order> , <http://dmtry3.github.io/zynthian-eka/fold#m_vel_symmetry> , <http://dmtry3.github.io/zynthian-eka/fold#m_vel_timbre> , <http://dmtry3.github.io/zynthian-eka/fold#m_vel_lpg> ,
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_pitch> , <http://dmtry3.github.io/zynthian-eka/fold#m_key_harmonics> , <http://dmtry3.github.io/zynthian-eka/fold#m_key_color> , <http://dmtry3.github.io/zynthian-eka/fold#m_key_morph> , <http://dmtry3.github.io/zynthian-eka/fold#m_key_index> , <http://dmtry3.github.io/zynthian-eka/fold#m_key_order> , <http://dmtry3.github.io/zynthian-eka/fold#m_key_symmetry> , <http://dmtry3.github.io/zynthian-eka/fold#m_key_timbre> , <http://dmtry3.github.io/zynthian-eka/fold#m_key_lpg> ,
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_pitch> , <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_harmonics> , <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_color> , <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_morph> , <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_index> , <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_order> , <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_symmetry> , <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_timbre> , <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_lpg> ,
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_pitch> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_harmonics> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_color> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_morph> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_index> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_order> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_symmetry> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_timbre> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_lpg> ;
     # Control input ports MUST be indices 0..N-1 (before atom and audio ports): Zynthian numbers LV2 parameters
     # from len(control ports)+1 and would overwrite a control port with a higher index.
     # Source: Sine or one of the engines VA, FM2, Wave; Harmonics, Color, Morph: their knobs (TZ 4.1; Color is

@@ -1,6 +1,7 @@
 /* Eka Fold: LV2 wrapper around fold_core.
  * Knob pages Osc (Source, Harmonics, Color, Morph), Mod, Timbre, Gate, Env. Pitch and Fine, the routing switches
- * FM / AM / Sync / Timbre, the function generator modes and FG2 -> Timbre are LV2 parameters
+ * FM / AM / Sync / Timbre, the function generator modes and the mod matrix (m_<source>_<destination>, -100..100)
+ * are LV2 parameters
  * (patch:writable, notOnGUI) set in the widget and saved in LV2 State: jalv in Zynthian does not
  * register ports with notOnGUI, so they could not be hidden ports.
  * SPDX-License-Identifier: GPL-3.0-or-later */
@@ -39,15 +40,17 @@ enum {
 };
 
 /* Integer LV2 parameters set in the widget, saved in State. */
-enum { IP_ROUTE_FM, IP_ROUTE_AM, IP_ROUTE_SYNC, IP_ROUTE_TIMBRE, IP_FG1_MODE, IP_FG2_MODE, IP_FG2_TIMBRE,
-       IP_PITCH, IP_FINE, N_IPARAMS };
-static const char* const ip_names[N_IPARAMS] = { "route_fm", "route_am", "route_sync", "route_timbre",
-  "fg1_mode", "fg2_mode", "m_fg2_timbre", "pitch", "fine" };
-static const int ip_range[N_IPARAMS][3] = {        /* default, min, max */
+/* The mod matrix follows: cell (s, d) is IP_MATRIX + s x FC_NMDST + d, named m_<source>_<destination>. */
+enum { IP_ROUTE_FM, IP_ROUTE_AM, IP_ROUTE_SYNC, IP_ROUTE_TIMBRE, IP_FG1_MODE, IP_FG2_MODE, IP_PITCH, IP_FINE,
+       IP_MATRIX, N_IPARAMS = IP_MATRIX + FC_NCELLS };
+static const char* const ip_names[IP_MATRIX] = { "route_fm", "route_am", "route_sync", "route_timbre",
+  "fg1_mode", "fg2_mode", "pitch", "fine" };
+static const int ip_range[IP_MATRIX + 1][3] = {    /* default, min, max */
   { 1, 0, 1 }, { 0, 0, 1 }, { 0, 0, 1 }, { 0, 0, 1 },
   { FC_FG_GATE, 0, FC_NFG_MODES - 1 }, { FC_FG_GATE, 0, FC_NFG_MODES - 1 },
-  { 0, -100, 100 },                                /* m_fg2_timbre: becomes a mod-matrix cell at stage 4b */
-  { 0, -24, 24 }, { 0, -100, 100 } };             /* pitch (semitones), fine (cents) */
+  { 0, -24, 24 }, { 0, -100, 100 },               /* pitch (semitones), fine (cents) */
+  { 0, -100, 100 } };                              /* every matrix cell (%) */
+static const int* range(int i) { return ip_range[i < IP_MATRIX ? i : IP_MATRIX]; }
 #define REPORT_PER_RUN 16                /* patch:Set replies per run() after patch:Get */
 
 typedef struct {
@@ -94,9 +97,15 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double rate, const char* 
   for (int i = 0; i < N_IPARAMS; i++) {
     char uri[96];
     strcpy(uri, FOLD_URI "#");
-    strcat(uri, ip_names[i]);
+    if (i < IP_MATRIX) strcat(uri, ip_names[i]);
+    else {
+      strcat(uri, "m_");
+      strcat(uri, fc_msrc_names[(i - IP_MATRIX) / FC_NMDST]);
+      strcat(uri, "_");
+      strcat(uri, fc_mdst_names[(i - IP_MATRIX) % FC_NMDST]);
+    }
     S->ip_urid[i] = m->map(m->handle, uri);
-    S->ip[i] = ip_range[i][0];
+    S->ip[i] = range(i)[0];
   }
   S->report_next = -1;
   lv2_atom_forge_init(&S->forge, m);
@@ -142,7 +151,7 @@ static void read_params(Fold* S) {
   p.fg_fall_ms[1] = ctl(S, P_FG2_FALL, p.fg_fall_ms[1]);
   p.fg_mode[0] = S->ip[IP_FG1_MODE];
   p.fg_mode[1] = S->ip[IP_FG2_MODE];
-  p.fg2_timbre = (float)S->ip[IP_FG2_TIMBRE] * 0.01f;
+  for (int i = 0; i < FC_NCELLS; i++) p.matrix[i / FC_NMDST][i % FC_NMDST] = (float)S->ip[IP_MATRIX + i] * 0.01f;
   p.gate_mode = (int)lrintf(ctl(S, P_GATE_MODE, (float)p.gate_mode));
   p.gate_decay = ctl(S, P_GATE_DECAY, p.gate_decay * 100.0f) * 0.01f;
   p.gate_res = ctl(S, P_GATE_RES, p.gate_res * 100.0f) * 0.01f;
@@ -182,7 +191,7 @@ static void handle_patch_set(Fold* S, const LV2_Atom_Object* obj) {
   const LV2_URID key = ((const LV2_Atom_URID*)prop)->body;
   for (int i = 0; i < N_IPARAMS; i++)
     if (key == S->ip_urid[i]) {
-      S->ip[i] = clampi(atom_int(S, val, S->ip[i]), ip_range[i][1], ip_range[i][2]);
+      S->ip[i] = clampi(atom_int(S, val, S->ip[i]), range(i)[1], range(i)[2]);
       return;
     }
 }
@@ -212,6 +221,10 @@ static void report_params(Fold* S) {
 /* ---------- MIDI and audio ---------- */
 static void handle_midi(Fold* S, const LV2_Atom_Event* ev) {
   const uint8_t* b = (const uint8_t*)LV2_ATOM_BODY_CONST(&ev->body);
+  if (ev->body.size >= 2 && (b[0] & 0xF0) == 0xD0) {                     /* Channel pressure: 2 bytes */
+    fc_set_aftertouch(&S->core, (float)(b[1] & 0x7F) / 127.0f);
+    return;
+  }
   if (ev->body.size < 3) return;
   const uint8_t type = b[0] & 0xF0;
   if (type == 0x90 && b[2] > 0) fc_note_on(&S->core, b[1] & 0x7F, b[2]);
@@ -219,6 +232,8 @@ static void handle_midi(Fold* S, const LV2_Atom_Event* ev) {
   else if (type == 0xB0 && b[1] == 120) fc_all_sound_off(&S->core);       /* All Sound Off */
   else if (type == 0xB0 && b[1] == 123) fc_all_notes_off(&S->core);      /* All Notes Off */
   else if (type == 0xB0 && b[1] == 64) fc_set_sustain(&S->core, b[2] >= 64);   /* Sustain pedal */
+  else if (type == 0xB0 && b[1] == 1) fc_set_wheel(&S->core, (float)(b[2] & 0x7F) / 127.0f);   /* Mod wheel */
+  else if (type == 0xA0) fc_set_poly_aftertouch(&S->core, b[1] & 0x7F, (float)(b[2] & 0x7F) / 127.0f);
   else if (type == 0xE0) {                                                /* Pitch Bend, 14 bit */
     const int v = ((b[2] & 0x7F) << 7 | (b[1] & 0x7F)) - 8192;
     const float bend = v < 0 ? (float)v / 8192.0f : (float)v / 8191.0f;
@@ -295,9 +310,9 @@ static LV2_State_Status restore(LV2_Handle h, LV2_State_Retrieve_Function retrie
   for (int i = 0; i < N_IPARAMS; i++) {
     size_t size = 0; uint32_t type = 0, vflags = 0;
     const void* v = retrieve(sh, S->ip_urid[i], &size, &type, &vflags);
-    S->ip[i] = ip_range[i][0];
+    S->ip[i] = range(i)[0];
     if (v && type == S->atom_Int && size >= sizeof(int32_t))
-      S->ip[i] = clampi(*(const int32_t*)v, ip_range[i][1], ip_range[i][2]);
+      S->ip[i] = clampi(*(const int32_t*)v, range(i)[1], range(i)[2]);
   }
   S->report_next = 0;                                /* tell the host the restored values */
   return LV2_STATE_SUCCESS;

@@ -5,8 +5,9 @@
  * one Mod Index; then the Timbre section: three shapers (folder, saw, M) blended by Order, Timbre = depth,
  * Symmetry = offset before them, Drive = soft saturation after them; a DC blocker; then the lopass gate:
  * a vactrol (fast to open, slow to close, slower the darker it gets) driven by function generator 1 and the
- * velocity, which sets a 2-pole low-pass (LP), the level (VCA) or both (Combo). Function generator 2 moves
- * Timbre (a mod-matrix cell from stage 4). A soft clip on the output.
+ * velocity, which sets a 2-pole low-pass (LP), the level (VCA) or both (Combo). The mod matrix (stage 4b) moves
+ * the knobs of a voice from its function generators, the Mod OSC, Random, velocity, key, mod wheel and aftertouch.
+ * A soft clip on the output.
  * SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef FOLD_CORE_H
 #define FOLD_CORE_H
@@ -83,13 +84,31 @@ enum { FC_GATE_VCA, FC_GATE_LP, FC_GATE_COMBO, FC_NGATE_MODES };
  * voice peaks at 0.4 instead of 3.3 (the output clipped, 2026-11-12, found on the device); the small-signal
  * lift stays about +20 dB, Resonance 0 is unchanged within 0.5 dB. */
 #define FC_RES_SAT 2.0f
-#define FC_COEF_EVERY 32          /* filter coefficients are updated every 32 samples (of the voice's rate) */
+#define FC_COEF_EVERY 32          /* the mod matrix and the filter coefficients: every 32 samples (of the voice) */
 float fc_decay_ms(float decay);   /* Decay 0..1 -> ms */
 
 /* Principal sources: the order of the scale points of Source in lv2/eka_fold.ttl and of the widget's tiles.
  * The engines are FE_* = source - 1. A change of Source crossfades a sounding voice over FC_SRC_FADE_MS. */
 enum { FC_SRC_SINE, FC_SRC_VA, FC_SRC_FM2, FC_SRC_WAVE, FC_NSOURCES };
 #define FC_SRC_FADE_MS 10.0f
+
+/* Mod matrix (TZ 4.5): cell[source][destination], -1..1 (-100..100 %), adds source x cell to the destination knob,
+ * of each voice, every FC_COEF_EVERY samples; empty cells cost nothing. The order is that of the widget's grid
+ * and of the LV2 parameters m_<source>_<destination> (fc_msrc_names, fc_mdst_names).
+ * Sources: FG1, FG2 0..1; Mod OSC -1..1 (its wave, at the matrix rate); Random -1..1, a new value at every period
+ * of the Mod OSC (and at the note-on); Velocity 0..1; Key -1..1, (note - 60) / FC_KEY_SPAN; Mod wheel (CC 1) 0..1;
+ * Aftertouch 0..1 (channel or polyphonic, the larger).
+ * Destinations: Pitch (100 % = FC_MOD_SEMIS semitones), Harmonics, Color, Morph, Mod Index, Order, Timbre (100 % =
+ * the whole knob), Symmetry (100 % = from 0 to the end), LPG (the opening of the gate: x (1 + sum), so -100 %
+ * keeps it shut and +100 % opens it twice as wide, up to fully; the voice still ends with FG1). */
+enum { FC_MS_FG1, FC_MS_FG2, FC_MS_MOD, FC_MS_RND, FC_MS_VEL, FC_MS_KEY, FC_MS_WHEEL, FC_MS_AT, FC_NMSRC };
+enum { FC_MD_PITCH, FC_MD_HARM, FC_MD_COLOR, FC_MD_MORPH, FC_MD_INDEX, FC_MD_ORDER, FC_MD_SYM, FC_MD_TIMBRE,
+       FC_MD_LPG, FC_NMDST };
+#define FC_NCELLS (FC_NMSRC * FC_NMDST)
+#define FC_MOD_SEMIS 12.0f
+#define FC_KEY_SPAN 48.0f
+extern const char* const fc_msrc_names[FC_NMSRC];   /* fg1 fg2 mod rnd vel key wheel at */
+extern const char* const fc_mdst_names[FC_NMDST];   /* pitch harmonics color morph index order symmetry timbre lpg */
 
 /* Mod OSC shapes and modes: the order of the scale points in lv2/eka_fold.ttl and of the widget's lists. */
 enum { FC_MOD_TRI, FC_MOD_SINE, FC_MOD_SAW, FC_MOD_SQUARE, FC_NMOD_SHAPES };
@@ -117,7 +136,7 @@ typedef struct {
   int fg_mode[2];
   int gate_mode;
   float gate_decay, gate_res, level;   /* 0..1 */
-  float fg2_timbre;               /* -1..1: FG2 -> Timbre */
+  float matrix[FC_NMSRC][FC_NMDST];   /* -1..1, see above */
   float mod_freq;                 /* units, see above */
   float mod_index;                /* 0..1 */
   int mod_shape, mod_mode;
@@ -138,12 +157,23 @@ typedef struct {
   int stage;
   int note;
   float vel;                      /* vactrol drive from the velocity, FC_VEL_FLOOR..1 */
+  float velo;                     /* the velocity 0..1 (a matrix source) */
+  float at;                       /* polyphonic aftertouch 0..1 */
+  float rnd;                      /* Random: -1..1, new at every Mod OSC period */
+  float mval;                     /* the Mod OSC wave at the last sample (a matrix source) */
+  float md[FC_NMDST];             /* the matrix's sums for this voice (for the widget and the tests) */
+  float idx_g, tim_g, ord_g, sym_g;   /* the targets of idx, tim, ord, sym: the knobs plus the matrix */
+  float lpg_g;                    /* the gate's opening factor from the matrix, 0..2 */
+  int snap;                       /* a new note: the first matrix values without the glide */
+  float cheb_a[FC_CHEB_MAX + 1];  /* the Saw / M weights, recomputed when Order or the pitch moves */
+  float cheb_o, cheb_inc;         /* what they were computed for (cheb_o < 0: not yet) */
+  int cheb_n;
   FcFg fg[2];
   float vac;                      /* vactrol state g, 0..1 */
   float wv, wl, lvl, res;         /* gate mode (VCA, LP shares), Level, Resonance: smoothed */
   float ic1, ic2;                 /* low-pass state (TPT state-variable filter) */
   float a1, a2, a3;               /* its coefficients, every FC_COEF_EVERY samples */
-  int coef_count;
+  int tick;                       /* samples to the next matrix / coefficient update */
   int hi;                         /* the note runs at FC_OS_HI (an engine at its note-on), else at FC_OS */
   float sg;                       /* steal fade, 1 = none */
   float phase;                    /* Principal, cycles 0..1 (Sine) */
@@ -186,7 +216,7 @@ typedef struct {
   float harm_t, color_t, morph_t; /* engine knobs */
   float fg_rise_ms[2], fg_fall_ms[2], decay_ms;
   int fg_mode[2];
-  float wv_t, wl_t, lvl_t, res_t, fg2_tim;
+  float wv_t, wl_t, lvl_t, res_t;
   float fmax;                     /* the highest cutoff */
   int mod_shape, mod_mode;
   float mod_hz, mod_semis, mod_ratio;   /* Mod Freq read for each mode */
@@ -199,6 +229,11 @@ typedef struct {
   float qbuf[FC_HB4_TAPS - 1 + FC_OS_HI * FC_CHUNK];    /* the 4x voices: history, then the chunk */
   int q_tail;                     /* 4x samples still to flush through hb4 (0: its history is silence) */
   int sync;
+  int ncells;                     /* the non-empty matrix cells */
+  uint8_t cell_src[FC_NCELLS], cell_dst[FC_NCELLS];
+  float cell_amt[FC_NCELLS];
+  float wheel, chan_at;           /* mod wheel, channel aftertouch: 0..1 */
+  uint32_t rng;                   /* Random */
   int engines_4x;                 /* FcParams.engines_4x */
   float table[FC_SINE_N + 1];
 } FoldCore;
@@ -210,6 +245,9 @@ void fc_note_on(FoldCore* c, int note, int vel);
 void fc_note_off(FoldCore* c, int note);
 void fc_set_sustain(FoldCore* c, int on);
 void fc_set_bend(FoldCore* c, float semitones);
+void fc_set_wheel(FoldCore* c, float v);              /* 0..1 */
+void fc_set_aftertouch(FoldCore* c, float v);         /* channel pressure, 0..1 */
+void fc_set_poly_aftertouch(FoldCore* c, int note, float v);   /* 0..1 */
 void fc_all_notes_off(FoldCore* c);    /* every key and the pedal up (CC 123) */
 void fc_all_sound_off(FoldCore* c);    /* every voice fades out in FC_STEAL_MS (CC 120) */
 /* Renders n samples into l and r (overwrites them). */

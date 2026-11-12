@@ -99,6 +99,10 @@ class Processor:
                                  ("mod_freq", 30.0), ("mod_index", 0.0), ("mod_shape", 1), ("mod_mode", 2),
                                  ("route_fm", 1), ("route_am", 0), ("route_sync", 0), ("route_timbre", 0),
                                  ("timbre", 0.0), ("order", 0.0), ("symmetry", 0.0), ("drive", 0.0))}
+        for src in ("fg1", "fg2", "mod", "rnd", "vel", "key", "wheel", "at"):     # the mod matrix
+            for dst in ("pitch", "harmonics", "color", "morph", "index", "order", "symmetry", "timbre", "lpg"):
+                sym = "m_%s_%s" % (src, dst)
+                self.controllers_dict.setdefault(sym, NumCtrl(sym, 0))
 
 
 class Control:
@@ -198,7 +202,8 @@ def main():
         return [c.itemcget(i, "text") for i in c.find_withtag(tag) if c.type(i) == "text"]
 
     # tabs, title, tiles, waveform
-    check("tabs Osc, Mod, Fold, Gate, Env drawn", texts("tabs") == ["Osc", "Mod", "Fold", "Gate", "Env"])
+    check("tabs Osc, Mod, Fold, Gate, Env, Matrix drawn", texts("tabs") == ["Osc", "Mod", "Fold", "Gate", "Env",
+                                                                          "Matrix"])
     check("page title drawn", texts("title") == ["Osc"])
     check("Source tiles, Pitch and Fine", texts("tiles") == ["Sine", "VA", "FM2", "Wave", "Pitch +0", "Fine +0"])
     lines = [i for i in c.find_withtag("wave") if c.type(i) == "line" and len(c.coords(i)) > 8]
@@ -719,6 +724,61 @@ def main():
     ctl.select(1)
     wdg.update()
 
+    # ---------- Matrix ----------
+    ctl.selected = []
+    tx = (wdg.tab_boxes[5][0] + wdg.tab_boxes[5][1]) / 2
+    wdg._on_press(Tap(tx, 5))
+    wdg.update()
+    check("tap on Matrix: Matrix tab, the knob page stays", wdg.tab == 5 and ctl.selected == [] and
+          texts("title") == ["Osc"])
+    wdg.update()
+    check("Matrix stays when the page did not change", wdg.tab == 5)
+    mt = texts("matrix")
+    check("Matrix: source and destination names", all(n in mt for n in ("FG1", "Rnd", "Wheel", "AT")) and
+          (all(n in mt for n in ("Pitch", "Harm", "LPG")) or all(n in mt for n in ("Pit", "Hrm", "LPG"))))
+    check("Matrix: 72 cells", len(wdg.mx_items) == 72)
+
+    def cell_xy(si, di):
+        gx0, gy0, gx1, gy1, cw, ch = wdg._mx_layout()[:6]
+        return gx0 + (di + 0.5) * cw, gy0 + (si + 0.5) * ch
+
+    def cell_fill(si, di):
+        return c.itemcget(wdg.mx_items[(si, di)][0], "fill")
+
+    def label_fill(si):
+        return c.itemcget(wdg.mx_labels[si], "fill")
+    empty = cell_fill(0, 0)
+    off_label = label_fill(1)
+    x, y = cell_xy(1, 7)                                 # FG2 -> Timbre
+    wdg.last_tap = (None, 0.0)
+    wdg._on_press(Tap(x, y))
+    wdg._on_motion(Tap(x, y - 45))
+    wdg._on_release(Tap(x, y - 45))
+    check("Matrix: finger up 45 px on FG2 -> Timbre: +30 %", proc.controllers_dict["m_fg2_timbre"].value == 30)
+    check("Matrix: the cell lit blue, its text, the source lit", cell_fill(1, 7) != empty and
+          c.itemcget(wdg.mx_items[(1, 7)][1], "text") == "+30" and label_fill(1) != off_label)
+    check("Matrix: the line tells the cell", "FG2 \u2192 Timbre +30%" in texts("matrix"))
+    x, y = cell_xy(6, 0)                                 # Mod wheel -> Pitch, down: orange
+    wdg.last_tap = (None, 0.0)
+    wdg._on_press(Tap(x, y))
+    wdg._on_motion(Tap(x, y + 75))
+    wdg._on_release(Tap(x, y + 75))
+    check("Matrix: wheel -> Pitch -50 %, orange, semitones told",
+          proc.controllers_dict["m_wheel_pitch"].value == -50 and cell_fill(6, 0) != cell_fill(1, 7) and
+          any("-6.0 semitones" in t for t in texts("matrix")))
+    wdg._on_press(Tap(x, y))
+    wdg._on_release(Tap(x, y))
+    wdg._on_press(Tap(x, y))
+    wdg._on_release(Tap(x, y))
+    check("Matrix: double tap resets", proc.controllers_dict["m_wheel_pitch"].value == 0 and cell_fill(6, 0) == empty)
+    tx = (wdg.tab_boxes[4][0] + wdg.tab_boxes[4][1]) / 2
+    wdg._on_press(Tap(tx, 5))
+    wdg.update()
+    check("Env shows the same cell: Timbre +30%", wdg.tab == 4 and "Timbre +30%" in texts("env"))
+    proc.controllers_dict["m_fg2_timbre"].value = 0
+    ctl.select(1)
+    wdg.update()
+
     # throttle: two updates in a row, only one reaches refresh_gui
     mod.UPDATE_PERIOD = throttle
     wdg.next_update = 0.0
@@ -758,6 +818,26 @@ def main():
         ok = all(lab[2] < cur[0] and cur[2] < btn[0] and btn[2] <= wdg.width for lab, cur, btn in rows) and \
             rows[0][1][3] < rows[1][1][1] and rows[1][1][3] <= wdg.height
         check("layout %s: Env rows do not overlap" % geo, ok)
+        gx0, gy0, gx1, gy1, cw, ch, info_y, small, names = wdg._mx_layout()
+        ok = gx0 > 0 and gx1 <= wdg.width and gy0 > wdg._header_h() and gy1 < info_y and info_y < wdg.height and \
+            ch >= 8 and cw >= 12
+        check("layout %s: Matrix grid, names and line fit" % geo, ok)
+        wdg.tab, wdg.mx_sel = 5, (7, 1)                  # the longest line: Aftertouch -> Harmonics -100 %
+        proc.controllers_dict["m_at_harmonics"].value = -100
+        wdg._clear()
+        wdg.refresh_gui()
+        ln = c.bbox(wdg.mx_line)
+        wdg.mx_sel = (0, 0)
+        proc.controllers_dict["m_fg1_pitch"].value = 100
+        wdg.refresh_gui()
+        ln2 = c.bbox(wdg.mx_line)
+        check("layout %s: the Matrix line fits" % geo, ln[2] <= wdg.width and ln2[2] <= wdg.width)
+        if ln2[2] > wdg.width:
+            print("   %s: %s" % (c.itemcget(wdg.mx_line, "text"), ln2))
+        proc.controllers_dict["m_at_harmonics"].value = proc.controllers_dict["m_fg1_pitch"].value = 0
+        wdg.mx_sel = None
+        wdg.tab = 0
+        wdg._clear()
         # the values text stays right of the Order line, at every size, with the widest values
         ctl.select(3)
         proc.controllers_dict["timbre"].value, proc.controllers_dict["symmetry"].value = 100.0, -100.0
@@ -867,6 +947,23 @@ def main():
             root.update_idletasks()
         live = (time.perf_counter() - t0) / 200 * 1000
         print("%s tab on this PC: %.3f ms full redraw, %.3f ms with its live marks moving" % (name, full, live))
+    # Matrix: a full redraw (72 cells), and a refresh with nothing changed (it reads the 72 values)
+    wdg.tab = 5
+    wdg._clear()
+    for k, sym in enumerate(sorted(s for s in proc.controllers_dict if s.startswith("m_"))):
+        proc.controllers_dict[sym].value = (k * 37) % 201 - 100
+    t0 = time.perf_counter()
+    for i in range(20):
+        wdg._clear()
+        wdg.refresh_gui()
+        root.update_idletasks()
+    full = (time.perf_counter() - t0) / 20 * 1000
+    t0 = time.perf_counter()
+    for i in range(200):
+        wdg.refresh_gui()
+        root.update_idletasks()
+    idle = (time.perf_counter() - t0) / 200 * 1000
+    print("Matrix tab on this PC: %.3f ms full redraw (all 72 cells set), %.3f ms without changes" % (full, idle))
 
     root.destroy()
     print("All widget tests passed" if not fails else "%d FAILED" % fails)

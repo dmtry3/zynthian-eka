@@ -14,6 +14,7 @@
 #define SECS 20
 
 static FoldCore core;
+static int full_matrix;                           /* every mod-matrix cell at 10 % */
 static float l[BLOCK], r[BLOCK];
 
 static double now(void) {
@@ -30,6 +31,8 @@ static void bench(const char* label, int hi, int source, int shape, float index,
   /* the defaults: FG1 Gate, the lopass gate in Combo (low-pass and level): the full voice */
   p.source = source;
   p.engines_4x = hi;
+  for (int s = 0; s < FC_NMSRC; s++)
+    for (int d = 0; d < FC_NMDST; d++) p.matrix[s][d] = full_matrix ? 0.1f : 0.0f;
   p.mod_shape = shape; p.mod_index = index; p.route_fm = fm; p.route_am = am; p.route_sync = sync;
   p.mod_freq = 40.0f;                                 /* Ratio 3/2-ish: sync and FM both busy */
   p.timbre = timbre; p.order = order;
@@ -53,6 +56,10 @@ int main(void) {
   bench("sine, Index 0, Timbre 0", 0, FC_SRC_SINE, FC_MOD_SINE, 0.0f, 1, 0, 0, 0.0f, 0.0f);
   bench("saw Mod, FM+AM+Sync, folder", 0, FC_SRC_SINE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
   bench("saw Mod, FM+AM+Sync, folder + Saw shaper", 0, FC_SRC_SINE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.25f);
+  full_matrix = 1;
+  bench("saw Mod, FM+AM+Sync, folder, all 72 cells", 0, FC_SRC_SINE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  bench("VA, FM+AM+Sync, folder, all 72 cells", 0, FC_SRC_VA, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  full_matrix = 0;
   bench("VA, FM+AM+Sync, folder", 0, FC_SRC_VA, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
   bench("VA, FM+AM+Sync, folder, 4x", 1, FC_SRC_VA, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
   bench("FM2, FM+AM+Sync, folder", 0, FC_SRC_FM2, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);

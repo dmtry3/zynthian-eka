@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# Eka Fold widget. Tabs (top left): Osc, Mod, Fold, Gate, Env. Later stages add Delay, Matrix.
+# Eka Fold widget. Tabs (top left): Osc, Mod, Fold, Gate, Env, Matrix. Stage 5 adds Delay.
 # The skeleton follows the Eka Mist widget:
 # - Zynthian calls update() every 32 ms; monitors and marks are refreshed only every UPDATE_PERIOD.
 # - Curves are computed here from the parameters and redrawn only when a parameter changed, at most every
@@ -45,8 +45,12 @@
 # - FG1 (-> Gate) and FG2 (-> Timbre): Rise, Hold (Gate mode), Fall drawn with log-scaled lengths (5 ms and 2 s
 #   both readable), two cycles in Cycle mode; a running point from the outputs fg1, fg2 (0..1 rising, 1.5
 #   holding, 2..3 falling, 3 ended). Buttons Once / Gate / Cycle (LV2 parameters fg1_mode, fg2_mode).
-# - FG2 -> Timbre depth (LV2 parameter m_fg2_timbre, -100..100 %): a finger up/down on its box, a double tap
-#   resets it.
+# - FG2 -> Timbre depth (LV2 parameter m_fg2_timbre, -100..100 %, the same cell as on the Matrix tab): a finger
+#   up/down on its box, a double tap resets it.
+# Matrix (no knob page; the page shown stays):
+# - The mod matrix as in Eka Mist: sources (rows) x destinations (columns), LV2 parameters m_<source>_<destination>,
+#   -100..100 %. Colour = sign (blue +, orange -), brightness = depth; the names of the sources in use are lit.
+#   A finger up/down on a cell changes it, a double tap resets it; the line below tells what the touched cell does.
 
 import array
 import logging
@@ -62,8 +66,20 @@ from zyngui import zynthian_widget_base
 
 MULTI_INSTANCE = True
 
-TABS = ["Osc", "Mod", "Fold", "Gate", "Env"]
-TAB_GROUPS = ["g_osc", "g_mod", "g_timbre", "g_gate", "g_env"]  # knob page (port group) of each tab
+TABS = ["Osc", "Mod", "Fold", "Gate", "Env", "Matrix"]
+TAB_GROUPS = ["g_osc", "g_mod", "g_timbre", "g_gate", "g_env", None]  # knob page (port group) of each tab
+# Mod matrix: FC_MS_* and FC_MD_* of fold_core.h, in their order (symbol, name on the grid, what it is)
+MATRIX_SRCS = [("fg1", "FG1", "FG1"), ("fg2", "FG2", "FG2"), ("mod", "Mod", "Mod OSC"), ("rnd", "Rnd", "Random"),
+               ("vel", "Vel", "Velocity"), ("key", "Key", "Key"), ("wheel", "Wheel", "Mod wheel"),
+               ("at", "AT", "Aftertouch")]
+MATRIX_DSTS = [("pitch", "Pitch", "Pit"), ("harmonics", "Harm", "Hrm"), ("color", "Color", "Col"),
+               ("morph", "Morph", "Mor"), ("index", "Index", "Idx"), ("order", "Order", "Ord"),
+               ("symmetry", "Sym", "Sym"), ("timbre", "Timbre", "Tim"), ("lpg", "LPG", "LPG")]
+MATRIX_DST_NAMES = ["Pitch", "Harmonics", "Color", "Morph", "Mod Index", "Order", "Symmetry", "Timbre", "LPG"]
+MOD_SEMIS = 12.0                 # FC_MOD_SEMIS: Pitch 100 % = 12 semitones
+MOD_POS = (77, 171, 247)         # positive cells: blue (as in Eka Mist)
+MOD_NEG = (255, 146, 43)         # negative cells: orange
+CELL_BG = (34, 34, 34)
 SOURCES = ["Sine", "VA", "FM2", "Wave"]   # Source tiles: FC_SRC_* of fold_core.h, the scale points of Source
 VA_INTERVALS = (0.0, 7.01, 12.01, 19.01, 24.01)   # src/plaits/engines.cc
 WAVE_LEN = 128
@@ -511,6 +527,26 @@ def wave_points(values, x0, x1, y0, y1):
     return pts
 
 
+def mix(rgb, f, bg=CELL_BG):
+    """rgb blended into the cell background: f = 0 background, 1 the colour."""
+    f = max(0.0, min(1.0, f))
+    return "#%02x%02x%02x" % tuple(int(b + (c - b) * f) for c, b in zip(rgb, bg))
+
+
+def cell_sym(si, di):
+    return "m_%s_%s" % (MATRIX_SRCS[si][0], MATRIX_DSTS[di][0])
+
+
+def cell_text(si, di, v):
+    """What a cell does, for the line under the grid."""
+    head = "%s \u2192 %s %+d%%" % (MATRIX_SRCS[si][2], MATRIX_DST_NAMES[di], v)
+    if di == 0 and v:
+        head += " (%+.1f semitones at the top)" % (MOD_SEMIS * v / 100.0)
+    elif MATRIX_DSTS[di][0] == "lpg" and v:
+        head += " (the gate %s)" % ("opens wider" if v > 0 else "closes")
+    return head
+
+
 class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
 
     def __init__(self, parent):
@@ -529,6 +565,7 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         self.widget_canvas.bind("<ButtonRelease-1>", self._on_release)
         self.drag = None             # (symbol, start value, start y, min, max, px per step) on a value box
         self.last_tap = (None, 0.0)  # (symbol, time) for a double tap
+        self.mx_sel = None           # Matrix: the cell touched last (si, di)
         self._clear()
 
     def update(self):
@@ -576,6 +613,10 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         self.env_buttons = []        # (x0, y0, x1, y1, symbol, value)
         self.depth_box = None        # FG2 -> Timbre box
         self.env_curves = [None, None]   # (x0, y0, x1, y1) of each curve area
+        self.mx_items = None         # Matrix: (si, di) -> (rectangle, text)
+        self.mx_vals = {}            # (si, di) -> value drawn
+        self.mx_labels = []          # source name items
+        self.mx_info = None          # text of the line under the grid
 
     # ---------- plugin access ----------
     def _page_title(self):
@@ -663,7 +704,7 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         if group == self.last_group:
             return
         self.last_group = group
-        if group in TAB_GROUPS and TAB_GROUPS.index(group) != self.tab:
+        if group and group in TAB_GROUPS and TAB_GROUPS.index(group) != self.tab:
             self.tab = TAB_GROUPS.index(group)
             self._clear()
 
@@ -675,8 +716,9 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                     if i != self.tab:
                         self.tab = i
                         self._clear()
-                    self.last_group = TAB_GROUPS[i]
-                    self._select_page(i)                            # a tap on the shown tab also brings its page back
+                    if TAB_GROUPS[i]:                                # Matrix has no page: the page stays
+                        self.last_group = TAB_GROUPS[i]
+                        self._select_page(i)                        # a tap on the shown tab also brings its page back
                     self.refresh_gui()
             return
         if self.tab == 1:
@@ -717,6 +759,21 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                     return
                 self.last_tap = (sym, now)
                 self.drag = (sym, int(round(self._zval(sym, 0))), event.y, -100, 100, DRAG_PX)
+        if self.tab == 5:
+            cell = self._mx_cell(event.x, event.y)
+            if cell:
+                sym = cell_sym(*cell)
+                self.mx_sel = cell
+                now = time.monotonic()
+                if self.last_tap[0] == sym and now - self.last_tap[1] < DOUBLE_TAP:
+                    self._zset(sym, 0)                      # double tap: reset
+                    self.last_tap = (None, 0.0)
+                    self.drag = None
+                else:
+                    self.last_tap = (sym, now)
+                    self.drag = (sym, int(round(self._zval(sym, 0))), event.y, -100, 100, DRAG_PX)
+                self.refresh_gui()
+            return
         if self.tab == 0:
             for x0, y0, x1, y1, i in self.tile_boxes:
                 if x0 <= event.x <= x1 and y0 <= event.y <= y1:
@@ -769,6 +826,8 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             self._draw_gate()
         elif self.tab == 4:
             self._draw_env()
+        elif self.tab == 5:
+            self._draw_matrix()
 
     def _tab_metrics(self, title):
         """(font size, padding, widths, title shown): the tabs and the page title share the top line. The padding
@@ -1386,3 +1445,85 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                 c.coords(items[0], x - r, y - r, x + r, y + r)
             else:
                 c.create_oval(x - r, y - r, x + r, y + r, fill=MARK_COLOR, outline="", tags=(tag, "envpt"))
+
+    # ---------- Matrix tab ----------
+    def _mx_layout(self):
+        """(gx0, gy0, gx1, gy1, cw, ch, info_y, small font, column names): the grid under the column names, the
+        source names at its left, a line under it."""
+        w, h = max(self.width, 80), max(self.height, 60)
+        pad = 6
+        fam, fs = zynthian_gui_config.font_family, self._font_size()
+        small = max(6, fs - 3)
+        key = (w, h, small)
+        if getattr(self, "mx_metrics", (None,))[0] != key:
+            try:
+                f = tkinter.font.Font(family=fam, size=small)
+                label_w = max(f.measure(n) for _, n, _ in MATRIX_SRCS) + 8
+                line = f.metrics("linespace")
+                cw = (w - pad - pad - label_w) / float(len(MATRIX_DSTS))
+                names = [d[1] for d in MATRIX_DSTS]
+                if max(f.measure(n) for n in names) > cw - 3:
+                    names = [d[2] for d in MATRIX_DSTS]
+            except Exception:
+                label_w, line, names = small * 5, small * 2, [d[2] for d in MATRIX_DSTS]
+            self.mx_metrics = (key, label_w, line, names)
+        _, label_w, line, names = self.mx_metrics
+        top = self._header_h() + 2
+        gx0, gx1 = pad + label_w, w - pad
+        gy0 = top + line + 2
+        info_y = h - pad - line / 2.0
+        gy1 = info_y - line / 2.0 - 4
+        cw = (gx1 - gx0) / float(len(MATRIX_DSTS))
+        ch = (gy1 - gy0) / float(len(MATRIX_SRCS))
+        return gx0, gy0, gx1, gy1, cw, ch, info_y, small, names
+
+    def _mx_cell(self, x, y):
+        gx0, gy0, gx1, gy1, cw, ch = self._mx_layout()[:6]
+        if not (gx0 <= x < gx1 and gy0 <= y < gy1):
+            return None
+        return (min(int((y - gy0) / ch), len(MATRIX_SRCS) - 1), min(int((x - gx0) / cw), len(MATRIX_DSTS) - 1))
+
+    def _draw_matrix(self):
+        c = self.widget_canvas
+        gx0, gy0, gx1, gy1, cw, ch, info_y, small, names = self._mx_layout()
+        fam = zynthian_gui_config.font_family
+        if self.mx_items is None:                        # the static part: once per size / tab switch
+            c.delete("matrix")
+            self.mx_items, self.mx_vals, self.mx_labels, self.mx_info = {}, {}, [], None
+            for di, name in enumerate(names):
+                c.create_text(gx0 + (di + 0.5) * cw, gy0 - 2, anchor="s", text=name, font=(fam, small),
+                              fill=zynthian_gui_config.color_tx_off, tags="matrix")
+            for si, (_, name, _) in enumerate(MATRIX_SRCS):
+                self.mx_labels.append(c.create_text(gx0 - 4, gy0 + (si + 0.5) * ch, anchor="e", text=name,
+                                                    font=(fam, small), fill="#606060", tags="matrix"))
+                for di in range(len(MATRIX_DSTS)):
+                    x0, y0 = gx0 + di * cw + 1, gy0 + si * ch + 1
+                    r = c.create_rectangle(x0, y0, x0 + cw - 2, y0 + ch - 2, fill=mix(MOD_POS, 0), width=0,
+                                           tags="matrix")
+                    t = c.create_text(x0 + cw / 2 - 1, y0 + ch / 2 - 1, text="", font=(fam, small), fill="#000000",
+                                      tags="matrix")
+                    self.mx_items[(si, di)] = (r, t)
+            self.mx_line = c.create_text(6, info_y, anchor="w", text="",
+                                         font=(fam, small), fill=zynthian_gui_config.color_tx_off, tags="matrix")
+        used = [False] * len(MATRIX_SRCS)                # the cells: only the changed ones are touched
+        for (si, di), (r, t) in self.mx_items.items():
+            v = int(round(self._zval(cell_sym(si, di), 0)))
+            used[si] = used[si] or v != 0
+            if self.mx_vals.get((si, di)) == v:
+                continue
+            self.mx_vals[(si, di)] = v
+            f = min(abs(v), 100) / 100.0
+            c.itemconfigure(r, fill=mix(MOD_POS if v >= 0 else MOD_NEG, 0.25 + 0.75 * f if v else 0))
+            c.itemconfigure(t, text=("%+d" % v) if v else "", fill=("#000000" if f > 0.5 else "#e0e0e0"))
+        for si, item in enumerate(self.mx_labels):
+            want = zynthian_gui_config.color_tx if used[si] else "#606060"
+            if c.itemcget(item, "fill") != want:
+                c.itemconfigure(item, fill=want)
+        if self.mx_sel:
+            si, di = self.mx_sel
+            text = cell_text(si, di, self.mx_vals.get((si, di), 0))
+        else:
+            text = "A finger up / down on a cell: its depth; a double tap: 0"
+        if text != self.mx_info:
+            self.mx_info = text
+            c.itemconfigure(self.mx_line, text=text)

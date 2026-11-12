@@ -51,7 +51,7 @@ void fc_default_params(FcParams* p) {
   p->gate_decay = 0.3f;
   p->gate_res = 0.0f;
   p->level = 0.8f;
-  p->fg2_timbre = 0.0f;
+  memset(p->matrix, 0, sizeof p->matrix);
   p->mod_freq = 30.0f;            /* Ratio x1 */
   p->mod_index = 0.0f;            /* a plain sine until the Index is turned up */
   p->mod_shape = FC_MOD_SINE;
@@ -110,8 +110,13 @@ static void set_rate(FoldCore* c) {
   c->q_tail = 0;
 }
 
+const char* const fc_msrc_names[FC_NMSRC] = { "fg1", "fg2", "mod", "rnd", "vel", "key", "wheel", "at" };
+const char* const fc_mdst_names[FC_NMDST] = { "pitch", "harmonics", "color", "morph", "index", "order", "symmetry",
+                                              "timbre", "lpg" };
+
 void fc_init(FoldCore* c, float sr) {
   memset(c, 0, sizeof *c);
+  c->rng = 0x2545F491u;
   c->sr_out = sr > 1.0f ? sr : 48000.0f;
   for (int i = 0; i <= FC_SINE_N; i++)
     c->table[i] = (float)sin(2.0 * M_PI * (double)i / FC_SINE_N);
@@ -159,7 +164,16 @@ void fc_set_params(FoldCore* c, const FcParams* p) {
   }
   c->res_t = clampf(p->gate_res, 0.0f, 1.0f);
   c->lvl_t = clampf(p->level, 0.0f, 1.0f);
-  c->fg2_tim = clampf(p->fg2_timbre, -1.0f, 1.0f);
+  c->ncells = 0;                                     /* the non-empty cells, in a list: empty ones cost nothing */
+  for (int s = 0; s < FC_NMSRC; s++)
+    for (int d = 0; d < FC_NMDST; d++) {
+      const float a = clampf(p->matrix[s][d], -1.0f, 1.0f);
+      if (!(fabsf(a) > 1e-4f)) continue;
+      c->cell_src[c->ncells] = (uint8_t)s;
+      c->cell_dst[c->ncells] = (uint8_t)d;
+      c->cell_amt[c->ncells] = a;
+      c->ncells++;
+    }
   c->fmax = FC_LPG_FMAX < 0.45f * c->sr_out ? FC_LPG_FMAX : 0.45f * c->sr_out;
   c->mod_shape = p->mod_shape >= 0 && p->mod_shape < FC_NMOD_SHAPES ? p->mod_shape : FC_MOD_SINE;
   c->mod_mode = p->mod_mode >= 0 && p->mod_mode < FC_NMODES ? p->mod_mode : FC_MODE_RATIO;
@@ -183,11 +197,24 @@ static void trigger(FoldCore* c, FcVoice* v) {
   for (int i = 0; i < 2; i++) v->fg[i].seg = FC_SEG_RISE;   /* from where it is: a retrigger does not jump */
 }
 
+/* Random: -1..1 (a linear congruential generator; the top bits). */
+static float rnd_next(FoldCore* c) {
+  c->rng = c->rng * 1664525u + 1013904223u;
+  return (float)(int32_t)c->rng * (1.0f / 2147483648.0f);
+}
+
 static float velocity(int vel) { return FC_VEL_FLOOR + (1.0f - FC_VEL_FLOOR) * (float)vel / 127.0f; }
 
 static void start_voice(FoldCore* c, FcVoice* v, int note, int vel) {
   v->note = note;
   v->vel = velocity(vel);
+  v->velo = (float)vel / 127.0f;
+  v->at = 0.0f;
+  v->rnd = rnd_next(c);
+  v->mval = 0.0f;
+  v->snap = 1;                                       /* the first matrix values at once, not glided to */
+  v->cheb_o = -1.0f;
+  v->cheb_n = 0;
   v->phase = 0.0f;
   v->src = v->src_prev = c->src_t;
   v->xf = 1.0f;
@@ -197,7 +224,7 @@ static void start_voice(FoldCore* c, FcVoice* v, int note, int vel) {
   for (int i = 0; i < 2; i++) v->fg[i].lvl = 0.0f;
   v->vac = 0.0f;
   v->ic1 = v->ic2 = 0.0f;
-  v->coef_count = 0;
+  v->tick = 0;
   v->sg = 1.0f;
   v->wv = c->wv_t;
   v->wl = c->wl_t;
@@ -233,6 +260,7 @@ void fc_note_on(FoldCore* c, int note, int vel) {
     FcVoice* v = &c->v[i];
     if (v->stage == FC_PLAY && v->note == note) {
       v->vel = velocity(vel);
+      v->velo = (float)vel / 127.0f;
       v->held = 1;
       v->pedal = 0;
       v->age = ++c->clock;
@@ -273,6 +301,13 @@ void fc_set_sustain(FoldCore* c, int on) {
 }
 
 void fc_set_bend(FoldCore* c, float semitones) { c->bend = semitones; }
+void fc_set_wheel(FoldCore* c, float v) { c->wheel = clampf(v, 0.0f, 1.0f); }
+void fc_set_aftertouch(FoldCore* c, float v) { c->chan_at = clampf(v, 0.0f, 1.0f); }
+
+void fc_set_poly_aftertouch(FoldCore* c, int note, float v) {
+  for (int i = 0; i < FC_VOICES; i++)
+    if (c->v[i].stage == FC_PLAY && c->v[i].note == note) c->v[i].at = clampf(v, 0.0f, 1.0f);
+}
 
 void fc_all_notes_off(FoldCore* c) {
   c->sustain_pedal = 0;
@@ -422,9 +457,9 @@ static int shaper_coefs(float inc, float ws, float wm, float* a) {
   return n;
 }
 
-/* Principal cycles per sample (at sr) for a note. */
-static float note_inc(const FoldCore* c, float sr, int note) {
-  const float semis = (float)note - 69.0f + c->tune + c->bend;
+/* Principal cycles per sample (at sr) for a note, moved by `mod` semitones. */
+static float note_inc(const FoldCore* c, float sr, int note, float mod) {
+  const float semis = (float)note - 69.0f + c->tune + c->bend + mod;
   const float inc = 440.0f * exp2f(semis * (1.0f / 12.0f)) / sr;
   return inc < 0.5f ? inc : 0.5f;                    /* not above Nyquist */
 }
@@ -451,10 +486,57 @@ static void voice_source(const FoldCore* c, FcVoice* v) {
 /* The engine blocks of a voice for the coming samples (its Source and, while it fades, the old one). */
 static void voice_blocks(const FoldCore* c, const FcRate* r, const FcVoice* v, float inc, FeBlock* blk) {
   const float hz = inc * r->sr;
-  if (v->src != FC_SRC_SINE)
-    fe_block(&blk[0], v->src - 1, c->harm_t, c->color_t, c->morph_t, hz, r->sr, c->table, FC_SINE_N);
+  const float h = clampf(c->harm_t + v->md[FC_MD_HARM], 0.0f, 1.0f);
+  const float co = clampf(c->color_t + v->md[FC_MD_COLOR], 0.0f, 1.0f);
+  const float mo = clampf(c->morph_t + v->md[FC_MD_MORPH], 0.0f, 1.0f);
+  if (v->src != FC_SRC_SINE) fe_block(&blk[0], v->src - 1, h, co, mo, hz, r->sr, c->table, FC_SINE_N);
   if (v->xf < 1.0f && v->src_prev != FC_SRC_SINE)
-    fe_block(&blk[1], v->src_prev - 1, c->harm_t, c->color_t, c->morph_t, hz, r->sr, c->table, FC_SINE_N);
+    fe_block(&blk[1], v->src_prev - 1, h, co, mo, hz, r->sr, c->table, FC_SINE_N);
+}
+
+/* What a voice computes every FC_COEF_EVERY samples: the matrix, then what depends on it. */
+typedef struct {
+  float inc, dm;                  /* Principal and Mod OSC cycles per sample */
+  FeBlock blk[2];
+} FcCtl;
+
+static void voice_control(const FoldCore* c, FcVoice* v, const FcRate* r, FcCtl* x) {
+  for (int d = 0; d < FC_NMDST; d++) v->md[d] = 0.0f;
+  if (c->ncells > 0) {
+    float src[FC_NMSRC];
+    src[FC_MS_FG1] = v->fg[0].lvl;
+    src[FC_MS_FG2] = v->fg[1].lvl;
+    src[FC_MS_MOD] = v->mval;
+    src[FC_MS_RND] = v->rnd;
+    src[FC_MS_VEL] = v->velo;
+    src[FC_MS_KEY] = clampf(((float)v->note - 60.0f) * (1.0f / FC_KEY_SPAN), -1.0f, 1.0f);
+    src[FC_MS_WHEEL] = c->wheel;
+    src[FC_MS_AT] = v->at > c->chan_at ? v->at : c->chan_at;
+    for (int i = 0; i < c->ncells; i++) v->md[c->cell_dst[i]] += c->cell_amt[i] * src[c->cell_src[i]];
+  }
+  v->idx_g = clampf(c->idx_t + v->md[FC_MD_INDEX], 0.0f, 1.0f);
+  v->ord_g = clampf(c->ord_t + v->md[FC_MD_ORDER], 0.0f, 1.0f);
+  v->sym_g = clampf(c->sym_t + v->md[FC_MD_SYM], -1.0f, 1.0f);
+  v->tim_g = clampf(c->tim_t + v->md[FC_MD_TIMBRE], 0.0f, 1.0f);
+  v->lpg_g = clampf(1.0f + v->md[FC_MD_LPG], 0.0f, 2.0f);
+  if (v->snap) {
+    v->idx = v->idx_g; v->ord = v->ord_g; v->sym = v->sym_g; v->tim = v->tim_g;
+    v->snap = 0;
+  }
+  x->inc = note_inc(c, r->sr, v->note, FC_MOD_SEMIS * v->md[FC_MD_PITCH]);
+  x->dm = mod_inc(c, r->sr, x->inc);
+  voice_blocks(c, r, v, x->inc, x->blk);
+  /* the Saw / M weights (Order changes slowly; the crossfade with the folder is per sample), only when they are
+   * used (Order above 0) and Order or the pitch has moved */
+  const float o = v->ord;
+  if ((o > 0.0f || v->ord_g > 0.0f) && (o != v->cheb_o || x->inc != v->cheb_inc)) {
+    v->cheb_n = shaper_coefs(x->inc / r->step, o < 0.5f ? 2.0f * o : 2.0f - 2.0f * o,
+                             o < 0.5f ? 0.0f : 2.0f * o - 1.0f, v->cheb_a);
+    v->cheb_o = o;
+    v->cheb_inc = x->inc;
+  }
+  lpg_coefs(c, r, v);
+  v->tick = FC_COEF_EVERY;
 }
 
 /* One sample of a Source of a voice at the phase increment pinc. With a sync (t >= 0: the Mod OSC began a cycle
@@ -479,16 +561,9 @@ static inline float principal(const FoldCore* c, FcVoice* v, int src, const FeBl
 /* n samples of voice v at its rate r, added to l. */
 static void render_voice(FoldCore* c, FcVoice* v, const FcRate* r, float* l, uint32_t n) {
   const float k = r->smooth;
-  float a[FC_CHEB_MAX + 1];
-  FeBlock blk[2];
+  FcCtl cx;
+  voice_control(c, v, r, &cx);                        /* at the start of every chunk, then every FC_COEF_EVERY */
   {
-    float inc = note_inc(c, r->sr, v->note);         /* once per block: bend and tune come between blocks */
-    float dm = mod_inc(c, r->sr, inc);
-    voice_blocks(c, r, v, inc, blk);
-    /* the Saw / M weights for this block (Order changes slowly; the crossfade with the folder is per sample) */
-    float o = v->ord;
-    int ncheb = shaper_coefs(inc / r->step, o < 0.5f ? 2.0f * o : 2.0f - 2.0f * o,
-                             o < 0.5f ? 0.0f : 2.0f * o - 1.0f, a);
     for (uint32_t s = 0; s < n; s++) {
       if (v->stage == FC_STEAL) {
         v->sg -= v->steal_dec * r->step;
@@ -499,12 +574,6 @@ static void render_voice(FoldCore* c, FcVoice* v, const FcRate* r, float* l, uin
           }
           if (v->next_note >= 0) {
             start_voice(c, v, v->next_note, v->next_vel);
-            inc = note_inc(c, r->sr, v->note);
-            dm = mod_inc(c, r->sr, inc);
-            voice_blocks(c, r, v, inc, blk);
-            o = v->ord;
-            ncheb = shaper_coefs(inc / r->step, o < 0.5f ? 2.0f * o : 2.0f - 2.0f * o,
-                                 o < 0.5f ? 0.0f : 2.0f * o - 1.0f, a);
           } else {
             v->stage = FC_IDLE;
             break;
@@ -514,20 +583,22 @@ static void render_voice(FoldCore* c, FcVoice* v, const FcRate* r, float* l, uin
       /* function generators and the vactrol */
       const int gate = v->held || v->pedal;
       for (int i = 0; i < 2; i++) fg_step(&v->fg[i], c->fg_mode[i], gate, r->fg_rise_inc[i], r->fg_fall_inc[i]);
-      const float drive_in = v->fg[0].lvl * v->vel;
+      if (--v->tick <= 0) voice_control(c, v, r, &cx);   /* after a new note too (tick 0) */
+      float drive_in = v->fg[0].lvl * v->vel * v->lpg_g;
+      drive_in = drive_in < 1.0f ? drive_in : 1.0f;
       if (drive_in > v->vac) v->vac += (drive_in - v->vac) * r->vac_rise;
       else v->vac += (drive_in - v->vac) * r->vac_fall / (1.0f + FC_VAC_SLOW * (1.0f - v->vac));
       if (v->stage == FC_PLAY && v->fg[0].seg == FC_SEG_IDLE && v->vac < FC_GATE_OFF) {
         v->stage = FC_IDLE;
         break;
       }
-      v->idx += (c->idx_t - v->idx) * k;
+      v->idx += (v->idx_g - v->idx) * k;
       v->gfm += (c->fm_t - v->gfm) * k;
       v->gam += (c->am_t - v->gam) * k;
       v->gtim += (c->tim_route_t - v->gtim) * k;
-      v->tim += (c->tim_t - v->tim) * k;
-      v->ord += (c->ord_t - v->ord) * k;
-      v->sym += (c->sym_t - v->sym) * k;
+      v->tim += (v->tim_g - v->tim) * k;
+      v->ord += (v->ord_g - v->ord) * k;
+      v->sym += (v->sym_g - v->sym) * k;
       v->drv += (c->drv_t - v->drv) * k;
       v->wv += (c->wv_t - v->wv) * k;
       v->wl += (c->wl_t - v->wl) * k;
@@ -535,21 +606,25 @@ static void render_voice(FoldCore* c, FcVoice* v, const FcRate* r, float* l, uin
       v->res += (c->res_t - v->res) * k;
 
       /* Mod OSC */
-      const float m = mod_wave(c, c->mod_shape, v->mphase, dm);
-      v->mphase += dm;
+      const float m = mod_wave(c, c->mod_shape, v->mphase, cx.dm);
+      v->mval = m;
+      v->mphase += cx.dm;
       const int wrapped = v->mphase >= 1.0f;
-      if (wrapped) v->mphase -= 1.0f;
+      if (wrapped) {
+        v->mphase -= 1.0f;
+        v->rnd = rnd_next(c);                          /* Random: a new value every Mod OSC period */
+      }
 
       /* Principal: FM (linear, through zero), then Sync, then AM */
-      const float pinc = inc * (1.0f + FC_FM_DEPTH * v->gfm * v->idx * m);
+      const float pinc = cx.inc * (1.0f + FC_FM_DEPTH * v->gfm * v->idx * m);
       /* with Sync, the Mod OSC began a cycle ts samples ago: the Principal restarts there; the step is
        * band-limited on the late sample (y_prev, before the step) and this one (after it) */
-      const float ts = wrapped && c->sync ? v->mphase / dm : -1.0f;   /* 0..1 */
+      const float ts = wrapped && c->sync ? v->mphase / cx.dm : -1.0f;   /* 0..1 */
       float half = 0.0f;
-      float y = principal(c, v, v->src, &blk[0], pinc, ts, &half);
+      float y = principal(c, v, v->src, &cx.blk[0], pinc, ts, &half);
       if (v->xf < 1.0f) {                              /* Source changed: crossfade from the old one */
         float h2 = 0.0f;
-        const float y2 = principal(c, v, v->src_prev, &blk[1], pinc, ts, &h2);
+        const float y2 = principal(c, v, v->src_prev, &cx.blk[1], pinc, ts, &h2);
         y = v->xf * y + (1.0f - v->xf) * y2;
         half = v->xf * half + (1.0f - v->xf) * h2;
         v->xf += r->src_fade;
@@ -565,7 +640,7 @@ static void render_voice(FoldCore* c, FcVoice* v, const FcRate* r, float* l, uin
       const float x = out * ((1.0f - am) + am * m);    /* AM before the shapers: it changes the timbre too */
 
       /* Timbre section: folder, Saw / M (Chebyshev) blended by Order; Timbre = depth, Symmetry = offset */
-      float t = v->tim + FC_TIMBRE_MOD * v->gtim * v->idx * m + c->fg2_tim * v->fg[1].lvl;
+      float t = v->tim + FC_TIMBRE_MOD * v->gtim * v->idx * m;
       t = t < 0.0f ? 0.0f : t > 1.0f ? 1.0f : t;
       const float wf = v->ord < 0.5f ? 1.0f - 2.0f * v->ord : 0.0f;   /* the folder's share */
       float sh = 0.0f;
@@ -581,7 +656,7 @@ static void render_voice(FoldCore* c, FcVoice* v, const FcRate* r, float* l, uin
       if (wf < 1.0f) {
         float uc = x + v->sym;
         uc = uc < -1.0f ? -1.0f : uc > 1.0f ? 1.0f : uc;
-        const float ch = t > 0.0f ? chebyshev(a, ncheb, uc) : 0.0f;
+        const float ch = t > 0.0f && v->cheb_n > 0 ? chebyshev(v->cheb_a, v->cheb_n, uc) : 0.0f;
         sh += (1.0f - wf) * ((1.0f - t) * x + t * ch);
       }
       if (v->drv > 1e-4f) {
@@ -594,7 +669,6 @@ static void render_voice(FoldCore* c, FcVoice* v, const FcRate* r, float* l, uin
       v->dcy = dc;
 
       /* lopass gate: the low-pass (LP share), then the level (VCA share), the fade at the end */
-      if (--v->coef_count <= 0) { lpg_coefs(c, r, v); v->coef_count = FC_COEF_EVERY; }
       const float v3 = dc - v->ic2;
       const float v1 = v->a1 * v->ic1 + v->a2 * v3;
       const float v2 = v->ic2 + v->a2 * v->ic1 + v->a3 * v3;

@@ -859,7 +859,7 @@ static void test_fg2_timbre(void) {
   FcParams p;
   base_params(&p);
   p.fg_mode[1] = FC_FG_ONCE; p.fg_rise_ms[1] = 100; p.fg_fall_ms[1] = 100;
-  p.fg2_timbre = 1.0f;
+  p.matrix[FC_MS_FG2][FC_MD_TIMBRE] = 1.0f;
   fc_set_params(&core, &p);
   fc_note_on(&core, 57, 127);
   render(&core, 0, SR / 2);
@@ -1132,6 +1132,173 @@ static void test_soft_clip(void) {
   CHECK(peak(L, 0, SR) < 1.0f && all_finite(L, SR));
 }
 
+/* ---------- mod matrix (stage 4b) ---------- */
+static float h3_ratio(uint32_t at) { return (float)(amp_at(L + at, 4800, 660, SR) / amp_at(L + at, 4800, 220, SR)); }
+
+static void test_matrix_cells(void) {
+  /* the mod wheel (a steady source) through one cell at a time: each destination moves its way */
+  for (int d = 0; d < FC_NMDST; d++)
+    for (int sg = -1; sg <= 1; sg += 2) {
+      reset(SR);
+      FcParams p;
+      base_params(&p);
+      p.timbre = 0.5f; p.order = 0.5f; p.mod_index = 0.5f;   /* room both ways */
+      p.matrix[FC_MS_WHEEL][d] = 0.5f * (float)sg;
+      fc_set_params(&core, &p);
+      fc_set_wheel(&core, 1.0f);
+      fc_note_on(&core, 57, 127);
+      render(&core, 0, 256);
+      const FcVoice* v = &core.v[0];
+      CHECK(fabsf(v->md[d] - 0.5f * (float)sg) < 1e-6f);
+      for (int o = 0; o < FC_NMDST; o++) if (o != d) CHECK(v->md[o] == 0.0f);
+      if (d == FC_MD_INDEX) CHECK(fabsf(v->idx_g - (0.5f + 0.5f * (float)sg)) < 1e-6f);
+      if (d == FC_MD_ORDER) CHECK(fabsf(v->ord_g - (0.5f + 0.5f * (float)sg)) < 1e-6f);
+      if (d == FC_MD_TIMBRE) CHECK(fabsf(v->tim_g - (0.5f + 0.5f * (float)sg)) < 1e-6f);
+      if (d == FC_MD_SYM) CHECK(fabsf(v->sym_g - 0.5f * (float)sg) < 1e-6f);
+      if (d == FC_MD_LPG) CHECK(fabsf(v->lpg_g - (1.0f + 0.5f * (float)sg)) < 1e-6f);
+    }
+  /* what it sounds like: Pitch +50 % = 6 semitones; Timbre -100 % from the knob at 100 %: a sine; LPG -100 %: shut */
+  FcParams p;
+  reset(SR);
+  base_params(&p);
+  p.matrix[FC_MS_WHEEL][FC_MD_PITCH] = 0.5f;
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 69, 127);
+  render(&core, 0, SR / 2);
+  CHECK(fabs(freq(L, SR / 10, SR / 2, SR) - 440.0) < 0.2);   /* the wheel down: no change */
+  fc_set_wheel(&core, 1.0f);
+  render(&core, 0, SR / 2);
+  const double f = freq(L, SR / 10, SR / 2, SR);
+  printf("matrix: wheel -> Pitch 50 %%: %.2f Hz (%.2f expected)\n", f, 440.0 * sqrt(2.0));
+  CHECK(fabs(f - 440.0 * sqrt(2.0)) < 0.2);
+  reset(SR);
+  base_params(&p);
+  p.timbre = 1.0f;
+  p.matrix[FC_MS_WHEEL][FC_MD_TIMBRE] = -1.0f;
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 57, 127);
+  render(&core, 0, SR / 4);
+  const float before = h3_ratio(SR / 8);
+  fc_set_wheel(&core, 1.0f);
+  render(&core, 0, SR / 4);
+  const float after = h3_ratio(SR / 8);
+  printf("matrix: wheel -> Timbre -100 %%: h3 %.1f dB -> %.1f dB\n", db(before), db(after));
+  CHECK(before > 0.1f && after < 1e-3f);
+  reset(SR);
+  base_params(&p);
+  p.matrix[FC_MS_WHEEL][FC_MD_LPG] = -1.0f;
+  fc_set_params(&core, &p);
+  fc_set_wheel(&core, 1.0f);
+  fc_note_on(&core, 57, 127);
+  render(&core, 0, SR / 4);
+  CHECK(peak(L, 0, SR / 4) < 1e-6f);
+  render(&core, 0, SR / 2);                          /* FG1 has ended long ago: the voice is over */
+  fc_note_off(&core, 57);
+  render(&core, 0, SR);
+  CHECK(fc_active_voices(&core) == 0);
+}
+
+static void test_matrix_sources(void) {
+  FcParams p;
+  /* FG1, FG2, velocity, key, aftertouch: what each voice sees */
+  reset(SR);
+  base_params(&p);
+  for (int s = 0; s < FC_NMSRC; s++) p.matrix[s][s % FC_NMDST] = 1.0f;   /* source s -> destination s */
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 84, 64);                         /* 2 octaves up, half velocity */
+  fc_note_on(&core, 36, 127);
+  fc_set_poly_aftertouch(&core, 84, 1.0f);
+  render(&core, 0, SR / 2);                          /* both FGs (Gate) at the top */
+  const FcVoice* a = &core.v[0];
+  const FcVoice* b = &core.v[1];
+  CHECK(fabsf(a->md[FC_MS_FG1] - 1.0f) < 1e-6f && fabsf(a->md[FC_MS_FG2 % FC_NMDST] - 1.0f) < 1e-6f);
+  CHECK(fabsf(a->md[FC_MS_VEL] - 64.0f / 127.0f) < 1e-6f && fabsf(b->md[FC_MS_VEL] - 1.0f) < 1e-6f);
+  CHECK(fabsf(a->md[FC_MS_KEY] - 0.5f) < 1e-6f && fabsf(b->md[FC_MS_KEY] + 0.5f) < 1e-6f);
+  CHECK(fabsf(a->md[FC_MS_AT] - 1.0f) < 1e-6f && b->md[FC_MS_AT] == 0.0f);   /* AT: the 8th destination */
+  fc_set_aftertouch(&core, 0.5f);                    /* channel pressure: every voice, the larger one wins */
+  render(&core, 0, 256);
+  CHECK(fabsf(a->md[FC_MS_AT] - 1.0f) < 1e-6f && fabsf(b->md[FC_MS_AT] - 0.5f) < 1e-6f);
+
+  /* Mod OSC: the matrix sees its wave; Random: a new value every period (Free 10 Hz), within -1..1 */
+  reset(SR);
+  base_params(&p);
+  p.mod_mode = FC_MODE_FREE; p.mod_freq = free_units(10.0); p.mod_shape = FC_MOD_SQUARE;
+  p.matrix[FC_MS_MOD][FC_MD_HARM] = 1.0f;
+  p.matrix[FC_MS_RND][FC_MD_MORPH] = 1.0f;
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 57, 127);
+  int changes = 0, pos = 0, neg = 0;
+  float last = core.v[0].md[FC_MD_MORPH];
+  double sum = 0.0;
+  for (int b2 = 0; b2 < SR / BLOCK; b2++) {
+    fc_process(&core, L, R, BLOCK);
+    const float r = core.v[0].md[FC_MD_MORPH];
+    CHECK(r >= -1.0f && r <= 1.0f);
+    if (r != last) { changes++; sum += r; }
+    last = r;
+    pos += core.v[0].md[FC_MD_HARM] > 0.9f;
+    neg += core.v[0].md[FC_MD_HARM] < -0.9f;
+  }
+  printf("matrix: Random at a 10 Hz Mod OSC: %d new values in 1 s (mean %.2f); square Mod: %d / %d blocks +1 / -1\n",
+         changes, changes ? sum / changes : 0.0, pos, neg);
+  CHECK(changes >= 9 && changes <= 11);
+  CHECK(pos > 300 && neg > 300);
+}
+
+static void test_matrix_smooth(void) {
+  /* the wheel jumps 0 -> 1 into Timbre 100 %: the knob glides (no click); the empty matrix leaves the sound as
+   * it was */
+  reset(SR);
+  FcParams p;
+  base_params(&p);
+  p.matrix[FC_MS_WHEEL][FC_MD_TIMBRE] = 1.0f;
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 57, 127);
+  render(&core, 0, SR / 4);
+  fc_set_wheel(&core, 1.0f);
+  render(&core, SR / 4, SR / 4);
+  const float steady = max_curve(L, SR / 2 - SR / 10, SR / 2);
+  const float jump = max_curve(L, SR / 4, SR / 4 + SR / 50);
+  printf("matrix: wheel jump into Timbre: max second difference %.4f (steady %.4f)\n", jump, steady);
+  CHECK(jump <= 1.2f * steady);
+  /* the same note with the cell set but the wheel down = no matrix at all */
+  static float ref[SR / 4];
+  reset(SR);
+  base_params(&p);
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 57, 127);
+  render(&core, 0, SR / 4);
+  memcpy(ref, L, sizeof ref);
+  reset(SR);
+  base_params(&p);
+  p.matrix[FC_MS_WHEEL][FC_MD_TIMBRE] = 1.0f;
+  p.matrix[FC_MS_WHEEL][FC_MD_PITCH] = 1.0f;
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 57, 127);
+  render(&core, 0, SR / 4);
+  float diff = 0.0f;
+  for (int i = 0; i < SR / 4; i++) diff = fmaxf(diff, fabsf(L[i] - ref[i]));
+  CHECK(diff == 0.0f);
+}
+
+static void test_matrix_extremes(void) {
+  /* every cell at +-100 %, every source at its top, all sources: no NaN, the output stays bounded */
+  for (int sg = -1; sg <= 1; sg += 2) {
+    reset(SR);
+    FcParams p;
+    base_params(&p);
+    p.source = FC_SRC_WAVE; p.route_am = 1; p.route_sync = 1; p.mod_index = 1.0f;
+    for (int s = 0; s < FC_NMSRC; s++)
+      for (int d = 0; d < FC_NMDST; d++) p.matrix[s][d] = (float)sg;
+    fc_set_params(&core, &p);
+    fc_set_wheel(&core, 1.0f);
+    fc_set_aftertouch(&core, 1.0f);
+    for (int i = 0; i < FC_VOICES; i++) fc_note_on(&core, 30 + 25 * i, 127);
+    render(&core, 0, SR / 2);
+    CHECK(all_finite(L, SR / 2) && peak(L, 0, SR / 2) <= 1.0f);
+  }
+}
+
 int main(void) {
   test_pitch();
   test_release();
@@ -1160,6 +1327,10 @@ int main(void) {
   test_resonance_peak();
   test_gate_switch();
   test_fg2_timbre();
+  test_matrix_cells();
+  test_matrix_sources();
+  test_matrix_smooth();
+  test_matrix_extremes();
   test_soft_clip();
   test_engine_pitch();
   test_engine_knobs();
