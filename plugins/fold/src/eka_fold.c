@@ -30,6 +30,7 @@ enum {
   P_TIMBRE, P_ORDER, P_SYMMETRY, P_DRIVE,
   P_GATE_MODE, P_GATE_DECAY, P_GATE_RES, P_LEVEL,
   P_FG1_RISE, P_FG1_FALL, P_FG2_RISE, P_FG2_FALL,
+  P_ENGINES_4X,                          /* TEMPORARY: to compare 2x and 4x engine voices by ear */
   P_END,                                 /* number of control inputs */
   P_MIDI_IN = P_END, P_OUT_L, P_OUT_R, P_NOTIFY,
   P_NOTE0,                               /* note1..4 */
@@ -158,6 +159,7 @@ static void read_params(Fold* S) {
   p.order = ctl(S, P_ORDER, p.order * 100.0f) * 0.01f;
   p.symmetry = ctl(S, P_SYMMETRY, p.symmetry * 100.0f) * 0.01f;
   p.drive = ctl(S, P_DRIVE, p.drive * 100.0f) * 0.01f;
+  p.engines_4x = (int)lrintf(ctl(S, P_ENGINES_4X, 0.0f));
   fc_set_params(&S->core, &p);
 }
 

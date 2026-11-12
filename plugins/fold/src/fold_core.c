@@ -66,7 +66,8 @@ void fc_default_params(FcParams* p) {
   p->drive = 0.0f;
 }
 
-/* Kaiser-windowed halfband low-pass for 2x -> 1x: zero at every second tap, cut at a quarter of the 2x rate. */
+/* Kaiser-windowed halfband low-pass of n taps (odd): zero at every second tap from the middle, cut at a quarter
+ * of its input rate. */
 static double bessel_i0(double x) {
   double sum = 1.0, term = 1.0;
   for (int k = 1; k < 40; k++) {
@@ -76,12 +77,12 @@ static double bessel_i0(double x) {
   return sum;
 }
 
-static void make_halfband(float* h) {
+static void make_halfband(float* h, int n) {
   const double beta = 8.0;
-  const int mid = (FC_HB_TAPS - 1) / 2;
+  const int mid = (n - 1) / 2;
   double sum = 0.0;
   double t[FC_HB_TAPS];
-  for (int i = 0; i < FC_HB_TAPS; i++) {
+  for (int i = 0; i < n; i++) {
     const int m = i - mid;
     const double r = (double)m / mid;
     const double w = bessel_i0(beta * sqrt(1.0 - r * r)) / bessel_i0(beta);
@@ -89,16 +90,24 @@ static void make_halfband(float* h) {
     t[i] = sinc * w;
     sum += t[i];
   }
-  for (int i = 0; i < FC_HB_TAPS; i++) h[i] = (float)(t[i] / sum);
+  for (int i = 0; i < n; i++) h[i] = (float)(t[i] / sum);
 }
 
-/* Everything that depends on the rate. */
+/* Everything that depends on the rate (and not on the parameters). */
 static void set_rate(FoldCore* c) {
-  c->sr = c->sr_out * (float)FC_OS;
-  c->smooth = 1.0f - expf(-1.0f / (FC_SMOOTH_MS * 0.001f * c->sr));
-  c->dc_r = 1.0f - 2.0f * (float)M_PI * FC_DC_HZ / c->sr;
-  c->src_fade = 1.0f / (FC_SRC_FADE_MS * 0.001f * c->sr);
+  for (int i = 0; i < 2; i++) {
+    FcRate* r = &c->rt[i];
+    const int os = i ? FC_OS_HI : FC_OS;
+    r->sr = c->sr_out * (float)os;
+    r->step = 1.0f / (float)os;
+    r->smooth = 1.0f - expf(-1.0f / (FC_SMOOTH_MS * 0.001f * r->sr));
+    r->dc_r = 1.0f - 2.0f * (float)M_PI * FC_DC_HZ / r->sr;
+    r->src_fade = 1.0f / (FC_SRC_FADE_MS * 0.001f * r->sr);
+  }
   memset(c->hbuf, 0, sizeof c->hbuf);
+  memset(c->dbuf, 0, sizeof c->dbuf);
+  memset(c->qbuf, 0, sizeof c->qbuf);
+  c->q_tail = 0;
 }
 
 void fc_init(FoldCore* c, float sr) {
@@ -107,7 +116,8 @@ void fc_init(FoldCore* c, float sr) {
   for (int i = 0; i <= FC_SINE_N; i++)
     c->table[i] = (float)sin(2.0 * M_PI * (double)i / FC_SINE_N);
   for (int i = 0; i < FC_VOICES; i++) c->v[i].note = -1;
-  make_halfband(c->hb);
+  make_halfband(c->hb, FC_HB_TAPS);
+  make_halfband(c->hb4, FC_HB4_TAPS);
   set_rate(c);
   FcParams p;
   fc_default_params(&p);
@@ -130,15 +140,23 @@ void fc_set_params(FoldCore* c, const FcParams* p) {
   c->color_t = clampf(p->color, 0.0f, 1.0f);
   c->morph_t = clampf(p->morph, 0.0f, 1.0f);
   for (int i = 0; i < 2; i++) {
-    c->fg_rise_inc[i] = seg_inc(c->sr, p->fg_rise_ms[i]);
-    c->fg_fall_inc[i] = seg_inc(c->sr, p->fg_fall_ms[i]);
+    c->fg_rise_ms[i] = p->fg_rise_ms[i];
+    c->fg_fall_ms[i] = p->fg_fall_ms[i];
     c->fg_mode[i] = p->fg_mode[i] >= 0 && p->fg_mode[i] < FC_NFG_MODES ? p->fg_mode[i] : FC_FG_GATE;
   }
   const int gm = p->gate_mode >= 0 && p->gate_mode < FC_NGATE_MODES ? p->gate_mode : FC_GATE_COMBO;
   c->wv_t = gm != FC_GATE_LP ? 1.0f : 0.0f;
   c->wl_t = gm != FC_GATE_VCA ? 1.0f : 0.0f;
-  c->vac_rise = 1.0f / (FC_VAC_RISE_MS * 0.001f * c->sr);
-  c->vac_fall = 1.0f / (fc_decay_ms(p->gate_decay) * 0.001f * c->sr);
+  c->decay_ms = fc_decay_ms(p->gate_decay);
+  for (int i = 0; i < 2; i++) {
+    FcRate* r = &c->rt[i];
+    for (int g = 0; g < 2; g++) {
+      r->fg_rise_inc[g] = seg_inc(r->sr, c->fg_rise_ms[g]);
+      r->fg_fall_inc[g] = seg_inc(r->sr, c->fg_fall_ms[g]);
+    }
+    r->vac_rise = 1.0f / (FC_VAC_RISE_MS * 0.001f * r->sr);
+    r->vac_fall = 1.0f / (c->decay_ms * 0.001f * r->sr);
+  }
   c->res_t = clampf(p->gate_res, 0.0f, 1.0f);
   c->lvl_t = clampf(p->level, 0.0f, 1.0f);
   c->fg2_tim = clampf(p->fg2_timbre, -1.0f, 1.0f);
@@ -152,6 +170,7 @@ void fc_set_params(FoldCore* c, const FcParams* p) {
   c->fm_t = p->route_fm ? 1.0f : 0.0f;
   c->am_t = p->route_am ? 1.0f : 0.0f;
   c->sync = p->route_sync != 0;
+  c->engines_4x = p->engines_4x != 0;
   c->tim_route_t = p->route_timbre ? 1.0f : 0.0f;
   c->tim_t = clampf(p->timbre, 0.0f, 1.0f);
   c->ord_t = clampf(p->order, 0.0f, 1.0f);
@@ -173,6 +192,7 @@ static void start_voice(FoldCore* c, FcVoice* v, int note, int vel) {
   v->src = v->src_prev = c->src_t;
   v->xf = 1.0f;
   if (v->src != FC_SRC_SINE) fe_reset(&v->fe[v->src - 1]);
+  v->hi = c->engines_4x && v->src != FC_SRC_SINE;    /* its rate for the whole note (see FC_OS_HI) */
   if (c->mod_mode != FC_MODE_FREE) v->mphase = 0.0f;   /* Free keeps running: the LFO does not restart */
   for (int i = 0; i < 2; i++) v->fg[i].lvl = 0.0f;
   v->vac = 0.0f;
@@ -202,7 +222,7 @@ static void start_voice(FoldCore* c, FcVoice* v, int note, int vel) {
 }
 
 static void steal(FoldCore* c, FcVoice* v) {
-  if (v->stage != FC_STEAL) v->steal_dec = v->sg / (FC_STEAL_MS * 0.001f * c->sr) + 1e-9f;
+  if (v->stage != FC_STEAL) v->steal_dec = v->sg / (FC_STEAL_MS * 0.001f * c->sr_out) + 1e-9f;
   v->stage = FC_STEAL;
 }
 
@@ -295,10 +315,10 @@ static inline void fg_step(FcFg* g, int mode, int gate, float rise, float fall) 
 }
 
 /* Low-pass coefficients (TPT state-variable filter) for the vactrol state. */
-static void lpg_coefs(const FoldCore* c, FcVoice* v) {
+static void lpg_coefs(const FoldCore* c, const FcRate* r, FcVoice* v) {
   const float ctl = 1.0f - v->wl + v->wl * v->vac;               /* LP share follows g, the rest stays open */
   float fc = FC_LPG_FMIN * powf(c->fmax / FC_LPG_FMIN, ctl);
-  const float g = tanf((float)M_PI * fc / c->sr);
+  const float g = tanf((float)M_PI * fc / r->sr);
   const float k = 1.41421356f * (1.0f - 0.96f * v->res);         /* Butterworth at 0, Q ~ 18 at 100 % */
   v->a1 = 1.0f / (1.0f + g * (g + k));
   v->a2 = g * v->a1;
@@ -386,12 +406,12 @@ static inline float fast_tanh(float x) {           /* rational, exact at +-3 (= 
   return x * (27.0f + x2) / (27.0f + 9.0f * x2);
 }
 
-/* Chebyshev weights of the Saw / M blend for a voice: Saw 1/n, M 1/n for odd n, each scaled to a peak of 1
- * (its value at u = 1, the sum of the weights), then mixed by ws : wm. Returns N. */
+/* Chebyshev weights of the Saw / M blend for a voice at inc (cycles per plugin sample): Saw 1/n, M 1/n for odd n,
+ * each scaled to a peak of 1 (its value at u = 1, the sum of the weights), then mixed by ws : wm. Returns N. */
 static int shaper_coefs(float inc, float ws, float wm, float* a) {
-  /* below 0.45 of the plugin rate, not of the 2x one: harmonics between 24 and 28 kHz would pass the halfband
-   * in part and fold back */
-  int n = inc > 0.0f ? (int)(0.45f / ((float)FC_OS * inc)) : FC_CHEB_MAX;
+  /* below 0.45 of the plugin rate, not of the voice's one: harmonics between 24 and 28 kHz would pass the
+   * halfband in part and fold back */
+  int n = inc > 0.0f ? (int)(0.45f / inc) : FC_CHEB_MAX;
   n = n < 1 ? 1 : n > FC_CHEB_MAX ? FC_CHEB_MAX : n;
   float hs = 0.0f, hm = 0.0f;
   for (int k = 1; k <= n; k++) { hs += 1.0f / (float)k; if (k & 1) hm += 1.0f / (float)k; }
@@ -402,36 +422,39 @@ static int shaper_coefs(float inc, float ws, float wm, float* a) {
   return n;
 }
 
-/* Principal cycles per sample for a note. */
-static float note_inc(const FoldCore* c, int note) {
+/* Principal cycles per sample (at sr) for a note. */
+static float note_inc(const FoldCore* c, float sr, int note) {
   const float semis = (float)note - 69.0f + c->tune + c->bend;
-  const float inc = 440.0f * exp2f(semis * (1.0f / 12.0f)) / c->sr;
+  const float inc = 440.0f * exp2f(semis * (1.0f / 12.0f)) / sr;
   return inc < 0.5f ? inc : 0.5f;                    /* not above Nyquist */
 }
 
 /* Mod OSC cycles per sample for a voice playing at inc. */
-static float mod_inc(const FoldCore* c, float inc) {
+static float mod_inc(const FoldCore* c, float sr, float inc) {
   float m;
-  if (c->mod_mode == FC_MODE_FREE) m = c->mod_hz / c->sr;
+  if (c->mod_mode == FC_MODE_FREE) m = c->mod_hz / sr;
   else if (c->mod_mode == FC_MODE_KEY) m = inc * exp2f(c->mod_semis * (1.0f / 12.0f));
   else m = inc * c->mod_ratio;
   return m < 0.49f ? m : 0.49f;
 }
 
-/* The engine blocks of a voice for the coming samples (its Source and, while it fades, the old one); a change of
- * Source starts a crossfade (a new one waits until the last has ended). */
-static void voice_blocks(const FoldCore* c, FcVoice* v, float inc, FeBlock* blk) {
+/* A change of Source starts a crossfade (a new one waits until the last has ended); the voice keeps its rate. */
+static void voice_source(const FoldCore* c, FcVoice* v) {
   if (v->xf >= 1.0f && v->src != c->src_t) {
     v->src_prev = v->src;
     v->src = c->src_t;
     v->xf = 0.0f;
     if (v->src != FC_SRC_SINE) fe_reset(&v->fe[v->src - 1]);
   }
-  const float hz = inc * c->sr;
+}
+
+/* The engine blocks of a voice for the coming samples (its Source and, while it fades, the old one). */
+static void voice_blocks(const FoldCore* c, const FcRate* r, const FcVoice* v, float inc, FeBlock* blk) {
+  const float hz = inc * r->sr;
   if (v->src != FC_SRC_SINE)
-    fe_block(&blk[0], v->src - 1, c->harm_t, c->color_t, c->morph_t, hz, c->sr, c->table, FC_SINE_N);
+    fe_block(&blk[0], v->src - 1, c->harm_t, c->color_t, c->morph_t, hz, r->sr, c->table, FC_SINE_N);
   if (v->xf < 1.0f && v->src_prev != FC_SRC_SINE)
-    fe_block(&blk[1], v->src_prev - 1, c->harm_t, c->color_t, c->morph_t, hz, c->sr, c->table, FC_SINE_N);
+    fe_block(&blk[1], v->src_prev - 1, c->harm_t, c->color_t, c->morph_t, hz, r->sr, c->table, FC_SINE_N);
 }
 
 /* One sample of a Source of a voice at the phase increment pinc. With a sync (t >= 0: the Mod OSC began a cycle
@@ -453,32 +476,35 @@ static inline float principal(const FoldCore* c, FcVoice* v, int src, const FeBl
   return sine(c, v->phase);
 }
 
-/* n samples of all voices at the voices' rate into l (overwritten). */
-static void render_voices(FoldCore* c, float* l, uint32_t n) {
-  memset(l, 0, n * sizeof(float));
-  const float k = c->smooth;
+/* n samples of voice v at its rate r, added to l. */
+static void render_voice(FoldCore* c, FcVoice* v, const FcRate* r, float* l, uint32_t n) {
+  const float k = r->smooth;
   float a[FC_CHEB_MAX + 1];
   FeBlock blk[2];
-  for (int vi = 0; vi < FC_VOICES; vi++) {
-    FcVoice* v = &c->v[vi];
-    if (v->stage == FC_IDLE) continue;
-    float inc = note_inc(c, v->note);                /* once per block: bend and tune come between blocks */
-    float dm = mod_inc(c, inc);
-    voice_blocks(c, v, inc, blk);
+  {
+    float inc = note_inc(c, r->sr, v->note);         /* once per block: bend and tune come between blocks */
+    float dm = mod_inc(c, r->sr, inc);
+    voice_blocks(c, r, v, inc, blk);
     /* the Saw / M weights for this block (Order changes slowly; the crossfade with the folder is per sample) */
     float o = v->ord;
-    int ncheb = shaper_coefs(inc, o < 0.5f ? 2.0f * o : 2.0f - 2.0f * o, o < 0.5f ? 0.0f : 2.0f * o - 1.0f, a);
+    int ncheb = shaper_coefs(inc / r->step, o < 0.5f ? 2.0f * o : 2.0f - 2.0f * o,
+                             o < 0.5f ? 0.0f : 2.0f * o - 1.0f, a);
     for (uint32_t s = 0; s < n; s++) {
       if (v->stage == FC_STEAL) {
-        v->sg -= v->steal_dec;
+        v->sg -= v->steal_dec * r->step;
         if (v->sg <= 0.0f) {
+          if (v->next_note >= 0 && (c->engines_4x && c->src_t != FC_SRC_SINE) != v->hi) {
+            v->sg = 0.0f;                                /* the new note needs the other rate: from the next chunk */
+            break;
+          }
           if (v->next_note >= 0) {
             start_voice(c, v, v->next_note, v->next_vel);
-            inc = note_inc(c, v->note);
-            dm = mod_inc(c, inc);
-            voice_blocks(c, v, inc, blk);
+            inc = note_inc(c, r->sr, v->note);
+            dm = mod_inc(c, r->sr, inc);
+            voice_blocks(c, r, v, inc, blk);
             o = v->ord;
-            ncheb = shaper_coefs(inc, o < 0.5f ? 2.0f * o : 2.0f - 2.0f * o, o < 0.5f ? 0.0f : 2.0f * o - 1.0f, a);
+            ncheb = shaper_coefs(inc / r->step, o < 0.5f ? 2.0f * o : 2.0f - 2.0f * o,
+                                 o < 0.5f ? 0.0f : 2.0f * o - 1.0f, a);
           } else {
             v->stage = FC_IDLE;
             break;
@@ -487,10 +513,10 @@ static void render_voices(FoldCore* c, float* l, uint32_t n) {
       }
       /* function generators and the vactrol */
       const int gate = v->held || v->pedal;
-      for (int i = 0; i < 2; i++) fg_step(&v->fg[i], c->fg_mode[i], gate, c->fg_rise_inc[i], c->fg_fall_inc[i]);
+      for (int i = 0; i < 2; i++) fg_step(&v->fg[i], c->fg_mode[i], gate, r->fg_rise_inc[i], r->fg_fall_inc[i]);
       const float drive_in = v->fg[0].lvl * v->vel;
-      if (drive_in > v->vac) v->vac += (drive_in - v->vac) * c->vac_rise;
-      else v->vac += (drive_in - v->vac) * c->vac_fall / (1.0f + FC_VAC_SLOW * (1.0f - v->vac));
+      if (drive_in > v->vac) v->vac += (drive_in - v->vac) * r->vac_rise;
+      else v->vac += (drive_in - v->vac) * r->vac_fall / (1.0f + FC_VAC_SLOW * (1.0f - v->vac));
       if (v->stage == FC_PLAY && v->fg[0].seg == FC_SEG_IDLE && v->vac < FC_GATE_OFF) {
         v->stage = FC_IDLE;
         break;
@@ -526,7 +552,7 @@ static void render_voices(FoldCore* c, float* l, uint32_t n) {
         const float y2 = principal(c, v, v->src_prev, &blk[1], pinc, ts, &h2);
         y = v->xf * y + (1.0f - v->xf) * y2;
         half = v->xf * half + (1.0f - v->xf) * h2;
-        v->xf += c->src_fade;
+        v->xf += r->src_fade;
         if (v->xf > 1.0f) v->xf = 1.0f;
       }
       if (ts >= 0.0f) {
@@ -563,12 +589,12 @@ static void render_voices(FoldCore* c, float* l, uint32_t n) {
         sh = (1.0f - v->drv) * sh + v->drv * fast_tanh(kd * sh) / fast_tanh(kd);
       }
       /* DC blocker before the gate: silence stays exact silence */
-      const float dc = sh - v->dcx + c->dc_r * v->dcy;
+      const float dc = sh - v->dcx + r->dc_r * v->dcy;
       v->dcx = sh;
       v->dcy = dc;
 
       /* lopass gate: the low-pass (LP share), then the level (VCA share), the fade at the end */
-      if (--v->coef_count <= 0) { lpg_coefs(c, v); v->coef_count = FC_COEF_EVERY; }
+      if (--v->coef_count <= 0) { lpg_coefs(c, r, v); v->coef_count = FC_COEF_EVERY; }
       const float v3 = dc - v->ic2;
       const float v1 = v->a1 * v->ic1 + v->a2 * v3;
       const float v2 = v->ic2 + v->a2 * v->ic1 + v->a3 * v3;
@@ -586,12 +612,42 @@ static void render_voices(FoldCore* c, float* l, uint32_t n) {
 }
 
 void fc_process(FoldCore* c, float* l, float* r, uint32_t n) {
-  /* 2x: render a chunk after the history, then the halfband taps for every second sample */
-  const int hist = FC_HB_TAPS - 1;
+  /* per chunk: the 2x voices (FC_HB4_DELAY late) and the 4x voices taken down to 2x make the 2x mix, then the
+   * halfband taps for every second sample of it */
+  const int hist = FC_HB_TAPS - 1, qhist = FC_HB4_TAPS - 1, mid4 = (FC_HB4_TAPS - 1) / 2;
   float* in = c->hbuf + hist;
+  float* din = c->dbuf + FC_HB4_DELAY;
+  float* qin = c->qbuf + qhist;
   for (uint32_t done = 0; done < n; done += FC_CHUNK) {
     const uint32_t k = n - done < FC_CHUNK ? n - done : FC_CHUNK;
-    render_voices(c, in, FC_OS * k);
+    const uint32_t k2 = FC_OS * k;
+    memset(din, 0, k2 * sizeof(float));
+    memset(qin, 0, FC_OS_HI * k * sizeof(float));
+    int any_hi = 0;
+    for (int vi = 0; vi < FC_VOICES; vi++) {
+      FcVoice* v = &c->v[vi];
+      if (v->stage == FC_IDLE) continue;
+      if (v->stage == FC_STEAL && v->sg <= 0.0f && v->next_note >= 0) start_voice(c, v, v->next_note, v->next_vel);
+      voice_source(c, v);
+      if (v->hi) render_voice(c, v, &c->rt[1], qin, FC_OS_HI * k);
+      else render_voice(c, v, &c->rt[0], din, k2);
+      any_hi |= v->hi;
+    }
+    for (uint32_t j = 0; j < k2; j++) in[j] = c->dbuf[j];   /* FC_HB4_DELAY behind */
+    if (any_hi || c->q_tail > 0) {
+      /* 4x -> 2x, as late as the 2x voices: output j is centred on 4x sample 2j - mid4 (a voice's 4x sample 2q
+       * comes half a 2x sample before its 2x sample q would, the one-sample-late Principal is half as late) */
+      for (uint32_t j = 0; j < k2; j++) {
+        const float* x = qin + 2 * j;
+        float acc = c->hb4[mid4] * x[-mid4];
+        for (int i = 1; i < FC_HB4_TAPS; i += 2) acc += c->hb4[i] * x[-i];   /* the other non-zero taps are odd */
+        in[j] += acc;
+      }
+      memmove(c->qbuf, qin + FC_OS_HI * k - qhist, qhist * sizeof(float));
+      if (any_hi) c->q_tail = qhist;                 /* 4x samples of silence until its history is silent */
+      else c->q_tail = c->q_tail > (int)(FC_OS_HI * k) ? c->q_tail - (int)(FC_OS_HI * k) : 0;
+    }
+    memmove(c->dbuf, din + k2 - FC_HB4_DELAY, FC_HB4_DELAY * sizeof(float));
     for (uint32_t j = 0; j < k; j++) {
       const float* x = in + 2 * j + 1;                 /* newest input of this output sample */
       float acc = c->hb[(FC_HB_TAPS - 1) / 2] * x[-(FC_HB_TAPS - 1) / 2];
@@ -600,7 +656,7 @@ void fc_process(FoldCore* c, float* l, float* r, uint32_t n) {
       const float a2 = acc * acc, a8 = a2 * a2 * a2 * a2;
       l[done + j] = acc / sqrtf(sqrtf(sqrtf(1.0f + a8)));
     }
-    memmove(c->hbuf, in + 2 * k - hist, hist * sizeof(float));
+    memmove(c->hbuf, in + k2 - hist, hist * sizeof(float));
   }
   memcpy(r, l, n * sizeof(float));
 }

@@ -1,7 +1,8 @@
 /* CPU of fold_core: 4 voices for 20 s of audio at 48 kHz, in blocks of 64, for a few settings.
  * Only measurements on the Pi 5 count (TZ 8, A4); in WSL it only shows the relative cost.
  * Pi 5, 2026-11-11 (2x + ADAA): 1.4 % of one core with everything on, 4.3 % with the Saw shaper too;
- * 2026-11-12 (stage 3, with the lopass gate): 2.3 / 2.1 / 6.7 %.
+ * 2026-11-12 (stage 3, with the lopass gate): 2.3 / 2.1 / 6.7 %; stage 4a: VA 3.7, FM2 3.1, Wave 6.3 % (2x, before
+ * the engines went to 4x).
  * Usage: fold_bench (built by scripts/bench.sh with the plugin's flags) */
 #include <stdio.h>
 #include <time.h>
@@ -21,13 +22,14 @@ static double now(void) {
   return t.tv_sec + t.tv_nsec * 1e-9;
 }
 
-static void bench(const char* label, int source, int shape, float index, int fm, int am, int sync, float timbre,
+static void bench(const char* label, int hi, int source, int shape, float index, int fm, int am, int sync, float timbre,
                   float order) {
   fc_init(&core, SR);
   FcParams p;
   fc_default_params(&p);
   /* the defaults: FG1 Gate, the lopass gate in Combo (low-pass and level): the full voice */
   p.source = source;
+  p.engines_4x = hi;
   p.mod_shape = shape; p.mod_index = index; p.route_fm = fm; p.route_am = am; p.route_sync = sync;
   p.mod_freq = 40.0f;                                 /* Ratio 3/2-ish: sync and FM both busy */
   p.timbre = timbre; p.order = order;
@@ -46,12 +48,16 @@ static void bench(const char* label, int source, int shape, float index, int fm,
 }
 
 int main(void) {
-  printf("fold_core, %d voices, 48 kHz (voices at %dx), blocks of %d:\n", FC_VOICES, FC_OS, BLOCK);
-  bench("sine, Index 0, Timbre 0", FC_SRC_SINE, FC_MOD_SINE, 0.0f, 1, 0, 0, 0.0f, 0.0f);
-  bench("saw Mod, FM+AM+Sync, folder", FC_SRC_SINE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
-  bench("saw Mod, FM+AM+Sync, folder + Saw shaper", FC_SRC_SINE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.25f);
-  bench("VA, FM+AM+Sync, folder", FC_SRC_VA, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
-  bench("FM2, FM+AM+Sync, folder", FC_SRC_FM2, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
-  bench("Wave, FM+AM+Sync, folder", FC_SRC_WAVE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  printf("fold_core, %d voices, 48 kHz (voices at %dx; the 4x rows: engines at %dx), blocks of %d:\n", FC_VOICES, FC_OS,
+         FC_OS_HI, BLOCK);
+  bench("sine, Index 0, Timbre 0", 0, FC_SRC_SINE, FC_MOD_SINE, 0.0f, 1, 0, 0, 0.0f, 0.0f);
+  bench("saw Mod, FM+AM+Sync, folder", 0, FC_SRC_SINE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  bench("saw Mod, FM+AM+Sync, folder + Saw shaper", 0, FC_SRC_SINE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.25f);
+  bench("VA, FM+AM+Sync, folder", 0, FC_SRC_VA, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  bench("VA, FM+AM+Sync, folder, 4x", 1, FC_SRC_VA, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  bench("FM2, FM+AM+Sync, folder", 0, FC_SRC_FM2, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  bench("FM2, FM+AM+Sync, folder, 4x", 1, FC_SRC_FM2, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  bench("Wave, FM+AM+Sync, folder", 0, FC_SRC_WAVE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  bench("Wave, FM+AM+Sync, folder, 4x", 1, FC_SRC_WAVE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
   return 0;
 }
