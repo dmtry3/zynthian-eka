@@ -1,6 +1,7 @@
 /* Eka Bloom: LV2 wrapper around arp_core.
  * Transport rolling: ticks follow time:Position (steps on the song grid).
- * Transport stopped: ticks come from an internal clock at the host tempo. */
+ * Transport stopped: ticks come from an internal clock at the host tempo.
+ * Rolling, the pattern step follows the song grid (step 1 on tick 0), see arp_set_sync(). */
 #include <lv2/core/lv2.h>
 #include <lv2/atom/atom.h>
 #include <lv2/atom/forge.h>
@@ -110,11 +111,15 @@ static void handle_pos(Arp* A, const LV2_Atom_Object* obj) {
                       A->time_bar, &bar, A->time_bpb, &bpb, 0);
   if (bpm) { double v = numv(A, bpm, A->bpm); if (v >= 20 && v <= 400) A->bpm = v; }
   if (bpb) { int v = (int)(numv(A, bpb, 4) + 0.5); if (v >= 1 && v <= 16) A->bpb = v; }
+  const int was_rolling = A->rolling;
   if (speed) A->rolling = numv(A, speed, 0) != 0;
+  arp_set_sync(&A->core, A->rolling);
   /* Stopped: the position is frozen, keep the internal clock running. */
   if (!A->rolling || !bar || !bb) return;
   double ht = (numv(A, bar, 0) * A->bpb + numv(A, bb, 0)) * ARP_PPQN;
-  if (fabs(ht - A->clk) > JUMP_TICKS) arp_silence(&A->core, A->clk, core_emit, A);
+  const int jump = fabs(ht - A->clk) > JUMP_TICKS;
+  if (jump) arp_silence(&A->core, A->clk, core_emit, A);
+  if (jump || !was_rolling) arp_restart(&A->core);   /* every start (and jump) plays the same */
   A->clk = ht;
 }
 

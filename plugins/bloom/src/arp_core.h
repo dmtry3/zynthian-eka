@@ -91,6 +91,7 @@ typedef struct {
   int off_sixths;               /* its share of the swing delay, for Accent */
   float drunk_w;                /* Drunk random walk 0..1 */
   uint32_t count;               /* grid steps since the pattern restarted; row r uses step count % lane_len[r] */
+  int sync;                     /* transport rolling: the pattern step is the grid step of the song (count unused) */
   uint32_t step_count;          /* number of the last step (1-based) for display; 0 when idle */
   uint32_t rng;
 
@@ -152,6 +153,11 @@ int  arp_note_on(ArpCore* a, uint8_t ch, uint8_t note, uint8_t vel);
 void arp_note_off(ArpCore* a, uint8_t ch, uint8_t note);
 /* All notes off: clears pressed keys and the latched chord. */
 void arp_release_all(ArpCore* a);
+/* Sync on (transport rolling): row r plays step (grid step of the song) % lane_len[r], so step 1 falls on
+ * tick 0 of the song and every start sounds the same. Off: steps count from the first key of a chord. */
+void arp_set_sync(ArpCore* a, int on);
+/* Transport started or jumped: the note order (and Loop, Repeats) starts again; the held chord stays. */
+void arp_restart(ArpCore* a);
 /* Generate events with tick in [from, to). Steps fall on multiples of step_ticks. */
 void arp_process(ArpCore* a, double from, double to, arp_emit_fn emit, void* user);
 /* Turn off the generated note now (transport jump etc.). */

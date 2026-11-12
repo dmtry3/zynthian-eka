@@ -1373,6 +1373,66 @@ static void test_passing(void) {
   failures += a.key != 2;
 }
 
+/* ---------- transport sync ---------- */
+
+static int first_vel(const Log* l) {
+  for (int i = 0; i < l->n; i++) if ((l->ev[i].st & 0xF0) == 0x90) return l->ev[i].d2;
+  return -1;
+}
+
+static void test_sync(void) {
+  ArpCore a; Log l = {0};
+  /* rolling: the chord pressed on grid step 5 plays pattern step 6, not step 1 */
+  arp_init(&a); arp_set_length(&a, 8);
+  for (int i = 0; i < 8; i++) arp_set_step(&a, i, 100, 0, 10 * (i + 1), 0);
+  arp_set_sync(&a, 1);
+  arp_note_on(&a, 0, 60, 100);
+  arp_process(&a, 240 * 5, 240 * 6, collect, &l);
+  int ok = first_vel(&l) == 60 && a.step_count == 6;
+  printf("%s: sync: pattern step follows the song grid (grid 5 -> step 6)\n", ok ? "PASS" : "FAIL");
+  if (!ok) { print_log("got", &l); failures++; }
+
+  /* the old count does not matter: after 3 steps from a stopped clock, the start at tick 0 plays step 1 */
+  arp_init(&a); arp_set_length(&a, 8);
+  for (int i = 0; i < 8; i++) arp_set_step(&a, i, 100, 0, 10 * (i + 1), 0);
+  arp_note_on(&a, 0, 60, 100);
+  l.n = 0; arp_process(&a, 100000, 100000 + 240 * 3, collect, &l);   /* free clock, steps 1..3 */
+  arp_set_sync(&a, 1); arp_restart(&a);
+  l.n = 0; arp_process(&a, 0, 240, collect, &l);
+  ok = first_vel(&l) == 10;
+  printf("%s: sync: transport start plays step 1 whatever played before\n", ok ? "PASS" : "FAIL");
+  if (!ok) { print_log("got", &l); failures++; }
+
+  /* rows of different length lock to the song too: grid 7 -> Vel row of length 3 plays its step 2 */
+  arp_init(&a); arp_set_length(&a, 8);
+  for (int i = 0; i < 8; i++) arp_set_step(&a, i, 100, 0, 10 * (i + 1), 0);
+  arp_set_lane_length(&a, ARP_LANE_VEL, 3);
+  arp_set_sync(&a, 1);
+  arp_note_on(&a, 0, 60, 100);
+  l.n = 0; arp_process(&a, 240 * 7, 240 * 8, collect, &l);
+  ok = first_vel(&l) == 20;
+  printf("%s: sync: row lengths follow the song grid (grid 7, length 3 -> step 2)\n", ok ? "PASS" : "FAIL");
+  if (!ok) { print_log("got", &l); failures++; }
+
+  /* not rolling: steps count from the first key, as before */
+  arp_init(&a); arp_set_length(&a, 8);
+  for (int i = 0; i < 8; i++) arp_set_step(&a, i, 100, 0, 10 * (i + 1), 0);
+  arp_note_on(&a, 0, 60, 100);
+  l.n = 0; arp_process(&a, 240 * 5, 240 * 6, collect, &l);
+  ok = first_vel(&l) == 10;
+  printf("%s: no sync: the pattern starts from step 1 at the first key\n", ok ? "PASS" : "FAIL");
+  if (!ok) { print_log("got", &l); failures++; }
+
+  /* restart: the note order starts again from the lowest note, the chord stays */
+  arp_init(&a); chord(&a); arp_set_sync(&a, 1);
+  l.n = 0; arp_process(&a, 0, 240 * 2, collect, &l);                 /* 60 64 */
+  arp_restart(&a);
+  l.n = 0; arp_process(&a, 240 * 8, 240 * 9, collect, &l);
+  ok = l.n > 0 && l.ev[0].d1 == 60;
+  printf("%s: restart: note order begins again, chord kept\n", ok ? "PASS" : "FAIL");
+  if (!ok) { print_log("got", &l); failures++; }
+}
+
 int main(void) {
   test_up_one_block();
   test_chunks();
@@ -1412,6 +1472,7 @@ int main(void) {
   test_repeats();
   test_groove();
   test_passing();
+  test_sync();
   printf(failures ? "\n%d FAILED\n" : "\nALL PASSED\n", failures);
   return failures ? 1 : 0;
 }

@@ -152,6 +152,9 @@ static void reset_order(ArpCore* a) {
   a->rpt_left = 0; a->rpt_k = 0;
 }
 
+void arp_set_sync(ArpCore* a, int on) { a->sync = on != 0; }
+void arp_restart(ArpCore* a) { reset_order(a); }
+
 static int find(const ArpNote* v, int n, uint8_t ch, uint8_t note) {
   for (int i = 0; i < n; i++) if (v[i].ch == ch && v[i].note == note) return i;
   return -1;
@@ -382,8 +385,8 @@ void arp_mutate_step(ArpCore* a, int i, int r) {
   a->dev[i][r] = (int8_t)(d + ok[n == 2 ? (int)(mrnd(a) & 1u) : 0]);
 }
 
-/* One step of the grid, played at tick s (grid step + groove offset). */
-static void do_step(ArpCore* a, double s, arp_emit_fn emit, void* user) {
+/* One step of the grid: grid step number g (from tick 0), played at tick s (grid step + groove offset). */
+static void do_step(ArpCore* a, long long g, double s, arp_emit_fn emit, void* user) {
   if (a->nheld == 0) {
     if (a->sounding && a->tied) note_off_at(a, s, emit, user);   /* a tie has nothing to go to */
     a->step_count = 0;
@@ -417,8 +420,9 @@ static void do_step(ArpCore* a, double s, arp_emit_fn emit, void* user) {
   a->has_last = 1; a->last_ch = n->ch; a->last_note = n->note;
 
   /* each row reads its own step */
+  const uint64_t pos = a->sync ? (uint64_t)(g > 0 ? g : 0) : a->count;
   int idx[ARP_NLANES];
-  for (int r = 0; r < ARP_NLANES; r++) idx[r] = (int)(a->count % (uint32_t)a->lane_len[r]);
+  for (int r = 0; r < ARP_NLANES; r++) idx[r] = (int)(pos % (uint64_t)a->lane_len[r]);
   if (chance(a, a->mut_steps)) {                          /* mutation: one row drifts, heard right away */
     const int r = (int)(mrnd(a) % ARP_NLANES);
     arp_mutate_step(a, idx[r], r);
@@ -431,7 +435,7 @@ static void do_step(ArpCore* a, double s, arp_emit_fn emit, void* user) {
   const int velp  = arp_drifted(a, ARP_LANE_VEL, sv->vel, a->dev[idx[ARP_LANE_VEL]][ARP_LANE_VEL]);
   const int gate  = arp_drifted(a, ARP_LANE_GATE, sg->gate, a->dev[idx[ARP_LANE_GATE]][ARP_LANE_GATE]);
   const int sdev  = a->dev[idx[ARP_LANE_SHIFT]][ARP_LANE_SHIFT];
-  a->count++;
+  a->count = (uint32_t)pos + 1;
   a->step_count = a->count;
 
   int play = prob >= 100 || (prob > 0 && (int)(rnd(a) % 100u) < prob);
@@ -501,7 +505,7 @@ void arp_process(ArpCore* a, double from, double to, arp_emit_fn emit, void* use
       continue;
     }
     if (!step_due) break;
-    do_step(a, e, emit, user);
+    do_step(a, llround(s / step), e, emit, user);
     a->done_s = s;
     s += step;
   }
