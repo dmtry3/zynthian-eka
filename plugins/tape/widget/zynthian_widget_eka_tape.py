@@ -415,6 +415,13 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
         except Exception:
             return False
 
+    def _zcmd(self, sym, value):
+        """Команда (tsel, psel, wsel, sreset, pit_reset, tmute): плагин сам возвращает параметр в 0, но
+        контроллер Zynthian узнаёт об этом не сразу. Если там ещё старое значение, повторное нажатие
+        Zynthian не отправит (значение не изменилось). Поэтому сначала 0, потом команда."""
+        self._zset(sym, 0)
+        return self._zset(sym, value)
+
     def _zfloat(self, sym, default=0.0):
         try:
             return float(self.processor.controllers_dict[sym].value)
@@ -438,11 +445,11 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                 if what == "screen":  # кнопка Loop <-> Mixer слева от темпа
                     self.settings_open = False
                     self.speed_slot = None
-                    self._zset("wsel", arg)
+                    self._zcmd("wsel", arg)
                     self.refresh_gui()
                     return
                 if what in ("tsel", "psel"):  # касание строки дорожки / точки парта (этап 7б)
-                    self._zset(what, arg)
+                    self._zcmd(what, arg)
                     self.refresh_gui()
                     return
                 if what == "sclose":
@@ -450,7 +457,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                     self.refresh_gui()
                     return
                 if what == "sreset":
-                    self._zset("sreset", arg)
+                    self._zcmd("sreset", arg)
                     self.refresh_gui()
                     return
                 if what == "snap":
@@ -464,13 +471,13 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                     self.refresh_gui()
                     return
                 if what == "preset":
-                    self._zset("pit_reset", arg)
+                    self._zcmd("pit_reset", arg)
                     self.refresh_gui()
                     return
                 if what == "pval":  # двойной тап по значению высоты — 0
                     now = time.monotonic()
                     if self.last_tap[0] == ("pval", arg) and now - self.last_tap[1] < DOUBLE_TAP_S:
-                        self._zset("pit_reset", arg)
+                        self._zcmd("pit_reset", arg)
                         self.last_tap = (None, 0.0)
                     else:
                         self.last_tap = (("pval", arg), now)
@@ -479,7 +486,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                 if what == "sval":  # двойной тап по значению скорости — сброс
                     now = time.monotonic()
                     if self.last_tap[0] == ("sval", arg) and now - self.last_tap[1] < DOUBLE_TAP_S:
-                        self._zset("sreset", arg)
+                        self._zcmd("sreset", arg)
                         self.last_tap = (None, 0.0)
                     else:
                         self.last_tap = (("sval", arg), now)
@@ -506,7 +513,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                 if what == "chm":
                     self._zset(arg, (self._zval(arg) + 1) % 3)  # ST -> L -> R
                 elif what == "mute":
-                    self._zset("tmute", arg)
+                    self._zcmd("tmute", arg)
                 elif what == "lim":
                     self._zset("limiter", 1 - self._zval("limiter"))
                 elif what == "gear":
@@ -1387,7 +1394,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
         bw = (w - 2 * pad - 3 * gap) / 4.0
         buttons = [("1×", "sreset", slot + 1, GREEN),
                    ("PITCH 0", "preset", slot + 1, GREEN),
-                   ("SNAP " + SNAP_NAMES[snap % 3], "snap", None, TEXT),
+                   ("SPEED: " + SNAP_NAMES[snap % 3], "snap", None, TEXT),
                    ("GLIDE %d ms" % self._zval("spd_glide"), "sglide", None, TEXT)]
         for k, (label, kind, arg, colr) in enumerate(buttons):
             bx = x0 + pad + k * (bw + gap)

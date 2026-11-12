@@ -520,7 +520,7 @@ def main():
     tap("sslider", "spd2", fx=2.0 / 3.0 + 0.002)  # почти 1×: прилипает
     check("у 1× слайдер прилипает", cd["spd2"].value == 1.0)
     tap("snap", None)
-    check("привязка: SEMI", cd["spd_snap"].value == 1 and "SNAP SEMI" in texts(wdg))
+    check("привязка: SEMI", cd["spd_snap"].value == 1 and "SPEED: SEMI" in texts(wdg))
     tap("sglide", None)
     check("плавный ход: следующее значение", cd["spd_glide"].value == 250)
     tap("sreset", 2)
@@ -549,6 +549,9 @@ def main():
     no_overlap("800x480, Speed с PITCH")
     tap("preset", 2)
     check("кнопка PITCH 0 — pit_reset=2", cd["pit_reset"].value == 2)
+    w0 = getattr(cd["pit_reset"], "writes", 0)
+    tap("preset", 2)  # плагин ещё не вернул 0: повторное нажатие всё равно уходит (0, потом 2)
+    check("повторное PITCH 0 доходит", cd["pit_reset"].value == 2 and cd["pit_reset"].writes == w0 + 2)
     cd["pit_reset"].value = 0
     tap("pval", 2)
     tap("pval", 2)
