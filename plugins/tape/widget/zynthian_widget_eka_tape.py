@@ -95,6 +95,20 @@ def frac_to_db(f):
 
 SPEED_MIN_ST, SPEED_MAX_ST = -24.0, 12.0     # 0,25× .. 2× в полутонах
 SNAP_NAMES = ("FREE", "SEMI", "OCT")
+PITCH_MAX = 12.0        # сдвиг высоты дорожки (этап 8), ± полутонов
+PITCH_MAGNET = 0.15     # у целого полутона ползунок прилипает, между ними — плавно
+PSTAT_MSG = {1: ("PITCH OFF: CPU", RED), 2: ("PITCH N/A", RED)}  # порт o_pstat
+
+
+def pitch_snap(v):
+    """Ползунок высоты: в пределах PITCH_MAGNET от целого полутона — целый, иначе как есть (0,01)."""
+    v = max(-PITCH_MAX, min(PITCH_MAX, v))
+    r = round(v)
+    return float(r) if abs(v - r) < PITCH_MAGNET else round(v, 2)
+
+
+def pitch_label(v):
+    return "%+d" % round(v) if abs(v - round(v)) < 0.005 else "%+.2f" % v
 GLIDE_STEPS = [0, 50, 100, 150, 250, 400, 600, 1000, 1500, 2000]
 
 
@@ -167,6 +181,7 @@ SETTINGS = [
         ("sl", "tempo_glide", "TEMPO GLIDE", [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 4000], _ms),
         ("seg", "spd_snap", "SPEED SNAP", SNAP_NAMES),
         ("sl", "spd_glide", "SPEED GLIDE", GLIDE_STEPS, lambda v: "OFF" if v == 0 else _ms(v)),
+        ("seg", "pitch_q", "PITCH QUALITY", ("ECO", "HIGH")),
     ]),
     ("TRACK LENGTH", [
         ("sl", "len%d" % k, "TRACK %d" % k, list(range(17)), _len) for k in range(1, 7)
@@ -206,7 +221,7 @@ SETTING_DEFAULTS = {"rec_order": 0, "mode": 1, "mute_q": 2, "part_q": 3, "tempo_
                     "spd_glide": 150, "fade_out": 200, "fade_in": 200, "rev_time": 50,
                     "len1": 0, "len2": 0, "len3": 0, "len4": 0, "len5": 0, "len6": 0, "limiter": 1, "grid": 1,
                     "latency": 0, "hold_ms": 500, "reset_ms": 1000,
-                    "pool_mb": 2048, "count_in": 0, "rec_thresh": 0}
+                    "pool_mb": 2048, "count_in": 0, "rec_thresh": 0, "pitch_q": 0}
 
 
 def mix(c1, c2, f):
@@ -448,6 +463,19 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                     self._zset("spd_glide", GLIDE_STEPS[(i + 1) % len(GLIDE_STEPS)])
                     self.refresh_gui()
                     return
+                if what == "preset":
+                    self._zset("pit_reset", arg)
+                    self.refresh_gui()
+                    return
+                if what == "pval":  # двойной тап по значению высоты — 0
+                    now = time.monotonic()
+                    if self.last_tap[0] == ("pval", arg) and now - self.last_tap[1] < DOUBLE_TAP_S:
+                        self._zset("pit_reset", arg)
+                        self.last_tap = (None, 0.0)
+                    else:
+                        self.last_tap = (("pval", arg), now)
+                    self.refresh_gui()
+                    return
                 if what == "sval":  # двойной тап по значению скорости — сброс
                     now = time.monotonic()
                     if self.last_tap[0] == ("sval", arg) and now - self.last_tap[1] < DOUBLE_TAP_S:
@@ -457,7 +485,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                         self.last_tap = (("sval", arg), now)
                     self.refresh_gui()
                     return
-                if what == "sslider":
+                if what in ("sslider", "pslider"):
                     self.drag = (what, arg, (x0, y0, x1, y1))
                     self._drag_to(event)
                     self.refresh_gui()
@@ -498,6 +526,10 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             if abs(12.0 * math.log2(sp)) < 0.15:
                 sp = 1.0  # у 1× прилипает
             self._zset(sym, round(max(0.25, min(2.0, sp)), 4))
+            return
+        if what == "pslider":  # ползунок встроен с полями по 10 px с каждой стороны
+            f = (event.x - (x0 + 10)) / max(1.0, x1 - x0 - 20)
+            self._zset(sym, pitch_snap((max(0.0, min(1.0, f)) * 2.0 - 1.0) * PITCH_MAX))
             return
         if what == "fader":
             f = (y1 - event.y) / max(1.0, y1 - y0)
@@ -716,6 +748,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             "rec_next": bool(flags >> 24 & 1),
             "widget": int(m.get("o_widget", 0)),
             "count": int(round(m.get("o_count", 0.0))),  # счёт перед записью на активной: долей до начала
+            "pstat": int(round(m.get("o_pstat", 0.0))),  # сдвиг высоты: 0 работает, 1 перегрузка, 2 недоступен
             "quantize": self._zval("mode") == 1,
             "rop": self._zval("rec_order") == 1,
             "tracks": [],
@@ -731,6 +764,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                 "locked": bool(locks >> i & 1),
                 "speed": float(m.get("o_spd%d" % (i + 1), 1.0)),
                 "espeed": float(m.get("o_espd%d" % (i + 1), 1.0)),
+                "pitch": self._zfloat("pit%d" % (int(m.get("o_part", 0)) % n * n + i + 1), 0.0),
             })
         if not 0 <= st["act"] < len(ACTIONS):
             st["act"] = 0
@@ -898,7 +932,8 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             # неподвижная часть строки: перерисовывается, только когда меняются её данные
             d = self._read_peaks(i) if (has_loop or state == ST_REC) else None
             key = (x0, y0, x1, y1, n, state, color, has_loop, recorded, current, pending,
-                   blink if pending else None, round(tr["speed"], 2), st["quantize"], st["bpm"], st["bpb"],
+                   blink if pending else None, round(tr["speed"], 2), round(tr["pitch"], 2), st["quantize"], st["bpm"],
+                   st["bpb"],
                    round(tr["len"], 2) if state == ST_REC else tr["len"],
                    (d["seq"], d["live"], d.get("rec") and d["rec"][0]) if d else None,
                    self._zval("len%d" % (i + 1)) if state == ST_REC else None,
@@ -914,9 +949,10 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                         c.create_oval(px - pr, cy - pr, px + pr, cy + pr, fill=col, width=0)
                     else:
                         c.create_oval(px - pr, cy - pr, px + pr, cy + pr, outline=col, width=max(1, int(pr * 0.35)))
-                sp = tr["speed"]
-                self._text(pcx, cy + u * 0.37, "%.2f×" % sp, u * 0.8, u * 0.22,
-                           ORANGE if abs(sp - 1.0) > 1e-3 else DIM, bold=abs(sp - 1.0) > 1e-3)
+                sp, pt = tr["speed"], tr["pitch"]
+                changed = abs(sp - 1.0) > 1e-3 or abs(pt) > 1e-3
+                label = "%.2f×" % sp if abs(pt) < 1e-3 else "%.2f× %s" % (sp, pitch_label(pt))
+                self._text(pcx, cy + u * 0.37, label, u * 0.8, u * 0.22, ORANGE if changed else DIM, bold=changed)
                 self.hits.append((x0 + part_w, cy + u * 0.22, x0 + part_w + u * 0.85, cy + u * 0.5, "speed", i))
                 # касание (этап 7б): точка — переход в парт i, остальная строка — активная дорожка
                 # (метка скорости выше в списке: она проверяется первой)
@@ -1283,53 +1319,74 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
         self.hits.append((mid - cw * 0.35, fy0 - kh, mid + cw * 0.35, fy1 + kh, "fader", sym))
 
     def _speed_view(self, st, x0, y0, x1, y1):
-        """Скорость дорожки как у ленты: крупное значение, слайдер 0,25–2× с полутонами, 1×, привязка, ход."""
+        """Скорость дорожки как у ленты (0,25–2×) и сдвиг высоты без смены темпа (±12 полутонов):
+        сверху значения (двойной тап — сброс), под ними два ползунка, внизу кнопки."""
         c = self.cv
         c.section("speed")
         slot = self.speed_slot
         n = st["part"] * st["n"] + slot + 1
         sym = "spd%d" % n
+        psym = "pit%d" % n
         snap = self._zval("spd_snap")
         sp = speed_snap(self._zfloat(sym, 1.0), snap)
         st_val = 12.0 * math.log2(sp) if sp > 0 else 0.0
+        pt = self._zfloat(psym, 0.0)
         tr = st["tracks"][slot]
         w, hh = x1 - x0, y1 - y0
         pad = max(10, w * 0.04)
-        # значение (двойной тап — сброс к 1×)
-        vh = hh * 0.3
+        # значения: скорость слева, высота справа
+        vh = hh * 0.2
         col = ORANGE if abs(sp - 1.0) > 1e-3 else TEXT
-        self._text(x0 + w * 0.3, y0 + vh / 2 + 4, "%.2f×" % sp, w * 0.45, vh, col)
-        self._text(x0 + w * 0.72, y0 + vh * 0.38 + 4, "%+.1f st" % st_val, w * 0.3, vh * 0.42, DIM)
+        pcol = ORANGE if abs(pt) > 1e-3 else TEXT
+        self._text(x0 + w * 0.2, y0 + vh / 2 + 4, "%.2f×" % sp, w * 0.3, vh, col)
+        self._text(x0 + w * 0.42, y0 + vh * 0.32 + 4, "%+.1f st" % st_val, w * 0.12, vh * 0.4, DIM, bold=False)
         if abs(tr["espeed"] - tr["speed"]) > 1e-3:  # следование темпу поверх ручной
-            self._text(x0 + w * 0.72, y0 + vh * 0.8 + 4, "tempo %.3f×" % tr["espeed"], w * 0.3, vh * 0.3, DIM,
+            self._text(x0 + w * 0.42, y0 + vh * 0.78 + 4, "tempo %.3f×" % tr["espeed"], w * 0.12, vh * 0.32, DIM,
                        bold=False)
-        self.hits.append((x0, y0, x0 + w * 0.6, y0 + vh + 8, "sval", slot + 1))
-        # слайдер
+        self.hits.append((x0, y0, x0 + w * 0.5, y0 + vh + 8, "sval", slot + 1))
+        pmsg = PSTAT_MSG.get(st.get("pstat", 0))
+        self._text(x0 + w * 0.56, y0 + vh * 0.32 + 4, "PITCH", w * 0.08, vh * 0.4, DIM, bold=False)
+        self._text(x0 + w * 0.78, y0 + vh / 2 + 4, pitch_label(pt) + " st", w * 0.3, vh, pcol)
+        self.hits.append((x0 + w * 0.5, y0, x1, y0 + vh + 8, "pval", slot + 1))
         sx0, sx1 = x0 + pad, x1 - pad
-        sy = y0 + vh + hh * 0.22
-        span = SPEED_MAX_ST - SPEED_MIN_ST
-        c.create_line(sx0, sy, sx1, sy, fill="#3a3a3a", width=4)
-        lab_h = max(10, hh * 0.08)
-        for semi in range(int(SPEED_MIN_ST), int(SPEED_MAX_ST) + 1):
-            x = sx0 + (sx1 - sx0) * (semi - SPEED_MIN_ST) / span
-            octave = semi % 12 == 0
-            th = hh * (0.07 if octave else 0.03)
-            c.create_line(x, sy - th, x, sy + th, fill="#b0b0b0" if octave else "#4a4a4a", width=2 if octave else 1)
-            if octave:  # крайние подписи — внутрь от края
-                anc = "w" if semi == int(SPEED_MIN_ST) else ("e" if semi == int(SPEED_MAX_ST) else "center")
-                lx = x - 4 if anc == "w" else (x + 4 if anc == "e" else x)
-                self._text(lx, sy + th + lab_h * 0.7, "%g×" % (2.0 ** (semi / 12.0)), (sx1 - sx0) / 7.0, lab_h,
-                           DIM, anc, bold=False)
-        kx = sx0 + (sx1 - sx0) * (max(SPEED_MIN_ST, min(SPEED_MAX_ST, st_val)) - SPEED_MIN_ST) / span
-        kh = hh * 0.09
-        c.create_rectangle(kx - 7, sy - kh, kx + 7, sy + kh, fill=col, width=0)
-        self.hits.append((sx0 - 10, sy - hh * 0.12, sx1 + 10, sy + hh * 0.12, "sslider", sym))
-        # кнопки: 1×, привязка, плавный ход
-        by0 = y1 - hh * 0.22
-        bh = hh * 0.2
+        lab_h = max(10, hh * 0.07)
+
+        def ticks(sy, lo, hi, major, label):
+            c.create_line(sx0, sy, sx1, sy, fill="#3a3a3a", width=4)
+            for v in range(int(lo), int(hi) + 1):
+                x = sx0 + (sx1 - sx0) * (v - lo) / (hi - lo)
+                big = v % major == 0
+                th = hh * (0.06 if big else 0.025)
+                c.create_line(x, sy - th, x, sy + th, fill="#b0b0b0" if big else "#4a4a4a", width=2 if big else 1)
+                if big:  # крайние подписи — внутрь от края
+                    anc = "w" if v == int(lo) else ("e" if v == int(hi) else "center")
+                    lx = x - 4 if anc == "w" else (x + 4 if anc == "e" else x)
+                    self._text(lx, sy + th + lab_h * 0.7, label(v), (sx1 - sx0) / 7.0, lab_h, DIM, anc, bold=False)
+
+        def knob(sy, frac, colr):
+            kx = sx0 + (sx1 - sx0) * max(0.0, min(1.0, frac))
+            kh = hh * 0.07
+            c.create_rectangle(kx - 7, sy - kh, kx + 7, sy + kh, fill=colr, width=0)
+
+        # скорость: полутона, подписи на октавах
+        sy = y0 + vh + hh * 0.13
+        ticks(sy, SPEED_MIN_ST, SPEED_MAX_ST, 12, lambda v: "%g×" % (2.0 ** (v / 12.0)))
+        knob(sy, (st_val - SPEED_MIN_ST) / (SPEED_MAX_ST - SPEED_MIN_ST), col)
+        self.hits.append((sx0 - 10, sy - hh * 0.1, sx1 + 10, sy + hh * 0.1, "sslider", sym))
+        # высота: полутона, подписи через 6
+        py = sy + hh * 0.27
+        ticks(py, -PITCH_MAX, PITCH_MAX, 6, lambda v: "%+d" % v if v else "0")
+        knob(py, (pt + PITCH_MAX) / (2 * PITCH_MAX), pcol)
+        if pmsg:  # перегрузка или Stretch недоступен: над ползунком высоты
+            self._text(x0 + w / 2, py - hh * 0.1, pmsg[0], w * 0.5, hh * 0.05, pmsg[1])
+        self.hits.append((sx0 - 10, py - hh * 0.1, sx1 + 10, py + hh * 0.1, "pslider", psym))
+        # кнопки: 1×, высота 0, привязка, плавный ход
+        by0 = y1 - hh * 0.2
+        bh = hh * 0.18
         gap = max(6, w * 0.02)
-        bw = (w - 2 * pad - 2 * gap) / 3.0
+        bw = (w - 2 * pad - 3 * gap) / 4.0
         buttons = [("1×", "sreset", slot + 1, GREEN),
+                   ("PITCH 0", "preset", slot + 1, GREEN),
                    ("SNAP " + SNAP_NAMES[snap % 3], "snap", None, TEXT),
                    ("GLIDE %d ms" % self._zval("spd_glide"), "sglide", None, TEXT)]
         for k, (label, kind, arg, colr) in enumerate(buttons):

@@ -202,7 +202,45 @@
         <http://dmtry3.github.io/zynthian-eka/tape#psel> ,
         <http://dmtry3.github.io/zynthian-eka/tape#wsel> ,
         <http://dmtry3.github.io/zynthian-eka/tape#count_in> ,
-        <http://dmtry3.github.io/zynthian-eka/tape#rec_thresh> ;
+        <http://dmtry3.github.io/zynthian-eka/tape#rec_thresh> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit1> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit2> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit3> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit4> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit5> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit6> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit7> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit8> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit9> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit10> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit11> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit12> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit13> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit14> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit15> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit16> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit17> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit18> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit19> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit20> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit21> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit22> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit23> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit24> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit25> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit26> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit27> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit28> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit29> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit30> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit31> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit32> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit33> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit34> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit35> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit36> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pit_reset> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#pitch_q> ;
     lv2:port
     [
         a lv2:InputPort , lv2:AudioPort ; lv2:index 18 ; lv2:symbol "in_l" ; lv2:name "In L" ;
@@ -576,6 +614,10 @@
         a lv2:OutputPort , lv2:ControlPort ;
         lv2:index 88 ; lv2:symbol "o_count" ; lv2:name "Out: Count In" ;
         lv2:minimum 0 ; lv2:maximum 64 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 89 ; lv2:symbol "o_pstat" ; lv2:name "Out: Pitch Status" ;
+        lv2:minimum 0 ; lv2:maximum 2 ;
     ] .
 
 # Настройки: LV2-параметры (patch:Set), скрыты со страниц, меняются на вкладке настроек виджета.
@@ -2150,5 +2192,349 @@
     rdfs:label "Rec Threshold dB" ;
     rdfs:range atom:Int ;
     lv2:default 0 ; lv2:minimum -60 ; lv2:maximum 0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+# Сдвиг высоты дорожки без смены темпа (этап 8), полутонов.
+<http://dmtry3.github.io/zynthian-eka/tape#pit1>
+    a lv2:Parameter ;
+    lv2:symbol "pit1" ;
+    rdfs:label "Pitch 1" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit2>
+    a lv2:Parameter ;
+    lv2:symbol "pit2" ;
+    rdfs:label "Pitch 2" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit3>
+    a lv2:Parameter ;
+    lv2:symbol "pit3" ;
+    rdfs:label "Pitch 3" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit4>
+    a lv2:Parameter ;
+    lv2:symbol "pit4" ;
+    rdfs:label "Pitch 4" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit5>
+    a lv2:Parameter ;
+    lv2:symbol "pit5" ;
+    rdfs:label "Pitch 5" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit6>
+    a lv2:Parameter ;
+    lv2:symbol "pit6" ;
+    rdfs:label "Pitch 6" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit7>
+    a lv2:Parameter ;
+    lv2:symbol "pit7" ;
+    rdfs:label "Pitch 7" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit8>
+    a lv2:Parameter ;
+    lv2:symbol "pit8" ;
+    rdfs:label "Pitch 8" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit9>
+    a lv2:Parameter ;
+    lv2:symbol "pit9" ;
+    rdfs:label "Pitch 9" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit10>
+    a lv2:Parameter ;
+    lv2:symbol "pit10" ;
+    rdfs:label "Pitch 10" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit11>
+    a lv2:Parameter ;
+    lv2:symbol "pit11" ;
+    rdfs:label "Pitch 11" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit12>
+    a lv2:Parameter ;
+    lv2:symbol "pit12" ;
+    rdfs:label "Pitch 12" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit13>
+    a lv2:Parameter ;
+    lv2:symbol "pit13" ;
+    rdfs:label "Pitch 13" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit14>
+    a lv2:Parameter ;
+    lv2:symbol "pit14" ;
+    rdfs:label "Pitch 14" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit15>
+    a lv2:Parameter ;
+    lv2:symbol "pit15" ;
+    rdfs:label "Pitch 15" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit16>
+    a lv2:Parameter ;
+    lv2:symbol "pit16" ;
+    rdfs:label "Pitch 16" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit17>
+    a lv2:Parameter ;
+    lv2:symbol "pit17" ;
+    rdfs:label "Pitch 17" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit18>
+    a lv2:Parameter ;
+    lv2:symbol "pit18" ;
+    rdfs:label "Pitch 18" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit19>
+    a lv2:Parameter ;
+    lv2:symbol "pit19" ;
+    rdfs:label "Pitch 19" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit20>
+    a lv2:Parameter ;
+    lv2:symbol "pit20" ;
+    rdfs:label "Pitch 20" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit21>
+    a lv2:Parameter ;
+    lv2:symbol "pit21" ;
+    rdfs:label "Pitch 21" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit22>
+    a lv2:Parameter ;
+    lv2:symbol "pit22" ;
+    rdfs:label "Pitch 22" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit23>
+    a lv2:Parameter ;
+    lv2:symbol "pit23" ;
+    rdfs:label "Pitch 23" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit24>
+    a lv2:Parameter ;
+    lv2:symbol "pit24" ;
+    rdfs:label "Pitch 24" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit25>
+    a lv2:Parameter ;
+    lv2:symbol "pit25" ;
+    rdfs:label "Pitch 25" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit26>
+    a lv2:Parameter ;
+    lv2:symbol "pit26" ;
+    rdfs:label "Pitch 26" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit27>
+    a lv2:Parameter ;
+    lv2:symbol "pit27" ;
+    rdfs:label "Pitch 27" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit28>
+    a lv2:Parameter ;
+    lv2:symbol "pit28" ;
+    rdfs:label "Pitch 28" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit29>
+    a lv2:Parameter ;
+    lv2:symbol "pit29" ;
+    rdfs:label "Pitch 29" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit30>
+    a lv2:Parameter ;
+    lv2:symbol "pit30" ;
+    rdfs:label "Pitch 30" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit31>
+    a lv2:Parameter ;
+    lv2:symbol "pit31" ;
+    rdfs:label "Pitch 31" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit32>
+    a lv2:Parameter ;
+    lv2:symbol "pit32" ;
+    rdfs:label "Pitch 32" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit33>
+    a lv2:Parameter ;
+    lv2:symbol "pit33" ;
+    rdfs:label "Pitch 33" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit34>
+    a lv2:Parameter ;
+    lv2:symbol "pit34" ;
+    rdfs:label "Pitch 34" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit35>
+    a lv2:Parameter ;
+    lv2:symbol "pit35" ;
+    rdfs:label "Pitch 35" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit36>
+    a lv2:Parameter ;
+    lv2:symbol "pit36" ;
+    rdfs:label "Pitch 36" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum -12.0 ; lv2:maximum 12.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#pit_reset>
+    a lv2:Parameter ;
+    lv2:symbol "pit_reset" ;
+    rdfs:label "Pitch Reset" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+# Качество сдвига высоты: 0 ECO (дешевле), 1 HIGH (чище на аккордах, нагрузка в 1,5–2 раза больше).
+<http://dmtry3.github.io/zynthian-eka/tape#pitch_q>
+    a lv2:Parameter ;
+    lv2:symbol "pitch_q" ;
+    rdfs:label "Pitch Quality" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .

@@ -42,9 +42,11 @@ struct Settings {
   float latency_ms = 0.0f;        // компенсация задержки аудиоинтерфейса (выход + вход), 0..100
   int count_in = 0;               // счёт перед записью основы, тактов: 0 выкл, 1, 2 (этап 8)
   int rec_thresh_db = 0;          // старт записи основы по порогу входа (только Free): 0 выкл, −60..−12 дБ
+  int pitch_q = 0;                // качество сдвига высоты: 0 ECO, 1 HIGH (этап 8)
 };
 
 constexpr float kMinSpeed = 0.25f, kMaxSpeed = 2.0f;  // ручная скорость дорожки, как у ленты
+constexpr float kMaxPitch = 12.0f;  // сдвиг высоты дорожки, ± полутонов (этап 8)
 
 // Микшер дорожки. Режим «Стерео»: панорама как баланс с постоянной мощностью.
 // «L» и «R» (в L и R разные инструменты): дорожка играет только этот вход как моно,
@@ -76,6 +78,7 @@ struct TrackView {
   float len_s;       // длина цикла, с
   uint32_t layers;   // слоёв в undo
   uint8_t count;     // счёт перед записью: долей до начала (0 — счёта нет или ждёт черты)
+  float pitch;       // сдвиг высоты, полутонов (цель)
 };
 
 // Задание рабочему потоку: dst = src ± layer (подготовка undo/redo).
@@ -100,6 +103,10 @@ struct WorkResp {
 
 class Looper {
  public:
+  Looper() = default;
+  ~Looper();
+  Looper(const Looper&) = delete;
+  Looper& operator=(const Looper&) = delete;
   // Не RT. pool_bytes — размер пула (по ТЗ 2 ГБ).
   bool init(double sample_rate, size_t pool_bytes);
   bool ok() const { return pool_.ok(); }
@@ -156,6 +163,16 @@ class Looper {
   void set_speed(int k, float s) { tr_[k].mspd = s < kMinSpeed ? kMinSpeed : (s > kMaxSpeed ? kMaxSpeed : s); }
   float speed(int k) const { return tr_[k].mspd; }
   void speed_reset(int k);
+  // Сдвиг высоты дорожки k без смены темпа, полутонов (этап 8). Только у дорожки со звуком: новая
+  // запись основы начинается с 0. Звук дорожки идёт в Stretch на его задержку вперёд по циклу,
+  // поэтому сдвинутый звук в фазе. Овердаб на сдвинутой дорожке пишется «как слышно»: вход
+  // сдвигается обратно и ложится на своё место (закрытие овердаба на эту задержку позже).
+  void set_pitch(int k, float st);
+  float pitch(int k) const { return tr_[k].pit; }
+  // Процессор не успевает: сдвиг высоты отключён (дорожки звучат без него), пока его не поменяют.
+  bool pitch_overload() const { return pitch_over_; }
+  int pitch_latency() const;  // задержка Stretch в текущем качестве, кадров (для тестов)
+  void set_pitch_budget(float frac) { pitch_budget_ = frac; }  // доля блока на сдвиг (тесты)
   const Mix& mix(int k) const { return mix_[k]; }
   void set_master_db(float db) { master_db_ = db; }
   float master_db() const { return master_db_; }
@@ -277,6 +294,21 @@ class Looper {
     bool locked = false;
     int lock_to = -1;
     bool lock_ready = false;  // овердаб затух: копия делается в начале следующего кадра
+    // сдвиг высоты (этап 8): цель и сейчас (плавный ход), доля сдвинутого звука в выходе
+    float pit = 0.0f;
+    double pcur = 0.0;
+    float pw = 0.0f;
+    int8_t eng = -1;          // Stretch воспроизведения (номер в банке), -1 — нет
+    double apos = 0.0;        // позиция чтения для Stretch: на его задержку впереди
+    double axpos = 0.0;       // то же для старой суммы, пока идёт кроссфейд undo/redo
+    float ag = 1.0f;          // кроссфейд старой суммы в Stretch (1 — только новая)
+    bool axf = false;
+    int8_t deng = -1;         // Stretch овердаба (вход сдвигается обратно), -1 — нет
+    int8_t dq = 0;            // его качество
+    uint32_t dlat = 0;        // его задержка, кадров
+    bool ddrain = false;      // овердаб закрыт: дописываем то, что ещё в Stretch
+    uint32_t ddrain_n = 0;
+    float dgate = 1.0f;       // вход в Stretch овердаба (после закрытия плавно в 0)
   };
 
   // команды
@@ -294,6 +326,7 @@ class Looper {
   void request_close(int ti);
   void start_dub(int ti);
   void end_dub(int ti);
+  void end_dub_now(int ti);  // без дописывания хвоста Stretch (кончилась память)
   void finish_dub(int ti);
   void apply_mute(int ti);
   void start_reverse(Track& t, double n);
@@ -341,8 +374,16 @@ class Looper {
   float dub_env(Track& t);
   bool dub_put(int ti, uint64_t p, float l, float r);
   void dub_resampled(int ti, float il, float ir, double step);
-  double dub_pos(const Track& t, double step) const;
+  double dub_pos(const Track& t, double step, uint32_t extra) const;
   void update_speeds(uint32_t n);
+  // сдвиг высоты
+  struct PitchBank;
+  static constexpr int kPitchEng = 12, kDubEng = 2;
+  static constexpr uint32_t kPitchBlock = 4096;  // блок больше — сдвиг на этот блок выключен
+  void pitch_block(const float* in_l, const float* in_r, uint32_t n);
+  void pitch_release(Track& t);
+  void dub_release(Track& t);
+  void pitch_fill(Track& t, float* l, float* r, uint32_t n, double from, double step);
   float snap_speed(float s) const;
   void on_grid(bool beat, bool bar);
   bool has_content() const;
@@ -400,6 +441,16 @@ class Looper {
   float lim_env_ = 0.0f;
   float mpeak_[2] = {};
   uint32_t mix_epoch_ = 0;
+  PitchBank* pb_ = nullptr;
+  int pq_ = 0;                 // качество Stretch воспроизведения сейчас
+  bool pblock_ = false;        // в этом блоке сдвиг считается
+  uint32_t oseek_gap_ = 1u << 20;  // кадров с последнего запуска Stretch (не чаще раза в 256 кадров)
+  float pitch_budget_ = 0.5f;  // доля блока: дольше в среднем — перегрузка
+  double pitch_load_ = 0.0;
+  bool pitch_over_ = false;
+  uint32_t last_n_ = 128;      // размер прошлого блока
+  float qg_ = 1.0f;            // смена качества: сдвинутый звук затихает (10 мс), Stretch меняются, нарастает
+  bool qdip_ = false;
 
   // ---- сессии ----
   void session_step();            // RT, в начале блока: заморозка и шаги загрузки

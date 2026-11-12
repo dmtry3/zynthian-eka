@@ -1,6 +1,10 @@
 #include "looper.h"
 
+#include <chrono>
 #include <cmath>
+#include <new>
+
+#include "pitch.h"
 
 namespace alp {
 
@@ -28,7 +32,37 @@ inline uint64_t wrap_index(int64_t i, uint64_t L) {
   int64_t m = i % (int64_t)L;
   return (uint64_t)(m < 0 ? m + (int64_t)L : m);
 }
+
+inline double wrap_pos(double p, double L) {
+  if (L <= 0.0) return 0.0;
+  p = std::fmod(p, L);
+  return p < 0.0 ? p + L : p;
+}
+
+constexpr uint32_t kSeekMax = 8192;     // кадров: история и прогон запуска Stretch (до 7200 и 4320)
+constexpr double kPitchJumpS = 0.02;    // позиция для Stretch ушла дальше — перескок (seek)
+constexpr float kPitchXfS = 0.02f;      // включение и выключение сдвига: кроссфейд 20 мс
+constexpr uint32_t kOseekGap = 256;     // запуск Stretch (прогон вперёд) не чаще раза в столько кадров
 }  // namespace
+
+// Банк Stretch: память выделяется в init(), в аудиопотоке только берётся и отдаётся.
+// Воспроизведение: до kPitchEng дорожек сразу (текущий парт и затихающий), овердаб: до kDubEng.
+struct Looper::PitchBank {
+  PitchShifter play[2][kPitchEng];
+  PitchShifter dub[2][kDubEng];
+  bool used[2][kPitchEng] = {};
+  bool dused[2][kDubEng] = {};
+  int lat[2] = {0, 0}, slen[2] = {0, 0}, wlen[2] = {0, 0};
+  float wet[kPitchEng][2][kPitchBlock];
+  float dout[kDubEng][2][kPitchBlock];
+  float ain[2][kPitchBlock];
+  float din[2][kPitchBlock];
+  float sbuf[2][kSeekMax];  // история перед точкой запуска
+  float pbuf[2][kSeekMax];  // прогон вперёд
+  float tbuf[2][kSeekMax];  // его выход (выбрасывается)
+};
+
+Looper::~Looper() { delete pb_; }
 
 bool Looper::init(double sample_rate, size_t pool_bytes) {
   sr_ = sample_rate > 0 ? sample_rate : 48000.0;
@@ -38,6 +72,26 @@ bool Looper::init(double sample_rate, size_t pool_bytes) {
   default_locks();
   for (int k = 0; k < kTracks; ++k) mix_matrix(mix_[k], mcur_[k]);
   mix_matrix(mix_[0], dcur_);
+  // Stretch для сдвига высоты: не вышло — дорожки просто звучат без сдвига
+  if (!pb_) {
+    pb_ = new (std::nothrow) PitchBank();
+    bool ok = pb_ != nullptr;
+    for (int q = 0; ok && q < 2; ++q) {
+      for (int e = 0; ok && e < kPitchEng; ++e) ok = pb_->play[q][e].init(sr_, q == 1);
+      for (int e = 0; ok && e < kDubEng; ++e) ok = pb_->dub[q][e].init(sr_, q == 1);
+      if (ok) {
+        pb_->lat[q] = pb_->play[q][0].latency();
+        pb_->slen[q] = pb_->play[q][0].seek_len();
+        pb_->wlen[q] = pb_->play[q][0].warm_len();
+        ok = pb_->lat[q] > 0 && pb_->slen[q] > 0 && pb_->slen[q] <= (int)kSeekMax && pb_->wlen[q] > 0 &&
+             pb_->wlen[q] <= (int)kSeekMax && pb_->wlen[q] <= pb_->lat[q] && pb_->dub[q][0].latency() == pb_->lat[q];
+      }
+    }
+    if (!ok) {
+      delete pb_;
+      pb_ = nullptr;
+    }
+  }
   // Если столько памяти не дали, пробуем меньше: плагин должен загрузиться.
   for (size_t b = pool_bytes; b >= ((size_t)32 << 20); b /= 2)
     if (pool_.init(b, 4096)) {
@@ -220,6 +274,8 @@ void Looper::start_rec(int ti) {
   t.b0 = std::round(beats_ / bpb_) * bpb_;
   t.rec_bpf = bpf_;
   t.tspd = 1.0;
+  t.pit = 0.0f;  // новая основа — без сдвига высоты (обёртка сообщит хосту)
+  t.pcur = 0.0;
   t.st = TState::Rec;
   rec_peaks_start(ti);
 }
@@ -401,6 +457,21 @@ void Looper::start_dub(int ti) {
   t.wfirst = true;
   t.undo_after_dub = t.reset_after_dub = false;
   t.st = TState::Dub;
+  // сдвинутая дорожка: вход в Stretch с обратным сдвигом, чтобы овердаб звучал как сыгран
+  dub_release(t);
+  t.ddrain = false;
+  t.dgate = 1.0f;
+  if (pb_ && t.pit != 0.0f && !pitch_over_) {
+    for (int e = 0; e < kDubEng; ++e)
+      if (!pb_->dused[pq_][e]) {
+        pb_->dused[pq_][e] = true;
+        t.deng = (int8_t)e;
+        t.dq = (int8_t)pq_;
+        t.dlat = (uint32_t)pb_->lat[pq_];
+        pb_->dub[pq_][e].reset();
+        break;
+      }
+  }
   if (peaks_ && in_cur(ti)) {  // волна нового слоя растёт вживую
     PeakTrack& pk = peaks_->t[ti % ns_];
     clear_wave(pk.dub);
@@ -410,6 +481,19 @@ void Looper::start_dub(int ti) {
 }
 
 void Looper::end_dub(int ti) {
+  Track& t = tr_[ti];
+  if (t.st != TState::Dub || t.dub_end >= 0) return;
+  if (t.deng >= 0) {  // вход идёт через Stretch: сначала дописать то, что в нём (его задержка и блок)
+    if (!t.ddrain) {
+      t.ddrain = true;
+      t.ddrain_n = t.dlat + xf_ + last_n_;  // вход до конца этого блока ещё попал в Stretch
+    }
+    return;
+  }
+  t.dub_end = 0;
+}
+
+void Looper::end_dub_now(int ti) {
   Track& t = tr_[ti];
   if (t.st == TState::Dub && t.dub_end < 0) t.dub_end = 0;
 }
@@ -421,6 +505,8 @@ void Looper::finish_dub(int ti) {
   t.layer = -1;
   t.dub_end = -1;
   t.st = TState::Play;
+  dub_release(t);
+  t.ddrain = false;
   mark_peaks(t);
   if (peaks_ && in_cur(ti)) __atomic_store_n(&peaks_->t[ti % ns_].dub_active, 0u, __ATOMIC_RELEASE);
   if (t.lock_to >= 0) {  // Lock-копия ждала конца овердаба, чтобы затухание попало и в неё;
@@ -589,6 +675,12 @@ void Looper::reset_all_now(bool full) {
     t.lock_ready = false;
     if (full) t.mspd = 1.0f;
     t.mcur = t.spd = t.tspd = 1.0;
+    pitch_release(t);
+    dub_release(t);
+    t.ddrain = false;
+    t.pw = 0.0f;
+    if (full) t.pit = 0.0f;
+    t.pcur = t.pit;
     t.phase_reset = t.phase_wait = false;
     t.dub_end = -1;
     t.undo_after_dub = t.reset_after_dub = false;
@@ -1086,7 +1178,7 @@ bool Looper::dub_put(int ti, uint64_t p, float l, float r) {
 void Looper::dub_write(int ti, uint64_t p, float l, float r) {
   Track& t = tr_[ti];
   const float env = dub_env(t);
-  if (!dub_put(ti, p, l * env, r * env)) end_dub(ti);  // память кончилась: овердаб закрывается
+  if (!dub_put(ti, p, l * env, r * env)) end_dub_now(ti);  // память кончилась: овердаб закрывается
   t.wprev = (double)p;
   t.wl_prev = l;
   t.wr_prev = r;
@@ -1098,17 +1190,18 @@ void Looper::dub_write(int ti, uint64_t p, float l, float r) {
 // в каждую пройденную позицию лупа пишем вход, интерполированный между прошлым и текущим кадром.
 // Куда в цикле пишется вход овердаба: он опоздал на задержку аудиоинтерфейса, а музыкант играл
 // под то, что слышал, — на lat_ кадров раньше, это lat_ × шаг головки назад по циклу.
-double Looper::dub_pos(const Track& t, double step) const {
-  if (!lat_ || !t.len) return t.pos;
+double Looper::dub_pos(const Track& t, double step, uint32_t extra) const {
+  const uint32_t lat = lat_ + extra;  // extra: вход прошёл через Stretch овердаба, опоздал ещё на его задержку
+  if (!lat || !t.len) return t.pos;
   const double L = (double)t.len;
-  double w = std::fmod(t.pos - (double)lat_ * step, L);
+  double w = std::fmod(t.pos - (double)lat * step, L);
   if (w < 0.0) w += L;
   return w;
 }
 
 void Looper::dub_resampled(int ti, float il, float ir, double step) {
   Track& t = tr_[ti];
-  const double w1 = dub_pos(t, step);
+  const double w1 = dub_pos(t, step, t.deng >= 0 ? t.dlat : 0);
   if (step == 1.0 && w1 == std::floor(w1)) {  // ровно 1×: как раньше, кадр в кадр
     dub_write(ti, wrap_index((int64_t)w1, t.len), il, ir);
     return;
@@ -1133,7 +1226,7 @@ void Looper::dub_resampled(int ti, float il, float ir, double step) {
                    (t.wr_prev + (ir - t.wr_prev) * a) * env);
     }
   }
-  if (!ok) end_dub(ti);
+  if (!ok) end_dub_now(ti);
   t.wprev = w1;
   t.wl_prev = il;
   t.wr_prev = ir;
@@ -1219,6 +1312,8 @@ void Looper::track_sample(int ti, uint32_t i, float il, float ir, float& ol, flo
   // чтение (с кроссфейдом со старой суммы)
   float l = 0.0f, r = 0.0f;
   if (playing) read_sum(t, t.sum, t.pos, l, r);
+  // вход из тишины (старт цикла, переход в парт): то же нарастание и для сдвинутого звука
+  const float fade_in = fading && t.xf_from < 0 ? (float)t.xf_pos / (float)t.xf_len : 1.0f;
   if (fading) {
     float fl, fr;
     read_sum(t, t.xf_from, t.xpos, fl, fr);
@@ -1231,6 +1326,20 @@ void Looper::track_sample(int ti, uint32_t i, float il, float ir, float& ol, flo
       t.xf_owned = false;
       t.xf_len = t.xf_pos = 0;
     }
+  }
+  // сдвиг высоты: выход Stretch (посчитан в начале блока) вместо прямого чтения, вход и выход — кроссфейдом
+  if (t.eng >= 0 || t.pw > 0.0f) {
+    const bool want = t.pit != 0.0f && !pitch_over_;
+    const float ps = 1.0f / (kPitchXfS * (float)sr_);
+    if (!want) t.pw = std::fmax(0.0f, t.pw - ps);
+    else if (t.eng >= 0) t.pw = std::fmin(1.0f, t.pw + ps);
+    float wl = 0.0f, wr = 0.0f;
+    if (t.eng >= 0 && pblock_ && pb_) {
+      wl = pb_->wet[t.eng][0][i] * fade_in * qg_;
+      wr = pb_->wet[t.eng][1][i] * fade_in * qg_;
+    }
+    l = l * (1.0f - t.pw) + wl * t.pw;
+    r = r * (1.0f - t.pw) + wr * t.pw;
   }
   // mute: плавно по fade out / fade in
   const float target = t.muted ? 0.0f : 1.0f;
@@ -1262,7 +1371,16 @@ void Looper::track_sample(int ti, uint32_t i, float il, float ir, float& ol, flo
   // запись: хвост на стыке и овердаб
   if (playing) {
     if (t.seam_t < xf_) seam_write(t, il, ir);
-    if (t.st == TState::Dub && t.layer >= 0) dub_resampled(ti, il, ir, step);
+    if (t.st == TState::Dub && t.layer >= 0) {
+      if (t.deng >= 0) {  // вход с обратным сдвигом (из Stretch овердаба)
+        const bool have = pblock_ && pb_;
+        dub_resampled(ti, have ? pb_->dout[t.deng][0][i] : 0.0f, have ? pb_->dout[t.deng][1][i] : 0.0f, step);
+        if (t.st == TState::Dub && t.ddrain && t.dub_end < 0 && (t.ddrain_n == 0 || --t.ddrain_n == 0))
+          t.dub_end = 0;  // хвост Stretch дописан: обычное затухание овердаба
+      } else {
+        dub_resampled(ti, il, ir, step);
+      }
+    }
   }
 
   // транспорт стоит и всё затихло: курсор в начале цикла до пуска (wake поставит его заново)
@@ -1497,6 +1615,226 @@ void Looper::update_speeds(uint32_t n) {
   }
 }
 
+// ---------------------------------------------------------------- сдвиг высоты (этап 8)
+
+void Looper::set_pitch(int k, float st) {
+  if (k < 0 || k >= kTracks) return;
+  st = st < -kMaxPitch ? -kMaxPitch : (st > kMaxPitch ? kMaxPitch : st);
+  if (std::fabs(st) < 1e-3f) st = 0.0f;
+  if (st == tr_[k].pit) return;
+  tr_[k].pit = st;
+  if (pitch_over_) {  // перегрузка: новое значение — новая попытка
+    pitch_over_ = false;
+    pitch_load_ = 0.0;
+  }
+}
+
+int Looper::pitch_latency() const { return pb_ ? pb_->lat[pq_] : 0; }
+
+void Looper::pitch_release(Track& t) {
+  if (t.eng >= 0 && pb_) pb_->used[pq_][t.eng] = false;
+  t.eng = -1;
+  t.axf = false;
+}
+
+void Looper::dub_release(Track& t) {
+  if (t.deng >= 0 && pb_) pb_->dused[t.dq][t.deng] = false;
+  t.deng = -1;
+}
+
+// n кадров суммы дорожки с позиции from шагом step (для запуска и перескока Stretch).
+void Looper::pitch_fill(Track& t, float* l, float* r, uint32_t n, double from, double step) {
+  const double L = (double)t.len;
+  double p = wrap_pos(from, L);
+  for (uint32_t j = 0; j < n; ++j) {
+    read_sum(t, t.sum, p, l[j], r[j]);
+    p = wrap_pos(p + step, L);
+  }
+}
+
+// Раз в блок, до кадров: Stretch сдвинутых дорожек и овердаба считают весь блок.
+// В Stretch идёт звук дорожки на его задержку D впереди по циклу (тем же шагом, что головка),
+// поэтому выход совпадает с позицией. Скорость менялась и позиция ушла — перескок (seek) без обрыва.
+void Looper::pitch_block(const float* in_l, const float* in_r, uint32_t n) {
+  pblock_ = false;
+  if (!pb_) return;
+  PitchBank& b = *pb_;
+  if (oseek_gap_ < (1u << 20)) oseek_gap_ += n;
+  // другое качество: сдвинутый звук затихает, Stretch меняются (дорожки перезапускаются с текущего
+  // места), звук нарастает. Два Stretch одной дорожки звучат не в фазе — переключать их сразу нельзя.
+  const int q = set_.pitch_q ? 1 : 0;
+  if (q != pq_) {
+    bool busy = false;
+    for (const auto& t : tr_) busy = busy || t.eng >= 0;
+    if (!busy || qg_ <= 0.0f) {
+      for (auto& t : tr_) pitch_release(t);
+      pq_ = q;
+      qdip_ = false;
+    } else {
+      qdip_ = true;
+    }
+  } else {
+    qdip_ = false;
+  }
+  const bool ok = pool_.ok() && n > 0 && n <= kPitchBlock;
+  const auto t0 = std::chrono::steady_clock::now();
+  bool any = false;
+  const double sg = (double)set_.spd_glide_ms / 1000.0 / 4.0 * sr_;
+  const double ks = sg < 1.0 ? 1.0 : 1.0 - std::exp(-(double)n / sg);
+  const int D = b.lat[pq_];
+  const double jump = kPitchJumpS * sr_;
+  for (int k = 0; k < kTracks; ++k) {
+    Track& t = tr_[k];
+    const bool want = t.pit != 0.0f && !pitch_over_;
+    const bool has = (t.st == TState::Play || t.st == TState::Dub) && t.len > 0 && t.sum >= 0;
+    const bool away = !in_cur(k) && t.lock_to < 0;
+    const bool silent = t.sgain <= 0.0f && (t.stopped || t.ustop || away);
+    if (!ok || !has || hold_ || silent) {
+      // не звучит: Stretch не нужен; когда зазвучит — сразу со сдвигом (запуск в начале блока)
+      pitch_release(t);
+      t.pw = ok && has && want ? 1.0f : 0.0f;
+      t.pcur = t.pit;
+      continue;
+    }
+    if (!want && t.pw <= 0.0f) {
+      pitch_release(t);
+      t.pcur = 0.0;
+      continue;
+    }
+    // плавный ход высоты, пока сдвинутый звук слышен; к нулю не едем — он уходит кроссфейдом
+    if (t.pw <= 0.0f || t.eng < 0) {
+      if (want) t.pcur = t.pit;
+    } else if (want && t.pcur != t.pit) {
+      t.pcur += ((double)t.pit - t.pcur) * ks;
+      if (std::fabs((double)t.pit - t.pcur) < 1e-3) t.pcur = t.pit;
+    }
+    const double L = (double)t.len;
+    const double step0 = t.rate * t.spd;
+    if (t.eng < 0) {
+      if (!want) {
+        t.pw = 0.0f;
+        continue;
+      }
+      if (oseek_gap_ < kOseekGap) continue;  // очередь: запуск дорогой, не больше одного за раз
+      int e = -1;
+      for (int j = 0; j < kPitchEng && e < 0; ++j)
+        if (!b.used[pq_][j]) e = j;
+      if (e < 0) {  // все заняты: дорожка звучит без сдвига
+        t.pw = 0.0f;
+        continue;
+      }
+      b.used[pq_][e] = true;
+      t.eng = (int8_t)e;
+      PitchShifter& sh = b.play[pq_][e];
+      sh.set_semitones((float)t.pcur);
+      // запуск с готовым выходом: история и прогон так, чтобы выход сейчас был звуком под головкой
+      const int S = b.slen[pq_], W = b.wlen[pq_];
+      const double X = t.pos + (double)(D - W) * step0;
+      pitch_fill(t, b.sbuf[0], b.sbuf[1], (uint32_t)S, X - (double)S * step0, step0);
+      pitch_fill(t, b.pbuf[0], b.pbuf[1], (uint32_t)W, X, step0);
+      const float* hist[2] = {b.sbuf[0], b.sbuf[1]};
+      const float* pre[2] = {b.pbuf[0], b.pbuf[1]};
+      float* tmp[2] = {b.tbuf[0], b.tbuf[1]};
+      sh.start(hist, pre, tmp);
+      t.apos = wrap_pos(t.pos + (double)D * step0, L);
+      t.axf = false;
+      oseek_gap_ = 0;
+    } else if (t.rate_step == 0.0) {  // во время разворота не прыгаем: после него — один перескок
+      const double target = wrap_pos(t.pos + (double)D * step0, L);
+      double err = target - t.apos;
+      if (err > L / 2) err -= L;
+      else if (err < -L / 2) err += L;
+      if (std::fabs(err) > jump) {
+        const int S = b.slen[pq_];
+        pitch_fill(t, b.sbuf[0], b.sbuf[1], (uint32_t)S, target - (double)S * step0, step0);
+        const float* in[2] = {b.sbuf[0], b.sbuf[1]};
+        b.play[pq_][t.eng].seek(in, S);
+        t.apos = target;
+        t.axf = false;
+      }
+    }
+    PitchShifter& sh = b.play[pq_][t.eng];
+    sh.set_semitones((float)t.pcur);
+    // undo, redo, reset дорожки: кроссфейд старой суммы и в Stretch (успевает до конца основного)
+    const bool swap = t.xf_len > 0 && t.xf_from >= 0 && t.xf_from != t.sum;
+    double XL = 0.0;
+    if (swap) {
+      XL = (double)pool_.buf(t.xf_from).len;
+      if (!t.axf) {
+        t.axf = true;
+        t.ag = 0.0f;
+        t.axpos = wrap_pos(t.xpos + (double)D * step0, XL);
+      }
+    } else {
+      t.axf = false;
+    }
+    const uint32_t rem = swap ? t.xf_len - t.xf_pos : 0;
+    const float ginc = rem ? (1.0f - t.ag) / (float)rem : 1.0f;
+    double rt = t.rate, rs = t.rate_step;
+    float* al = b.ain[0];
+    float* ar = b.ain[1];
+    for (uint32_t i = 0; i < n; ++i) {
+      float l, r;
+      read_sum(t, t.sum, t.apos, l, r);
+      const double st = rt * t.spd;
+      if (t.axf) {
+        if (t.ag < 1.0f && XL > 0.0) {
+          float ol, orr;
+          read_sum(t, t.xf_from, t.axpos, ol, orr);
+          l = ol * (1.0f - t.ag) + l * t.ag;
+          r = orr * (1.0f - t.ag) + r * t.ag;
+        }
+        t.ag = std::fmin(1.0f, t.ag + ginc);
+        t.axpos = wrap_pos(t.axpos + st, XL);
+      }
+      al[i] = l;
+      ar[i] = r;
+      t.apos = wrap_pos(t.apos + st, L);
+      if (rs != 0.0) {
+        rt += rs;
+        if ((rs > 0 && rt >= 1.0) || (rs < 0 && rt <= -1.0)) {
+          rt = rs > 0 ? 1.0 : -1.0;
+          rs = 0.0;
+        }
+      }
+    }
+    const float* in[2] = {al, ar};
+    float* out[2] = {b.wet[t.eng][0], b.wet[t.eng][1]};
+    sh.process(in, out, (int)n);
+    any = true;
+  }
+  // овердаб на сдвинутой дорожке: вход с обратным сдвигом
+  for (int k = 0; ok && k < kTracks; ++k) {
+    Track& t = tr_[k];
+    if (t.deng < 0) continue;
+    if (t.st != TState::Dub) {
+      dub_release(t);
+      continue;
+    }
+    PitchShifter& sh = b.dub[t.dq][t.deng];
+    sh.set_semitones(t.pit != 0.0f ? -(float)t.pcur : 0.0f);
+    const float gs = 1.0f / (float)xf_;
+    for (uint32_t i = 0; i < n; ++i) {
+      if (t.ddrain) t.dgate = std::fmax(0.0f, t.dgate - gs);  // после закрытия вход плавно уходит
+      b.din[0][i] = (in_l ? in_l[i] : 0.0f) * t.dgate;
+      b.din[1][i] = (in_r ? in_r[i] : 0.0f) * t.dgate;
+    }
+    const float* in[2] = {b.din[0], b.din[1]};
+    float* out[2] = {b.dout[t.deng][0], b.dout[t.deng][1]};
+    sh.process(in, out, (int)n);
+    any = true;
+  }
+  pblock_ = ok;
+  // перегрузка: Stretch в среднем дольше заданной доли блока — сдвиг выключается (звук не рвётся)
+  if (any) {
+    const double el = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+    pitch_load_ += (el * sr_ / (double)n - pitch_load_) * 0.1;
+    if (pitch_load_ > (double)pitch_budget_) pitch_over_ = true;
+  } else {
+    pitch_load_ *= 0.9;
+  }
+}
+
 // ---------------------------------------------------------------- парты и Lock
 
 bool Looper::part_has_content(int p) const {
@@ -1535,6 +1873,8 @@ void Looper::clear_track(int k) {
   if (t.xf_from >= 0 && t.xf_owned) pool_.free_buf(t.xf_from);
   const uint32_t pgen = t.pgen;
   const bool inflight = t.pinflight;
+  pitch_release(t);
+  dub_release(t);
   t = Track();
   t.seam_t = kNoSeam;
   t.locked = k % ns_ == 0;
@@ -1578,6 +1918,14 @@ void Looper::clone_into(int from, int to) {
   n.mcur = o.mcur;
   n.spd = o.spd;
   n.tspd = o.tspd;
+  // Stretch переходит к копии вместе с позицией: сдвинутый звук без шва
+  n.pit = o.pit;
+  n.pcur = o.pcur;
+  n.pw = o.pw;
+  n.eng = o.eng;
+  n.apos = o.apos;
+  n.axf = false;
+  o.eng = -1;
   mix_[to] = mix_[from];
   for (int j = 0; j < 4; ++j) mcur_[to][j] = mcur_[from][j];
   ++mix_epoch_;
@@ -1678,6 +2026,7 @@ void Looper::resync(int ti) {
 void Looper::process(const float* in_l, const float* in_r, float* out_l, float* out_r, uint32_t n,
                      const TimeInfo& ti) {
   set_time(ti);
+  last_n_ = n;
   // микшер: к целевым значениям плавно (~20 мс), внутри блока — линейно
   const float ks = n ? 1.0f - (float)std::exp(-(double)n / (kMixSmoothS * sr_)) : 0.0f;
   for (int k = 0; k < kTracks; ++k) {
@@ -1728,6 +2077,7 @@ void Looper::process(const float* in_l, const float* in_r, float* out_l, float* 
       hold_ = false;
   }
   if (hold_) beats_ = 0.0;
+  pitch_block(in_l, in_r, n);
   const float thr = set_.rec_thresh_db < 0 ? db_gain((float)set_.rec_thresh_db) : 0.0f;
   for (uint32_t i = 0; i < n; ++i) {
     // компенсация задержки: запись начинается ровно через lat_ кадров после черты
@@ -1789,6 +2139,8 @@ void Looper::process(const float* in_l, const float* in_r, float* out_l, float* 
     const float il = in_l ? in_l[i] : 0.0f;
     const float ir = in_r ? in_r[i] : 0.0f;
     float ol = 0.0f, orr = 0.0f;
+    if (qdip_) qg_ = std::fmax(0.0f, qg_ - 1.0f / (float)xf_);
+    else if (qg_ < 1.0f) qg_ = std::fmin(1.0f, qg_ + 1.0f / (float)xf_);
     if (pool_.ok())
       for (int k = 0; k < kTracks; ++k) {
         const Track& t = tr_[k];  // пустая без затухания: делать нечего (дорожек до 36)
@@ -2068,6 +2420,7 @@ TrackView Looper::view(int i) const {
   v.can_undo = t.undo_n > 0 || t.st == TState::Dub;
   v.can_redo = t.redo_n > 0;
   v.layers = t.undo_n;
+  v.pitch = t.pit;
   v.count = 0;
   if (t.st == TState::Armed && t.count_n > 0 && t.count_end >= 0) {
     const double left = std::ceil(t.count_end - beats_ - 1e-9);

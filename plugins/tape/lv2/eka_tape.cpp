@@ -76,6 +76,7 @@ enum Port : uint32_t {
   O_POOL_MB,  // фактический размер пула, МБ (0 — меняется)
   O_SESS, O_SESS_PROG,  // сессия: состояние (SessStatus) и доля записанного или прочитанного
   O_COUNT,              // счёт перед записью на активной дорожке: долей до начала (0 — нет)
+  O_PSTAT,              // сдвиг высоты: 0 работает, 1 выключен из-за перегрузки, 2 недоступен
   P_COUNT
 };
 
@@ -148,6 +149,9 @@ enum Param {
   PR_WSEL,                      // экран: 1 Loop, 2 Mixer (как контроллеры «Виджет Loop/Mixer»)
   PR_COUNTIN,                   // счёт перед записью основы: 0 выкл, 1 или 2 такта (этап 8)
   PR_RTHRESH,                   // старт записи основы по порогу (только Free): 0 выкл, −60..−12 дБ
+  PR_PIT0,                      // pit1..pit36: сдвиг высоты дорожки, полутонов (этап 8)
+  PR_PRESET = PR_PIT0 + kTracks,  // команда виджета: сдвиг дорожки 1..6 текущего парта в 0
+  PR_PQUAL,                     // качество сдвига: 0 ECO, 1 HIGH
   PR_COUNT
 };
 struct ParamDef {
@@ -195,6 +199,12 @@ void init_params() {
   kParams[PR_WSEL] = ParamDef{"wsel", 0.0f, 0.0f, 2.0f, false};
   kParams[PR_COUNTIN] = ParamDef{"count_in", 0.0f, 0.0f, 2.0f, false};
   kParams[PR_RTHRESH] = ParamDef{"rec_thresh", 0.0f, -60.0f, 0.0f, false};
+  for (int t = 0; t < kTracks; ++t) {
+    kParams[PR_PIT0 + t] = ParamDef{{}, 0.0f, -kMaxPitch, kMaxPitch, true};
+    std::snprintf(kParams[PR_PIT0 + t].sym, 16, "pit%d", t + 1);
+  }
+  kParams[PR_PRESET] = ParamDef{"pit_reset", 0.0f, 0.0f, 6.0f, false};
+  kParams[PR_PQUAL] = ParamDef{"pitch_q", 0.0f, 0.0f, 1.0f, false};
 }
 constexpr uint32_t kReportPerRun = 4;  // ответов на patch:Get за один run()
 
@@ -287,6 +297,7 @@ struct Plugin {
     s.latency_ms = vals[PR_LAT];
     s.count_in = (int)vals[PR_COUNTIN];
     s.rec_thresh_db = (int)vals[PR_RTHRESH];
+    s.pitch_q = (int)vals[PR_PQUAL];
     looper->set_settings(s);
     configure_buttons();
     // пул — только когда изменился сам параметр: смена стирает лупы
@@ -309,7 +320,8 @@ struct Plugin {
   // (при загрузке снапшота так не делаем: его микшер относится к его сетке).
   void reset_track_params() {
     for (int i = PR_LEV0; i < PR_COUNT; ++i) {
-      const bool per_track = i < PR_MASTER || (i >= PR_SPD0 && i < PR_SPD0 + kTracks);
+      const bool per_track =
+          i < PR_MASTER || (i >= PR_SPD0 && i < PR_SPD0 + kTracks) || (i >= PR_PIT0 && i < PR_PIT0 + kTracks);
       if (!per_track) continue;  // Master, ограничитель, настройки — общие
       if (vals[i] != kParams[i].def) {
         vals[i] = kParams[i].def;
@@ -334,10 +346,12 @@ struct Plugin {
       looper->set_limiter(vals[PR_LIMIT] >= 0.5f);
     } else if (i >= PR_SPD0 && i < PR_SPD0 + kTracks) {
       looper->set_speed(i - PR_SPD0, vals[i]);
+    } else if (i >= PR_PIT0 && i < PR_PIT0 + kTracks) {
+      looper->set_pitch(i - PR_PIT0, vals[i]);
     }
   }
   static bool is_setting(int i) {
-    return i < PR_LEV0 || i == PR_TGLIDE || i == PR_SSNAP || i == PR_SGLIDE || (i >= PR_HOLD && i <= PR_POOL) || i == PR_COUNTIN || i == PR_RTHRESH;
+    return i < PR_LEV0 || i == PR_TGLIDE || i == PR_SSNAP || i == PR_SGLIDE || (i >= PR_HOLD && i <= PR_POOL) || i == PR_COUNTIN || i == PR_RTHRESH || i == PR_PQUAL;
   }
   void apply_all() {
     apply_settings();
@@ -360,6 +374,7 @@ struct Plugin {
     upd(PR_MASTER, looper->master_db());
     upd(PR_LIMIT, looper->limiter() ? 1.0f : 0.0f);
     for (int t = 0; t < kTracks; ++t) upd(PR_SPD0 + t, looper->speed(t));
+    for (int t = 0; t < kTracks; ++t) upd(PR_PIT0 + t, looper->pitch(t));  // новая основа — с 0
   }
 };
 
@@ -526,6 +541,13 @@ void on_param(Plugin* pl, int i) {
   if (i == PR_SRESET) {
     if (pl->vals[i] >= 1.0f && pl->vals[i] <= pl->looper->grid())
       pl->looper->speed_reset(pl->looper->part() * pl->looper->grid() + (int)pl->vals[i] - 1);
+    pl->vals[i] = 0.0f;
+    pl->dirty[i] = true;
+    return;
+  }
+  if (i == PR_PRESET) {
+    if (pl->vals[i] >= 1.0f && pl->vals[i] <= pl->looper->grid())
+      pl->looper->set_pitch(pl->looper->part() * pl->looper->grid() + (int)pl->vals[i] - 1, 0.0f);
     pl->vals[i] = 0.0f;
     pl->dirty[i] = true;
     return;
@@ -822,6 +844,7 @@ void run(LV2_Handle h, uint32_t n) {
   pl->out(O_SESS, (float)lp->session_status());
   pl->out(O_SESS_PROG, lp->session_progress());
   pl->out(O_COUNT, (float)lp->view(lp->active()).count);
+  pl->out(O_PSTAT, lp->pitch_latency() <= 0 ? 2.0f : (lp->pitch_overload() ? 1.0f : 0.0f));
   pl->out(O_POOL, lp->pool_fill());
   pl->out(O_MPK_L, lp->master_peak(0));
   pl->out(O_MPK_R, lp->master_peak(1));

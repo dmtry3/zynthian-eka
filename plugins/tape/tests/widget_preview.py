@@ -124,6 +124,11 @@ class Processor:
         # этап 8: счёт перед записью
         self.controllers_dict["count_in"] = Ctrl("count_in", 0, 0, 2)
         self.controllers_dict["rec_thresh"] = Ctrl("rec_thresh", 0, -60, 0)
+        # этап 8: сдвиг высоты дорожек, команда сброса, качество
+        for i in range(1, 37):
+            self.controllers_dict["pit%d" % i] = Ctrl("pit%d" % i, 0.0, -12.0, 12.0)
+        self.controllers_dict["pit_reset"] = Ctrl("pit_reset", 0, 0, 6)
+        self.controllers_dict["pitch_q"] = Ctrl("pitch_q", 0, 0, 1)
 
 
 class Control:
@@ -524,8 +529,42 @@ def main():
     tap("sval", 2)
     tap("sval", 2)
     check("двойной тап по значению — сброс", cd["sreset"].value == 2)
+    # сдвиг высоты (этап 8): второй ползунок, у целых полутонов прилипает, между ними плавно
+    check("на Speed ползунок PITCH", hit("pslider", "pit2") and "PITCH" in texts(wdg))
+
+    def ptap(v):
+        x0, y0, x1, y1 = hit("pslider", "pit2")[:4]
+        f = (v / 12.0 + 1.0) / 2.0
+        ev = types.SimpleNamespace(x=x0 + 10 + f * (x1 - x0 - 20), y=(y0 + y1) / 2)
+        wdg._on_press(ev)
+        wdg._on_release(ev)
+
+    ptap(6.0)
+    check("PITCH: +6", abs(cd["pit2"].value - 6.0) < 1e-6)
+    ptap(7.08)
+    check("PITCH: у +7 прилипает", cd["pit2"].value == 7.0)
+    ptap(-2.5)
+    wdg.update()
+    check("PITCH: −2.50 между полутонами", abs(cd["pit2"].value + 2.5) < 0.02 and "-2.50 st" in texts(wdg))
+    no_overlap("800x480, Speed с PITCH")
+    tap("preset", 2)
+    check("кнопка PITCH 0 — pit_reset=2", cd["pit_reset"].value == 2)
+    cd["pit_reset"].value = 0
+    tap("pval", 2)
+    tap("pval", 2)
+    check("двойной тап по высоте — pit_reset=2", cd["pit_reset"].value == 2)
+    cd["pit_reset"].value = 0
+    m["o_pstat"] = 1.0
+    wdg.update()
+    check("перегрузка: PITCH OFF: CPU", "PITCH OFF: CPU" in texts(wdg))
+    m["o_pstat"] = 0.0
+    cd["pit2"].value = 7.0
     tap("sclose", None)
     check("CLOSE закрывает Speed", wdg.speed_slot is None)
+    wdg.update()
+    check("метка у дорожки 2: скорость и высота", "0.84\u00d7 +7" in texts(wdg))
+    cd["pit2"].value = 0.0
+    wdg.update()
     # этап 7б: касание строки — дорожка, точки — парт, кнопка MIX — экран Mixer
     wdg.update()
     check("на Loop кнопка MIX", "MIX" in texts(wdg))
@@ -649,6 +688,15 @@ def main():
     cd["rec_thresh"].value = 0
     m["o_st1"] = 0.0
     cd["count_in"].value = 0
+    wdg.update()
+    # качество сдвига высоты (этап 8)
+    wdg.settings_open = True
+    into_view("sseg", "pitch_q")
+    check("в настройках PITCH QUALITY", "PITCH QUALITY" in texts(wdg) and "HIGH" in texts(wdg))
+    tap_seg("pitch_q", 1)
+    check("PITCH QUALITY: HIGH", cd["pitch_q"].value == 1)
+    cd["pitch_q"].value = 0
+    wdg.settings_open = False
     wdg.update()
 
     # сессия (этап 7а): строка в полосе темпа вместо точек долей

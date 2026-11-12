@@ -472,6 +472,34 @@ static void test_touch() {
   CHECK(f.pl->looper->view(0).state == 1);
   f.blocks(2, 0.3f);
   CHECK(f.pl->looper->view(0).state == 2);
+
+  // сдвиг высоты (этап 8): pit доходит до ядра (с ограничением ±12), pit_reset — в 0,
+  // pitch_q — настройка; новая основа — с 0, и об этом узнаёт хост
+  Host p;
+  set_param(p.pl, PR_MODE, 0);  // Free: запись сразу
+  on_param(p.pl, PR_MODE);
+  p.blocks(4);
+  CHECK(p.ctl[O_PSTAT] == 0.0f);
+  set_param(p.pl, PR_PIT0 + 1, 30.0);
+  on_param(p.pl, PR_PIT0 + 1);
+  CHECK(p.pl->vals[PR_PIT0 + 1] == 12.0f && p.pl->looper->pitch(1) == 12.0f);
+  set_param(p.pl, PR_PIT0 + 1, -3.5);
+  on_param(p.pl, PR_PIT0 + 1);
+  CHECK(p.pl->looper->pitch(1) == -3.5f);
+  cmd(PR_PRESET, 0);  // 0 — ничего (проверка сброса команды)
+  set_param(p.pl, PR_PRESET, 2);
+  on_param(p.pl, PR_PRESET);
+  CHECK(p.pl->vals[PR_PRESET] == 0.0f && p.pl->looper->pitch(1) == 0.0f);
+  set_param(p.pl, PR_PQUAL, 1);
+  on_param(p.pl, PR_PQUAL);
+  CHECK(p.pl->looper->settings().pitch_q == 1);
+  set_param(p.pl, PR_PIT0, 5.0);
+  on_param(p.pl, PR_PIT0);
+  p.blocks(2);
+  do_action(p.pl, A_REC);
+  p.blocks(4, 0.2f);
+  CHECK(p.pl->looper->view(0).state == 2 && p.pl->looper->pitch(0) == 0.0f);
+  CHECK(p.pl->vals[PR_PIT0] == 0.0f);
 }
 
 int main() {

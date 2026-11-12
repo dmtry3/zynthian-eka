@@ -3,7 +3,7 @@
 CXX ?= g++
 # На Zynthian в окружении свой CXXFLAGS (например, -mcpu=cortex-a72 без -O2): его оставляем,
 # а обязательные флаги добавляем всегда, иначе тесты и проба собираются без оптимизации.
-BASE_FLAGS := -std=c++17 -O2 -Wall -Wextra -fno-exceptions -fno-rtti
+BASE_FLAGS := -std=c++17 -O2 -Wall -Wextra -fno-exceptions -fno-rtti -I third_party/signalsmith
 
 CORE_H := $(wildcard core/*.h)
 CORE_CPP := $(wildcard core/*.cpp)

@@ -6,6 +6,6 @@ B="$ROOT/build/eka-tape.lv2"
 mkdir -p "$B"
 cp "$ROOT/lv2/manifest.ttl" "$ROOT/lv2/eka_tape.ttl" "$B/"
 g++ -std=c++17 -O2 -fPIC -shared -Wall -Wextra -fno-exceptions -fno-rtti -fvisibility=hidden \
-    $(pkg-config --cflags lv2) \
+    -I "$ROOT/third_party/signalsmith" $(pkg-config --cflags lv2) \
     -o "$B/eka_tape.so" "$ROOT/lv2/eka_tape.cpp" "$ROOT"/core/*.cpp -lm
 echo "Built: $B"

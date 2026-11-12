@@ -1,7 +1,9 @@
 // Офлайн-тесты ядра лупера. Запуск: make test. Результат для прослушивания: tests/out/*.wav
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <new>
 #include <algorithm>
 #include <functional>
 #include <memory>
@@ -10,6 +12,21 @@
 #include "../core/looper.h"
 
 using namespace alp;
+
+// Выделения памяти в аудиопотоке: считаем вызовы operator new, пока идёт process().
+static bool g_count_alloc = false;
+static int g_allocs = 0;
+void* operator new(size_t n) {
+  if (g_count_alloc) ++g_allocs;
+  void* p = std::malloc(n ? n : 1);
+  if (!p) std::abort();
+  return p;
+}
+void* operator new[](size_t n) { return operator new(n); }
+void operator delete(void* p) noexcept { std::free(p); }
+void operator delete[](void* p) noexcept { std::free(p); }
+void operator delete(void* p, size_t) noexcept { std::free(p); }
+void operator delete[](void* p, size_t) noexcept { std::free(p); }
 
 static int g_fail = 0, g_pass = 0;
 #define CHECK(cond)                                                \
@@ -36,6 +53,7 @@ struct Sim {
   std::function<float(uint64_t)> in_l = [](uint64_t) { return 0.0f; };
   std::function<float(uint64_t)> in_r;
   std::vector<float> out_l, out_r;
+  bool count_allocs = false;
   std::function<double(uint64_t)> beats_at;  // позиция транспорта в долях (по умолчанию от t = 0)
   double beats_now() const { return beats_at ? beats_at(t) : (double)t * bpm / 60.0 / SR; }
 
@@ -58,7 +76,9 @@ struct Sim {
       }
       ti.beats_per_frame = bpm / 60.0 / SR;
       ti.beats = beats_now();
+      g_count_alloc = count_allocs;
       lp->process(il, ir, ol, orr, BLOCK, ti);
+      g_count_alloc = false;
       WorkMsg m;
       while (lp->take_work(m)) {
         WorkResp r;
@@ -1611,7 +1631,300 @@ static void test_dub_at_speed() {
   s.wav("dub_at_speed");
 }
 
+
+// ---------------------------------------------------------------- сдвиг высоты (этап 8)
+
+// Записать луп длиной L из сигнала f (Free, RPO), дальше вход — тишина.
+static void rec_loop(Sim& s, std::function<float(uint64_t)> f, uint64_t L) {
+  s.in_l = f;
+  s.in_r = nullptr;
+  s.cmd(Cmd::Rec);
+  s.run(L);
+  s.cmd(Cmd::Rec);
+  s.run(BLOCK * 4);
+  s.in_l = [](uint64_t) { return 0.0f; };
+  s.run(BLOCK * 8);
+}
+
+// Лаг (кадров) максимума взаимной корреляции b относительно a в пределах ±maxlag и её величина.
+static int best_lag(const std::vector<float>& a, const std::vector<float>& b, int maxlag, double* corr) {
+  int best = 0;
+  double bc = -1e30, na = 0, nb = 0;
+  for (size_t i = 0; i < a.size(); ++i) na += a[i] * a[i];
+  for (size_t i = 0; i < b.size(); ++i) nb += b[i] * b[i];
+  for (int lag = -maxlag; lag <= maxlag; ++lag) {
+    double c = 0;
+    for (int i = maxlag; i + maxlag < (int)a.size(); ++i) c += a[i] * b[i + lag];
+    if (c > bc) {
+      bc = c;
+      best = lag;
+    }
+  }
+  if (corr) *corr = bc / std::sqrt(na * nb + 1e-30);
+  return best;
+}
+
+// Сигнал с атаками: шумовые всплески каждые 0,25 с и тихий тон.
+static float burst_sig(uint64_t t) {
+  const uint64_t ph = t % 12000;
+  float v = 0.15f * (float)std::sin(PI2 * 331.0 * (double)t / SR);
+  if (ph < 480) {
+    uint32_t x = (uint32_t)(t * 2654435761u);
+    x ^= x >> 13;
+    v += 0.5f * ((float)(x & 0xffff) / 32768.0f - 1.0f) * (1.0f - (float)ph / 480.0f);
+  }
+  return v;
+}
+
+// Сдвинутый звук в фазе: тот же луп со сдвигом 0,01 полутона совпадает с исходным по времени.
+static void test_pitch_align() {
+  const uint64_t L = 48000;
+  Sim a, b;
+  rec_loop(a, burst_sig, L);
+  rec_loop(b, burst_sig, L);
+  CHECK(b.lp->pitch_latency() > 4000);
+  b.lp->set_pitch(0, 0.01f);
+  a.run(L * 2);
+  b.run(L * 2);
+  double c = 0;
+  const int lag = best_lag(a.slice(a.t - L, L), b.slice(b.t - L, L), 1500, &c);
+  std::printf("  pitch align: lag %d frames, corr %.3f\n", lag, c);
+  CHECK(std::abs(lag) <= 48);  // не больше 1 мс
+  CHECK(c > 0.8);  // шум после Stretch теряет точную фазу
+  CHECK(b.v().pitch == 0.01f);
+}
+
+// Высота: +12 — октава вверх, −12 вниз, +7 — квинта; со скоростью 2× и −12 — исходная.
+static void test_pitch_freq() {
+  const uint64_t L = 48000;
+  Sim s;
+  rec_loop(s, sine(220.0, 0.5f), L);
+  struct Case { float st, spd; double f; } cases[] = {{12, 1, 440}, {-12, 1, 110}, {7, 1, 220 * 1.4983}, {-12, 2, 220}, {0, 1, 220}};
+  for (const Case& c : cases) {
+    s.lp->set_speed(0, c.spd);
+    s.lp->set_pitch(0, c.st);
+    s.run(L);
+    const double f = zc_freq(s.slice(s.t - L / 2, L / 2));
+    std::printf("  pitch %+.0f speed %.0fx: %.1f Hz (want %.1f)\n", c.st, c.spd, f, c.f);
+    CHECK(std::fabs(f - c.f) < c.f * 0.02);
+    CHECK(rms(s.slice(s.t - L / 2, L / 2)) > 0.25f);
+  }
+}
+
+// Включение, смена и выключение сдвига без щелчков; в аудиопотоке память не выделяется.
+static void test_pitch_smooth() {
+  const uint64_t L = 48000;
+  Sim s;
+  rec_loop(s, sine(220.0, 0.5f), L);
+  s.count_allocs = true;
+  g_allocs = 0;
+  const uint64_t t0 = s.t;
+  s.run(L / 2);
+  s.lp->set_pitch(0, 5);
+  s.run(L / 2);
+  s.lp->set_pitch(0, -3);  // плавный ход между значениями
+  s.run(L / 2);
+  s.lp->set_pitch(0, 0);
+  s.run(L / 2);
+  s.lp->set_pitch(0, 12);
+  s.run(L / 4);
+  s.cmd(Cmd::Mute);
+  s.run(L / 2);
+  s.cmd(Cmd::Mute);
+  s.run(L / 2);
+  s.cmd(Cmd::Reverse);
+  s.run(L);
+  s.set.pitch_q = 1;  // HIGH: дорожка перезапускается в другом качестве
+  s.apply();
+  s.run(L);
+  CHECK(s.lp->pitch_latency() > 4000);
+  const float ms = s.max_step(t0, s.t);
+  for (uint64_t x = t0; x + 4800 < s.t; x += 4800)  // где щёлкнуло (если щёлкнуло)
+    if (s.max_step(x, x + 4800) > 0.06f) std::printf("    step %.3f at %.2f s\n", s.max_step(x, x + 4800), (x - t0) / SR);
+  std::printf("  pitch smooth: max step %.4f, allocs %d\n", ms, g_allocs);
+  CHECK(ms < 0.06f);
+  CHECK(g_allocs == 0);
+  CHECK(std::fabs(zc_freq(s.slice(s.t - L / 2, L / 2)) - 440.0) < 9.0);
+  s.count_allocs = false;
+  s.wav("pitch_smooth");
+}
+
+// Овердаб «как слышно»: музыкант играет то, что слышит на +12; при 0 овердаб совпадает с основой
+// по высоте и месту (сумма вдвое громче исходной, в фазе).
+static void test_pitch_dub() {
+  const uint64_t L = 48000;
+  Sim s;
+  s.set.latency_ms = (float)(BLOCK * 1000.0 / SR);  // вход ниже — выход, задержанный на блок
+  s.apply();
+  rec_loop(s, burst_sig, L);
+  s.run(L / 2);
+  const uint64_t T0 = s.t;
+  s.run(L);
+  const std::vector<float> ref = s.slice(T0, L);
+  s.lp->set_pitch(0, 12);
+  s.run(L);
+  s.count_allocs = true;
+  g_allocs = 0;
+  // «играем» то, что слышим (выход, задержанный на блок: как вход через аудиоинтерфейс)
+  s.in_l = [&s](uint64_t t) { return t >= BLOCK && t - BLOCK < s.out_l.size() ? s.out_l[t - BLOCK] : 0.0f; };
+  s.in_r = [&s](uint64_t t) { return t >= BLOCK && t - BLOCK < s.out_r.size() ? s.out_r[t - BLOCK] : 0.0f; };
+  s.cmd(Cmd::Rec);
+  s.run(BLOCK * 4);
+  CHECK(s.v().state == 4);
+  s.run(L);
+  s.in_l = [](uint64_t) { return 0.0f; };
+  s.in_r = nullptr;
+  s.cmd(Cmd::Rec);
+  s.run(BLOCK * 8);
+  CHECK(s.v().state == 4);  // дописывает то, что ещё в Stretch
+  s.run(L / 2);
+  CHECK(s.v().state == 3);
+  CHECK(s.v().layers == 2);
+  CHECK(g_allocs == 0);
+  s.count_allocs = false;
+  s.lp->set_pitch(0, 0);
+  s.run(L);
+  const uint64_t T1 = s.t;
+  s.run(L);
+  std::vector<float> got(L), want(L);
+  const uint64_t d = (T1 - T0) % L;
+  for (uint64_t i = 0; i < L; ++i) {
+    got[i] = s.out_l[T1 + i];
+    want[i] = ref[(i + d) % L];
+  }
+  // овердаб = сумма − основа; после двух сдвигов шум не в фазе с основой, поэтому место
+  // сверяем по огибающей (всплески там же), а громкость — по RMS
+  std::vector<float> dub(L), env_d(L), env_b(L);
+  for (uint64_t i = 0; i < L; ++i) dub[i] = got[i] - want[i];
+  float ed = 0, eb = 0;
+  for (uint64_t i = 0; i < L; ++i) {
+    ed += (std::fabs(dub[i]) - ed) * 0.02f;
+    eb += (std::fabs(want[i]) - eb) * 0.02f;
+    env_d[i] = ed;
+    env_b[i] = eb;
+  }
+  double c = 0;
+  const int lag = best_lag(env_b, env_d, 1500, &c);
+  const float ratio = rms(dub) / rms(want);
+  std::printf("  pitch dub: envelope lag %d frames, corr %.3f, dub level x%.2f\n", lag, c, ratio);
+  CHECK(std::abs(lag) <= 96);  // не больше 2 мс
+  CHECK(c > 0.9);
+  CHECK(ratio > 0.7f && ratio < 1.3f);
+  s.wav("pitch_dub");
+}
+
+// Перегрузка: Stretch не укладывается в долю блока — сдвиг выключается, дорожка звучит без него.
+static void test_pitch_overload() {
+  const uint64_t L = 48000;
+  Sim s;
+  rec_loop(s, sine(220.0, 0.5f), L);
+  s.lp->set_pitch_budget(0.0f);
+  s.lp->set_pitch(0, 12);
+  s.run(L / 2);
+  CHECK(s.lp->pitch_overload());
+  s.run(L / 2);
+  CHECK(std::fabs(zc_freq(s.slice(s.t - L / 4, L / 4)) - 220.0) < 5.0);
+  CHECK(rms(s.slice(s.t - L / 4, L / 4)) > 0.3f);
+  s.lp->set_pitch_budget(0.5f);
+  s.lp->set_pitch(0, 7);  // новое значение — новая попытка
+  CHECK(!s.lp->pitch_overload());
+  s.run(L);
+  CHECK(!s.lp->pitch_overload());
+  CHECK(std::fabs(zc_freq(s.slice(s.t - L / 2, L / 2)) - 329.6) < 7.0);
+}
+
+// Новая основа — без сдвига; Lock-копия в пустом парте продолжает со сдвигом без шва.
+static void test_pitch_parts() {
+  const uint64_t L = 48000;
+  Sim s;
+  s.lp->set_pitch(0, 5);
+  rec_loop(s, sine(220.0, 0.5f), L);
+  CHECK(s.v().pitch == 0.0f);
+  s.lp->set_pitch(0, 12);
+  s.run(L);
+  const uint64_t t0 = s.t;
+  s.cmd(Cmd::PartNext);  // пустой парт 2, переход в конце цикла: дорожка 1 с Lock копируется
+  s.run(L * 2);
+  CHECK(s.lp->part() == 1);
+  const int g = s.lp->grid();
+  CHECK(s.lp->pitch(g) == 12.0f);
+  CHECK(s.v().state == 3);
+  const float ms = s.max_step(t0, s.t);
+  std::printf("  pitch lock copy: max step %.4f\n", ms);
+  CHECK(ms < 0.06f);
+  CHECK(std::fabs(zc_freq(s.slice(s.t - L / 2, L / 2)) - 440.0) < 9.0);
+  // удержание Reset: сдвиг всех дорожек — в 0
+  s.cmd(Cmd::ResetAll);
+  s.run(BLOCK * 8);
+  CHECK(s.lp->pitch(g) == 0.0f);
+}
+
+// Сдвиг вместе со скоростью: плавный ход 1× → 1,5× → 0,75× без щелчков, высота = скорость × сдвиг.
+static void test_pitch_speed_glide() {
+  const uint64_t L = 48000;
+  Sim s;
+  rec_loop(s, sine(220.0, 0.5f), L);
+  s.lp->set_pitch(0, 7);
+  s.run(L / 2);
+  const uint64_t t0 = s.t;
+  s.lp->set_speed(0, 1.5f);
+  s.run(L);
+  CHECK(std::fabs(zc_freq(s.slice(s.t - L / 4, L / 4)) - 220 * 1.5 * 1.4983) < 10.0);
+  s.lp->set_speed(0, 0.75f);
+  s.run(L);
+  CHECK(std::fabs(zc_freq(s.slice(s.t - L / 4, L / 4)) - 220 * 0.75 * 1.4983) < 5.0);
+  const float ms = s.max_step(t0, s.t);
+  std::printf("  pitch + speed glide: max step %.4f\n", ms);
+  CHECK(ms < 0.06f);
+  s.wav("pitch_speed");
+}
+
+// Шесть сдвинутых дорожек (6×6), остановка и пуск транспорта (Quantize), переход в записанный парт:
+// без щелчков и без выделения памяти; дорожки входят в фазе.
+static void test_pitch_many() {
+  Sim s(64, true);
+  s.lp->set_grid(6);
+  s.run(BLOCK);
+  const uint64_t bar = (uint64_t)(4 * 60.0 / 120.0 * SR);  // 1 такт при 120
+  const double fr[6] = {110, 165, 220, 275, 330, 385};
+  for (int k = 0; k < 6; ++k) {
+    s.in_l = sine(fr[k], 0.12f);
+    s.cmd(Cmd::Rec);
+    while (s.v(k).state != 2) s.run(BLOCK);
+    s.run(bar - BLOCK);
+    s.cmd(Cmd::Rec);
+    while (s.v(k).state != 3) s.run(BLOCK);
+    s.in_l = [](uint64_t) { return 0.0f; };
+    s.cmd(Cmd::TrackNext);
+  }
+  for (int k = 0; k < 6; ++k) s.lp->set_pitch(k, (float)(k % 2 ? -5 : 4));
+  s.run(bar);
+  s.count_allocs = true;
+  g_allocs = 0;
+  const uint64_t t0 = s.t;
+  s.ti.rolling = false;  // стоп транспорта: затихают
+  s.run(bar);
+  s.ti.rolling = true;
+  const uint64_t ts = s.t;
+  s.beats_at = [ts](uint64_t t) { return (double)(t - ts) * 120.0 / 60.0 / SR; };
+  s.run(bar * 2);
+  CHECK(rms(s.slice(s.t - bar / 2, bar / 2)) > 0.1f);
+  const float ms = s.max_step(t0, s.t);
+  std::printf("  6 pitched tracks, stop/start: max step %.4f, allocs %d\n", ms, g_allocs);
+  CHECK(ms < 0.08f);
+  CHECK(g_allocs == 0);
+  s.count_allocs = false;
+}
+
 int main() {
+  test_pitch_align();
+  test_pitch_freq();
+  test_pitch_smooth();
+  test_pitch_dub();
+  test_pitch_overload();
+  test_pitch_parts();
+  test_pitch_speed_glide();
+  test_pitch_many();
   test_record_play();
   test_overdubs_undo();
   test_mute();
