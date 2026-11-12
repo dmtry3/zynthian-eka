@@ -23,144 +23,144 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_bongo>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Bongo" ;
+    rdfs:label "Perc - Bongo" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_marimba>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Marimba" ;
+    rdfs:label "Perc - Marimba" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_woodblock>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Woodblock" ;
+    rdfs:label "Perc - Woodblock" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_low_tom>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Low Tom" ;
+    rdfs:label "Perc - Low Tom" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_pluck>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Pluck" ;
+    rdfs:label "String - Pluck" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_harp>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Harp" ;
+    rdfs:label "String - Harp" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_snap_string>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Snap String" ;
+    rdfs:label "String - Snap" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_koto_glide>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Koto Glide" ;
+    rdfs:label "String - Koto Glide" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_glass_bell>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Glass Bell" ;
+    rdfs:label "Bell - Glass" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_gong>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Gong" ;
+    rdfs:label "Bell - Gong" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_tubular>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Tubular" ;
+    rdfs:label "Bell - Tubular" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_fold_pad>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Fold Pad" ;
+    rdfs:label "Pad - Fold" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_wave_drift>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Wave Drift" ;
+    rdfs:label "Pad - Wave Drift" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_soft_choir>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Soft Choir" ;
+    rdfs:label "Pad - Soft Choir" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_west_coast_drone>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "West Coast Drone" ;
+    rdfs:label "Drone - West Coast" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_dark_hum>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Dark Hum" ;
+    rdfs:label "Drone - Dark Hum" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_fm_bass>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "FM Bass" ;
+    rdfs:label "Bass - FM" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_fold_bass>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Fold Bass" ;
+    rdfs:label "Bass - Fold" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_sync_bass>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Sync Bass" ;
+    rdfs:label "Bass - Sync" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_glide_lead>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Glide Lead" ;
+    rdfs:label "Lead - Glide" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_sync_lead>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Sync Lead" ;
+    rdfs:label "Lead - Sync" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_echo_plucks>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Echo Plucks" ;
+    rdfs:label "FX - Echo Plucks" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_random_bloops>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Random Bloops" ;
+    rdfs:label "FX - Random Bloops" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_metal_texture>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Metal Texture" ;
+    rdfs:label "FX - Metal Texture" ;
     rdfs:seeAlso <presets.ttl> .
 

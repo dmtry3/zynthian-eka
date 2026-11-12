@@ -143,29 +143,29 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_bongo>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Bongo" ;
+    rdfs:label "Perc - Bongo" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 0.0 ] ,
         [ lv2:symbol "harmonics" ; pset:value 50.0 ] ,
         [ lv2:symbol "color" ; pset:value 50.0 ] ,
         [ lv2:symbol "morph" ; pset:value 50.0 ] ,
-        [ lv2:symbol "mod_freq" ; pset:value 30.0 ] ,
-        [ lv2:symbol "mod_index" ; pset:value 15.0 ] ,
+        [ lv2:symbol "mod_freq" ; pset:value 41.667 ] ,
+        [ lv2:symbol "mod_index" ; pset:value 12.0 ] ,
         [ lv2:symbol "mod_shape" ; pset:value 1.0 ] ,
         [ lv2:symbol "mod_mode" ; pset:value 2.0 ] ,
-        [ lv2:symbol "timbre" ; pset:value 35.0 ] ,
+        [ lv2:symbol "timbre" ; pset:value 15.0 ] ,
         [ lv2:symbol "order" ; pset:value 0.0 ] ,
         [ lv2:symbol "symmetry" ; pset:value 0.0 ] ,
         [ lv2:symbol "drive" ; pset:value 0.0 ] ,
         [ lv2:symbol "gate_mode" ; pset:value 2.0 ] ,
-        [ lv2:symbol "gate_decay" ; pset:value 33.818 ] ,
-        [ lv2:symbol "gate_res" ; pset:value 30.0 ] ,
-        [ lv2:symbol "level" ; pset:value 85.0 ] ,
+        [ lv2:symbol "gate_decay" ; pset:value 51.112 ] ,
+        [ lv2:symbol "gate_res" ; pset:value 0.0 ] ,
+        [ lv2:symbol "level" ; pset:value 100.0 ] ,
         [ lv2:symbol "fg1_rise" ; pset:value 1.0 ] ,
-        [ lv2:symbol "fg1_fall" ; pset:value 30.0 ] ,
+        [ lv2:symbol "fg1_fall" ; pset:value 150.0 ] ,
         [ lv2:symbol "fg2_rise" ; pset:value 1.0 ] ,
-        [ lv2:symbol "fg2_fall" ; pset:value 60.0 ] ,
+        [ lv2:symbol "fg2_fall" ; pset:value 40.0 ] ,
         [ lv2:symbol "delay_mode" ; pset:value 0.0 ] ,
         [ lv2:symbol "delay_time" ; pset:value 50.0 ] ,
         [ lv2:symbol "delay_fb" ; pset:value 50.0 ] ,
@@ -197,11 +197,11 @@
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_lpg> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_dtime> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_dfb> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_pitch> 10 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_pitch> 25 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_color> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_morph> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_index> 20 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_order> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_symmetry> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_timbre> 0 ;
@@ -237,8 +237,8 @@
         <http://dmtry3.github.io/zynthian-eka/fold#m_vel_index> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_vel_order> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_vel_symmetry> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_timbre> 30 ;
-        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_timbre> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_lpg> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_vel_dtime> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_vel_dfb> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_key_pitch> 0 ;
@@ -279,7 +279,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_marimba>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Marimba" ;
+    rdfs:label "Perc - Marimba" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 0.0 ] ,
@@ -415,7 +415,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_woodblock>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Woodblock" ;
+    rdfs:label "Perc - Woodblock" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 2.0 ] ,
@@ -551,7 +551,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_low_tom>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Low Tom" ;
+    rdfs:label "Perc - Low Tom" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 0.0 ] ,
@@ -687,7 +687,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_pluck>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Pluck" ;
+    rdfs:label "String - Pluck" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 1.0 ] ,
@@ -823,7 +823,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_harp>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Harp" ;
+    rdfs:label "String - Harp" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 0.0 ] ,
@@ -959,7 +959,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_snap_string>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Snap String" ;
+    rdfs:label "String - Snap" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 1.0 ] ,
@@ -1095,7 +1095,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_koto_glide>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Koto Glide" ;
+    rdfs:label "String - Koto Glide" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 2.0 ] ,
@@ -1231,7 +1231,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_glass_bell>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Glass Bell" ;
+    rdfs:label "Bell - Glass" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 2.0 ] ,
@@ -1367,7 +1367,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_gong>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Gong" ;
+    rdfs:label "Bell - Gong" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 2.0 ] ,
@@ -1503,7 +1503,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_tubular>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Tubular" ;
+    rdfs:label "Bell - Tubular" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 3.0 ] ,
@@ -1639,7 +1639,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_fold_pad>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Fold Pad" ;
+    rdfs:label "Pad - Fold" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 1.0 ] ,
@@ -1775,7 +1775,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_wave_drift>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Wave Drift" ;
+    rdfs:label "Pad - Wave Drift" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 3.0 ] ,
@@ -1911,7 +1911,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_soft_choir>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Soft Choir" ;
+    rdfs:label "Pad - Soft Choir" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 1.0 ] ,
@@ -2047,7 +2047,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_west_coast_drone>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "West Coast Drone" ;
+    rdfs:label "Drone - West Coast" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 0.0 ] ,
@@ -2183,7 +2183,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_dark_hum>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Dark Hum" ;
+    rdfs:label "Drone - Dark Hum" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 2.0 ] ,
@@ -2319,7 +2319,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_fm_bass>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "FM Bass" ;
+    rdfs:label "Bass - FM" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 2.0 ] ,
@@ -2455,7 +2455,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_fold_bass>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Fold Bass" ;
+    rdfs:label "Bass - Fold" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 0.0 ] ,
@@ -2591,7 +2591,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_sync_bass>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Sync Bass" ;
+    rdfs:label "Bass - Sync" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 1.0 ] ,
@@ -2727,7 +2727,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_glide_lead>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Glide Lead" ;
+    rdfs:label "Lead - Glide" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 1.0 ] ,
@@ -2863,7 +2863,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_sync_lead>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Sync Lead" ;
+    rdfs:label "Lead - Sync" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 3.0 ] ,
@@ -2999,7 +2999,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_echo_plucks>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Echo Plucks" ;
+    rdfs:label "FX - Echo Plucks" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 0.0 ] ,
@@ -3135,7 +3135,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_random_bloops>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Random Bloops" ;
+    rdfs:label "FX - Random Bloops" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 0.0 ] ,
@@ -3271,7 +3271,7 @@
 <http://dmtry3.github.io/zynthian-eka/fold#preset_metal_texture>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
-    rdfs:label "Metal Texture" ;
+    rdfs:label "FX - Metal Texture" ;
     pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
     lv2:port
         [ lv2:symbol "source" ; pset:value 3.0 ] ,

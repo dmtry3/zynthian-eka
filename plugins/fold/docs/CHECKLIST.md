@@ -16,8 +16,11 @@
 ## 2. Каждый пресет
 
 Отметить, что хорошо, а что переделать (громкость, характер, название):
+2026-11-12: «некоторые хороши, некоторые как Bongo — нет». Bongo переделан (был щелчок 30 мс: теперь тело 150 мс,
+высота падает на 3 полутона, обертон FM 3/2, удар ярче от velocity). Названия теперь «Категория - Название»
+(Perc, String, Bell, Pad, Drone, Bass, Lead, FX); идентификаторы пресетов прежние.
 - [ ] Init ___
-- [ ] Удары: Bongo ___, Marimba ___, Woodblock ___, Low Tom ___
+- [ ] Perc: Bongo (новый) ___, Marimba ___, Woodblock ___, Low Tom ___
 - [ ] Струны: Pluck ___, Harp ___, Snap String ___, Koto Glide ___
 - [ ] Колокола: Glass Bell ___, Gong ___, Tubular ___
 - [ ] Пэды: Fold Pad ___, Wave Drift ___, Soft Choir ___
