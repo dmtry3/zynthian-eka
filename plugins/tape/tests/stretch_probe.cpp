@@ -129,6 +129,9 @@ Result run_case(const Loop& loop, const Preset& p, const Mode& m, int ntr, int b
 int main(int argc, char** argv) {
 	int block = argc > 1 ? std::atoi(argv[1]) : 256;
 	if (block < 16 || block > 4096) block = 256;
+#ifndef __OPTIMIZE__
+	std::printf("ВНИМАНИЕ: собрано без оптимизации (-O2), цифры завышены в разы\n\n");
+#endif
 	Loop loop;
 	const Preset presets[] = {
 		{"default", 0},
