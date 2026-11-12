@@ -788,7 +788,8 @@ def main():
     check("peaking EQ: the gain at its frequency, flat far away", abs(mod.peaking_db(1000.0, 1000.0, -6.0) + 6.0) < 1e-6
           and abs(mod.peaking_db(30.0, 1000.0, -6.0)) < 0.2 and abs(mod.peaking_db(1000.0, 1000.0, 0.0)) < 1e-9)
     check("loop shaper: straight at 0, tanh at 1, limited at 2", abs(mod.dl_shape(0.5, 0.0) - 2 * mod.fast_tanh(0.25))
-          < 1e-9 and abs(mod.dl_shape(3.0, 1.0) - 2 * mod.fast_tanh(0.5)) < 1e-9 and abs(mod.dl_shape(10, 0)) <= 2.0)
+          < 1e-9 and abs(mod.dl_shape(3.0, 1.0) - 2 * mod.fast_tanh(0.5)) < 1e-9 and
+          abs(mod.dl_shape(0.01, 1.0) - 0.01) < 1e-5 and abs(mod.dl_shape(10, 0)) <= 2.0)
     check("Delay Time read by the mode", abs(mod.dl_semis(50) ) < 1e-9 and abs(mod.dl_semis(100) - 24) < 1e-9 and
           abs(mod.dl_ms(0) - 1) < 1e-9 and abs(mod.dl_ms(100) - 1000) < 1e-6 and abs(mod.dl_eq_hz(50) - 1000) < 1e-6)
     ctl.selected = []

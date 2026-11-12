@@ -92,8 +92,9 @@ enum { FC_SRC_SINE, FC_SRC_VA, FC_SRC_FM2, FC_SRC_WAVE, FC_NSOURCES };
  * logarithmic: echoes). Tuned subtracts the delay of the EQ at the note's frequency, so it stays in tune. The EQ
  * acts on every pass: in Tuned a cut of 1 dB already damps the string (high notes pass hundreds of times a second;
  * a fixed damping low-pass was tried and dropped: at 10 kHz it killed a C8 string in 0.1 s).
- * Shaper: 0 = linear .. 1 = tanh; then a limit at FC_DL_LIM (the loop cannot run away, even at Feedback 100 %
- * with the EQ up). The voice lives on while its line is above FC_DL_OFF, after the gate has closed; a new note
+ * Shaper: 0 = linear .. 1 = tanh (slope 1 at 0: a quiet loop keeps its gain; tanh(3x) was tried and lifted it
+ * x1.6 at Shaper 30 %, the loop ran away above Feedback 85 %, found on the device 2026-11-12); then a limit at
+ * FC_DL_LIM (the loop stays bounded even at Feedback 100 % with the EQ up). The voice lives on while its line is above FC_DL_OFF, after the gate has closed; a new note
  * clears the line. Time knob 0..FC_DL_TIME_MAX, read by the mode, like Mod Freq. */
 enum { FC_DL_OFF_MODE, FC_DL_TUNED, FC_DL_FREE, FC_NDL_MODES };
 #define FC_DL_TIME_MAX 100.0f

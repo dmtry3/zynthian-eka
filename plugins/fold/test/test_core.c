@@ -1426,6 +1426,27 @@ static void test_delay_smooth(void) {
   CHECK(sw2 <= 1.5f * st2);
 }
 
+static void test_delay_stable(void) {
+  /* Feedback 99 %, the EQ flat: whatever the Shaper, the loop's gain stays below 1, the line dies away (on the
+   * device the first shaper, tanh(3x), lifted a quiet loop x1.6 and it ran away above Feedback 85 %) */
+  for (int m = FC_DL_TUNED; m <= FC_DL_FREE; m++)
+    for (int k = 0; k <= 4; k++) {
+      reset(SR);
+      FcParams p;
+      pluck_params(&p);
+      p.delay_mode = m; p.delay_fb = 0.99f; p.delay_shaper = k / 4.0f; p.delay_mix = 0.5f;
+      p.delay_time = m == FC_DL_FREE ? 50.0f : 50.0f;   /* Free: 32 ms */
+      fc_set_params(&core, &p);
+      fc_note_on(&core, 48, 127);
+      render(&core, 0, SR / 2);
+      const float early = core.v[0].dl_pk;
+      render(&core, 0, 2 * SR);
+      const float late = core.v[0].dl_pk;
+      if (!(late < 0.9f * early)) printf("  mode %d, Shaper %d %%: line %.3f -> %.3f\n", m, 25 * k, early, late);
+      CHECK(late < 0.9f * early);
+    }
+}
+
 static void test_delay_extremes(void) {
   /* Feedback +-100 %, the EQ at +18 dB, no shaper: the limit holds it; every Time, both modes, the matrix on Time */
   for (int m = FC_DL_TUNED; m <= FC_DL_FREE; m++)
@@ -1493,6 +1514,7 @@ int main(void) {
   test_delay_free();
   test_delay_tail();
   test_delay_smooth();
+  test_delay_stable();
   test_delay_extremes();
   test_soft_clip();
   test_engine_pitch();

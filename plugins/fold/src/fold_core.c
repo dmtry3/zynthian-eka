@@ -543,6 +543,7 @@ static float loop_delay(const FoldCore* c, float w) {
 
 /* The delay's targets for a voice playing at inc (cycles per sample, the matrix's pitch in it). */
 static void delay_control(const FoldCore* c, FcVoice* v, const FcRate* r, float inc) {
+  if (c->dl_mode == FC_DL_OFF_MODE && v->dl_used > 0) return;   /* fading out: the line keeps its length */
   v->dl_fb_g = FC_DL_FB_MAX * clampf(c->dl_fb_t + v->md[FC_MD_DFB], -1.0f, 1.0f);
   const float u = clampf(c->dl_time_u + FC_DL_TIME_MAX * v->md[FC_MD_DTIME], 0.0f, FC_DL_TIME_MAX);
   float len;
@@ -577,7 +578,7 @@ static inline float delay_tick(const FoldCore* c, FcVoice* v, float x, float k) 
   v->eq_x2 = v->eq_x1; v->eq_x1 = d;
   v->eq_y2 = v->eq_y1; v->eq_y1 = e;
   float sh = e;
-  if (c->dl_shape > 0.0f) sh += c->dl_shape * (fast_tanh(3.0f * sh) - sh);
+  if (c->dl_shape > 0.0f) sh += c->dl_shape * (fast_tanh(sh) - sh);   /* slope 1 at 0: it squeezes, never lifts */
   sh = FC_DL_LIM * fast_tanh(sh * (1.0f / FC_DL_LIM));
   const float w = x + v->dl_fb * sh;
   v->dl_buf[v->dl_wi] = w;

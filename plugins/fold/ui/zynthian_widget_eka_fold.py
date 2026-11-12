@@ -559,8 +559,8 @@ def dl_eq_hz(u):
 
 
 def dl_shape(e, k):
-    """The loop's shaper of fold_core.c delay_tick: e + k (tanh3(e) - e), then the limit."""
-    s = e + k * (fast_tanh(3.0 * e) - e)
+    """The loop's shaper of fold_core.c delay_tick: e + k (tanh(e) - e), then the limit."""
+    s = e + k * (fast_tanh(e) - e)
     return DL_LIM * fast_tanh(s / DL_LIM)
 
 
