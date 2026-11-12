@@ -68,6 +68,30 @@
     rdfs:label "String - Koto Glide" ;
     rdfs:seeAlso <presets.ttl> .
 
+<http://dmtry3.github.io/zynthian-eka/fold#preset_modal_bell>
+    a pset:Preset ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
+    rdfs:label "Bell - Modal" ;
+    rdfs:seeAlso <presets.ttl> .
+
+<http://dmtry3.github.io/zynthian-eka/fold#preset_modal_bar>
+    a pset:Preset ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
+    rdfs:label "Perc - Bar" ;
+    rdfs:seeAlso <presets.ttl> .
+
+<http://dmtry3.github.io/zynthian-eka/fold#preset_string_sitar>
+    a pset:Preset ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
+    rdfs:label "String - Sitar" ;
+    rdfs:seeAlso <presets.ttl> .
+
+<http://dmtry3.github.io/zynthian-eka/fold#preset_string_piano>
+    a pset:Preset ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
+    rdfs:label "String - Piano" ;
+    rdfs:seeAlso <presets.ttl> .
+
 <http://dmtry3.github.io/zynthian-eka/fold#preset_glass_bell>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;

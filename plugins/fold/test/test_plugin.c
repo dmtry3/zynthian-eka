@@ -305,7 +305,7 @@ int main(int argc, char** argv) {
   /* State: save, change, restore; the restored values are reported on the next run */
   nitems = 0;
   CHECK(si->save(h, store, NULL, 0, NULL) == LV2_STATE_SUCCESS);
-  CHECK(nitems == 11 + 88);                         /* the settings and the 88 matrix cells */
+  CHECK(nitems == 14 + 88);                         /* the settings and the 88 matrix cells */
   seq_set("route_am", 0.0f);
   seq_set("route_sync", 0.0f);
   seq_set("route_fm", 1.0f);

@@ -85,13 +85,14 @@ PLAY_TAB = 6
 MATRIX_TAB = 7
 PLAY_MODES = ["Poly", "Mono", "Legato"]       # FC_PLAY_* of fold_core.h, the Play knob
 GLIDE_MAX_MS = 2000.0                         # FC_GLIDE_MAX_MS: Glide 0..100 = 2 s x (Glide / 100)^2
-DL_MODES = ["Off", "Tuned", "Free"]           # FC_DL_* of fold_core.h, the Delay knob
+DL_MODES = ["Off", "Tuned", "Free", "Modal", "String"]   # FC_DL_* of fold_core.h, the Delay knob
 DL_SEMIS = 24.0                               # FC_DL_SEMIS, FC_DL_MIN_MS, FC_DL_MAX_MS, FC_DL_EQ_*, FC_DL_LIM
 DL_MIN_MS, DL_MAX_MS = 1.0, 2000.0          # Free: DL_MAX_MS x (Time / 100)^3
 DL_EQ_MIN_HZ, DL_EQ_MAX_HZ, DL_EQ_Q = 100.0, 10000.0, 0.7
 DL_LIM = 2.0
 DL_DRIVE = 9.0                                # FC_DL_DRIVE
-DL_DEFAULTS = {"delay_shaper": 30, "delay_eq_freq": 50, "delay_eq_gain": 0}   # what a double tap resets to
+DL_DEFAULTS = {"delay_shaper": 30, "delay_eq_freq": 50, "delay_eq_gain": 0,       # what a double tap resets to
+               "res_structure": 25, "res_brightness": 50, "res_position": 0}
 DL_BAR_DB = 60.0                              # the line's level bar: -60..0 dB
 SLIDER_COLOR = "#1f4f73"                      # the bar inside a slider
 # Mod matrix: FC_MS_* and FC_MD_* of fold_core.h, in their order (symbol, name on the grid, what it is)
@@ -115,6 +116,8 @@ WAVE_LEN = 128
 WAVE_STRIDE = 132
 NWAVES = 192
 FM_QUANT_SIZE = 130
+STIFFNESS_SIZE = 65               # FR_STIFFNESS_SIZE
+RES_MODES = 24                   # FR_MODES
 NVOICES = 8
 TAB_COLOR = "#4dabf7"
 WAVE_COLOR = "#4dabf7"
@@ -384,12 +387,16 @@ def engine_tables():
             waves = array.array("h")
             waves.frombytes(data[:2 * NWAVES * WAVE_STRIDE])
             fmq = array.array("f")
-            fmq.frombytes(data[2 * NWAVES * WAVE_STRIDE:2 * NWAVES * WAVE_STRIDE + 4 * FM_QUANT_SIZE])
+            at = 2 * NWAVES * WAVE_STRIDE
+            fmq.frombytes(data[at:at + 4 * FM_QUANT_SIZE])
+            stiff = array.array("f")
+            stiff.frombytes(data[at + 4 * FM_QUANT_SIZE:at + 4 * FM_QUANT_SIZE + 4 * STIFFNESS_SIZE])
             if sys.byteorder == "big":
                 waves.byteswap()
                 fmq.byteswap()
+                stiff.byteswap()
             if len(waves) == NWAVES * WAVE_STRIDE and len(fmq) == FM_QUANT_SIZE:
-                _TABLES = (waves, fmq)
+                _TABLES = (waves, fmq, stiff if len(stiff) == STIFFNESS_SIZE else None)
         except Exception as e:
             logging.debug("Eka Fold widget: no engine tables => %s", e)
     return _TABLES
@@ -668,6 +675,39 @@ def peaking_db(f, f0, gain_db, sr=VOICE_SR):
 
 def tx_or_dim(on):
     return zynthian_gui_config.color_tx if on else "#505050"
+
+
+def modal_modes(structure, brightness, damping, position, stiff):
+    """Modal: (ratio to the note, relative level) of its modes, as src/plaits/resonators.cc fr_modal_block (the level:
+    the mode's amplitude for Position times how its Q falls with Brightness)."""
+    x = _clamp(structure, 0.0, 1.0) * 64.0
+    i = min(int(x), STIFFNESS_SIZE - 2)
+    s = stiff[i] + (stiff[i + 1] - stiff[i]) * (x - i) if stiff else 0.0
+    st, k = 1.0, s                                    # NthHarmonicCompensation(3)
+    for _ in range(2):
+        st += k
+        k *= 0.93 if k < 0.0 else 0.98
+    comp = 1.0 / st
+    b = brightness * (1.0 - structure * 0.3) * (1.0 - damping * 0.3)
+    q_loss = b * (2.0 - b) * 0.85 + 0.15
+    freq, sign = _clamp(position, 0.0, 1.0) - 0.25, 16.0     # the approximate cosine oscillator
+    if freq < 0.0:
+        freq = -freq
+    elif freq > 0.5:
+        freq -= 0.5
+    else:
+        sign = -16.0
+    kk = sign * freq * (1.0 - 2.0 * freq)
+    y1, y0 = kk * 0.25, 0.5
+    out, stretch, q = [], 1.0, 1.0
+    for n in range(RES_MODES):
+        t = y0
+        y0, y1 = kk * y0 - y1, t
+        out.append(((n + 1) * comp * stretch, abs(t + 0.5) * q))
+        stretch += s
+        s *= 0.93 if s < 0.0 else 0.98
+        q *= q_loss
+    return out
 
 
 def mix(rgb, f, bg=CELL_BG):
@@ -1722,7 +1762,7 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         w, h = max(int(self.width), 60), max(int(self.height), 60)
         hh, fs = self._header_h(), self._font_size()
         row = 2 * fs + 6
-        buttons = (4, hh + 4, min(w - 4, int(w * 0.6)), hh + 4 + row)
+        buttons = (4, hh + 4, w - 4, hh + 4 + row)                     # five modes: the whole width
         bottom = h - row // 2 - 2
         vy1 = h - row - 4
         vy0 = vy1 - row
@@ -1740,7 +1780,9 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         return (int(round(self._zval("delay_mode", 0))), self._zval("delay_time", 50.0), self._zval("delay_fb", 50.0),
                 self._zval("delay_mix", 30.0), int(round(self._zval("delay_shaper", 30))),
                 int(round(self._zval("delay_eq_freq", 50))), int(round(self._zval("delay_eq_gain", 0))), note,
-                int(round(self._zval("pitch", 0))), int(round(self._zval("fine", 0))))
+                int(round(self._zval("pitch", 0))), int(round(self._zval("fine", 0))),
+                int(round(self._zval("res_structure", 25))), int(round(self._zval("res_brightness", 50))),
+                int(round(self._zval("res_position", 0))))
 
     def _delay_time_text(self, mode, u, note, pitch, fine):
         if mode == 2:
@@ -1765,23 +1807,38 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         self._draw_delay_live(bar)
 
     def _draw_delay_static(self, buttons, shaper, eq, bar, values, bottom, vals):
-        mode, time_u, fb, dmix, shp, eqf, eqg, note, pitch, fine = vals
+        mode, time_u, fb, dmix, shp, eqf, eqg, note, pitch, fine, rs, rb, rp = vals
         c = self.widget_canvas
         c.delete("delay")
         c.delete("delaylive")
         tx, small = zynthian_gui_config.color_tx, self._font(max(7, self._font_size() - 3))
         self.dl_buttons = []
         bx0, by0, bx1, by1 = buttons
-        bw = (bx1 - bx0) / 3.0
+        bw = (bx1 - bx0) / float(len(DL_MODES))
+        bfont = self._fit_font(max(DL_MODES, key=len), bw - 10)
         for i, name in enumerate(DL_MODES):
             on = i == mode
             x0 = bx0 + i * bw
             c.create_rectangle(x0, by0, x0 + bw - 4, by1, outline=ROUTE_ON if on else ROUTE_OFF,
                                fill=(ROUTE_ON if on else ""), tags="delay")
-            c.create_text(x0 + (bw - 4) / 2, (by0 + by1) / 2, text=name, font=self._font(),
+            c.create_text(x0 + (bw - 4) / 2, (by0 + by1) / 2, text=name, font=bfont,
                           fill=("#000000" if on else tx), tags="delay")
             self.dl_buttons.append((x0, by0, x0 + bw - 4, by1, i))
         col = WAVE_COLOR if mode else ROUTE_OFF            # Off: the curves are grey
+        c.create_rectangle(*bar, outline=AXIS_COLOR, tags="delay")
+        if mode in (3, 4):
+            self._draw_resonator(mode, (shaper[0], shaper[1], eq[2], eq[3]), rs / 100.0, rb / 100.0, rp / 100.0,
+                                 min(abs(fb), 100.0) / 100.0, small)
+            texts = [("res_structure", "Structure %d%%" % rs, 0, 100, rs, False),
+                     ("res_brightness", "Bright %d%%" % rb, 0, 100, rb, False)]
+            if mode == 3:
+                texts.append(("res_position", "Position %d%%" % rp, 0, 100, rp, False))
+            self._draw_delay_sliders(values, texts, tx)
+            line = "%s   Decay %d%%   Mix %d%%" % (self._delay_time_text(mode, time_u, note, pitch, fine),
+                                                  round(min(abs(fb), 100)), round(dmix))
+            c.create_text(6, bottom, anchor="w", text=line, fill=tx, font=self._fit_font(line, self.width - 10),
+                          tags="delay")
+            return
         # the shaper: line output -1.5..1.5 -> back into the line, -2..2
         x0, y0, x1, y1 = shaper
         c.create_rectangle(*shaper, outline=AXIS_COLOR, tags="delay")
@@ -1814,14 +1871,63 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             pts += [x0 + (x1 - x0) * i / n, ym - peaking_db(f, f0, g) / span * (y1 - y0) / 2 * 0.9]
         c.create_line(*pts, fill=col, width=2, tags="delay")
         self._box_label(eq, "EQ per pass, \u00b1%.1f dB" % span, "delay")
-        c.create_rectangle(*bar, outline=AXIS_COLOR, tags="delay")
-        # the value boxes
+        self._draw_delay_sliders(values, [("delay_shaper", "Shaper %d%%" % shp, 0, 100, shp, False),
+                                          ("delay_eq_freq", "EQ %s" % hz_text(f0), 0, 100, eqf, False),
+                                          ("delay_eq_gain", "EQ %+.1f dB" % g, -180, 180, eqg, True)], tx)
+        # bottom: Time, Feedback, Mix
+        line = "%s   Fb %+d%%   Mix %d%%" % (self._delay_time_text(mode, time_u, note, pitch, fine), round(fb),
+                                              round(dmix)) if mode else "Delay off (no CPU)"
+        c.create_text(6, bottom, anchor="w", text=line, fill=tx, font=self._fit_font(line, self.width - 10),
+                      tags="delay")
+
+    def _draw_resonator(self, mode, box, structure, brightness, position, decay, small):
+        """Modal: its modes as bars over the ratio to the note (0..13); String: the Structure line Sitar - String -
+        Bell with its mark, and how its partials fall with Brightness."""
+        c = self.widget_canvas
+        x0, y0, x1, y1 = box
+        c.create_rectangle(*box, outline=AXIS_COLOR, tags="delay")
+        if mode == 3:
+            top = 13.0
+            for k in range(1, 13):
+                x = x0 + (x1 - x0) * k / top
+                c.create_line(x, y0, x, y1, fill=AXIS_COLOR, tags="delay")
+            tables = engine_tables()
+            modes = modal_modes(structure, brightness, decay, position, tables[2] if tables else None)
+            peak = max(a for _, a in modes) or 1.0
+            for ratio, a in modes:
+                if ratio >= top:
+                    break
+                x = x0 + (x1 - x0) * ratio / top
+                h = (y1 - y0 - 4) * a / peak
+                c.create_line(x, y1 - 1, x, y1 - 1 - h, fill=WAVE_COLOR, width=3, tags="delay")
+            self._box_label(box, "modes x1..x12 of the note", "delay")
+            return
+        ym = y0 + (y1 - y0) * 0.35
+        lx0, lx1 = x0 + 10, x1 - 10
+        c.create_line(lx0, ym, lx1, ym, fill=ROUTE_OFF, width=2, tags="delay")
+        for f, name, anchor in ((0.0, "Sitar", "nw"), (0.25, "String", "n"), (1.0, "Bell", "ne")):
+            x = lx0 + (lx1 - lx0) * f
+            c.create_line(x, ym - 5, x, ym + 5, fill=LABEL_COLOR, tags="delay")
+            c.create_text(x, ym + 7, anchor=anchor, text=name, fill=LABEL_COLOR, font=small, tags="delay")
+        xm = lx0 + (lx1 - lx0) * structure
+        c.create_polygon(xm - 6, ym - 12, xm + 6, ym - 12, xm, ym - 2, fill=MARK_COLOR, outline="", tags="delay")
+        # the partials' level after a while: the damping low-pass sits 12 + 60 d^2 + 24 b semitones above the note
+        cut = 2.0 ** ((12.0 + decay * decay * 60.0 + brightness * brightness * 24.0) / 12.0)
+        by = ym + 7 + 2 * self._font_size()
+        n = 16
+        for k in range(1, n + 1):
+            x = lx0 + (lx1 - lx0) * (k - 0.5) / n
+            lvl = 1.0 / (1.0 + (k / cut) ** 4)
+            c.create_line(x, y1 - 1, x, y1 - 1 - (y1 - by - 2) * lvl / k ** 0.5, fill=WAVE_COLOR, width=3,
+                          tags="delay")
+        self._box_label(box, "partials 1..16", "delay")
+
+    def _draw_delay_sliders(self, values, texts, tx):
+        """Sliders (symbol, text, min, max, value, from the middle): the bar inside shows the value."""
+        c = self.widget_canvas
         self.dl_boxes = []
         vx0, vy0, vx1, vy1 = values
-        texts = [("delay_shaper", "Shaper %d%%" % shp, 0, 100, shp, False),
-                 ("delay_eq_freq", "EQ %s" % hz_text(f0), 0, 100, eqf, False),
-                 ("delay_eq_gain", "EQ %+.1f dB" % g, -180, 180, eqg, True)]
-        bw = (vx1 - vx0) / float(len(texts))
+        bw = (vx1 - vx0) / 3.0
         for i, (sym, text, lo, hi, v, mid) in enumerate(texts):
             x = vx0 + i * bw
             sx0, sx1 = x, x + bw - 6
@@ -1839,11 +1945,6 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             # px per step: the whole range over the slider's width (EQ Gain, 360 tenths, at least 1 px each)
             px = max(1.0, (sx1 - sx0) / float(hi - lo))
             self.dl_boxes.append((sx0, vy0, sx1, vy1, sym, lo, hi, px))
-        # bottom: Time, Feedback, Mix
-        line = "%s   Fb %+d%%   Mix %d%%" % (self._delay_time_text(mode, time_u, note, pitch, fine), round(fb),
-                                              round(dmix)) if mode else "Delay off (no CPU)"
-        c.create_text(6, bottom, anchor="w", text=line, fill=tx, font=self._fit_font(line, self.width - 10),
-                      tags="delay")
 
     def _draw_delay_live(self, bar):
         """The level bar of the newest voice's line, -60..0 dB: one small item, redrawn when it moved."""

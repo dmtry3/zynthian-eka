@@ -42,14 +42,17 @@ enum {
 /* Integer LV2 parameters set in the widget, saved in State. */
 /* The mod matrix follows: cell (s, d) is IP_MATRIX + s x FC_NMDST + d, named m_<source>_<destination>. */
 enum { IP_ROUTE_FM, IP_ROUTE_AM, IP_ROUTE_SYNC, IP_ROUTE_TIMBRE, IP_FG1_MODE, IP_FG2_MODE, IP_PITCH, IP_FINE,
-       IP_DL_SHAPER, IP_DL_EQ_FREQ, IP_DL_EQ_GAIN, IP_MATRIX, N_IPARAMS = IP_MATRIX + FC_NCELLS };
+       IP_DL_SHAPER, IP_DL_EQ_FREQ, IP_DL_EQ_GAIN, IP_RES_STRUCTURE, IP_RES_BRIGHTNESS, IP_RES_POSITION,
+       IP_MATRIX, N_IPARAMS = IP_MATRIX + FC_NCELLS };
 static const char* const ip_names[IP_MATRIX] = { "route_fm", "route_am", "route_sync", "route_timbre",
-  "fg1_mode", "fg2_mode", "pitch", "fine", "delay_shaper", "delay_eq_freq", "delay_eq_gain" };
+  "fg1_mode", "fg2_mode", "pitch", "fine", "delay_shaper", "delay_eq_freq", "delay_eq_gain", "res_structure",
+  "res_brightness", "res_position" };
 static const int ip_range[IP_MATRIX + 1][3] = {    /* default, min, max */
   { 1, 0, 1 }, { 0, 0, 1 }, { 0, 0, 1 }, { 0, 0, 1 },
   { FC_FG_GATE, 0, FC_NFG_MODES - 1 }, { FC_FG_GATE, 0, FC_NFG_MODES - 1 },
   { 0, -24, 24 }, { 0, -100, 100 },               /* pitch (semitones), fine (cents) */
   { 30, 0, 100 }, { 50, 0, 100 }, { 0, -180, 180 },   /* delay: Shaper %, EQ Freq % (100 Hz..10 kHz), EQ Gain 0.1 dB */
+  { 25, 0, 100 }, { 50, 0, 100 }, { 0, 0, 100 },       /* resonators: Structure, Brightness, Position % */
   { 0, -100, 100 } };                              /* every matrix cell (%) */
 static const int* range(int i) { return ip_range[i < IP_MATRIX ? i : IP_MATRIX]; }
 #define REPORT_PER_RUN 16                /* patch:Set replies per run() after patch:Get */
@@ -180,6 +183,9 @@ static void read_params(Fold* S) {
   p.delay_shaper = (float)S->ip[IP_DL_SHAPER] * 0.01f;
   p.delay_eq_freq = (float)S->ip[IP_DL_EQ_FREQ] * 0.01f;
   p.delay_eq_db = (float)S->ip[IP_DL_EQ_GAIN] * 0.1f;
+  p.res_structure = (float)S->ip[IP_RES_STRUCTURE] * 0.01f;
+  p.res_brightness = (float)S->ip[IP_RES_BRIGHTNESS] * 0.01f;
+  p.res_position = (float)S->ip[IP_RES_POSITION] * 0.01f;
   p.play_mode = (int)lrintf(ctl(S, P_PLAY_MODE, (float)p.play_mode));
   p.voices = (int)lrintf(ctl(S, P_VOICES, (float)p.voices));
   p.glide = ctl(S, P_GLIDE, p.glide);

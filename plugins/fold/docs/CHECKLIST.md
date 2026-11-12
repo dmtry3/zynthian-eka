@@ -2,7 +2,42 @@
 
 Отмечайте `[x]`, а проблемы записывайте под пунктом. Логи: `journalctl -u zynthian -f`.
 
+# Этап 7б: резонаторы Modal и String
+
+В WSL уже проверено тестами: Modal при Structure 25 % — моды точно x1, x2, x3 (0,01 цента от ноты), при 80 % растянуты
+(вторая x2,27); String в строю C2–C7 (худшее −0,08 цента), с дисперсией 90 % основной тон в строю (0,2 цента), а
+обертоны негармоничны; Decay (Feedback) задаёт длину звона, знак не важен; хвост держит голос и отпускает; переход
+Tuned → Modal → String → Free → Off на ноте без щелчков; крайние ручки без NaN; 32 пресета звучат без клипа.
+Нагрузка в WSL на 4 голоса: Modal +1,0 %, String +0,7 %; 8 голосов Wave с Modal — 9,8 % (на Pi ждём ~18 %).
+Новые пресеты: Bell - Modal, Perc - Bar, String - Sitar, String - Piano.
+
+## 1. Установка
+
+- [ ] `cd /root/zynthian-eka && git pull && cd plugins/fold && sudo make install && systemctl restart zynthian`
+- [ ] Ручка Delay: Off / Tuned / Free / Modal / String.
+
+## 2. Звук
+
+- [ ] Modal: короткий удар (FG1 Once, короткий Fall) — звенит; Structure от «струны / бруска» к «колоколу»;
+      Brightness — сколько верхних мод; Position — меняет набор мод; Feedback — длина звона.
+- [ ] String: Structure слева — ситар (жужжание), около 25 % — чистая струна, справа — рояль и колокол;
+      Brightness — темнее / ярче; Feedback — длина.
+- [ ] Строй резонаторов по нотам (C2–C7) и с Time +7 / +12.
+- [ ] Переключение режимов Delay во время ноты — без щелчков.
+- [ ] Пресеты: Bell - Modal ___, Perc - Bar ___, String - Sitar ___, String - Piano ___
+
+## 3. Виджет
+
+- [ ] Вкладка Delay: пять кнопок помещаются; в Modal — столбики мод, в String — линия Sitar — String — Bell.
+- [ ] Ползунки Structure / Bright / Position (Modal), Structure / Bright (String).
+
+## 4. Нагрузка
+
+- [ ] `./scripts/bench.sh | head -19` на Pi 5: Modal ___, String ___, «8 voices: Wave … Modal» ___
+
 # Этап 7а: источники Harm и PD
+
+Проверено на устройстве 2026-11-13: всё в порядке.
 
 В WSL уже проверено тестами: Harm и PD строят по ноте (99,9 % мощности на гармониках, A2–A6), уровень как у остальных;
 Harm: Color двигает центр спектра (h12 на 93 дБ выше h1 при 50 %), Morph — ширину (1 гармоника → 23); PD: Color 0 —
@@ -28,7 +63,8 @@ Harm: Color двигает центр спектра (h12 на 93 дБ выше 
 
 ## 3. Нагрузка
 
-- [ ] `./scripts/bench.sh | head -16` на Pi 5: Harm ___, PD ___ (Wave ___, VA ___)
+- [x] `./scripts/bench.sh | head -16` на Pi 5: Harm 6,25 %, PD 3,75 % (Wave 6,55 %, VA 4,13 %); 8 голосов VA со всей
+      матрицей 18,0 %
 
 # Этап 5в: оптимизация под 8 голосов
 

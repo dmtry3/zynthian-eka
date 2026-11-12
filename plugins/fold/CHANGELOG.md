@@ -4,7 +4,11 @@
 
 - Two more Principal sources: **Harm** (additive, 24 harmonics: Harmonics = bumps, Color = centre, Morph = slope)
   and **PD** (phase distortion: Harmonics = ratio, Color = amount, Morph = skew; held under 18 kHz).
-- Presets Pad - Organ, Bass - PD, Lead - Harm Fold (28 in all).
+- Presets Pad - Organ, Bass - PD, Lead - Harm Fold.
+- Two resonators in the delay block, excited by the voice: **Modal** (24 modes; Structure, Brightness, Position)
+  and **String** (sitar buzz / plain / dispersion; Structure, Brightness); Feedback is their Decay. In tune within
+  a cent (the loop filters' delay taken off).
+- Presets Bell - Modal, Perc - Bar, String - Sitar, String - Piano (32 in all).
 
 ## 0.7 (2026-11-12)
 

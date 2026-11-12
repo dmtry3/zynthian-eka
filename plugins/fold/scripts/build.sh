@@ -17,7 +17,8 @@ O="$ROOT/build_obj"   # not in build/: lv2ls takes every folder there for a bund
 build_engines "$O" "-O3 $CPU -fPIC -fvisibility=hidden"
 gcc -O3 $CPU -fPIC -fvisibility=hidden -Wall -Wextra $(pkg-config --cflags lv2) -c "$ROOT/src/eka_fold.c" -o "$O/eka_fold.o"
 gcc -O3 $CPU -fPIC -fvisibility=hidden -Wall -Wextra -c "$ROOT/src/fold_core.c" -o "$O/fold_core.o"
-g++ -shared -o "$B/eka_fold.so" "$O/eka_fold.o" "$O/fold_core.o" $ENGINE_OBJS -lm
+# --no-undefined: a symbol missing from the objects fails here, not when Zynthian loads the plugin
+g++ -shared -Wl,--no-undefined -o "$B/eka_fold.so" "$O/eka_fold.o" "$O/fold_core.o" $ENGINE_OBJS -lm
 # the engine tables for the widget (Osc and Fold tabs)
 gcc -O2 -Wall -Wextra -o "$O/dump_waves" "$ROOT/scripts/dump_waves.c" "$O/tables.o"
 "$O/dump_waves" "$B/engine_tables.bin"

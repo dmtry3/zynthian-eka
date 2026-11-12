@@ -50,6 +50,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -186,6 +189,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -322,6 +328,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -458,6 +467,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -594,6 +606,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -730,6 +745,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 10 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 70 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> -3 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -866,6 +884,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 60 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> -5 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -1002,6 +1023,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 25 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -1138,6 +1162,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 20 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 74 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> -3 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -1228,6 +1255,562 @@
         <http://dmtry3.github.io/zynthian-eka/fold#m_at_dfb> 0
     ] .
 
+<http://dmtry3.github.io/zynthian-eka/fold#preset_modal_bell>
+    a pset:Preset ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
+    rdfs:label "Bell - Modal" ;
+    pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
+    lv2:port
+        [ lv2:symbol "source" ; pset:value 2.0 ] ,
+        [ lv2:symbol "harmonics" ; pset:value 24.0 ] ,
+        [ lv2:symbol "color" ; pset:value 70.0 ] ,
+        [ lv2:symbol "morph" ; pset:value 10.0 ] ,
+        [ lv2:symbol "mod_freq" ; pset:value 30.0 ] ,
+        [ lv2:symbol "mod_index" ; pset:value 0.0 ] ,
+        [ lv2:symbol "mod_shape" ; pset:value 1.0 ] ,
+        [ lv2:symbol "mod_mode" ; pset:value 2.0 ] ,
+        [ lv2:symbol "timbre" ; pset:value 0.0 ] ,
+        [ lv2:symbol "order" ; pset:value 0.0 ] ,
+        [ lv2:symbol "symmetry" ; pset:value 0.0 ] ,
+        [ lv2:symbol "drive" ; pset:value 0.0 ] ,
+        [ lv2:symbol "gate_mode" ; pset:value 2.0 ] ,
+        [ lv2:symbol "gate_decay" ; pset:value 20.735 ] ,
+        [ lv2:symbol "gate_res" ; pset:value 0.0 ] ,
+        [ lv2:symbol "level" ; pset:value 60.0 ] ,
+        [ lv2:symbol "fg1_rise" ; pset:value 1.0 ] ,
+        [ lv2:symbol "fg1_fall" ; pset:value 10.0 ] ,
+        [ lv2:symbol "fg2_rise" ; pset:value 300.0 ] ,
+        [ lv2:symbol "fg2_fall" ; pset:value 800.0 ] ,
+        [ lv2:symbol "delay_mode" ; pset:value 3.0 ] ,
+        [ lv2:symbol "delay_time" ; pset:value 50.0 ] ,
+        [ lv2:symbol "delay_fb" ; pset:value 85.0 ] ,
+        [ lv2:symbol "delay_mix" ; pset:value 100.0 ] ,
+        [ lv2:symbol "play_mode" ; pset:value 0.0 ] ,
+        [ lv2:symbol "voices" ; pset:value 8.0 ] ,
+        [ lv2:symbol "glide" ; pset:value 0.0 ] ,
+        [ lv2:symbol "bend_range" ; pset:value 2.0 ] ;
+    state:state [
+        <http://dmtry3.github.io/zynthian-eka/fold#route_fm> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#route_am> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#route_sync> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#route_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#fine> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#fg1_mode> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#fg2_mode> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 70 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 70 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 10 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_lpg> 30 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_dfb> 0
+    ] .
+
+<http://dmtry3.github.io/zynthian-eka/fold#preset_modal_bar>
+    a pset:Preset ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
+    rdfs:label "Perc - Bar" ;
+    pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
+    lv2:port
+        [ lv2:symbol "source" ; pset:value 0.0 ] ,
+        [ lv2:symbol "harmonics" ; pset:value 50.0 ] ,
+        [ lv2:symbol "color" ; pset:value 50.0 ] ,
+        [ lv2:symbol "morph" ; pset:value 50.0 ] ,
+        [ lv2:symbol "mod_freq" ; pset:value 30.0 ] ,
+        [ lv2:symbol "mod_index" ; pset:value 0.0 ] ,
+        [ lv2:symbol "mod_shape" ; pset:value 1.0 ] ,
+        [ lv2:symbol "mod_mode" ; pset:value 2.0 ] ,
+        [ lv2:symbol "timbre" ; pset:value 40.0 ] ,
+        [ lv2:symbol "order" ; pset:value 0.0 ] ,
+        [ lv2:symbol "symmetry" ; pset:value 0.0 ] ,
+        [ lv2:symbol "drive" ; pset:value 0.0 ] ,
+        [ lv2:symbol "gate_mode" ; pset:value 2.0 ] ,
+        [ lv2:symbol "gate_decay" ; pset:value 20.735 ] ,
+        [ lv2:symbol "gate_res" ; pset:value 0.0 ] ,
+        [ lv2:symbol "level" ; pset:value 100.0 ] ,
+        [ lv2:symbol "fg1_rise" ; pset:value 1.0 ] ,
+        [ lv2:symbol "fg1_fall" ; pset:value 6.0 ] ,
+        [ lv2:symbol "fg2_rise" ; pset:value 300.0 ] ,
+        [ lv2:symbol "fg2_fall" ; pset:value 800.0 ] ,
+        [ lv2:symbol "delay_mode" ; pset:value 3.0 ] ,
+        [ lv2:symbol "delay_time" ; pset:value 50.0 ] ,
+        [ lv2:symbol "delay_fb" ; pset:value 55.0 ] ,
+        [ lv2:symbol "delay_mix" ; pset:value 100.0 ] ,
+        [ lv2:symbol "play_mode" ; pset:value 0.0 ] ,
+        [ lv2:symbol "voices" ; pset:value 8.0 ] ,
+        [ lv2:symbol "glide" ; pset:value 0.0 ] ,
+        [ lv2:symbol "bend_range" ; pset:value 2.0 ] ;
+    state:state [
+        <http://dmtry3.github.io/zynthian-eka/fold#route_fm> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#route_am> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#route_sync> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#route_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#fine> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#fg1_mode> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#fg2_mode> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 40 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 45 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 30 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_dfb> 15 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_dfb> 0
+    ] .
+
+<http://dmtry3.github.io/zynthian-eka/fold#preset_string_sitar>
+    a pset:Preset ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
+    rdfs:label "String - Sitar" ;
+    pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
+    lv2:port
+        [ lv2:symbol "source" ; pset:value 1.0 ] ,
+        [ lv2:symbol "harmonics" ; pset:value 50.0 ] ,
+        [ lv2:symbol "color" ; pset:value 33.333 ] ,
+        [ lv2:symbol "morph" ; pset:value 33.333 ] ,
+        [ lv2:symbol "mod_freq" ; pset:value 30.0 ] ,
+        [ lv2:symbol "mod_index" ; pset:value 0.0 ] ,
+        [ lv2:symbol "mod_shape" ; pset:value 1.0 ] ,
+        [ lv2:symbol "mod_mode" ; pset:value 2.0 ] ,
+        [ lv2:symbol "timbre" ; pset:value 0.0 ] ,
+        [ lv2:symbol "order" ; pset:value 0.0 ] ,
+        [ lv2:symbol "symmetry" ; pset:value 0.0 ] ,
+        [ lv2:symbol "drive" ; pset:value 0.0 ] ,
+        [ lv2:symbol "gate_mode" ; pset:value 2.0 ] ,
+        [ lv2:symbol "gate_decay" ; pset:value 20.735 ] ,
+        [ lv2:symbol "gate_res" ; pset:value 0.0 ] ,
+        [ lv2:symbol "level" ; pset:value 45.0 ] ,
+        [ lv2:symbol "fg1_rise" ; pset:value 1.0 ] ,
+        [ lv2:symbol "fg1_fall" ; pset:value 8.0 ] ,
+        [ lv2:symbol "fg2_rise" ; pset:value 300.0 ] ,
+        [ lv2:symbol "fg2_fall" ; pset:value 800.0 ] ,
+        [ lv2:symbol "delay_mode" ; pset:value 4.0 ] ,
+        [ lv2:symbol "delay_time" ; pset:value 50.0 ] ,
+        [ lv2:symbol "delay_fb" ; pset:value 88.0 ] ,
+        [ lv2:symbol "delay_mix" ; pset:value 100.0 ] ,
+        [ lv2:symbol "play_mode" ; pset:value 0.0 ] ,
+        [ lv2:symbol "voices" ; pset:value 8.0 ] ,
+        [ lv2:symbol "glide" ; pset:value 0.0 ] ,
+        [ lv2:symbol "bend_range" ; pset:value 2.0 ] ;
+    state:state [
+        <http://dmtry3.github.io/zynthian-eka/fold#route_fm> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#route_am> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#route_sync> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#route_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#fine> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#fg1_mode> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#fg2_mode> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 5 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 60 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_dfb> 0
+    ] .
+
+<http://dmtry3.github.io/zynthian-eka/fold#preset_string_piano>
+    a pset:Preset ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
+    rdfs:label "String - Piano" ;
+    pset:bank <http://dmtry3.github.io/zynthian-eka/fold#bank_factory> ;
+    lv2:port
+        [ lv2:symbol "source" ; pset:value 0.0 ] ,
+        [ lv2:symbol "harmonics" ; pset:value 50.0 ] ,
+        [ lv2:symbol "color" ; pset:value 50.0 ] ,
+        [ lv2:symbol "morph" ; pset:value 50.0 ] ,
+        [ lv2:symbol "mod_freq" ; pset:value 30.0 ] ,
+        [ lv2:symbol "mod_index" ; pset:value 0.0 ] ,
+        [ lv2:symbol "mod_shape" ; pset:value 1.0 ] ,
+        [ lv2:symbol "mod_mode" ; pset:value 2.0 ] ,
+        [ lv2:symbol "timbre" ; pset:value 40.0 ] ,
+        [ lv2:symbol "order" ; pset:value 0.0 ] ,
+        [ lv2:symbol "symmetry" ; pset:value 0.0 ] ,
+        [ lv2:symbol "drive" ; pset:value 0.0 ] ,
+        [ lv2:symbol "gate_mode" ; pset:value 2.0 ] ,
+        [ lv2:symbol "gate_decay" ; pset:value 26.165 ] ,
+        [ lv2:symbol "gate_res" ; pset:value 0.0 ] ,
+        [ lv2:symbol "level" ; pset:value 35.0 ] ,
+        [ lv2:symbol "fg1_rise" ; pset:value 1.0 ] ,
+        [ lv2:symbol "fg1_fall" ; pset:value 10.0 ] ,
+        [ lv2:symbol "fg2_rise" ; pset:value 300.0 ] ,
+        [ lv2:symbol "fg2_fall" ; pset:value 800.0 ] ,
+        [ lv2:symbol "delay_mode" ; pset:value 4.0 ] ,
+        [ lv2:symbol "delay_time" ; pset:value 50.0 ] ,
+        [ lv2:symbol "delay_fb" ; pset:value 80.0 ] ,
+        [ lv2:symbol "delay_mix" ; pset:value 90.0 ] ,
+        [ lv2:symbol "play_mode" ; pset:value 0.0 ] ,
+        [ lv2:symbol "voices" ; pset:value 8.0 ] ,
+        [ lv2:symbol "glide" ; pset:value 0.0 ] ,
+        [ lv2:symbol "bend_range" ; pset:value 2.0 ] ;
+    state:state [
+        <http://dmtry3.github.io/zynthian-eka/fold#route_fm> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#route_am> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#route_sync> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#route_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#fine> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#fg1_mode> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#fg2_mode> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 55 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_mod_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_rnd_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_timbre> 30 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_vel_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_key_dfb> -15 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_wheel_dfb> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_pitch> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_harmonics> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_color> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_morph> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_index> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_order> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_symmetry> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_timbre> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_lpg> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_dtime> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#m_at_dfb> 0
+    ] .
+
 <http://dmtry3.github.io/zynthian-eka/fold#preset_glass_bell>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
@@ -1274,6 +1857,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 20 ;
@@ -1410,6 +1996,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 40 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -1546,6 +2135,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 15 ;
@@ -1682,6 +2274,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -1818,6 +2413,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -1954,6 +2552,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -2090,6 +2691,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -2226,6 +2830,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> -2 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -2362,6 +2969,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -2498,6 +3108,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -2634,6 +3247,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -2770,6 +3386,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -2906,6 +3525,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -3042,6 +3664,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -3178,6 +3803,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -3314,6 +3942,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -3450,6 +4081,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 20 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 80 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> -10 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -3586,6 +4220,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 30 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;
@@ -3722,6 +4359,9 @@
         <http://dmtry3.github.io/zynthian-eka/fold#delay_shaper> 70 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_freq> 50 ;
         <http://dmtry3.github.io/zynthian-eka/fold#delay_eq_gain> 0 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_structure> 25 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_brightness> 50 ;
+        <http://dmtry3.github.io/zynthian-eka/fold#res_position> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_pitch> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_harmonics> 0 ;
         <http://dmtry3.github.io/zynthian-eka/fold#m_fg1_color> 0 ;

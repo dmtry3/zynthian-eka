@@ -67,6 +67,10 @@ int main(void) {
   bench("saw Mod, FM+AM+Sync, folder, delay Tuned", FC_SRC_SINE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
   delay_mode = FC_DL_FREE;
   bench("saw Mod, FM+AM+Sync, folder, delay Free", FC_SRC_SINE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  delay_mode = FC_DL_MODAL;
+  bench("saw Mod, FM+AM+Sync, folder, Modal", FC_SRC_SINE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  delay_mode = FC_DL_STRING;
+  bench("saw Mod, FM+AM+Sync, folder, String", FC_SRC_SINE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
   delay_mode = FC_DL_OFF_MODE;
   bench("VA, FM+AM+Sync, folder", FC_SRC_VA, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
   bench("FM2, FM+AM+Sync, folder", FC_SRC_FM2, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
@@ -79,6 +83,8 @@ int main(void) {
   full_matrix = 0;
   delay_mode = FC_DL_TUNED;
   bench("8 voices: Wave, FM+AM+Sync, folder, delay", FC_SRC_WAVE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  delay_mode = FC_DL_MODAL;
+  bench("8 voices: Wave, FM+AM+Sync, folder, Modal", FC_SRC_WAVE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
   delay_mode = FC_DL_OFF_MODE;
   return 0;
 }

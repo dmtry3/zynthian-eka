@@ -40,7 +40,7 @@ TRI, SINE, SAW, SQUARE = range(4)
 FREE, KEY, RATIO = range(3)
 VCA, LP, COMBO = range(3)
 ONCE, GATE, CYCLE = range(3)
-OFF, TUNED, FREE_DL = range(3)
+OFF, TUNED, FREE_DL, MODAL, STRING = range(5)
 POLY, MONO, LEGATO = range(3)
 RATIOS = [1 / 8, 1 / 6, 1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4, 1, 5 / 4, 4 / 3, 3 / 2, 5 / 3, 2, 5 / 2, 3, 7 / 2, 4, 5, 6, 7,
           8, 9, 10, 12, 16]
@@ -135,6 +135,24 @@ PRESETS = [
       "fg1_fall": 25, "delay_mode": TUNED, "delay_time": tuned(0), "delay_fb": 97, "delay_mix": 85,
       "play_mode": LEGATO, "glide": glide(60), "level": 100},
      {"fg1_mode": ONCE, "delay_shaper": 20, "delay_eq_freq": eq_freq(3000), "delay_eq_gain": db(-0.3)}),
+
+    # resonators (Delay Modal / String): a short strike of the voice excites them; Feedback = their Decay
+    ("modal_bell", "Bell - Modal",
+     {"source": FM2, "harmonics": FM2_RATIO1, "color": 70, "morph": 10, "gate_decay": decay(30), "fg1_rise": 1,
+      "fg1_fall": 10, "delay_mode": MODAL, "delay_time": tuned(0), "delay_fb": 85, "delay_mix": 100, "level": 60},
+     {"fg1_mode": ONCE, "res_structure": 70, "res_brightness": 70, "res_position": 10, "m_vel_lpg": 30}),
+    ("modal_bar", "Perc - Bar",
+     {"timbre": 40, "gate_decay": decay(30), "fg1_rise": 1, "fg1_fall": 6, "delay_mode": MODAL,
+      "delay_time": tuned(0), "delay_fb": 55, "delay_mix": 100, "level": 100},
+     {"fg1_mode": ONCE, "res_structure": 40, "res_brightness": 45, "res_position": 30, "m_vel_dfb": 15}),
+    ("string_sitar", "String - Sitar",
+     {"source": VA, "color": VA_SAW, "morph": VA_SAW, "gate_decay": decay(30), "fg1_rise": 1, "fg1_fall": 8,
+      "delay_mode": STRING, "delay_time": tuned(0), "delay_fb": 88, "delay_mix": 100, "level": 45},
+     {"fg1_mode": ONCE, "res_structure": 5, "res_brightness": 60}),
+    ("string_piano", "String - Piano",
+     {"timbre": 40, "gate_decay": decay(40), "fg1_rise": 1, "fg1_fall": 10, "delay_mode": STRING,
+      "delay_time": tuned(0), "delay_fb": 80, "delay_mix": 90, "level": 35},
+     {"fg1_mode": ONCE, "res_structure": 55, "res_brightness": 50, "m_vel_timbre": 30, "m_key_dfb": -15}),
 
     # bells: FM2 at ratios off the harmonics, long strikes
     ("glass_bell", "Bell - Glass",

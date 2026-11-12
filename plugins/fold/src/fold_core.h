@@ -15,6 +15,7 @@
 #include <stdint.h>
 
 #include "plaits/engines.h"
+#include "plaits/resonators.h"
 
 #define FC_VOICES 8               /* at most; Voices (FcParams.voices) sets how many play */
 #define FC_GAIN_VOICES 4          /* FC_GAIN keeps this many voices at full velocity at 0 dBFS (more: the soft clip) */
@@ -99,7 +100,14 @@ enum { FC_SRC_SINE, FC_SRC_VA, FC_SRC_FM2, FC_SRC_WAVE, FC_SRC_HARM, FC_SRC_PD, 
  * above 1, where the line seldom goes: it was not heard). Then a limit: straight up to 1, softly to FC_DL_LIM above
  * (the loop stays bounded even at Feedback 100 % with the EQ up; a tanh limit coloured Shaper 0 at -37 dB). The voice hears the line after the EQ and the shaper (from the first pass). The voice lives on while its line is above FC_DL_OFF, after the gate has closed; a new note
  * clears the line. Time knob 0..FC_DL_TIME_MAX, read by the mode, like Mod Freq. */
-enum { FC_DL_OFF_MODE, FC_DL_TUNED, FC_DL_FREE, FC_NDL_MODES };
+/* Stage 7b: two resonators in the same place (src/plaits/resonators.h), excited by the voice: Modal (24 modes) and
+ * String (a waveguide). Time = their pitch, -24..+24 semitones from the note (as Tuned); Feedback = their Decay
+ * (0..100 %, the sign does not matter); Structure, Brightness, Position: their own parameters. Changing between
+ * the line (Tuned / Free), Modal and String on a sounding voice fades out (FC_SMOOTH_MS) and starts the new one
+ * empty. */
+enum { FC_DL_OFF_MODE, FC_DL_TUNED, FC_DL_FREE, FC_DL_MODAL, FC_DL_STRING, FC_NDL_MODES };
+#define FC_RES_IN 0.5f            /* the voice into Modal (its modes ring up to Q times their input) */
+#define FC_RES_IN_STRING 1.0f     /* the voice into String (as loud as Tuned)  */
 #define FC_DL_TIME_MAX 100.0f
 #define FC_DL_SEMIS 24.0f
 #define FC_DL_MIN_MS 1.0f
@@ -182,6 +190,7 @@ typedef struct {
   float delay_shaper;             /* 0..1 */
   float delay_eq_freq;            /* 0..1 -> fc_dl_eq_hz */
   float delay_eq_db;              /* -FC_DL_EQ_DB..FC_DL_EQ_DB */
+  float res_structure, res_brightness, res_position;   /* 0..1: Modal, String */
   int play_mode;                  /* FC_PLAY_* */
   int voices;                     /* 1..FC_VOICES (Poly) */
   float glide;                    /* 0..100, fc_glide_ms */
@@ -227,6 +236,9 @@ typedef struct {
   int dl_wi;                      /* write index */
   int dl_used;                    /* samples of the line written since it was cleared (to clear only those) */
   float eq_x1, eq_x2, eq_y1, eq_y2;   /* EQ state */
+  int dl_cur;                     /* what the line runs now: FC_DL_TUNED (also Free), FC_DL_MODAL, FC_DL_STRING, or 0 */
+  FrModal modal;
+  FrString string;                /* its line is dl_buf */
   float dl_buf[FC_DL_LEN];
   FcFg fg[2];
   float vac;                      /* vactrol state g, 0..1 */
@@ -289,6 +301,7 @@ typedef struct {
   int dl_mode;                    /* FC_DL_* */
   float dl_time_u, dl_fb_t, dl_mix_t, dl_shape;
   float dl_g, dl_wsh;             /* the shaper's drive and its share */
+  float res_s, res_b, res_p;      /* Structure, Brightness, Position */
   float eq_b0, eq_b1, eq_b2, eq_a1, eq_a2;   /* peaking EQ at the voices' rate */
   float dl_glide;                 /* Free: one-pole step of the delay time per sample */
   float hbuf[FC_HB_TAPS - 1 + FC_OS * FC_CHUNK];        /* 2x mix: history, then the chunk */

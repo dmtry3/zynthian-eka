@@ -31,11 +31,13 @@ lopass gate на модели вактрола, два функциональн�
   колесо модуляции, aftertouch (канальный и полифонический) → Pitch, Harmonics, Color, Morph, Mod Index, Order,
   Symmetry, Timbre, LPG, Delay Time, Delay Feedback.
 - **Waveguide / delay в каждом голосе:** **Tuned** (струна, настроенная по ноте, −24…+24 полутона: Karplus-Strong,
-  строй в пределах цента от C2 до C7) или **Free** (эхо от 1 мс до 2 с); в петле peaking EQ и шейпер. Хвост держит
-  голос и после отпускания клавиши.
+  строй в пределах цента от C2 до C7) или **Free** (эхо от 1 мс до 2 с); в петле peaking EQ и шейпер; или
+  **резонатор**, который возбуждает голос: **Modal** (24 моды: струна, брусок, колокол, пластина по Structure) или
+  **String** (физическая струна: жужжание ситара, чистая, или дисперсия — рояль, колокол). Хвост держит голос и после
+  отпускания клавиши.
 - **Play:** Poly (1…8 голосов), **Mono** (звучит последняя клавиша, возврат к зажатой), **Legato**; Glide; диапазон
   pitch bend.
-- **28 заводских пресетов** в банке *Factory*: Perc, String, Bell, Pad, Drone, Bass, Lead, FX.
+- **32 заводских пресета** в банке *Factory*: Perc, String, Bell, Pad, Drone, Bass, Lead, FX.
 - **Сенсорный виджет**, вкладка на каждую страницу: формы волн, кривая фолдера, АЧХ гейта, функциональные
   генераторы, EQ и шейпер петли, голоса, сетка матрицы; живые метки (ноты, фаза Mod OSC, вактрол, точки FG, уровень
   линии delay).
@@ -80,7 +82,7 @@ cd /root/zynthian-eka && git pull && cd plugins/fold && sudo make install && sys
 | **Timbre** | Timbre, Order, Symmetry, Drive | Folder (Order 0) … Saw (50) … M (100) |
 | **Gate** | Gate Mode, Decay, Resonance, Level | VCA / LP / Combo; Decay 10 мс … 2 с |
 | **Env** | FG1 Rise, FG1 Fall, FG2 Rise, FG2 Fall | 1 мс … 10 с |
-| **Delay** | Delay, Time, Feedback, Mix | Off / Tuned / Free; Time: полутоны (Tuned) или 2 с × (Time / 100)³ (Free) |
+| **Delay** | Delay, Time, Feedback, Mix | Off / Tuned / Free / Modal / String; Time: полутоны (Tuned, Modal, String) или 2 с × (Time / 100)³ (Free); у Modal и String Feedback — это Decay |
 | **Play** | Play, Voices, Glide, Bend | Poly / Mono / Legato; 1…8 голосов; Glide до 2 с; Bend 0…24 полутона |
 
 Остальные настройки — в виджете (они сохраняются в снапшотах и пресетах):
@@ -92,7 +94,7 @@ cd /root/zynthian-eka && git pull && cd plugins/fold && sudo make install && sys
 | **Fold** | Передаточная кривая и что она делает с волной |
 | **Gate** | Кнопки VCA / LP / Combo; АЧХ по мере закрытия вактрола; живой вактрол |
 | **Env** | Кнопки **Once / Gate / Cycle** для FG1 и FG2; глубина FG2 → Timbre |
-| **Delay** | Кнопки Off / Tuned / Free; ползунки **Shaper**, **EQ Freq**, **EQ Gain** (шаг 0,1 дБ); уровень петли |
+| **Delay** | Кнопки Off / Tuned / Free / Modal / String; ползунки **Shaper**, **EQ Freq**, **EQ Gain** (шаг 0,1 дБ), а у резонаторов **Structure**, **Brightness** (и **Position** у Modal); моды или струна на рисунке; уровень петли |
 | **Play** | Кнопки Poly / Mono / Legato; 8 ячеек голосов (тап задаёт Voices); скольжение |
 | **Matrix** | Сетка 8 × 11: палец вверх / вниз на ячейке, двойной тап — сброс (синий +, оранжевый −) |
 
@@ -137,5 +139,5 @@ make test       # движок офлайн (строй, алиасинг, ще�
 
 ## Лицензия
 
-GPL-3.0-or-later. Источники VA, FM2, Wave, Harm и PD и две их таблицы основаны на коде Эмили Жилле под лицензией MIT: текст
+GPL-3.0-or-later. Источники VA, FM2, Wave, Harm и PD, резонаторы Modal и String и три таблицы основаны на коде Эмили Жилле под лицензией MIT: текст
 лицензии и что изменено — в [THIRD_PARTY.md](THIRD_PARTY.md).

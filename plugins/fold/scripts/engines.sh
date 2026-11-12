@@ -4,7 +4,7 @@ build_engines() {
     local out="$1" flags="$2"
     mkdir -p "$out"
     ENGINE_OBJS=""
-    for f in engines tables; do
+    for f in engines resonators tables; do
         g++ $flags -std=c++11 -fno-exceptions -fno-rtti -Wall -Wextra -c "$ROOT/src/plaits/$f.cc" -o "$out/$f.o"
         ENGINE_OBJS="$ENGINE_OBJS $out/$f.o"
     done

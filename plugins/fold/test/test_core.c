@@ -1643,6 +1643,160 @@ static void test_play_legato(void) {
   CHECK(core.v[0].pitch == 60.0f && core.v[0].pitch_step > 0.0f);    /* the same voice, from its last note */
 }
 
+/* ---------- resonators: Modal, String (stage 7b) ---------- */
+static void res_params(FcParams* p, int mode, float structure, float brightness, float damping) {
+  pluck_params(p);
+  p->delay_mode = mode; p->delay_fb = damping; p->delay_mix = 1.0f;
+  p->res_structure = structure; p->res_brightness = brightness; p->res_position = 0.0f;
+}
+
+static void test_res_modal(void) {
+  /* Structure 25 % (no stiffness): the modes at f0, 2 f0, 3 f0; Structure 80 %: stretched (the 2nd above 2.1 f0) */
+  double r2[2], r3 = 0;
+  for (int k = 0; k < 2; k++) {
+    reset(SR);
+    FcParams p;
+    res_params(&p, FC_DL_MODAL, k ? 0.8f : 0.25f, 0.8f, 0.8f);
+    fc_set_params(&core, &p);
+    fc_note_on(&core, 48, 127);
+    render(&core, 0, SR);
+    const double f0 = 440.0 * pow(2.0, (48 - 69) / 12.0);
+    const double m1 = peak_freq(L + SR / 10, SR / 2, f0 * (k ? 0.97 : 1.0));
+    const double m2 = peak_freq(L + SR / 10, SR / 2, m1 * (k ? 2.2 : 2.0));
+    r2[k] = m2 / m1;
+    if (!k) {
+      r3 = peak_freq(L + SR / 10, SR / 2, 3.0 * m1) / m1;
+      printf("Modal, Structure 25 %%: modes %.2f Hz (%.2f cents from C3), x%.4f, x%.4f\n", m1,
+             1200.0 * log2(m1 / f0), r2[0], r3);
+      CHECK(fabs(1200.0 * log2(m1 / f0)) < 2.0);
+    }
+    CHECK(all_finite(L, SR));
+  }
+  printf("Modal, Structure 80 %%: the 2nd mode at x%.4f\n", r2[1]);
+  CHECK(fabs(r2[0] - 2.0) < 0.004 && fabs(r3 - 3.0) < 0.006 && r2[1] > 2.1);
+}
+
+static void test_res_string(void) {
+  /* a plain string (Structure 25 %) in tune within a cent from C2 to C7, Time +7 too; dispersion (90 %) stretches
+   * its partials */
+  const int notes[] = { 36, 48, 60, 72, 84, 96 };
+  double worst = 0.0;
+  for (int ti = 0; ti < 2; ti++)
+    for (unsigned ni = 0; ni < sizeof notes / sizeof notes[0]; ni++) {
+      reset(SR);
+      FcParams p;
+      res_params(&p, FC_DL_STRING, 0.25f, 0.5f, 0.9f);
+      p.delay_time = ti ? 50.0f + 50.0f * 7.0f / 24.0f : 50.0f;
+      fc_set_params(&core, &p);
+      fc_note_on(&core, notes[ni], 127);
+      render(&core, 0, SR);
+      const double want = 440.0 * pow(2.0, (notes[ni] - 69 + (ti ? 7.0 : 0.0)) / 12.0);
+      const double win = fmin(fmax(60.0 / want, 0.1), 0.5);
+      const double f = peak_freq(L + SR / 20, (uint32_t)(win * SR), want);
+      const double cents = 1200.0 * log2(f / want);
+      if (fabs(cents) > fabs(worst)) worst = cents;
+      if (fabs(cents) > 1.0) printf("  String note %d +%d st: %.2f cents\n", notes[ni], ti ? 7 : 0, cents);
+      CHECK(fabs(cents) <= 1.0);
+    }
+  printf("String, Structure 25 %%: C2..C7, Time 0 / +7: worst %.2f cents\n", worst);
+  double r2[2];
+  for (int k = 0; k < 2; k++) {
+    reset(SR);
+    FcParams p;
+    res_params(&p, FC_DL_STRING, k ? 0.9f : 0.25f, 0.8f, 0.9f);
+    fc_set_params(&core, &p);
+    fc_note_on(&core, 36, 127);
+    render(&core, 0, SR);
+    const double m1 = peak_freq(L + SR / 10, SR / 2, 65.41);
+    if (k) printf("String with dispersion 90 %%: the fundamental %.2f cents from C2\n", 1200.0 * log2(m1 / 65.406));
+    if (k) CHECK(fabs(1200.0 * log2(m1 / 65.406)) < 1.0);     /* in tune: the all-pass's delay is taken off too */
+    double best = 0, bf = 0;                                   /* the 2nd partial: the strongest line in 1.7..2.3 */
+    for (double f = 1.7 * m1; f < 2.3 * m1; f += 0.1) { const double a = hann_amp(L + SR / 10, SR / 2, f); if (a > best) { best = a; bf = f; } }
+    r2[k] = peak_freq(L + SR / 10, SR / 2, bf) / m1;
+  }
+  printf("String: 2nd partial x%.4f plain, x%.4f with dispersion 90 %% (inharmonic)\n", r2[0], r2[1]);
+  CHECK(fabs(r2[0] - 2.0) < 0.015 && fabs(r2[1] - 2.0) > 3.0 * fabs(r2[0] - 2.0));
+}
+
+static void test_res_decay_tail(void) {
+  /* Decay (Feedback) sets how long they ring, the sign does not matter; the tail keeps the voice, then ends */
+  for (int mode = FC_DL_MODAL; mode <= FC_DL_STRING; mode++) {
+    double e[3];
+    const float dmp[3] = { 0.3f, 0.8f, -0.8f };
+    for (int k = 0; k < 3; k++) {
+      reset(SR);
+      FcParams p;
+      res_params(&p, mode, 0.25f, 0.5f, dmp[k]);
+      fc_set_params(&core, &p);
+      fc_note_on(&core, 60, 127);
+      render(&core, 0, SR);
+      e[k] = 0;
+      for (int i = SR / 2; i < SR; i++) e[k] += (double)L[i] * L[i];
+    }
+    printf("%s: energy 0.5..1 s at Decay 30 %% %.1f dB, 80 %% %.1f dB, -80 %% %.1f dB\n",
+           mode == FC_DL_MODAL ? "Modal" : "String", 10 * log10(e[0] + 1e-20), 10 * log10(e[1] + 1e-20),
+           10 * log10(e[2] + 1e-20));
+    CHECK(e[1] > 100 * e[0] && fabs(10 * log10(e[1] / e[2])) < 0.5);
+    reset(SR);
+    FcParams p;
+    res_params(&p, mode, 0.25f, 0.5f, 0.6f);
+    fc_set_params(&core, &p);
+    fc_note_on(&core, 60, 127);
+    fc_note_off(&core, 60);
+    render(&core, 0, SR / 2);
+    CHECK(fc_active_voices(&core) == 1 && core.v[0].tail);
+    int ms = 500;
+    while (fc_active_voices(&core) && ms < 30000) { render(&core, 0, SR / 100); ms += 10; }
+    printf("%s, Decay 60 %%: the voice ends after %.1f s\n", mode == FC_DL_MODAL ? "Modal" : "String", ms / 1000.0);
+    CHECK(ms < 30000);
+  }
+}
+
+static void test_res_switch(void) {
+  /* a held note through Tuned -> Modal -> String -> Free -> Off: each change fades out and in, no click */
+  reset(SR);
+  FcParams p;
+  base_params(&p);
+  p.delay_fb = 0.8f; p.delay_mix = 0.5f;
+  const int seq[] = { FC_DL_TUNED, FC_DL_MODAL, FC_DL_STRING, FC_DL_FREE, FC_DL_OFF_MODE };
+  p.delay_mode = seq[0];
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 57, 100);
+  const uint32_t q = SR / 4;
+  render(&core, 0, q);
+  for (int i = 1; i < 5; i++) {
+    p.delay_mode = seq[i];
+    fc_set_params(&core, &p);
+    render(&core, i * q, q);
+    const float steady = fmaxf(max_curve(L, i * q - SR / 20, i * q), max_curve(L, i * q + SR / 10, (i + 1) * q));
+    const float sw = max_curve(L, i * q, i * q + SR / 20);
+    printf("delay %d -> %d on a held note: max second difference %.4f (steady %.4f)\n", seq[i - 1], seq[i], sw, steady);
+    CHECK(sw <= 1.3f * steady);
+    CHECK(core.v[0].dl_cur == seq[i] || (seq[i] == FC_DL_OFF_MODE && core.v[0].dl_cur == FC_DL_OFF_MODE));
+  }
+  CHECK(all_finite(L, 5 * q));
+}
+
+static void test_res_extremes(void) {
+  /* every knob at its ends, Decay 100 % (for ever), the highest and lowest notes, Time at both ends, the matrix:
+   * bounded, no NaN */
+  for (int mode = FC_DL_MODAL; mode <= FC_DL_STRING; mode++)
+    for (int e = 0; e < 8; e++) {
+      reset(SR);
+      FcParams p;
+      res_params(&p, mode, (e & 1) ? 1.0f : 0.0f, (e & 2) ? 1.0f : 0.0f, (e & 4) ? 1.0f : -1.0f);
+      p.res_position = (e & 1) ? 0.0f : 1.0f;
+      p.delay_time = (e & 2) ? 100.0f : 0.0f;
+      p.fg_mode[0] = FC_FG_GATE;
+      p.matrix[FC_MS_MOD][FC_MD_DTIME] = 0.3f;
+      p.mod_mode = FC_MODE_FREE; p.mod_freq = free_units(2.0);
+      fc_set_params(&core, &p);
+      for (int i = 0; i < FC_VOICES; i++) fc_note_on(&core, 12 + 14 * i, 127);
+      render(&core, 0, SR);
+      CHECK(all_finite(L, SR) && peak(L, 0, SR) <= 1.0f);
+    }
+}
+
 int main(void) {
   test_pitch();
   test_release();
@@ -1685,6 +1839,11 @@ int main(void) {
   test_delay_stable();
   test_delay_shaper();
   test_delay_extremes();
+  test_res_modal();
+  test_res_string();
+  test_res_decay_tail();
+  test_res_switch();
+  test_res_extremes();
   test_soft_clip();
   test_engine_pitch();
   test_engine_knobs();

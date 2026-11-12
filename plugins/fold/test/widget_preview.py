@@ -102,6 +102,7 @@ class Processor:
                                  ("timbre", 0.0), ("order", 0.0), ("symmetry", 0.0), ("drive", 0.0),
                                  ("delay_mode", 0), ("delay_time", 50.0), ("delay_fb", 50.0), ("delay_mix", 30.0),
                                  ("delay_shaper", 30), ("delay_eq_freq", 50), ("delay_eq_gain", 0),
+                                 ("res_structure", 25), ("res_brightness", 50), ("res_position", 0),
                                  ("play_mode", 0), ("voices", 8), ("glide", 0.0), ("bend_range", 2))}
         for src in ("fg1", "fg2", "mod", "rnd", "vel", "key", "wheel", "at"):     # the mod matrix
             for dst in ("pitch", "harmonics", "color", "morph", "index", "order", "symmetry", "timbre", "lpg", "dtime",
@@ -860,6 +861,34 @@ def main():
         wdg._on_press(Tap(cx_, cy_))
         wdg._on_release(Tap(cx_, cy_))
     check("Shaper: a double tap resets to 30 %", proc.controllers_dict["delay_shaper"].value == 30)
+    # Modal and String: their own sliders, the modes drawn
+    mm = mod.modal_modes(0.25, 0.5, 0.5, 0.0, mod.engine_tables()[2])
+    check("Modal at Structure 25 %: the modes at x1, x2, x3 ...", all(abs(r - (k + 1)) < 1e-6 for k, (r, _) in
+                                                                     enumerate(mm[:6])))
+    mm = mod.modal_modes(0.8, 0.5, 0.5, 0.0, mod.engine_tables()[2])
+    check("Modal at Structure 80 %: stretched (the 2nd above x2.1)", mm[1][0] / mm[0][0] > 2.1)
+    b = [b for b in wdg.dl_buttons if b[4] == 3][0]
+    wdg._on_press(Tap((b[0] + b[2]) / 2, (b[1] + b[3]) / 2))
+    dt = texts("delay")
+    check("tap on Modal: delay_mode 3, Structure / Bright / Position, Decay", proc.controllers_dict["delay_mode"].value
+          == 3 and all(t in dt for t in ("Structure 25%", "Bright 50%", "Position 0%", "modes x1..x12 of the note"))
+          and any("Decay 50%" in t for t in dt) and len(wdg.dl_boxes) == 3)
+    bx = [b for b in wdg.dl_boxes if b[4] == "res_structure"][0]
+    cx_, cy_ = (bx[0] + bx[2]) / 2, (bx[1] + bx[3]) / 2
+    wdg.last_tap = (None, 0.0)
+    wdg._on_press(Tap(cx_, cy_))
+    wdg._on_motion(Tap(cx_ + 10 * bx[7], cy_))
+    wdg._on_release(Tap(cx_ + 10 * bx[7], cy_))
+    check("Structure slider: 10 steps right = 35 %", proc.controllers_dict["res_structure"].value == 35)
+    b = [b for b in wdg.dl_buttons if b[4] == 4][0]
+    wdg._on_press(Tap((b[0] + b[2]) / 2, (b[1] + b[3]) / 2))
+    dt = texts("delay")
+    check("tap on String: two sliders, the Sitar - String - Bell line", proc.controllers_dict["delay_mode"].value == 4
+          and len(wdg.dl_boxes) == 2 and all(t in dt for t in ("Sitar", "String", "Bell", "Structure 35%")))
+    proc.controllers_dict["res_structure"].value = 25
+    proc.controllers_dict["delay_mode"].value = 2
+    wdg.dl_view = None
+    wdg.dl_drawn = 0.0
     proc.engine.delay_level = 0.1
     wdg.update()
     bar = [i for i in c.find_withtag("delaylive")]
