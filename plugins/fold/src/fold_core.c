@@ -24,6 +24,11 @@ const float fc_ratios[FC_NRATIOS] = { 1.0f / 8, 1.0f / 6, 1.0f / 4, 1.0f / 3, 1.
 
 static float clampf(float v, float lo, float hi) { return v < lo ? lo : v > hi ? hi : v; }
 
+float fc_glide_ms(float u) {
+  const float x = clampf(u, 0.0f, 100.0f) / 100.0f;
+  return FC_GLIDE_MAX_MS * x * x;
+}
+
 float fc_dl_semis(float u) { return (clampf(u, 0.0f, FC_DL_TIME_MAX) / FC_DL_TIME_MAX * 2.0f - 1.0f) * FC_DL_SEMIS; }
 float fc_dl_ms(float u) {
   const float x = clampf(u, 0.0f, FC_DL_TIME_MAX) / FC_DL_TIME_MAX;
@@ -67,6 +72,9 @@ void fc_default_params(FcParams* p) {
   p->delay_shaper = 0.3f;
   p->delay_eq_freq = 0.5f;        /* 1 kHz */
   p->delay_eq_db = 0.0f;
+  p->play_mode = FC_PLAY_POLY;
+  p->voices = FC_VOICES;
+  p->glide = 0.0f;
   p->mod_freq = 30.0f;            /* Ratio x1 */
   p->mod_index = 0.0f;            /* a plain sine until the Index is turned up */
   p->mod_shape = FC_MOD_SINE;
@@ -147,6 +155,8 @@ static float seg_inc(float sr, float ms) {
   return 1.0f / (clampf(ms, FC_FG_MIN_MS, FC_FG_MAX_MS) * 0.001f * sr);
 }
 
+static void steal(FoldCore* c, FcVoice* v);
+
 void fc_set_params(FoldCore* c, const FcParams* p) {
   c->tune = p->pitch + p->fine * 0.01f;
   c->src_t = p->source >= 0 && p->source < FC_NSOURCES ? p->source : FC_SRC_SINE;
@@ -196,6 +206,17 @@ void fc_set_params(FoldCore* c, const FcParams* p) {
   c->ord_t = clampf(p->order, 0.0f, 1.0f);
   c->sym_t = clampf(p->symmetry, -1.0f, 1.0f);
   c->drv_t = clampf(p->drive, 0.0f, 1.0f);
+  {                                                  /* Play: voices beyond the new limit fade out */
+    const int mode = p->play_mode >= 0 && p->play_mode < FC_NPLAY ? p->play_mode : FC_PLAY_POLY;
+    const int nv = p->voices < 1 ? 1 : p->voices > FC_VOICES ? FC_VOICES : p->voices;
+    const int limit = mode == FC_PLAY_POLY ? nv : 1;
+    if (mode != c->play_mode) c->nkeys = 0;
+    for (int i = limit; i < FC_VOICES; i++)
+      if (c->v[i].stage != FC_IDLE) { steal(c, &c->v[i]); c->v[i].next_note = -1; }
+    c->play_mode = mode;
+    c->nvoices = nv;
+    c->glide_ms = fc_glide_ms(p->glide);
+  }
   c->dl_mode = p->delay_mode >= 0 && p->delay_mode < FC_NDL_MODES ? p->delay_mode : FC_DL_OFF_MODE;
   c->dl_time_u = clampf(p->delay_time, 0.0f, FC_DL_TIME_MAX);
   c->dl_fb_t = clampf(p->delay_fb, -1.0f, 1.0f);
@@ -246,8 +267,21 @@ static float rnd_next(FoldCore* c) {
 
 static float velocity(int vel) { return FC_VEL_FLOOR + (1.0f - FC_VEL_FLOOR) * (float)vel / 127.0f; }
 
-static void start_voice(FoldCore* c, FcVoice* v, int note, int vel) {
+/* The voice's note becomes `note`: the pitch glides there (when asked, Glide is on and it has played before) or
+ * jumps. */
+static void pitch_to(const FoldCore* c, FcVoice* v, int note, int glide) {
   v->note = note;
+  if (glide && c->glide_ms > 0.5f && v->played && (float)note != v->pitch) {
+    v->pitch_step = ((float)note - v->pitch) / (c->glide_ms * 0.001f * c->rt.sr);
+  } else {
+    v->pitch = (float)note;
+    v->pitch_step = 0.0f;
+  }
+  v->played = 1;
+}
+
+static void start_voice(FoldCore* c, FcVoice* v, int note, int vel) {
+  pitch_to(c, v, note, c->play_mode != FC_PLAY_LEGATO);   /* Legato glides only from a held key */
   v->vel = velocity(vel);
   v->velo = (float)vel / 127.0f;
   v->at = 0.0f;
@@ -295,8 +329,62 @@ static void steal(FoldCore* c, FcVoice* v) {
   v->stage = FC_STEAL;
 }
 
+/* ---------- Mono / Legato: one voice (v[0]) and the keys held ---------- */
+static void key_remove(FoldCore* c, int note) {
+  int k = 0;
+  for (int i = 0; i < c->nkeys; i++)
+    if (c->keys[i] != note) { c->keys[k] = c->keys[i]; c->key_vel[k] = c->key_vel[i]; k++; }
+  c->nkeys = k;
+}
+
+/* The mono voice plays `note` now: from silence it starts; sounding, it moves there, gliding, and (Mono, or Legato
+ * from a key let go) its function generators restart. */
+static void mono_play(FoldCore* c, int note, int vel, int overlap) {
+  FcVoice* v = &c->v[0];
+  if (v->stage == FC_IDLE) { start_voice(c, v, note, vel); return; }
+  if (v->stage == FC_STEAL) { v->next_note = note; v->next_vel = vel; return; }
+  const int legato = c->play_mode == FC_PLAY_LEGATO && overlap;
+  pitch_to(c, v, note, c->play_mode == FC_PLAY_MONO || legato);
+  v->held = 1;
+  v->pedal = 0;
+  v->age = ++c->clock;
+  if (!legato) {
+    v->vel = velocity(vel);
+    v->velo = (float)vel / 127.0f;
+    trigger(c, v);
+  }
+}
+
+static void mono_note_on(FoldCore* c, int note, int vel) {
+  const int overlap = c->nkeys > 0;
+  key_remove(c, note);
+  if (c->nkeys == FC_KEYS) key_remove(c, c->keys[0]);   /* full: the oldest key goes */
+  c->keys[c->nkeys] = note;
+  c->key_vel[c->nkeys] = vel;
+  c->nkeys++;
+  mono_play(c, note, vel, overlap);
+}
+
+static void mono_note_off(FoldCore* c, int note) {
+  FcVoice* v = &c->v[0];
+  const int was_top = c->nkeys > 0 && c->keys[c->nkeys - 1] == note;
+  key_remove(c, note);
+  if (v->stage == FC_STEAL && v->next_note == note) {
+    v->next_note = c->nkeys ? c->keys[c->nkeys - 1] : -1;
+    return;
+  }
+  if (!was_top || v->stage != FC_PLAY) return;
+  if (c->nkeys > 0) {                                /* back to the key still held */
+    mono_play(c, c->keys[c->nkeys - 1], c->key_vel[c->nkeys - 1], 1);
+    return;
+  }
+  v->held = 0;
+  if (c->sustain_pedal) v->pedal = 1;
+}
+
 void fc_note_on(FoldCore* c, int note, int vel) {
   if (vel <= 0) { fc_note_off(c, note); return; }
+  if (c->play_mode != FC_PLAY_POLY) { mono_note_on(c, note, vel); return; }
   /* the same note again: retrigger its voice from where it is (no click) */
   for (int i = 0; i < FC_VOICES; i++) {
     FcVoice* v = &c->v[i];
@@ -310,12 +398,12 @@ void fc_note_on(FoldCore* c, int note, int vel) {
       return;
     }
   }
-  for (int i = 0; i < FC_VOICES; i++)
+  for (int i = 0; i < c->nvoices; i++)
     if (c->v[i].stage == FC_IDLE) { start_voice(c, &c->v[i], note, vel); return; }
   /* no free voice: the oldest one let go (key and pedal up), else the oldest one; it fades out first */
   FcVoice* best = NULL;
   for (int pass = 0; pass < 2 && !best; pass++)
-    for (int i = 0; i < FC_VOICES; i++) {
+    for (int i = 0; i < c->nvoices; i++) {
       FcVoice* v = &c->v[i];
       if (pass == 0 && (v->stage != FC_PLAY || v->held || v->pedal)) continue;
       if (!best || v->age < best->age) best = v;
@@ -327,6 +415,7 @@ void fc_note_on(FoldCore* c, int note, int vel) {
 }
 
 void fc_note_off(FoldCore* c, int note) {
+  if (c->play_mode != FC_PLAY_POLY) { mono_note_off(c, note); return; }
   for (int i = 0; i < FC_VOICES; i++) {
     FcVoice* v = &c->v[i];
     if (v->stage == FC_STEAL && v->next_note == note) { v->next_note = -1; continue; }
@@ -353,6 +442,7 @@ void fc_set_poly_aftertouch(FoldCore* c, int note, float v) {
 
 void fc_all_notes_off(FoldCore* c) {
   c->sustain_pedal = 0;
+  c->nkeys = 0;
   for (int i = 0; i < FC_VOICES; i++) {
     FcVoice* v = &c->v[i];
     v->held = v->pedal = 0;
@@ -362,6 +452,7 @@ void fc_all_notes_off(FoldCore* c) {
 
 void fc_all_sound_off(FoldCore* c) {
   c->sustain_pedal = 0;
+  c->nkeys = 0;
   for (int i = 0; i < FC_VOICES; i++) {
     FcVoice* v = &c->v[i];
     v->held = v->pedal = 0;
@@ -499,9 +590,9 @@ static int shaper_coefs(float inc, float ws, float wm, float* a) {
   return n;
 }
 
-/* Principal cycles per sample (at sr) for a note, moved by `mod` semitones. */
-static float note_inc(const FoldCore* c, float sr, int note, float mod) {
-  const float semis = (float)note - 69.0f + c->tune + c->bend + mod;
+/* Principal cycles per sample (at sr) for a note (a pitch: it glides), moved by `mod` semitones. */
+static float note_inc(const FoldCore* c, float sr, float note, float mod) {
+  const float semis = note - 69.0f + c->tune + c->bend + mod;
   const float inc = 440.0f * exp2f(semis * (1.0f / 12.0f)) / sr;
   return inc < 0.5f ? inc : 0.5f;                    /* not above Nyquist */
 }
@@ -626,7 +717,7 @@ static void voice_control(const FoldCore* c, FcVoice* v, const FcRate* r, FcCtl*
   v->sym_g = clampf(c->sym_t + v->md[FC_MD_SYM], -1.0f, 1.0f);
   v->tim_g = clampf(c->tim_t + v->md[FC_MD_TIMBRE], 0.0f, 1.0f);
   v->lpg_g = clampf(1.0f + v->md[FC_MD_LPG], 0.0f, 2.0f);
-  x->inc = note_inc(c, r->sr, v->note, FC_MOD_SEMIS * v->md[FC_MD_PITCH]);
+  x->inc = note_inc(c, r->sr, v->pitch, FC_MOD_SEMIS * v->md[FC_MD_PITCH]);
   delay_control(c, v, r, x->inc);
   if (v->snap) {
     v->idx = v->idx_g; v->ord = v->ord_g; v->sym = v->sym_g; v->tim = v->tim_g;
@@ -696,6 +787,10 @@ static void render_voice(FoldCore* c, FcVoice* v, const FcRate* r, float* l, uin
       /* function generators and the vactrol */
       const int gate = v->held || v->pedal;
       for (int i = 0; i < 2; i++) fg_step(&v->fg[i], c->fg_mode[i], gate, r->fg_rise_inc[i], r->fg_fall_inc[i]);
+      if (v->pitch_step != 0.0f) {                     /* Glide */
+        v->pitch += v->pitch_step;
+        if ((v->pitch_step > 0.0f) == (v->pitch >= (float)v->note)) { v->pitch = (float)v->note; v->pitch_step = 0.0f; }
+      }
       if (--v->tick <= 0) voice_control(c, v, r, &cx);   /* after a new note too (tick 0) */
       float drive_in = v->fg[0].lvl * v->vel * v->lpg_g;
       drive_in = drive_in < 1.0f ? drive_in : 1.0f;

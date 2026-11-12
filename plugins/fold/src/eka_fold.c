@@ -1,5 +1,5 @@
 /* Eka Fold: LV2 wrapper around fold_core.
- * Knob pages Osc (Source, Harmonics, Color, Morph), Mod, Timbre, Gate, Env, Delay. Pitch and Fine, the routing
+ * Knob pages Osc (Source, Harmonics, Color, Morph), Mod, Timbre, Gate, Env, Delay, Play. Pitch and Fine, the routing
  * switches FM / AM / Sync / Timbre, the function generator modes, the delay's Shaper and EQ, and the mod matrix (m_<source>_<destination>, -100..100)
  * are LV2 parameters
  * (patch:writable, notOnGUI) set in the widget and saved in LV2 State: jalv in Zynthian does not
@@ -21,7 +21,6 @@
 #include "fold_core.h"
 
 #define FOLD_URI "http://dmtry3.github.io/zynthian-eka/fold"
-#define BEND_RANGE 2.0f                  /* semitones; a setting in a later stage */
 
 /* Port indices: the same as lv2/eka_fold.ttl. Control inputs first (0..P_END-1): Zynthian numbers LV2
  * parameters from len(control ports)+1, so a control port with a higher index would be overwritten. */
@@ -32,9 +31,10 @@ enum {
   P_GATE_MODE, P_GATE_DECAY, P_GATE_RES, P_LEVEL,
   P_FG1_RISE, P_FG1_FALL, P_FG2_RISE, P_FG2_FALL,
   P_DELAY_MODE, P_DELAY_TIME, P_DELAY_FB, P_DELAY_MIX,
+  P_PLAY_MODE, P_VOICES, P_GLIDE, P_BEND_RANGE,
   P_END,                                 /* number of control inputs */
   P_MIDI_IN = P_END, P_OUT_L, P_OUT_R, P_NOTIFY,
-  P_NOTE0,                               /* note1..4 */
+  P_NOTE0,                               /* note1..8 */
   P_PEAK = P_NOTE0 + FC_VOICES,
   P_MOD_PHASE, P_GATE_LEVEL, P_FG1, P_FG2, P_DELAY_LEVEL
 };
@@ -73,6 +73,8 @@ typedef struct {
   LV2_URID ip_urid[N_IPARAMS];
   int ip[N_IPARAMS];
   int report_next;                       /* next parameter to tell the host, -1 = none */
+  float bend;                            /* pitch bend -1..1 */
+  float bend_range;                      /* semitones */
   FoldCore core;
 } Fold;
 
@@ -178,7 +180,13 @@ static void read_params(Fold* S) {
   p.delay_shaper = (float)S->ip[IP_DL_SHAPER] * 0.01f;
   p.delay_eq_freq = (float)S->ip[IP_DL_EQ_FREQ] * 0.01f;
   p.delay_eq_db = (float)S->ip[IP_DL_EQ_GAIN] * 0.1f;
+  p.play_mode = (int)lrintf(ctl(S, P_PLAY_MODE, (float)p.play_mode));
+  p.voices = (int)lrintf(ctl(S, P_VOICES, (float)p.voices));
+  p.glide = ctl(S, P_GLIDE, p.glide);
   fc_set_params(&S->core, &p);
+  S->bend_range = ctl(S, P_BEND_RANGE, 2.0f);
+  S->bend_range = S->bend_range < 0.0f ? 0.0f : S->bend_range > 24.0f ? 24.0f : S->bend_range;
+  fc_set_bend(&S->core, S->bend * S->bend_range);
 }
 
 /* ---------- LV2 parameters (patch:Set / patch:Get) ---------- */
@@ -245,8 +253,8 @@ static void handle_midi(Fold* S, const LV2_Atom_Event* ev) {
   else if (type == 0xA0) fc_set_poly_aftertouch(&S->core, b[1] & 0x7F, (float)(b[2] & 0x7F) / 127.0f);
   else if (type == 0xE0) {                                                /* Pitch Bend, 14 bit */
     const int v = ((b[2] & 0x7F) << 7 | (b[1] & 0x7F)) - 8192;
-    const float bend = v < 0 ? (float)v / 8192.0f : (float)v / 8191.0f;
-    fc_set_bend(&S->core, bend * BEND_RANGE);
+    S->bend = v < 0 ? (float)v / 8192.0f : (float)v / 8191.0f;
+    fc_set_bend(&S->core, S->bend * S->bend_range);
   }
 }
 

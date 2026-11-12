@@ -83,7 +83,7 @@ class Engine:
     def get_monitors_dict(self):
         m = {"out_peak": float(self.peak), "mod_phase": float(self.mod_phase), "gate_level": float(self.gate_level),
              "fg1": float(self.fg[0]), "fg2": float(self.fg[1]), "delay_level": float(self.delay_level)}
-        for i in range(4):
+        for i in range(8):
             m["note%d" % (i + 1)] = float(self.notes[i]) if i < len(self.notes) else -1.0
         return m
 
@@ -101,7 +101,8 @@ class Processor:
                                  ("route_fm", 1), ("route_am", 0), ("route_sync", 0), ("route_timbre", 0),
                                  ("timbre", 0.0), ("order", 0.0), ("symmetry", 0.0), ("drive", 0.0),
                                  ("delay_mode", 0), ("delay_time", 50.0), ("delay_fb", 50.0), ("delay_mix", 30.0),
-                                 ("delay_shaper", 30), ("delay_eq_freq", 50), ("delay_eq_gain", 0))}
+                                 ("delay_shaper", 30), ("delay_eq_freq", 50), ("delay_eq_gain", 0),
+                                 ("play_mode", 0), ("voices", 8), ("glide", 0.0), ("bend_range", 2))}
         for src in ("fg1", "fg2", "mod", "rnd", "vel", "key", "wheel", "at"):     # the mod matrix
             for dst in ("pitch", "harmonics", "color", "morph", "index", "order", "symmetry", "timbre", "lpg", "dtime",
                         "dfb"):
@@ -124,7 +125,8 @@ class Control:
     def add_pages(self, proc):
         self.list_data = [(None, None, "> Eka Fold", proc)]
         for j, (g, t) in enumerate((("g_osc", "Osc"), ("g_mod", "Mod"), ("g_timbre", "Timbre"),
-                                    ("g_gate", "Gate"), ("g_env", "Env"), ("g_delay", "Delay"))):
+                                    ("g_gate", "Gate"), ("g_env", "Env"), ("g_delay", "Delay"),
+                                    ("g_play", "Play"))):
             self.list_data.append((g, j + 1, t, proc, j))
 
     def select(self, index=None, set_zctrl=True):
@@ -206,8 +208,8 @@ def main():
         return [c.itemcget(i, "text") for i in c.find_withtag(tag) if c.type(i) == "text"]
 
     # tabs, title, tiles, waveform
-    check("tabs Osc, Mod, Fold, Gate, Env, Delay, Matrix drawn", texts("tabs") == ["Osc", "Mod", "Fold", "Gate", "Env",
-                                                                                 "Delay", "Matrix"])
+    check("tabs Osc, Mod, Fold, Gate, Env, Delay, Play, Matrix drawn", texts("tabs") == [
+        "Osc", "Mod", "Fold", "Gate", "Env", "Delay", "Play", "Matrix"])
     check("page title drawn", texts("title") == ["Osc"])
     check("Source tiles, Pitch and Fine", texts("tiles") == ["Sine", "VA", "FM2", "Wave", "Pitch +0", "Fine +0"])
     lines = [i for i in c.find_withtag("wave") if c.type(i) == "line" and len(c.coords(i)) > 8]
@@ -730,13 +732,13 @@ def main():
 
     # ---------- Matrix ----------
     ctl.selected = []
-    tx = (wdg.tab_boxes[6][0] + wdg.tab_boxes[6][1]) / 2
+    tx = (wdg.tab_boxes[7][0] + wdg.tab_boxes[7][1]) / 2
     wdg._on_press(Tap(tx, 5))
     wdg.update()
-    check("tap on Matrix: Matrix tab, the knob page stays", wdg.tab == 6 and ctl.selected == [] and
+    check("tap on Matrix: Matrix tab, the knob page stays", wdg.tab == 7 and ctl.selected == [] and
           texts("title") == ["Osc"])
     wdg.update()
-    check("Matrix stays when the page did not change", wdg.tab == 6)
+    check("Matrix stays when the page did not change", wdg.tab == 7)
     mt = texts("matrix")
     check("Matrix: source and destination names", all(n in mt for n in ("FG1", "Rnd", "Wheel", "AT")) and
           (all(n in mt for n in ("Pitch", "Harm", "LPG")) or all(n in mt for n in ("Pit", "Hrm", "LPG"))))
@@ -855,6 +857,41 @@ def main():
     ctl.select(1)
     wdg.update()
 
+    # ---------- Play ----------
+    check("Glide time", mod.glide_ms(0) == 0 and abs(mod.glide_ms(50) - 500) < 1e-9 and mod.glide_ms(100) == 2000)
+    ctl.selected = []
+    tx = (wdg.tab_boxes[6][0] + wdg.tab_boxes[6][1]) / 2
+    wdg._on_press(Tap(tx, 5))
+    wdg.update()
+    check("tap on Play: Play tab and page", wdg.tab == 6 and ctl.selected == [7] and texts("title") == ["Play"])
+    check("Play: modes, 8 slots, the line", all(t in texts("play") for t in ("Poly", "Mono", "Legato")) and
+          len(wdg.slot_boxes) == 8 and any(t.startswith("8 voices   Glide 0   Bend \u00b12 st") for t in texts("play")))
+
+    def slot_fill(i):
+        x0, y0, x1, y1, _ = wdg.slot_boxes[i]
+        r = [j for j in c.find_withtag("playslots") if c.type(j) == "rectangle" and c.coords(j)[0] == x0]
+        return c.itemcget(r[0], "fill")
+    proc.engine.notes = [60, -1, 64]
+    wdg.update()
+    check("Play: the sounding voices lit with their notes", slot_fill(0) == mod.NOTE_COLOR and
+          slot_fill(2) == mod.NOTE_COLOR and slot_fill(1) != mod.NOTE_COLOR and
+          "C4" in texts("playslots") and "E4" in texts("playslots"))
+    b = wdg.slot_boxes[3]
+    wdg._on_press(Tap((b[0] + b[2]) / 2, (b[1] + b[3]) / 2))
+    check("Play: a tap on slot 4 sets Voices 4, slots 5..8 dimmed", proc.controllers_dict["voices"].value == 4 and
+          slot_fill(5) == "" and slot_fill(1) == mod.TILE_OFF)
+    b = wdg.play_buttons[2]
+    proc.controllers_dict["glide"].value = 50.0
+    wdg._on_press(Tap((b[0] + b[2]) / 2, (b[1] + b[3]) / 2))
+    check("Play: tap on Legato, one voice, glide over a held key", proc.controllers_dict["play_mode"].value == 2 and
+          slot_fill(1) == "" and "Glide: only over a held key" in texts("play") and
+          any(t.startswith("1 voice   Glide 500 ms") for t in texts("play")))
+    for sym_, v in (("play_mode", 0), ("voices", 8), ("glide", 0.0)):
+        proc.controllers_dict[sym_].value = v
+    proc.engine.notes = []
+    ctl.select(1)
+    wdg.update()
+
     # throttle: two updates in a row, only one reaches refresh_gui
     mod.UPDATE_PERIOD = throttle
     wdg.next_update = 0.0
@@ -898,6 +935,10 @@ def main():
         ok = buttons[3] < shaper[1] and shaper[2] < eq[0] and eq[2] < bar[0] and bar[2] <= wdg.width and \
             max(shaper[3], eq[3]) < values[1] and values[3] < bottom - wdg._font_size() / 2 and shaper[3] > shaper[1] + 10
         check("layout %s: Delay buttons, plots, bar, boxes, line do not overlap" % geo, ok)
+        buttons, slots, glide, bottom = wdg._play_layout()
+        ok = buttons[3] < slots[1] and slots[3] < glide[1] and glide[3] < bottom - wdg._font_size() / 2 and \
+            glide[3] > glide[1] + 10 and slots[2] <= wdg.width
+        check("layout %s: Play buttons, slots, glide box, line do not overlap" % geo, ok)
         wdg.tab = 5                                      # the longest Delay line: Tuned, a sounding note, -100 %
         proc.controllers_dict["delay_mode"].value, proc.controllers_dict["delay_fb"].value = 1, -100.0
         proc.controllers_dict["delay_eq_gain"].value = -180
@@ -922,7 +963,7 @@ def main():
         ok = gx0 > 0 and gx1 <= wdg.width and gy0 > wdg._header_h() and gy1 < info_y and info_y < wdg.height and \
             ch >= 8 and cw >= 12
         check("layout %s: Matrix grid, names and line fit" % geo, ok)
-        wdg.tab, wdg.mx_sel = 6, (7, 1)                  # the longest line: Aftertouch -> Harmonics -100 %
+        wdg.tab, wdg.mx_sel = 7, (7, 1)                  # the longest line: Aftertouch -> Harmonics -100 %
         proc.controllers_dict["m_at_harmonics"].value = -100
         wdg._clear()
         wdg.refresh_gui()
@@ -1037,7 +1078,7 @@ def main():
         root.update_idletasks()
     full = (time.perf_counter() - t0) / 20 * 1000
     print("Fold tab on this PC: %.3f ms full redraw (folder + Saw: the slowest curves)" % full)
-    for tab_page, name in ((4, "Gate"), (5, "Env"), (6, "Delay")):
+    for tab_page, name in ((4, "Gate"), (5, "Env"), (6, "Delay"), (7, "Play")):
         ctl.select(tab_page)
         wdg.next_update = 0.0
         wdg.update()
@@ -1052,12 +1093,13 @@ def main():
             proc.engine.gate_level = (i % 40) / 40.0
             proc.engine.fg = [(i % 30) / 10.0, ((i + 7) % 30) / 10.0]
             proc.engine.delay_level = (i % 50) / 50.0
+            proc.engine.notes = [[60, 64, 67], [62], []][i % 3]
             wdg.update()
             root.update_idletasks()
         live = (time.perf_counter() - t0) / 200 * 1000
         print("%s tab on this PC: %.3f ms full redraw, %.3f ms with its live marks moving" % (name, full, live))
     # Matrix: a full redraw (72 cells), and a refresh with nothing changed (it reads the 72 values)
-    wdg.tab = 6
+    wdg.tab = 7
     wdg._clear()
     for k, sym in enumerate(sorted(s for s in proc.controllers_dict if s.startswith("m_"))):
         proc.controllers_dict[sym].value = (k * 37) % 201 - 100

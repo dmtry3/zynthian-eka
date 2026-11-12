@@ -24,7 +24,8 @@ static int fails = 0;
 enum { P_SOURCE, P_HARMONICS, P_COLOR, P_MORPH, P_MOD_FREQ, P_MOD_INDEX, P_MOD_SHAPE, P_MOD_MODE,
        P_TIMBRE, P_ORDER, P_SYMMETRY, P_DRIVE, P_GATE_MODE, P_GATE_DECAY, P_GATE_RES, P_LEVEL,
        P_FG1_RISE, P_FG1_FALL, P_FG2_RISE, P_FG2_FALL, P_DELAY_MODE, P_DELAY_TIME, P_DELAY_FB, P_DELAY_MIX,
-       P_MIDI_IN, P_OUT_L, P_OUT_R, P_NOTIFY, P_NOTE1, P_NOTE4 = P_NOTE1 + 3, P_PEAK, P_MOD_PHASE,
+       P_PLAY_MODE, P_VOICES, P_GLIDE, P_BEND_RANGE,
+       P_MIDI_IN, P_OUT_L, P_OUT_R, P_NOTIFY, P_NOTE1, P_NOTE4 = P_NOTE1 + 3, P_NOTE8 = P_NOTE1 + 7, P_PEAK, P_MOD_PHASE,
        P_GATE_LEVEL, P_FG1, P_FG2, P_DELAY_LEVEL, P_COUNT };
 
 static char* uris[256];
@@ -198,6 +199,8 @@ int main(int argc, char** argv) {
   ctl[P_SOURCE] = 0; ctl[P_HARMONICS] = 50; ctl[P_COLOR] = 50; ctl[P_MORPH] = 50;
   ctl[P_GATE_MODE] = 2; ctl[P_GATE_DECAY] = 30; ctl[P_GATE_RES] = 0; ctl[P_LEVEL] = 80;
   ctl[P_FG1_RISE] = 5; ctl[P_FG1_FALL] = 300; ctl[P_FG2_RISE] = 300; ctl[P_FG2_FALL] = 800;
+  ctl[P_DELAY_TIME] = 50; ctl[P_DELAY_FB] = 50; ctl[P_DELAY_MIX] = 30;
+  ctl[P_PLAY_MODE] = 0; ctl[P_VOICES] = 8; ctl[P_GLIDE] = 0; ctl[P_BEND_RANGE] = 2;
   ctl[P_MOD_FREQ] = 30; ctl[P_MOD_INDEX] = 0; ctl[P_MOD_SHAPE] = 1; ctl[P_MOD_MODE] = 2;
   ctl[P_TIMBRE] = 0; ctl[P_ORDER] = 0; ctl[P_SYMMETRY] = 0; ctl[P_DRIVE] = 0;
   for (int p = 0; p < P_COUNT; p++) {
@@ -216,7 +219,7 @@ int main(int argc, char** argv) {
   run_seq();
   CHECK(peak(out_l, 0, N) == 0.0f);
   CHECK(ctl[P_PEAK] == -100.0f);
-  CHECK(ctl[P_NOTE1] == -1.0f && ctl[P_NOTE4] == -1.0f);
+  CHECK(ctl[P_NOTE1] == -1.0f && ctl[P_NOTE8] == -1.0f);
   CHECK(ctl[P_MOD_PHASE] == -1.0f);
   CHECK(ctl[P_GATE_LEVEL] == -1.0f && ctl[P_FG1] == -1.0f && ctl[P_FG2] == -1.0f);
 
@@ -237,7 +240,7 @@ int main(int argc, char** argv) {
   seq_midi(0, 0x93, 72, 127);
   run_seq();
   int shown = 0;
-  for (int i = 0; i < 4; i++) shown += ctl[P_NOTE1 + i] >= 0.0f;
+  for (int i = 0; i < 8; i++) shown += ctl[P_NOTE1 + i] >= 0.0f;
   CHECK(shown == 4);
   for (int i = 0; i < 400; i++) run_seq();
   CHECK(ctl[P_PEAK] < 0.0f);
@@ -362,11 +365,31 @@ int main(int argc, char** argv) {
   for (int i = 0; i < 400; i++) run_seq();
   seq_midi(0, 0x90, 64, 127);
   run_seq();
-  CHECK(ctl[P_NOTE1] == 64.0f || ctl[P_NOTE1 + 1] == 64.0f || ctl[P_NOTE1 + 2] == 64.0f || ctl[P_NOTE1 + 3] == 64.0f);
+  int has64 = 0;
+  for (int i = 0; i < 8; i++) has64 |= ctl[P_NOTE1 + i] == 64.0f;
+  CHECK(has64);
   for (int i = 0; i < 400; i++) run_seq();                              /* 2 s, the key still down */
-  CHECK(ctl[P_NOTE1] == -1.0f && ctl[P_NOTE4] == -1.0f && ctl[P_GATE_LEVEL] == -1.0f);
+  CHECK(ctl[P_NOTE1] == -1.0f && ctl[P_NOTE8] == -1.0f && ctl[P_GATE_LEVEL] == -1.0f);
   seq_midi(0, 0x80, 64, 0);
   seq_set("fg1_mode", 1.0f);
+  run_seq();
+
+  /* Bend 12: the wheel fully up is an octave; Bend 0: no bend at all */
+  for (int i = 0; i < 400; i++) run_seq();                              /* the last note has ended */
+  ctl[P_BEND_RANGE] = 12;
+  seq_midi(0, 0xE0, 0x7F, 0x7F);
+  seq_midi(0, 0x90, 69, 127);
+  run_seq();
+  cross = crossings(1.0);
+  printf("A4, Bend 12, the wheel up: %d crossings in 1 s\n", cross);
+  CHECK(fabs(cross - 880.0 * blocks_len / 48000) <= 2.5);
+  ctl[P_BEND_RANGE] = 0;
+  run_seq();
+  cross = crossings(1.0);
+  CHECK(fabs(cross - 440.0 * blocks_len / 48000) <= 2.5);
+  seq_midi(0, 0xE0, 0x00, 0x40);                                        /* the wheel back to the middle */
+  seq_midi(0, 0x80, 69, 0);
+  ctl[P_BEND_RANGE] = 2;
   run_seq();
 
   /* odd values from a host: NaN knobs, a short MIDI event, out of range Mod knobs */

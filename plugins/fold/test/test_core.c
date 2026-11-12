@@ -206,9 +206,17 @@ static void test_voices(void) {
   CHECK(core.v[0].held == 0);
 }
 
+static void four_voices(void) {
+  FcParams p;
+  fc_default_params(&p);
+  p.voices = 4;
+  fc_set_params(&core, &p);
+}
+
 static void test_steal(void) {
-  /* a 5th and 6th note while 4 are held: the oldest voices fade out in 2 ms, no jump in the output */
+  /* Voices 4: a 5th and 6th note while 4 are held: the oldest voices fade out in 2 ms, no jump in the output */
   reset(SR);
+  four_voices();
   const int notes[6] = { 48, 52, 55, 59, 62, 65 };
   uint32_t at = 0;
   for (int i = 0; i < 6; i++) {
@@ -228,6 +236,7 @@ static void test_steal(void) {
 
   /* a voice let go is taken before a held one */
   reset(SR);
+  four_voices();
   for (int i = 0; i < 4; i++) fc_note_on(&core, notes[i], 127);
   render(&core, 0, SR / 4);
   fc_note_off(&core, 55);
@@ -239,6 +248,7 @@ static void test_steal(void) {
 
   /* the stolen note is released before its fade ends: the voice ends free */
   reset(SR);
+  four_voices();
   for (int i = 0; i < 4; i++) fc_note_on(&core, notes[i], 127);
   render(&core, 0, SR / 4);
   fc_note_on(&core, 70, 127);
@@ -1498,6 +1508,112 @@ static void test_delay_extremes(void) {
   CHECK(fabsf(core.v[0].dl_len_g - 4.0f * SR) < 1.0f && fabsf(core.v[0].dl_fb_g + 0.5f * FC_DL_FB_MAX) < 1e-6f);   /* 2 s at 2x */
 }
 
+/* ---------- Play: voices, Mono, Legato, Glide (stage 5b) ---------- */
+static void play_params(FcParams* p, int mode, int voices, float glide) {
+  base_params(p);
+  p->play_mode = mode; p->voices = voices; p->glide = glide;
+}
+
+static void test_play_voices(void) {
+  /* Voices 1..8: so many notes sound; turned down while 8 play, the extra voices fade out without a click */
+  for (int n = 1; n <= FC_VOICES; n++) {
+    reset(SR);
+    FcParams p;
+    play_params(&p, FC_PLAY_POLY, n, 0.0f);
+    fc_set_params(&core, &p);
+    for (int i = 0; i < FC_VOICES; i++) fc_note_on(&core, 48 + 3 * i, 100);
+    render(&core, 0, SR / 10);
+    CHECK(fc_active_voices(&core) == n);
+  }
+  reset(SR);
+  FcParams p;
+  play_params(&p, FC_PLAY_POLY, 8, 0.0f);
+  fc_set_params(&core, &p);
+  for (int i = 0; i < FC_VOICES; i++) fc_note_on(&core, 48 + 3 * i, 60);
+  render(&core, 0, SR / 4);
+  p.voices = 3;
+  fc_set_params(&core, &p);
+  render(&core, SR / 4, SR / 4);
+  CHECK(fc_active_voices(&core) == 3);
+  const float curve = max_curve(L, SR / 4, SR / 4 + SR / 50), steady = max_curve(L, SR / 4 - SR / 20, SR / 4);
+  printf("Voices 8 -> 3 while 8 play: max second difference %.4f (steady %.4f)\n", curve, steady);
+  CHECK(curve <= 1.2f * steady);
+}
+
+static void test_play_mono(void) {
+  /* Mono: one voice, the last key wins; letting it go returns to the key held before it (FG1 restarts) */
+  reset(SR);
+  FcParams p;
+  play_params(&p, FC_PLAY_MONO, 8, 0.0f);
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 60, 100);
+  render(&core, 0, SR / 10);
+  fc_note_on(&core, 64, 100);
+  fc_note_on(&core, 67, 100);
+  render(&core, 0, SR / 10);
+  CHECK(fc_active_voices(&core) == 1 && core.v[0].note == 67);
+  fc_note_off(&core, 67);
+  CHECK(core.v[0].note == 64 && core.v[0].fg[0].seg == FC_SEG_RISE);
+  render(&core, 0, SR / 10);
+  fc_note_off(&core, 60);                            /* not the sounding one: nothing changes */
+  CHECK(core.v[0].note == 64 && core.v[0].held);
+  fc_note_off(&core, 64);
+  CHECK(!core.v[0].held);
+  render(&core, 0, SR);
+  CHECK(fc_active_voices(&core) == 0);
+  /* the pitch: A4 then A5 */
+  fc_note_on(&core, 69, 100);
+  render(&core, 0, SR / 4);
+  fc_note_on(&core, 81, 100);
+  render(&core, 0, SR / 2);
+  CHECK(fabs(freq(L, SR / 10, SR / 2, SR) - 880.0) < 0.5);
+}
+
+static void test_play_legato(void) {
+  /* Legato with Glide 50 (500 ms): a key pressed over a held one only moves the pitch, linearly in semitones,
+   * in 500 ms; a key pressed alone restarts the function generators and does not glide */
+  reset(SR);
+  FcParams p;
+  play_params(&p, FC_PLAY_LEGATO, 8, 50.0f);
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 60, 100);
+  render(&core, 0, SR / 4);
+  CHECK(core.v[0].pitch == 60.0f);                   /* the first note does not glide */
+  CHECK(core.v[0].fg[0].seg == FC_SEG_HOLD);
+  fc_note_on(&core, 72, 100);
+  CHECK(core.v[0].fg[0].seg == FC_SEG_HOLD);          /* no restart */
+  render(&core, 0, SR / 4);                          /* half the glide */
+  const float half = core.v[0].pitch;
+  render(&core, 0, SR / 4 + BLOCK);
+  printf("Legato, Glide 500 ms, C4 -> C5: %.2f after 250 ms, %.2f after 500 ms\n", half, core.v[0].pitch);
+  CHECK(fabsf(half - 66.0f) < 0.1f && core.v[0].pitch == 72.0f);
+  fc_note_off(&core, 72);                            /* back to C4, gliding, still no restart */
+  CHECK(core.v[0].note == 60 && core.v[0].fg[0].seg == FC_SEG_HOLD && core.v[0].pitch_step < 0.0f);
+  fc_note_off(&core, 60);
+  render(&core, 0, SR / 100);
+  fc_note_on(&core, 67, 100);                        /* alone: restarts, jumps */
+  CHECK(core.v[0].fg[0].seg == FC_SEG_RISE && core.v[0].pitch == 67.0f);
+  /* Mono glides on every note, Poly from the voice's last note */
+  reset(SR);
+  play_params(&p, FC_PLAY_MONO, 8, 50.0f);
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 60, 100);
+  render(&core, 0, SR / 10);
+  fc_note_off(&core, 60);
+  render(&core, 0, SR / 10);
+  fc_note_on(&core, 72, 100);
+  CHECK(core.v[0].pitch_step > 0.0f);
+  reset(SR);
+  play_params(&p, FC_PLAY_POLY, 8, 50.0f);
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 60, 100);
+  CHECK(core.v[0].pitch == 60.0f && core.v[0].pitch_step == 0.0f);   /* a voice's first note */
+  fc_note_off(&core, 60);
+  render(&core, 0, 2 * SR);
+  fc_note_on(&core, 64, 100);
+  CHECK(core.v[0].pitch == 60.0f && core.v[0].pitch_step > 0.0f);    /* the same voice, from its last note */
+}
+
 int main(void) {
   test_pitch();
   test_release();
@@ -1530,6 +1646,9 @@ int main(void) {
   test_matrix_sources();
   test_matrix_smooth();
   test_matrix_extremes();
+  test_play_voices();
+  test_play_mono();
+  test_play_legato();
   test_delay_tuned();
   test_delay_free();
   test_delay_tail();

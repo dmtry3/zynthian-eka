@@ -16,10 +16,11 @@
 
 #include "plaits/engines.h"
 
-#define FC_VOICES 4
+#define FC_VOICES 8               /* at most; Voices (FcParams.voices) sets how many play */
+#define FC_GAIN_VOICES 4          /* FC_GAIN keeps this many voices at full velocity at 0 dBFS (more: the soft clip) */
 #define FC_SINE_N 2048            /* table size (power of two); one more entry for interpolation */
 #define FC_STEAL_MS 2.0f          /* a stolen voice fades out this fast before the new note starts */
-#define FC_GAIN 0.25f             /* per voice: 4 voices at full velocity stay at 0 dBFS */
+#define FC_GAIN 0.25f             /* per voice: 1 / FC_GAIN_VOICES */
 #define FC_SMOOTH_MS 5.0f         /* Mod Index and routing switches glide over this, not to click */
 
 /* FM is linear and through zero: Mod Index 100 % swings the Principal frequency by FC_FM_DEPTH times itself.
@@ -138,6 +139,15 @@ extern const char* const fc_msrc_names[FC_NMSRC];   /* fg1 fg2 mod rnd vel key w
 extern const char* const fc_mdst_names[FC_NMDST];   /* pitch harmonics color morph index order symmetry timbre lpg
                                                        dtime dfb */
 
+/* Play (stage 5b): Poly (up to Voices voices), Mono (one voice, the last key wins, letting it go returns to the
+ * key still held before it, every note restarts the function generators), Legato (the same, but a key pressed
+ * while another is held only moves the pitch, and only then it glides). Glide: the pitch moves linearly in
+ * semitones over fc_glide_ms(Glide), from the voice's last note (Poly, Mono) or the held one (Legato). */
+enum { FC_PLAY_POLY, FC_PLAY_MONO, FC_PLAY_LEGATO, FC_NPLAY };
+#define FC_GLIDE_MAX_MS 2000.0f   /* Glide 0..100: FC_GLIDE_MAX_MS x (Glide / 100)^2 */
+#define FC_KEYS 16                /* Mono / Legato: the keys held, newest last */
+float fc_glide_ms(float units);
+
 /* Mod OSC shapes and modes: the order of the scale points in lv2/eka_fold.ttl and of the widget's lists. */
 enum { FC_MOD_TRI, FC_MOD_SINE, FC_MOD_SAW, FC_MOD_SQUARE, FC_NMOD_SHAPES };
 enum { FC_MODE_FREE, FC_MODE_KEY, FC_MODE_RATIO, FC_NMODES };
@@ -172,6 +182,9 @@ typedef struct {
   float delay_shaper;             /* 0..1 */
   float delay_eq_freq;            /* 0..1 -> fc_dl_eq_hz */
   float delay_eq_db;              /* -FC_DL_EQ_DB..FC_DL_EQ_DB */
+  int play_mode;                  /* FC_PLAY_* */
+  int voices;                     /* 1..FC_VOICES (Poly) */
+  float glide;                    /* 0..100, fc_glide_ms */
   float mod_freq;                 /* units, see above */
   float mod_index;                /* 0..1 */
   int mod_shape, mod_mode;
@@ -190,6 +203,9 @@ typedef struct {
 typedef struct {
   int stage;
   int note;
+  float pitch;                    /* the note it sounds now (gliding to `note`), MIDI semitones */
+  float pitch_step;               /* its glide per sample at the voices' rate */
+  int played;                     /* it has had a note (Poly glides from it) */
   float vel;                      /* vactrol drive from the velocity, FC_VEL_FLOOR..1 */
   float velo;                     /* the velocity 0..1 (a matrix source) */
   float at;                       /* polyphonic aftertouch 0..1 */
@@ -253,6 +269,10 @@ typedef struct {
   FcVoice v[FC_VOICES];
   uint32_t clock;
   int sustain_pedal;
+  int play_mode, nvoices;
+  float glide_ms;
+  int keys[FC_KEYS], key_vel[FC_KEYS];   /* Mono / Legato: the keys held, newest last */
+  int nkeys;
   float bend;                     /* semitones */
   float tune;                     /* semitones: pitch + fine */
   int src_t;                      /* Source */

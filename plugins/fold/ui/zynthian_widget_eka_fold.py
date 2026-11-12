@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# Eka Fold widget. Tabs (top left): Osc, Mod, Fold, Gate, Env, Delay, Matrix.
+# Eka Fold widget. Tabs (top left): Osc, Mod, Fold, Gate, Env, Delay, Play, Matrix.
 # The skeleton follows the Eka Mist widget:
 # - Zynthian calls update() every 32 ms; monitors and marks are refreshed only every UPDATE_PERIOD.
 # - Curves are computed here from the parameters and redrawn only when a parameter changed, at most every
@@ -54,6 +54,11 @@
 # - Shaper %, EQ Freq, EQ Gain (LV2 parameters delay_shaper, delay_eq_freq, delay_eq_gain in tenths of a dB): sliders,
 #   a finger left/right (the bar inside shows the value; EQ Gain from the middle), a double tap resets. The bottom line: Time (Tuned: semitones and the frequency
 #   for the sounding note, or A4; Free: ms), Feedback, Mix. The formulas of fold_core.c.
+# Play:
+# - Tiles Poly / Mono / Legato (the Play knob). Eight voice slots: the sounding note in each (outputs note1..8),
+#   the slots beyond Voices dimmed (in Mono / Legato all but the first); a tap on a slot sets Voices to it.
+# - What Glide does: the pitch from one note to the next over its time (linear in semitones; Legato only over a
+#   held key). The bottom line: Voices, Glide (ms), Bend range.
 # Matrix (no knob page; the page shown stays):
 # - The mod matrix as in Eka Mist: sources (rows) x destinations (columns), LV2 parameters m_<source>_<destination>,
 #   -100..100 %. Colour = sign (blue +, orange -), brightness = depth; the names of the sources in use are lit.
@@ -73,10 +78,13 @@ from zyngui import zynthian_widget_base
 
 MULTI_INSTANCE = True
 
-TABS = ["Osc", "Mod", "Fold", "Gate", "Env", "Delay", "Matrix"]
-TAB_GROUPS = ["g_osc", "g_mod", "g_timbre", "g_gate", "g_env", "g_delay", None]  # knob page of each tab
-MATRIX_TAB = 6
+TABS = ["Osc", "Mod", "Fold", "Gate", "Env", "Delay", "Play", "Matrix"]
+TAB_GROUPS = ["g_osc", "g_mod", "g_timbre", "g_gate", "g_env", "g_delay", "g_play", None]  # knob page of each tab
 DELAY_TAB = 5
+PLAY_TAB = 6
+MATRIX_TAB = 7
+PLAY_MODES = ["Poly", "Mono", "Legato"]       # FC_PLAY_* of fold_core.h, the Play knob
+GLIDE_MAX_MS = 2000.0                         # FC_GLIDE_MAX_MS: Glide 0..100 = 2 s x (Glide / 100)^2
 DL_MODES = ["Off", "Tuned", "Free"]           # FC_DL_* of fold_core.h, the Delay knob
 DL_SEMIS = 24.0                               # FC_DL_SEMIS, FC_DL_MIN_MS, FC_DL_MAX_MS, FC_DL_EQ_*, FC_DL_LIM
 DL_MIN_MS, DL_MAX_MS = 1.0, 2000.0          # Free: DL_MAX_MS x (Time / 100)^3
@@ -106,7 +114,7 @@ WAVE_LEN = 128
 WAVE_STRIDE = 132
 NWAVES = 192
 FM_QUANT_SIZE = 130
-NVOICES = 4
+NVOICES = 8
 TAB_COLOR = "#4dabf7"
 WAVE_COLOR = "#4dabf7"
 AXIS_COLOR = "#2a2a2a"
@@ -547,6 +555,10 @@ def wave_points(values, x0, x1, y0, y1):
     return pts
 
 
+def glide_ms(u):
+    return GLIDE_MAX_MS * (_clamp(u, 0.0, 100.0) / 100.0) ** 2
+
+
 def dl_semis(u):
     return (_clamp(u, 0.0, 100.0) / 100.0 * 2.0 - 1.0) * DL_SEMIS
 
@@ -585,6 +597,10 @@ def peaking_db(f, f0, gain_db, sr=VOICE_SR):
     z1, z2 = complex(math.cos(w), -math.sin(w)), complex(math.cos(2 * w), -math.sin(2 * w))
     h = (b[0] + b[1] * z1 + b[2] * z2) / (a[0] + a[1] * z1 + a[2] * z2)
     return 20.0 * math.log10(max(abs(h), 1e-9))
+
+
+def tx_or_dim(on):
+    return zynthian_gui_config.color_tx if on else "#505050"
 
 
 def mix(rgb, f, bg=CELL_BG):
@@ -685,6 +701,11 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         self.dl_live = None          # level bar drawn
         self.dl_buttons = []         # (x0, y0, x1, y1, value)
         self.dl_boxes = []           # (x0, y0, x1, y1, symbol, min, max, px per step)
+        self.play_view = None        # values the Play tab was drawn for
+        self.play_drawn = 0.0
+        self.play_slots = None       # what the voice slots show
+        self.play_buttons = []       # (x0, y0, x1, y1, value)
+        self.slot_boxes = []         # (x0, y0, x1, y1, voices)
 
     # ---------- plugin access ----------
     def _page_title(self):
@@ -719,15 +740,30 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             return default
 
     def _fit_font(self, text, room, size=None):
-        """The largest font from `size` (default: the normal one) down to 7 in which text is at most room wide."""
+        """The largest font from `size` (default: the normal one) down to 7 in which text is at most room wide.
+        Remembered: measuring makes Tk fonts, slow on the Pi."""
         fam = zynthian_gui_config.font_family
-        for fs in range(size or self._font_size(), 6, -1):
+        top = size or self._font_size()
+        key = (text, int(room), top)
+        cache = self.__dict__.setdefault("fit_cache", {})
+        if key in cache:
+            return cache[key]
+        if len(cache) > 500:
+            cache.clear()
+        fonts = self.__dict__.setdefault("fit_fonts", {})
+        out = (fam, 7)
+        for fs in range(top, 6, -1):
             try:
-                if tkinter.font.Font(family=fam, size=fs).measure(text) <= room:
-                    return (fam, fs)
+                if fs not in fonts:
+                    fonts[fs] = tkinter.font.Font(family=fam, size=fs)
+                if fonts[fs].measure(text) <= room:
+                    out = (fam, fs)
+                    break
             except Exception:
-                return (fam, fs)
-        return (fam, 7)
+                out = (fam, fs)
+                break
+        cache[key] = out
+        return out
 
     def _font_size(self):
         return max(8, min(max(self.height, 20) // 14, 13))
@@ -860,6 +896,22 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                     self.last_tap = (sym, now)
                     self.hdrag = (sym, int(round(self._zval(sym, DL_DEFAULTS[sym]))), event.x, lo, hi, px)
                     return
+        if self.tab == PLAY_TAB:
+            for x0, y0, x1, y1, value in self.play_buttons:
+                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                    self._zset("play_mode", value)
+                    self.play_view = self.play_slots = None
+                    self.play_drawn = 0.0
+                    self.refresh_gui()
+                    return
+            for x0, y0, x1, y1, n in self.slot_boxes:
+                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                    self._zset("voices", n)
+                    self.play_view = self.play_slots = None
+                    self.play_drawn = 0.0
+                    self.refresh_gui()
+                    return
+            return
         if self.tab == MATRIX_TAB:
             cell = self._mx_cell(event.x, event.y)
             if cell:
@@ -940,6 +992,8 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             self._draw_env()
         elif self.tab == DELAY_TAB:
             self._draw_delay()
+        elif self.tab == PLAY_TAB:
+            self._draw_play()
         elif self.tab == MATRIX_TAB:
             self._draw_matrix()
 
@@ -948,11 +1002,22 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         shrinks first, then the font; if the tabs still do not fit beside the title, the title goes."""
         fam, fs = zynthian_gui_config.font_family, self._font_size()
 
+        fonts = self.__dict__.setdefault("fit_fonts", {})
+        known = self.__dict__.setdefault("tab_widths", {})    # (size, text) -> px: the tab names do not change
+
         def measure(size, text):
+            if (size, text) in known:
+                return known[(size, text)]
             try:
-                return tkinter.font.Font(family=fam, size=size).measure(text)
+                if size not in fonts:
+                    fonts[size] = tkinter.font.Font(family=fam, size=size)
+                px = fonts[size].measure(text)
             except Exception:
-                return len(text) * size
+                px = len(text) * size
+            if len(known) > 300:
+                known.clear()
+            known[(size, text)] = px
+            return px
         w = max(self.width, 80)
         for show in ((True, False) if title else (False,)):
             avail = w - 4 - (measure(fs, title) + 14 if show else 0)
@@ -1128,7 +1193,8 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         self.notes_view = view
         c = self.widget_canvas
         c.delete("notes")
-        c.create_text(6, y, anchor="w", text=text, font=self._font(), fill=NOTE_COLOR, tags="notes")
+        c.create_text(6, y, anchor="w", text=text, font=self._fit_font(text, self.width - 12), fill=NOTE_COLOR,
+                      tags="notes")
 
     # ---------- Mod tab ----------
     def _mod_layout(self):
@@ -1706,6 +1772,100 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         c.delete("delaylive")
         if hpx > 0:
             c.create_rectangle(bx0 + 1, by1 - hpx, bx1 - 1, by1 - 1, fill=MARK_COLOR, outline="", tags="delaylive")
+
+    # ---------- Play tab ----------
+    def _play_layout(self):
+        """Buttons row, the voice slots row, the glide box, the bottom line."""
+        w, h = max(int(self.width), 60), max(int(self.height), 60)
+        hh, fs = self._header_h(), self._font_size()
+        row = 2 * fs + 6
+        buttons = (4, hh + 4, min(w - 4, int(w * 0.6)), hh + 4 + row)
+        slots = (4, buttons[3] + 6, w - 4, buttons[3] + 6 + row)
+        bottom = h - row // 2 - 2
+        glide = (4, slots[3] + 8, w - 4, h - row - 6)
+        return buttons, slots, glide, bottom
+
+    def _play_values(self):
+        return (int(round(self._zval("play_mode", 0))), int(round(self._zval("voices", NVOICES))),
+                self._zval("glide", 0.0), int(round(self._zval("bend_range", 2))))
+
+    def _draw_play(self):
+        buttons, slots, glide, bottom = self._play_layout()
+        vals = self._play_values()
+        view = (buttons, slots, glide, vals)
+        if view != self.play_view:
+            now = time.monotonic()
+            if self.play_view is None or now - self.play_drawn >= CURVE_PERIOD:
+                self.play_view = view
+                self.play_drawn = now
+                self._draw_play_static(buttons, glide, bottom, vals)
+                self.play_slots = None
+        self._draw_play_slots(slots, vals)
+
+    def _draw_play_static(self, buttons, glide, bottom, vals):
+        mode, voices, gl, bend = vals
+        c = self.widget_canvas
+        c.delete("play")
+        tx = zynthian_gui_config.color_tx
+        small = self._font(max(7, self._font_size() - 3))
+        self.play_buttons = []
+        bx0, by0, bx1, by1 = buttons
+        bw = (bx1 - bx0) / 3.0
+        for i, name in enumerate(PLAY_MODES):
+            on = i == mode
+            x0 = bx0 + i * bw
+            c.create_rectangle(x0, by0, x0 + bw - 4, by1, outline=ROUTE_ON if on else ROUTE_OFF,
+                               fill=(ROUTE_ON if on else ""), tags="play")
+            c.create_text(x0 + (bw - 4) / 2, (by0 + by1) / 2, text=name, font=self._font(),
+                          fill=("#000000" if on else tx), tags="play")
+            self.play_buttons.append((x0, by0, x0 + bw - 4, by1, i))
+        # Glide: one note to the next, a fifth up, over the Glide time (the box spans 2 s or the time, the larger)
+        ms = glide_ms(gl)
+        x0, y0, x1, y1 = glide
+        c.create_rectangle(*glide, outline=AXIS_COLOR, tags="play")
+        span = max(500.0, ms * 1.5)
+        lo, hi = y1 - (y1 - y0) * 0.25, y0 + (y1 - y0) * 0.25
+        xs = x0 + (x1 - x0) * 0.2                         # the new key
+        xe = xs + (x1 - x0) * 0.8 * ms / span
+        c.create_line(xs, y0 + 2, xs, y1 - 2, fill=AXIS_COLOR, dash=(2, 3), tags="play")
+        c.create_line(x0 + 2, lo, xs, lo, xe, hi, x1 - 2, hi, fill=WAVE_COLOR, width=2, tags="play")
+        c.create_text(xs + 3, y1 - 2, anchor="sw", text="new key", fill=LABEL_COLOR, font=small, tags="play")
+        if ms > 0.5:
+            c.create_text(xe + 3, hi + 3, anchor="nw", text=ms_text(ms), fill=LABEL_COLOR, font=small, tags="play")
+        what = {0: "Glide: each voice from its last note", 1: "Glide: from the last note, every key",
+                2: "Glide: only over a held key"}[mode] if ms > 0.5 else "Glide off: the pitch jumps"
+        self._box_label(glide, what, "play")
+        line = "%s   Glide %s   Bend \u00b1%d st" % (
+            ("%d voices" % voices) if mode == 0 else "1 voice", ms_text(ms) if ms > 0.5 else "0", bend)
+        c.create_text(6, bottom, anchor="w", text=line, fill=tx, font=self._fit_font(line, self.width - 10),
+                      tags="play")
+
+    def _draw_play_slots(self, slots, vals):
+        """The voice slots: the note of each voice (live), the ones beyond the limit dimmed. Redrawn only when they
+        changed."""
+        mode, voices = vals[0], vals[1]
+        limit = voices if mode == 0 else 1
+        notes = tuple(int(round(self._mon("note%d" % (i + 1), -1.0))) for i in range(NVOICES))
+        view = (slots, limit, notes)
+        if view == self.play_slots:
+            return
+        self.play_slots = view
+        c = self.widget_canvas
+        c.delete("playslots")
+        x0, y0, x1, y1 = slots
+        sw = (x1 - x0) / float(NVOICES)
+        self.slot_boxes = []
+        for i in range(NVOICES):
+            sx = x0 + i * sw
+            on = notes[i] >= 0
+            inside = i < limit
+            fill = NOTE_COLOR if on else (TILE_OFF if inside else "")
+            c.create_rectangle(sx, y0, sx + sw - 4, y1, outline=(ROUTE_ON if inside else AXIS_COLOR), fill=fill,
+                               tags="playslots")
+            text = note_name(notes[i]) if on else str(i + 1)
+            c.create_text(sx + (sw - 4) / 2, (y0 + y1) / 2, text=text, tags="playslots",
+                          font=self._fit_font(text, sw - 8), fill=("#000000" if on else tx_or_dim(inside)))
+            self.slot_boxes.append((sx, y0, sx + sw - 4, y1, i + 1))
 
     # ---------- Matrix tab ----------
     def _mx_layout(self):
