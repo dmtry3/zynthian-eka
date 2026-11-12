@@ -6,7 +6,7 @@ CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -fno-exceptions -fno-rtti
 CORE_H := $(wildcard core/*.h)
 CORE_CPP := $(wildcard core/*.cpp)
 
-.PHONY: all install uninstall test clean
+.PHONY: all install uninstall test probe-stretch clean
 
 all:
 	./scripts/build.sh
@@ -42,6 +42,15 @@ build_test/test_session: tests/test_session.cpp $(CORE_H) $(CORE_CPP)
 build_test/test_plugin: tests/test_plugin.cpp lv2/eka_tape.cpp $(CORE_H) $(CORE_CPP)
 	@mkdir -p build_test
 	$(CXX) $(CXXFLAGS) $(shell pkg-config --cflags lv2) -o $@ tests/test_plugin.cpp $(CORE_CPP) -lm -pthread
+
+# Проба нагрузки Signalsmith Stretch (этап 8): make probe-stretch
+build_test/stretch_probe: tests/stretch_probe.cpp $(wildcard third_party/signalsmith/*.h third_party/signalsmith/*/*.h)
+	@mkdir -p build_test
+	$(CXX) $(CXXFLAGS) -I third_party/signalsmith -o $@ tests/stretch_probe.cpp -lm
+
+probe-stretch: build_test/stretch_probe
+	./build_test/stretch_probe 256
+	./build_test/stretch_probe 128
 
 clean:
 	rm -rf build build_test tests/out
