@@ -522,6 +522,7 @@ static void render_voices(FoldCore* c, float* l, uint32_t n) {
       const float v1 = v->a1 * v->ic1 + v->a2 * v3;
       const float v2 = v->ic2 + v->a2 * v->ic1 + v->a3 * v3;
       v->ic1 = 2.0f * v1 - v->ic1;
+      v->ic1 = FC_RES_SAT * fast_tanh(v->ic1 * (1.0f / FC_RES_SAT));   /* resonance limits itself */
       v->ic2 = 2.0f * v2 - v->ic2;
       const float filtered = dc + v->wl * (v2 - dc);
       float fade = (v->vac - FC_GATE_OFF) * (1.0f / FC_GATE_OFF);

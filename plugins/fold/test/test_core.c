@@ -810,6 +810,29 @@ static void test_resonance(void) {
   CHECK(all_finite(L, SR));
 }
 
+static void test_resonance_peak(void) {
+  /* Resonance 100 %: as the vactrol closes, the cutoff passes the fundamental; the band state saturates, so one
+   * voice stays far from the output clip (it reached 3.3 before FC_RES_SAT, 2026-11-12) */
+  float mx = 0;
+  const int notes[] = { 36, 48, 60, 72, 84 };
+  for (int m = FC_GATE_LP; m <= FC_GATE_COMBO; m++)
+    for (int n = 0; n < 5; n++) {
+      reset(SR);
+      FcParams p;
+      base_params(&p);
+      p.gate_mode = m; p.gate_res = 1.0f; p.gate_decay = 0.5f;
+      p.fg_mode[0] = FC_FG_ONCE; p.fg_fall_ms[0] = 300;
+      fc_set_params(&core, &p);
+      fc_note_on(&core, notes[n], 127);
+      render(&core, 0, 2 * SR);
+      const float pk = peak(L, 0, 2 * SR);
+      if (pk > mx) mx = pk;
+    }
+  printf("resonance 100 %%, one voice: peak %.2f\n", mx);
+  CHECK(mx < 0.6f);
+  CHECK(all_finite(L, 2 * SR));
+}
+
 static void test_gate_switch(void) {
   /* VCA -> LP -> Combo while a note holds at velocity 64 (g = 0.7: VCA 0.7, LP 2.5 kHz): no click */
   reset(SR);
@@ -884,6 +907,7 @@ int main(void) {
   test_vactrol();
   test_gate_modes();
   test_resonance();
+  test_resonance_peak();
   test_gate_switch();
   test_fg2_timbre();
   test_soft_clip();

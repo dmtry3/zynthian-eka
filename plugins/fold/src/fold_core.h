@@ -66,6 +66,10 @@ enum { FC_GATE_VCA, FC_GATE_LP, FC_GATE_COMBO, FC_NGATE_MODES };
 #define FC_LPG_FMAX 20000.0f
 #define FC_VEL_FLOOR 0.4f
 #define FC_GATE_OFF 1e-3f         /* -60 dB */
+/* The band state of the low-pass saturates softly at FC_RES_SAT (as in an analog filter): at full Resonance a
+ * voice peaks at 0.4 instead of 3.3 (the output clipped, 2026-11-12, found on the device); the small-signal
+ * lift stays about +20 dB, Resonance 0 is unchanged within 0.5 dB. */
+#define FC_RES_SAT 2.0f
 #define FC_COEF_EVERY 32          /* filter coefficients are updated every 32 samples (at the 2x rate) */
 float fc_decay_ms(float decay);   /* Decay 0..1 -> ms */
 
