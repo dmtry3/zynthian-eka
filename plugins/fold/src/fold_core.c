@@ -1,4 +1,4 @@
-/* Eka Fold engine, stage 3. SPDX-License-Identifier: GPL-3.0-or-later */
+/* Eka Fold engine, stage 4. SPDX-License-Identifier: GPL-3.0-or-later */
 #include "fold_core.h"
 
 #include <math.h>
@@ -37,6 +37,10 @@ int fc_ratio_index(float u) {
 void fc_default_params(FcParams* p) {
   p->pitch = 0.0f;
   p->fine = 0.0f;
+  p->source = FC_SRC_SINE;
+  p->harmonics = 0.5f;            /* VA: unison; FM2: 2:1, 16 cents wide (the quantizer); Wave: the middle */
+  p->color = 0.5f;
+  p->morph = 0.5f;
   p->fg_rise_ms[0] = 5.0f;
   p->fg_fall_ms[0] = 300.0f;
   p->fg_mode[0] = FC_FG_GATE;     /* plays like an envelope from the keyboard; Once is the Buchla "strike" */
@@ -93,6 +97,7 @@ static void set_rate(FoldCore* c) {
   c->sr = c->sr_out * (float)FC_OS;
   c->smooth = 1.0f - expf(-1.0f / (FC_SMOOTH_MS * 0.001f * c->sr));
   c->dc_r = 1.0f - 2.0f * (float)M_PI * FC_DC_HZ / c->sr;
+  c->src_fade = 1.0f / (FC_SRC_FADE_MS * 0.001f * c->sr);
   memset(c->hbuf, 0, sizeof c->hbuf);
 }
 
@@ -120,6 +125,10 @@ static float seg_inc(float sr, float ms) {
 
 void fc_set_params(FoldCore* c, const FcParams* p) {
   c->tune = p->pitch + p->fine * 0.01f;
+  c->src_t = p->source >= 0 && p->source < FC_NSOURCES ? p->source : FC_SRC_SINE;
+  c->harm_t = clampf(p->harmonics, 0.0f, 1.0f);
+  c->color_t = clampf(p->color, 0.0f, 1.0f);
+  c->morph_t = clampf(p->morph, 0.0f, 1.0f);
   for (int i = 0; i < 2; i++) {
     c->fg_rise_inc[i] = seg_inc(c->sr, p->fg_rise_ms[i]);
     c->fg_fall_inc[i] = seg_inc(c->sr, p->fg_fall_ms[i]);
@@ -161,6 +170,9 @@ static void start_voice(FoldCore* c, FcVoice* v, int note, int vel) {
   v->note = note;
   v->vel = velocity(vel);
   v->phase = 0.0f;
+  v->src = v->src_prev = c->src_t;
+  v->xf = 1.0f;
+  if (v->src != FC_SRC_SINE) fe_reset(&v->fe[v->src - 1]);
   if (c->mod_mode != FC_MODE_FREE) v->mphase = 0.0f;   /* Free keeps running: the LFO does not restart */
   for (int i = 0; i < 2; i++) v->fg[i].lvl = 0.0f;
   v->vac = 0.0f;
@@ -406,16 +418,53 @@ static float mod_inc(const FoldCore* c, float inc) {
   return m < 0.49f ? m : 0.49f;
 }
 
+/* The engine blocks of a voice for the coming samples (its Source and, while it fades, the old one); a change of
+ * Source starts a crossfade (a new one waits until the last has ended). */
+static void voice_blocks(const FoldCore* c, FcVoice* v, float inc, FeBlock* blk) {
+  if (v->xf >= 1.0f && v->src != c->src_t) {
+    v->src_prev = v->src;
+    v->src = c->src_t;
+    v->xf = 0.0f;
+    if (v->src != FC_SRC_SINE) fe_reset(&v->fe[v->src - 1]);
+  }
+  const float hz = inc * c->sr;
+  if (v->src != FC_SRC_SINE)
+    fe_block(&blk[0], v->src - 1, c->harm_t, c->color_t, c->morph_t, hz, c->sr, c->table, FC_SINE_N);
+  if (v->xf < 1.0f && v->src_prev != FC_SRC_SINE)
+    fe_block(&blk[1], v->src_prev - 1, c->harm_t, c->color_t, c->morph_t, hz, c->sr, c->table, FC_SINE_N);
+}
+
+/* One sample of a Source of a voice at the phase increment pinc. With a sync (t >= 0: the Mod OSC began a cycle
+ * t samples ago), the source restarts there and *half = half its step, for the caller's band-limiting. */
+static inline float principal(const FoldCore* c, FcVoice* v, int src, const FeBlock* b, float pinc, float t,
+                              float* half) {
+  if (src != FC_SRC_SINE) {
+    FeState* s = &v->fe[src - 1];
+    return t < 0.0f ? fe_tick(s, b, src - 1, pinc) : fe_sync(s, b, src - 1, pinc, t, half);
+  }
+  const float old = v->phase;
+  v->phase += pinc;
+  v->phase -= floorf(v->phase);
+  if (t < 0.0f) return sine(c, v->phase);
+  const float before = sine(c, old + pinc * (1.0f - t));
+  v->phase = pinc * t;
+  v->phase -= floorf(v->phase);
+  *half = -0.5f * before;                            /* from `before` to sin(0) = 0 */
+  return sine(c, v->phase);
+}
+
 /* n samples of all voices at the voices' rate into l (overwritten). */
 static void render_voices(FoldCore* c, float* l, uint32_t n) {
   memset(l, 0, n * sizeof(float));
   const float k = c->smooth;
   float a[FC_CHEB_MAX + 1];
+  FeBlock blk[2];
   for (int vi = 0; vi < FC_VOICES; vi++) {
     FcVoice* v = &c->v[vi];
     if (v->stage == FC_IDLE) continue;
     float inc = note_inc(c, v->note);                /* once per block: bend and tune come between blocks */
     float dm = mod_inc(c, inc);
+    voice_blocks(c, v, inc, blk);
     /* the Saw / M weights for this block (Order changes slowly; the crossfade with the folder is per sample) */
     float o = v->ord;
     int ncheb = shaper_coefs(inc, o < 0.5f ? 2.0f * o : 2.0f - 2.0f * o, o < 0.5f ? 0.0f : 2.0f * o - 1.0f, a);
@@ -427,6 +476,7 @@ static void render_voices(FoldCore* c, float* l, uint32_t n) {
             start_voice(c, v, v->next_note, v->next_vel);
             inc = note_inc(c, v->note);
             dm = mod_inc(c, inc);
+            voice_blocks(c, v, inc, blk);
             o = v->ord;
             ncheb = shaper_coefs(inc, o < 0.5f ? 2.0f * o : 2.0f - 2.0f * o, o < 0.5f ? 0.0f : 2.0f * o - 1.0f, a);
           } else {
@@ -466,21 +516,22 @@ static void render_voices(FoldCore* c, float* l, uint32_t n) {
 
       /* Principal: FM (linear, through zero), then Sync, then AM */
       const float pinc = inc * (1.0f + FC_FM_DEPTH * v->gfm * v->idx * m);
-      const float old = v->phase;
-      v->phase += pinc;
-      v->phase -= floorf(v->phase);
-      float y = sine(c, v->phase);
-      if (wrapped && c->sync) {
-        /* the Mod OSC began a cycle t samples ago: the Principal restarts there; the step is band-limited
-         * on the late sample (y_prev, before the step) and this one (after it) */
-        const float t = v->mphase / dm;                  /* 0..1 */
-        const float before = sine(c, old + pinc * (1.0f - t));
-        v->phase = pinc * t;
-        v->phase -= floorf(v->phase);
-        y = sine(c, v->phase);
-        const float h = -0.5f * before;                  /* half the step: from `before` to sin(0) = 0 */
-        v->y_prev += h * t * t;
-        y -= h * (1.0f - t) * (1.0f - t);
+      /* with Sync, the Mod OSC began a cycle ts samples ago: the Principal restarts there; the step is
+       * band-limited on the late sample (y_prev, before the step) and this one (after it) */
+      const float ts = wrapped && c->sync ? v->mphase / dm : -1.0f;   /* 0..1 */
+      float half = 0.0f;
+      float y = principal(c, v, v->src, &blk[0], pinc, ts, &half);
+      if (v->xf < 1.0f) {                              /* Source changed: crossfade from the old one */
+        float h2 = 0.0f;
+        const float y2 = principal(c, v, v->src_prev, &blk[1], pinc, ts, &h2);
+        y = v->xf * y + (1.0f - v->xf) * y2;
+        half = v->xf * half + (1.0f - v->xf) * h2;
+        v->xf += c->src_fade;
+        if (v->xf > 1.0f) v->xf = 1.0f;
+      }
+      if (ts >= 0.0f) {
+        v->y_prev += half * ts * ts;
+        y -= half * (1.0f - ts) * (1.0f - ts);
       }
       const float out = v->y_prev;                     /* one sample late */
       v->y_prev = y;

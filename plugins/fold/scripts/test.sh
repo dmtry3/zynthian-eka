@@ -9,7 +9,12 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 mkdir -p "$ROOT/build_test"
 OPT="-O2"
 [ -n "$SAN" ] && OPT="-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all"
-gcc $OPT -Wall -Wextra -o "$ROOT/build_test/test_core" "$ROOT/test/test_core.c" "$ROOT/src/fold_core.c" -lm
+source "$ROOT/scripts/engines.sh"
+build_engines "$ROOT/build_test/obj" "$OPT"
+gcc $OPT -Wall -Wextra -c "$ROOT/test/test_core.c" -o "$ROOT/build_test/obj/test_core.o"
+gcc $OPT -Wall -Wextra -c "$ROOT/src/fold_core.c" -o "$ROOT/build_test/obj/fold_core.o"
+g++ $OPT -o "$ROOT/build_test/test_core" "$ROOT/build_test/obj/test_core.o" "$ROOT/build_test/obj/fold_core.o" \
+    $ENGINE_OBJS -lm
 gcc $OPT -Wall -Wextra $(pkg-config --cflags lv2) -o "$ROOT/build_test/test_plugin" "$ROOT/test/test_plugin.c" -ldl -lm
 cd "$ROOT/build_test"
 ./test_core
@@ -20,4 +25,7 @@ if command -v lv2ls >/dev/null; then
 else
     echo "Note: lv2ls not found (sudo apt install lilv-utils), .ttl not checked."
 fi
+# the engines as a small library: the widget's formulas are checked against them
+build_engines "$ROOT/build_test/obj_pic" "-O2 -fPIC"
+g++ -shared -o "$ROOT/build_test/libengines.so" $ENGINE_OBJS -lm
 python3 "$ROOT/test/widget_preview.py"

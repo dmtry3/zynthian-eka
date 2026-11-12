@@ -869,6 +869,202 @@ static void test_fg2_timbre(void) {
   CHECK(top > 0.1 && after < 1e-3);
 }
 
+/* ---------- stage 4: the engines ---------- */
+
+/* Share of the power of L[0..SR) that lies on the harmonics of f0 (up to SR / 2: the halfband passes the voice
+ * almost to there): 1 for a periodic sound at f0, less if the pitch is off or there is aliasing / inharmonic
+ * lines. */
+static double harmonic_share(double f0) {
+  double total = 0, lines = 0;
+  for (uint32_t i = 0; i < SR; i++) total += (double)L[i] * L[i];
+  total /= SR;
+  for (int k = 1; k * f0 < SR / 2; k++) {
+    const double a = harm(f0, k);
+    lines += a * a / 2.0;
+  }
+  return total > 0 ? lines / total : 0;
+}
+
+/* Aliasing of L[0..ANFFT): power off the lines at multiples of f0 relative to the power on them, in dB, to
+ * 20 kHz (Blackman-Harris window, sidelobes -92 dB), as test/alias_report.c. */
+#define ANFFT 32768
+static double fre[ANFFT], fim[ANFFT];
+static double alias_db(double f0) {
+  for (int i = 0; i < ANFFT; i++) {
+    const double a = 2.0 * M_PI * i / (ANFFT - 1);
+    fre[i] = L[i] * (0.35875 - 0.48829 * cos(a) + 0.14128 * cos(2 * a) - 0.01168 * cos(3 * a));
+    fim[i] = 0;
+  }
+  for (int i = 1, j = 0; i < ANFFT; i++) {
+    int bit = ANFFT >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) { double t = fre[i]; fre[i] = fre[j]; fre[j] = t; t = fim[i]; fim[i] = fim[j]; fim[j] = t; }
+  }
+  for (int len = 2; len <= ANFFT; len <<= 1)
+    for (int i = 0; i < ANFFT; i += len)
+      for (int k = 0; k < len / 2; k++) {
+        const double wr = cos(-2.0 * M_PI * k / len), wi = sin(-2.0 * M_PI * k / len);
+        const int a = i + k, b = i + k + len / 2;
+        const double tr = fre[b] * wr - fim[b] * wi, ti = fre[b] * wi + fim[b] * wr;
+        fre[b] = fre[a] - tr; fim[b] = fim[a] - ti; fre[a] += tr; fim[a] += ti;
+      }
+  const double bin = (double)SR / ANFFT;
+  double good = 0, bad = 0;
+  for (int k = 1; k < ANFFT / 2 && k * bin <= 20000.0; k++) {
+    const double f = k * bin, pw = fre[k] * fre[k] + fim[k] * fim[k];
+    if (fabs(f - f0 * floor(f / f0 + 0.5)) <= 6 * bin) good += pw; else bad += pw;
+  }
+  return 10.0 * log10((bad + 1e-30) / (good + 1e-30));
+}
+
+/* One held note of a source, 1 s after 0.25 s of settling: L[0..SR). */
+static void play_source(int src, float h, float col, float m, int note) {
+  reset(SR);
+  FcParams p;
+  base_params(&p);
+  p.source = src; p.harmonics = h; p.color = col; p.morph = m;
+  fc_set_params(&core, &p);
+  fc_note_on(&core, note, 127);
+  render(&core, 0, SR / 4);
+  render(&core, 0, SR);
+}
+
+#define FM2_RATIO1 (30.0f / 128.0f)                 /* Harmonics of FM2 at the ratio 1 of its quantizer */
+#define VA_FIFTH 0.622f                             /* Harmonics of VA at +7.01 semitones */
+#define VA_SAW (1.0f / 3.0f)                        /* Color / Morph of VA: 0 triangle, 1/3 saw, 2/3 square */
+
+static void test_engine_pitch(void) {
+  /* each engine at a harmonic setting: in tune (the power on the harmonics of the note) and at a sane level */
+  const struct { int src; float h, c, m; } k[] = {
+    { FC_SRC_VA, 0.5f, VA_SAW, VA_SAW }, { FC_SRC_VA, 0.5f, 0.0f, 0.95f },
+    { FC_SRC_FM2, FM2_RATIO1, 0.6f, 0.5f }, { FC_SRC_WAVE, 0.5f, 0.5f, 0.5f }, { FC_SRC_WAVE, 0.1f, 0.9f, 0.3f } };
+  const int notes[] = { 45, 69, 93 };
+  for (unsigned i = 0; i < sizeof k / sizeof k[0]; i++)
+    for (int n = 0; n < 3; n++) {
+      /* a bright wave has most of its 64 harmonics above the voices' Nyquist at A6: it loses level and aliases
+       * (as in the original engine, which runs at 48 kHz); checked up to A4 */
+      if (k[i].src == FC_SRC_WAVE && k[i].h < 0.2f && notes[n] > 69) continue;
+      play_source(k[i].src, k[i].h, k[i].c, k[i].m, notes[n]);
+      const double f0 = 440.0 * pow(2.0, (notes[n] - 69) / 12.0);
+      const double share = harmonic_share(f0);
+      const float pk = peak(L, 0, SR);
+      printf("source %d H%.2f C%.2f M%.2f, note %d: %.5f of the power on the harmonics, peak %.3f\n",
+             k[i].src, k[i].h, k[i].c, k[i].m, notes[n], share, pk);
+      CHECK(share > 0.995);
+      CHECK(pk > 0.25f * FC_GAIN && pk < 2.2f * FC_GAIN);
+      CHECK(all_finite(L, SR));
+    }
+}
+
+static void test_engine_knobs(void) {
+  const double f0 = 220.0;
+  /* VA: Harmonics at the fifth adds a line at 1.4983 f0; Color / Morph 0 = triangles (no even harmonics),
+   * 1/3 = saws (h2 = h1 / 2) */
+  play_source(FC_SRC_VA, VA_FIFTH, VA_SAW, VA_SAW, 57);
+  const double fifth = amp_at(L, SR, f0 * pow(2.0, 7.01 / 12.0), SR) / harm(f0, 1);
+  play_source(FC_SRC_VA, 0.0f + 0.5f, 0.0f, 0.0f, 57);
+  const double tri_h2 = harm(f0, 2) / harm(f0, 1), tri_h3 = harm(f0, 3) / harm(f0, 1);
+  play_source(FC_SRC_VA, 0.5f, VA_SAW, VA_SAW, 57);
+  const double saw_h2 = harm(f0, 2) / harm(f0, 1);
+  printf("VA: fifth line %.2f of h1; triangle h2 %.1f dB h3 %.1f dB; saw h2 %.1f dB\n", fifth, db(tri_h2),
+         db(tri_h3), db(saw_h2));
+  CHECK(fifth > 0.5);
+  CHECK(db(tri_h2) < -40 && fabs(db(tri_h3) - db(1.0 / 9)) < 1.5);
+  CHECK(fabs(db(saw_h2) - db(0.5)) < 1.0);
+  /* FM2: Color 0 = a sine; Color 70 % = sidebands */
+  play_source(FC_SRC_FM2, FM2_RATIO1, 0.0f, 0.5f, 57);
+  const double fm0 = fmax(harm(f0, 2), harm(f0, 3)) / harm(f0, 1);
+  play_source(FC_SRC_FM2, FM2_RATIO1, 0.7f, 0.5f, 57);
+  const double fm7 = fmax(harm(f0, 2), harm(f0, 3)) / harm(f0, 1);
+  printf("FM2 ratio 1: h2/h3 at Color 0 %.1f dB, at 70 %% %.1f dB\n", db(fm0), db(fm7));
+  CHECK(db(fm0) < -60 && db(fm7) > -20);
+  /* Wave: Color, Morph and Harmonics each move to other waves (the first 8 harmonics change) */
+  double ref[8];
+  play_source(FC_SRC_WAVE, 0.3f, 0.3f, 0.3f, 57);
+  for (int i = 0; i < 8; i++) ref[i] = db(harm(f0, i + 1));
+  const float knob[3][3] = { { 0.3f, 0.8f, 0.3f }, { 0.3f, 0.3f, 0.8f }, { 0.6f, 0.3f, 0.3f } };
+  for (int k = 0; k < 3; k++) {
+    play_source(FC_SRC_WAVE, knob[k][0], knob[k][1], knob[k][2], 57);
+    double d = 0;
+    for (int i = 0; i < 8; i++) d = fmax(d, fabs(db(harm(f0, i + 1)) - ref[i]));
+    printf("Wave: %s moves a harmonic by %.1f dB\n", k == 0 ? "Color" : k == 1 ? "Morph" : "Harmonics", d);
+    CHECK(d > 6.0);
+  }
+}
+
+static void test_source_switch(void) {
+  /* a held note through Sine -> VA -> FM2 -> Wave -> Sine: a crossfade, no click, the new source plays */
+  reset(SR);
+  FcParams p;
+  base_params(&p);
+  p.color = 0.3f;                                   /* VA: soft shapes; FM2: some index */
+  fc_set_params(&core, &p);
+  fc_note_on(&core, 57, 127);
+  const int seq[] = { FC_SRC_VA, FC_SRC_FM2, FC_SRC_WAVE, FC_SRC_SINE };
+  const uint32_t q = SR / 4;
+  render(&core, 0, q);
+  for (int i = 0; i < 4; i++) {
+    p.source = seq[i];
+    fc_set_params(&core, &p);
+    render(&core, (i + 1) * q, q);
+    CHECK(core.v[0].src == seq[i] && core.v[0].xf == 1.0f);
+  }
+  for (int i = 0; i < 4; i++) {
+    const uint32_t at = (i + 1) * q;
+    const float steady = fmaxf(max_step(L, at - SR / 20, at), max_step(L, at + SR / 20, at + SR / 10));
+    const float sw = max_step(L, at, at + SR / 50);
+    printf("source switch to %d: max step %.4f (steady %.4f)\n", seq[i], sw, steady);
+    CHECK(sw <= 1.2f * steady + 1e-4f);
+  }
+  CHECK(all_finite(L, 5 * q));
+}
+
+static void test_engine_sync(void) {
+  /* Sync from a Mod OSC at 3/2: the lines are at f0 / 2; the step of every source is band-limited */
+  for (int src = 0; src < FC_NSOURCES; src++) {
+    reset(SR);
+    FcParams p;
+    base_params(&p);
+    p.source = src; p.color = VA_SAW; p.morph = VA_SAW;
+    p.harmonics = src == FC_SRC_FM2 ? FM2_RATIO1 : 0.5f;
+    p.route_sync = 1; p.mod_mode = FC_MODE_RATIO;
+    int r = 0;
+    while (fc_ratios[r] != 1.5f) r++;
+    p.mod_freq = (float)r * FC_FREQ_MAX / (FC_NRATIOS - 1);
+    fc_set_params(&core, &p);
+    fc_note_on(&core, 72, 127);
+    render(&core, 0, SR / 4);
+    render(&core, 0, SR);
+    const double al = alias_db(523.2511 / 2.0);
+    printf("sync 3/2, source %d, C5: aliasing %.1f dB\n", src, al);
+    CHECK(al < (src == FC_SRC_WAVE ? -45.0 : -55.0));
+  }
+}
+
+static void test_engine_extremes(void) {
+  /* every source, every knob at its ends, FM through zero (saw, 100 %), AM, Sync, the highest notes: bounded,
+   * no NaN; knobs jumping while playing */
+  const float ends[2] = { 0.0f, 1.0f };
+  for (int src = 1; src < FC_NSOURCES; src++)
+    for (int e = 0; e < 8; e++) {
+      reset(SR);
+      FcParams p;
+      fc_default_params(&p);
+      p.source = src; p.harmonics = ends[e & 1]; p.color = ends[(e >> 1) & 1]; p.morph = ends[e >> 2];
+      p.pitch = 24; p.mod_index = 1; p.mod_shape = FC_MOD_SAW;
+      p.route_fm = p.route_am = p.route_sync = 1;
+      fc_set_params(&core, &p);
+      for (int i = 0; i < 4; i++) fc_note_on(&core, 20 + 30 * i, 127);
+      render(&core, 0, SR / 8);
+      p.harmonics = 1 - p.harmonics; p.color = 1 - p.color; p.morph = 1 - p.morph;
+      fc_set_params(&core, &p);
+      render(&core, SR / 8, SR / 8);
+      CHECK(all_finite(L, SR / 4));
+      CHECK(peak(L, 0, SR / 4) <= 1.0f);
+    }
+}
+
 static void test_soft_clip(void) {
   /* 4 voices, full resonance, folder and Drive: the soft clip keeps the output below 1 */
   reset(SR);
@@ -911,6 +1107,11 @@ int main(void) {
   test_gate_switch();
   test_fg2_timbre();
   test_soft_clip();
+  test_engine_pitch();
+  test_engine_knobs();
+  test_source_switch();
+  test_engine_sync();
+  test_engine_extremes();
   printf(fails ? "test_core: %d FAILED\n" : "test_core: all passed\n", fails);
   return fails ? 1 : 0;
 }

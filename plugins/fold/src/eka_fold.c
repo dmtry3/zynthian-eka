@@ -1,6 +1,6 @@
 /* Eka Fold: LV2 wrapper around fold_core.
- * Knob pages Osc, Mod, Timbre, Gate, Env. The routing switches FM / AM / Sync / Timbre, the function generator
- * modes and FG2 -> Timbre are LV2 parameters
+ * Knob pages Osc (Source, Harmonics, Color, Morph), Mod, Timbre, Gate, Env. Pitch and Fine, the routing switches
+ * FM / AM / Sync / Timbre, the function generator modes and FG2 -> Timbre are LV2 parameters
  * (patch:writable, notOnGUI) set in the widget and saved in LV2 State: jalv in Zynthian does not
  * register ports with notOnGUI, so they could not be hidden ports.
  * SPDX-License-Identifier: GPL-3.0-or-later */
@@ -25,7 +25,7 @@
 /* Port indices: the same as lv2/eka_fold.ttl. Control inputs first (0..P_END-1): Zynthian numbers LV2
  * parameters from len(control ports)+1, so a control port with a higher index would be overwritten. */
 enum {
-  P_PITCH, P_FINE,
+  P_SOURCE, P_HARMONICS, P_COLOR, P_MORPH,
   P_MOD_FREQ, P_MOD_INDEX, P_MOD_SHAPE, P_MOD_MODE,
   P_TIMBRE, P_ORDER, P_SYMMETRY, P_DRIVE,
   P_GATE_MODE, P_GATE_DECAY, P_GATE_RES, P_LEVEL,
@@ -39,13 +39,14 @@ enum {
 
 /* Integer LV2 parameters set in the widget, saved in State. */
 enum { IP_ROUTE_FM, IP_ROUTE_AM, IP_ROUTE_SYNC, IP_ROUTE_TIMBRE, IP_FG1_MODE, IP_FG2_MODE, IP_FG2_TIMBRE,
-       N_IPARAMS };
+       IP_PITCH, IP_FINE, N_IPARAMS };
 static const char* const ip_names[N_IPARAMS] = { "route_fm", "route_am", "route_sync", "route_timbre",
-  "fg1_mode", "fg2_mode", "m_fg2_timbre" };
+  "fg1_mode", "fg2_mode", "m_fg2_timbre", "pitch", "fine" };
 static const int ip_range[N_IPARAMS][3] = {        /* default, min, max */
   { 1, 0, 1 }, { 0, 0, 1 }, { 0, 0, 1 }, { 0, 0, 1 },
   { FC_FG_GATE, 0, FC_NFG_MODES - 1 }, { FC_FG_GATE, 0, FC_NFG_MODES - 1 },
-  { 0, -100, 100 } };                              /* m_fg2_timbre: becomes a mod-matrix cell at stage 4 */
+  { 0, -100, 100 },                                /* m_fg2_timbre: becomes a mod-matrix cell at stage 4b */
+  { 0, -24, 24 }, { 0, -100, 100 } };             /* pitch (semitones), fine (cents) */
 #define REPORT_PER_RUN 16                /* patch:Set replies per run() after patch:Get */
 
 typedef struct {
@@ -128,8 +129,12 @@ static float ctl(const Fold* S, int port, float def) {
 static void read_params(Fold* S) {
   FcParams p;
   fc_default_params(&p);
-  p.pitch = ctl(S, P_PITCH, p.pitch);
-  p.fine = ctl(S, P_FINE, p.fine);
+  p.pitch = (float)S->ip[IP_PITCH];
+  p.fine = (float)S->ip[IP_FINE];
+  p.source = (int)lrintf(ctl(S, P_SOURCE, (float)p.source));
+  p.harmonics = ctl(S, P_HARMONICS, p.harmonics * 100.0f) * 0.01f;
+  p.color = ctl(S, P_COLOR, p.color * 100.0f) * 0.01f;
+  p.morph = ctl(S, P_MORPH, p.morph * 100.0f) * 0.01f;
   p.fg_rise_ms[0] = ctl(S, P_FG1_RISE, p.fg_rise_ms[0]);
   p.fg_fall_ms[0] = ctl(S, P_FG1_FALL, p.fg_fall_ms[0]);
   p.fg_rise_ms[1] = ctl(S, P_FG2_RISE, p.fg_rise_ms[1]);

@@ -10,8 +10,8 @@
 @prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
-# Knob pages, in this order (higher displayPriority first). Stage 3: Osc, Mod, Timbre, Gate, Env (function
-# generators). Stage 5 adds Delay.
+# Knob pages, in this order (higher displayPriority first). Stage 4: Osc (Source and the engine knobs), Mod,
+# Timbre, Gate, Env (function generators). Stage 5 adds Delay.
 <http://dmtry3.github.io/zynthian-eka/fold#g_osc> a pg:Group ; lv2:symbol "g_osc" ; lv2:name "Osc" ; lv2:index 0 ; lv2:displayPriority 60 .
 <http://dmtry3.github.io/zynthian-eka/fold#g_mod> a pg:Group ; lv2:symbol "g_mod" ; lv2:name "Mod" ; lv2:index 1 ; lv2:displayPriority 55 .
 <http://dmtry3.github.io/zynthian-eka/fold#g_timbre> a pg:Group ; lv2:symbol "g_timbre" ; lv2:name "Timbre" ; lv2:index 2 ; lv2:displayPriority 52 .
@@ -56,6 +56,25 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
+# Pitch (semitones) and Fine (cents): set in the widget (Osc tab), saved in the snapshot and in LV2 State.
+<http://dmtry3.github.io/zynthian-eka/fold#pitch>
+    a lv2:Parameter ;
+    lv2:symbol "pitch" ;
+    rdfs:label "Pitch" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/fold#fine>
+    a lv2:Parameter ;
+    lv2:symbol "fine" ;
+    rdfs:label "Fine" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
 # Function generator modes and FG2 -> Timbre (-100..100 %): set in the widget (Env tab). m_fg2_timbre is named
 # as a mod-matrix cell (m_<source>_<destination>): it becomes one at stage 4.
 <http://dmtry3.github.io/zynthian-eka/fold#fg1_mode>
@@ -93,14 +112,17 @@
     doap:name "Eka Fold" ;
     doap:license <http://opensource.org/licenses/GPL-3.0> ;
     lv2:minorVersion 0 ;
-    lv2:microVersion 1 ;
+    lv2:microVersion 2 ;
     lv2:requiredFeature urid:map ;
     lv2:optionalFeature lv2:hardRTCapable ;
     lv2:extensionData state:interface ;
     patch:writable <http://dmtry3.github.io/zynthian-eka/fold#route_fm> , <http://dmtry3.github.io/zynthian-eka/fold#route_am> , <http://dmtry3.github.io/zynthian-eka/fold#route_sync> , <http://dmtry3.github.io/zynthian-eka/fold#route_timbre> ,
-        <http://dmtry3.github.io/zynthian-eka/fold#fg1_mode> , <http://dmtry3.github.io/zynthian-eka/fold#fg2_mode> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_timbre> ;
+        <http://dmtry3.github.io/zynthian-eka/fold#fg1_mode> , <http://dmtry3.github.io/zynthian-eka/fold#fg2_mode> , <http://dmtry3.github.io/zynthian-eka/fold#m_fg2_timbre> ,
+        <http://dmtry3.github.io/zynthian-eka/fold#pitch> , <http://dmtry3.github.io/zynthian-eka/fold#fine> ;
     # Control input ports MUST be indices 0..N-1 (before atom and audio ports): Zynthian numbers LV2 parameters
     # from len(control ports)+1 and would overwrite a control port with a higher index.
+    # Source: Sine or one of the engines VA, FM2, Wave; Harmonics, Color, Morph: their knobs (TZ 4.1; Color is
+    # what the engines call Timbre: Timbre here is the shaper depth).
     # Outputs for the widget: note1..4 = MIDI note of each sounding voice, -1 = idle; out_peak = output peak, dB;
     # mod_phase = Mod OSC phase 0..1 of the newest voice, -1 = none; gate_level = its vactrol state 0..1;
     # fg1, fg2 = where its function generators are: 0..1 rising, 1.5 holding, 2..3 falling, 3 ended.
@@ -112,32 +134,45 @@
     lv2:port
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 0 ; lv2:symbol "pitch" ; lv2:name "Pitch" ;
-        lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 24 ;
-        lv2:portProperty lv2:integer ;
+        lv2:index 0 ; lv2:symbol "source" ; lv2:name "Source" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3 ;
+        lv2:portProperty lv2:integer , lv2:enumeration ;
+        lv2:scalePoint [ rdfs:label "Sine" ; rdf:value 0 ] , [ rdfs:label "VA" ; rdf:value 1 ] , [ rdfs:label "FM2" ; rdf:value 2 ] , [ rdfs:label "Wave" ; rdf:value 3 ] ;
         lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_osc> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 1 ; lv2:symbol "fine" ; lv2:name "Fine cents" ;
-        lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+        lv2:index 1 ; lv2:symbol "harmonics" ; lv2:name "Harmonics %" ;
+        lv2:default 50 ; lv2:minimum 0 ; lv2:maximum 100 ;
         lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_osc> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 2 ; lv2:symbol "mod_freq" ; lv2:name "Mod Freq" ;
+        lv2:index 2 ; lv2:symbol "color" ; lv2:name "Color %" ;
+        lv2:default 50 ; lv2:minimum 0 ; lv2:maximum 100 ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_osc> ;
+    ] ,
+    [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 3 ; lv2:symbol "morph" ; lv2:name "Morph %" ;
+        lv2:default 50 ; lv2:minimum 0 ; lv2:maximum 100 ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_osc> ;
+    ] ,
+    [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 4 ; lv2:symbol "mod_freq" ; lv2:name "Mod Freq" ;
         lv2:default 30 ; lv2:minimum 0 ; lv2:maximum 100 ;
         lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_mod> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 3 ; lv2:symbol "mod_index" ; lv2:name "Mod Index %" ;
+        lv2:index 5 ; lv2:symbol "mod_index" ; lv2:name "Mod Index %" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
         lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_mod> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 4 ; lv2:symbol "mod_shape" ; lv2:name "Mod Shape" ;
+        lv2:index 6 ; lv2:symbol "mod_shape" ; lv2:name "Mod Shape" ;
         lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 3 ;
         lv2:portProperty lv2:integer , lv2:enumeration ;
         lv2:scalePoint [ rdfs:label "Triangle" ; rdf:value 0 ] , [ rdfs:label "Sine" ; rdf:value 1 ] , [ rdfs:label "Saw" ; rdf:value 2 ] , [ rdfs:label "Square" ; rdf:value 3 ] ;
@@ -145,7 +180,7 @@
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 5 ; lv2:symbol "mod_mode" ; lv2:name "Mod Mode" ;
+        lv2:index 7 ; lv2:symbol "mod_mode" ; lv2:name "Mod Mode" ;
         lv2:default 2 ; lv2:minimum 0 ; lv2:maximum 2 ;
         lv2:portProperty lv2:integer , lv2:enumeration ;
         lv2:scalePoint [ rdfs:label "Free" ; rdf:value 0 ] , [ rdfs:label "Keytrack" ; rdf:value 1 ] , [ rdfs:label "Ratio" ; rdf:value 2 ] ;
@@ -153,31 +188,31 @@
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 6 ; lv2:symbol "timbre" ; lv2:name "Timbre %" ;
+        lv2:index 8 ; lv2:symbol "timbre" ; lv2:name "Timbre %" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
         lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_timbre> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 7 ; lv2:symbol "order" ; lv2:name "Order" ;
+        lv2:index 9 ; lv2:symbol "order" ; lv2:name "Order" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
         lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_timbre> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 8 ; lv2:symbol "symmetry" ; lv2:name "Symmetry" ;
+        lv2:index 10 ; lv2:symbol "symmetry" ; lv2:name "Symmetry" ;
         lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
         lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_timbre> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 9 ; lv2:symbol "drive" ; lv2:name "Drive %" ;
+        lv2:index 11 ; lv2:symbol "drive" ; lv2:name "Drive %" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
         lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_timbre> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 10 ; lv2:symbol "gate_mode" ; lv2:name "Gate Mode" ;
+        lv2:index 12 ; lv2:symbol "gate_mode" ; lv2:name "Gate Mode" ;
         lv2:default 2 ; lv2:minimum 0 ; lv2:maximum 2 ;
         lv2:portProperty lv2:integer , lv2:enumeration ;
         lv2:scalePoint [ rdfs:label "VCA" ; rdf:value 0 ] , [ rdfs:label "LP" ; rdf:value 1 ] , [ rdfs:label "Combo" ; rdf:value 2 ] ;
@@ -185,46 +220,46 @@
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 11 ; lv2:symbol "gate_decay" ; lv2:name "Decay" ;
+        lv2:index 13 ; lv2:symbol "gate_decay" ; lv2:name "Decay" ;
         lv2:default 30 ; lv2:minimum 0 ; lv2:maximum 100 ;
         lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_gate> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 12 ; lv2:symbol "gate_res" ; lv2:name "Resonance %" ;
+        lv2:index 14 ; lv2:symbol "gate_res" ; lv2:name "Resonance %" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
         lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_gate> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 13 ; lv2:symbol "level" ; lv2:name "Level %" ;
+        lv2:index 15 ; lv2:symbol "level" ; lv2:name "Level %" ;
         lv2:default 80 ; lv2:minimum 0 ; lv2:maximum 100 ;
         lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_gate> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 14 ; lv2:symbol "fg1_rise" ; lv2:name "FG1 Rise ms" ;
+        lv2:index 16 ; lv2:symbol "fg1_rise" ; lv2:name "FG1 Rise ms" ;
         lv2:default 5 ; lv2:minimum 1 ; lv2:maximum 10000 ;
         lv2:portProperty pprops:logarithmic ;
         lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_env> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 15 ; lv2:symbol "fg1_fall" ; lv2:name "FG1 Fall ms" ;
+        lv2:index 17 ; lv2:symbol "fg1_fall" ; lv2:name "FG1 Fall ms" ;
         lv2:default 300 ; lv2:minimum 1 ; lv2:maximum 10000 ;
         lv2:portProperty pprops:logarithmic ;
         lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_env> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 16 ; lv2:symbol "fg2_rise" ; lv2:name "FG2 Rise ms" ;
+        lv2:index 18 ; lv2:symbol "fg2_rise" ; lv2:name "FG2 Rise ms" ;
         lv2:default 300 ; lv2:minimum 1 ; lv2:maximum 10000 ;
         lv2:portProperty pprops:logarithmic ;
         lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_env> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 17 ; lv2:symbol "fg2_fall" ; lv2:name "FG2 Fall ms" ;
+        lv2:index 19 ; lv2:symbol "fg2_fall" ; lv2:name "FG2 Fall ms" ;
         lv2:default 800 ; lv2:minimum 1 ; lv2:maximum 10000 ;
         lv2:portProperty pprops:logarithmic ;
         lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_env> ;
@@ -234,65 +269,65 @@
         atom:bufferType atom:Sequence ;
         atom:supports midi:MidiEvent , patch:Message ;
         lv2:designation lv2:control ;
-        lv2:index 18 ; lv2:symbol "midi_in" ; lv2:name "MIDI In" ;
+        lv2:index 20 ; lv2:symbol "midi_in" ; lv2:name "MIDI In" ;
     ] ,
     [
         a lv2:OutputPort , lv2:AudioPort ;
-        lv2:index 19 ; lv2:symbol "out_l" ; lv2:name "Out L" ;
+        lv2:index 21 ; lv2:symbol "out_l" ; lv2:name "Out L" ;
     ] ,
     [
         a lv2:OutputPort , lv2:AudioPort ;
-        lv2:index 20 ; lv2:symbol "out_r" ; lv2:name "Out R" ;
+        lv2:index 22 ; lv2:symbol "out_r" ; lv2:name "Out R" ;
     ] ,
     [
         a lv2:OutputPort , atom:AtomPort ;
         atom:bufferType atom:Sequence ;
         atom:supports patch:Message ;
         lv2:designation lv2:control ;
-        lv2:index 21 ; lv2:symbol "notify" ; lv2:name "Notify" ;
+        lv2:index 23 ; lv2:symbol "notify" ; lv2:name "Notify" ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 22 ; lv2:symbol "note1" ; lv2:name "Note 1" ;
+        lv2:index 24 ; lv2:symbol "note1" ; lv2:name "Note 1" ;
         lv2:default -1 ; lv2:minimum -1 ; lv2:maximum 127 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 23 ; lv2:symbol "note2" ; lv2:name "Note 2" ;
+        lv2:index 25 ; lv2:symbol "note2" ; lv2:name "Note 2" ;
         lv2:default -1 ; lv2:minimum -1 ; lv2:maximum 127 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 24 ; lv2:symbol "note3" ; lv2:name "Note 3" ;
+        lv2:index 26 ; lv2:symbol "note3" ; lv2:name "Note 3" ;
         lv2:default -1 ; lv2:minimum -1 ; lv2:maximum 127 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 25 ; lv2:symbol "note4" ; lv2:name "Note 4" ;
+        lv2:index 27 ; lv2:symbol "note4" ; lv2:name "Note 4" ;
         lv2:default -1 ; lv2:minimum -1 ; lv2:maximum 127 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 26 ; lv2:symbol "out_peak" ; lv2:name "Output peak dB" ;
+        lv2:index 28 ; lv2:symbol "out_peak" ; lv2:name "Output peak dB" ;
         lv2:default -100 ; lv2:minimum -100 ; lv2:maximum 12 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 27 ; lv2:symbol "mod_phase" ; lv2:name "Mod phase" ;
+        lv2:index 29 ; lv2:symbol "mod_phase" ; lv2:name "Mod phase" ;
         lv2:default -1 ; lv2:minimum -1 ; lv2:maximum 1 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 28 ; lv2:symbol "gate_level" ; lv2:name "Gate level" ;
+        lv2:index 30 ; lv2:symbol "gate_level" ; lv2:name "Gate level" ;
         lv2:default -1 ; lv2:minimum -1 ; lv2:maximum 1 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 29 ; lv2:symbol "fg1" ; lv2:name "FG1" ;
+        lv2:index 31 ; lv2:symbol "fg1" ; lv2:name "FG1" ;
         lv2:default -1 ; lv2:minimum -1 ; lv2:maximum 3 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 30 ; lv2:symbol "fg2" ; lv2:name "FG2" ;
+        lv2:index 32 ; lv2:symbol "fg2" ; lv2:name "FG2" ;
         lv2:default -1 ; lv2:minimum -1 ; lv2:maximum 3 ;
     ] .

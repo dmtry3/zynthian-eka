@@ -3,4 +3,5 @@ build/
 *.so
 dist/
 build_test/
+build_obj/
 __pycache__/

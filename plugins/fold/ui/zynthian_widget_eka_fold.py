@@ -11,24 +11,26 @@
 #   turning to such a page shows its tab. Pages without a tab (Env, for now) keep the tab shown.
 # - At the top right, in a small font: the name of the current knob page (screen_title of Zynthian's control screen).
 # Osc:
-# - The Principal waveform over 2 periods for the selected Source. Stage 0 has only Sine (Harmonics and Morph
-#   come with the other sources), so the curve depends only on the size of the widget.
-# - Source tiles: Sine only for now.
+# - Source tiles Sine / VA / FM2 / Wave (a tap selects; the Source knob). Pitch (semitones) and Fine (cents):
+#   LV2 parameters set here, a finger up/down on their box, a double tap resets.
+# - The Principal waveform over 2 periods for the Source and its knobs Harmonics, Color, Morph, computed with
+#   the formulas of src/plaits/engines.cc (without the band-limiting); Wave reads the wave table the build
+#   writes next to the plugin (build/eka-fold.lv2/engine_tables.bin). A line says what the knobs do now.
 # - The sounding notes with their frequency (Pitch and Fine included) and a small output level meter.
 # Mod:
 # - Mod OSC block (one period of its shape) -> arrows FM / AM / Sync / Timbre -> Principal block. A tap on an
 #   arrow switches that route (LV2 parameters route_fm, route_am, route_sync, route_timbre, 0/1, saved in the
 #   snapshot). Timbre: the Mod OSC moves the Timbre knob of the Fold tab.
-# - The Principal block shows the result: the Principal modulated by the Mod OSC over a few periods, computed
-#   here with the plugin's formulas (linear FM, AM, hard sync). In Free mode the Mod frequency is absolute,
-#   so the result is drawn for C4.
+# - The Principal block shows the result: a sine Principal modulated by the Mod OSC over a few periods,
+#   computed here with the plugin's formulas (linear FM, AM, hard sync), whatever the Source. In Free mode the
+#   Mod frequency is absolute, so the result is drawn for C4.
 # - A running mark of the Mod phase (output mod_phase) on the Mod OSC shape, only while it is slow
 #   (Free mode, up to MARK_MAX_HZ): an LFO is seen "breathing"; at audio rates a mark would only flicker.
 # - At the bottom: the Mod Index, large, and what the Mod Freq knob means in this Mod Mode
 #   (Free: Hz, Keytrack: semitones, Ratio: x p/q), with the shape.
 # Fold:
 # - Left: the transfer curve of the Timbre section (input -1..1 -> output) for Timbre, Order, Symmetry, Drive.
-#   Right: what it makes of the Principal sine, 2 periods, without its DC (the plugin removes it).
+#   Right: what it makes of the Principal (the Source's wave), 2 periods, without its DC (the plugin removes it).
 #   The formulas of fold_core.c: folder (gain 1..8), Saw / M (Chebyshev sums, drawn with FC_CHEB_MAX terms,
 #   as a low note gets), Drive (tanh).
 # - At the bottom: the Order line Folder - Saw - M with its mark, and the knob values.
@@ -46,8 +48,11 @@
 # - FG2 -> Timbre depth (LV2 parameter m_fg2_timbre, -100..100 %): a finger up/down on its box, a double tap
 #   resets it.
 
+import array
 import logging
 import math
+import os
+import sys
 import time
 import tkinter
 import tkinter.font
@@ -59,7 +64,12 @@ MULTI_INSTANCE = True
 
 TABS = ["Osc", "Mod", "Fold", "Gate", "Env"]
 TAB_GROUPS = ["g_osc", "g_mod", "g_timbre", "g_gate", "g_env"]  # knob page (port group) of each tab
-SOURCES = ["Sine"]               # Source tiles; VA, FM and Wavetable come at stage 4
+SOURCES = ["Sine", "VA", "FM2", "Wave"]   # Source tiles: FC_SRC_* of fold_core.h, the scale points of Source
+VA_INTERVALS = (0.0, 7.01, 12.01, 19.01, 24.01)   # src/plaits/engines.cc
+WAVE_LEN = 128
+WAVE_STRIDE = 132
+NWAVES = 192
+FM_QUANT_SIZE = 130
 NVOICES = 4
 TAB_COLOR = "#4dabf7"
 WAVE_COLOR = "#4dabf7"
@@ -103,7 +113,8 @@ VAC_LEVELS = (1.0, 0.75, 0.5, 0.25)   # vactrol states drawn on the Gate tab
 DB_TOP, DB_BOTTOM = 30.0, -48.0
 HOLD_W = 1.5                     # Env: width of the hold, in the units of log10(ms) + 1
 DOUBLE_TAP = 0.35                # s
-DRAG_PX = 1.5                    # px of finger movement per step (1 %)
+DRAG_PX = 1.5                    # px of finger movement per step (1 %, 1 cent)
+PITCH_DRAG_PX = 6.0              # px per semitone
 C4_HZ = 261.626
 
 
@@ -311,15 +322,192 @@ def ms_text(ms):
     return "%.1f s" % (ms / 1000.0) if ms >= 1000.0 else "%d ms" % round(ms)
 
 
-def wave_points(source, x0, x1, y0, y1, periods=2):
-    """Points of the Principal waveform over the box, one every 2 px."""
+# ---------- the Principal sources (src/plaits/engines.cc, without its band-limiting) ----------
+_TABLES = None                   # (waves, fm quantizer) from build/eka-fold.lv2/engine_tables.bin, or False
+
+
+def engine_tables():
+    """The tables the build writes next to the plugin (scripts/dump_waves.c); False if missing."""
+    global _TABLES
+    if _TABLES is None:
+        _TABLES = False
+        try:
+            here = os.path.dirname(os.path.realpath(__file__))
+            path = os.path.join(here, "..", "build", "eka-fold.lv2", "engine_tables.bin")
+            with open(path, "rb") as f:
+                data = f.read()
+            waves = array.array("h")
+            waves.frombytes(data[:2 * NWAVES * WAVE_STRIDE])
+            fmq = array.array("f")
+            fmq.frombytes(data[2 * NWAVES * WAVE_STRIDE:2 * NWAVES * WAVE_STRIDE + 4 * FM_QUANT_SIZE])
+            if sys.byteorder == "big":
+                waves.byteswap()
+                fmq.byteswap()
+            if len(waves) == NWAVES * WAVE_STRIDE and len(fmq) == FM_QUANT_SIZE:
+                _TABLES = (waves, fmq)
+        except Exception as e:
+            logging.debug("Eka Fold widget: no engine tables => %s", e)
+    return _TABLES
+
+
+def va_detune(h):
+    """Interval of the second VA oscillator, semitones (ComputeDetuning)."""
+    d = _clamp(2.05 * h - 1.025, -1.0, 1.0)
+    sign = -1.0 if d < 0.0 else 1.0
+    d = d * sign * 3.9999
+    i = int(d)
+    f = d - i
+    sq = lambda x: x * x * (3.0 - 2.0 * x)
+    return (VA_INTERVALS[i] + (VA_INTERVALS[i + 1] - VA_INTERVALS[i]) * sq(sq(f))) * sign
+
+
+def va_shape(k):
+    """(waveshape, pulse width) of a VA oscillator for its knob 0..1."""
+    return _clamp(k * 1.5, 0.0, 1.0), _clamp(0.5 + (k - 0.66) * 1.4, 0.5, 0.99)
+
+
+def va_shape_name(k):
+    ws, pw = va_shape(k)
+    if pw > 0.505:
+        return "pulse %d%%" % round(pw * 100)
+    if ws < 0.02:
+        return "tri"
+    if abs(ws - 0.5) < 0.02:
+        return "saw"
+    if ws > 0.98:
+        return "square"
+    return "tri-saw" if ws < 0.5 else "saw-sq"
+
+
+def va_value(ph, ws, pw):
+    sq = (ws - 0.5) * 2.0 if ws > 0.5 else 0.0
+    ta = 1.0 - 2.0 * ws if ws < 0.5 else 0.0
+    square = 0.0 if ph < pw else 1.0
+    tri = ph / pw if ph < pw else 1.0 - (ph - pw) / (1.0 - pw)
+    v = ph + (square - ph) * sq
+    v += (tri - v) * ta
+    return 2.0 * v - 1.0
+
+
+def fm_semis(h, fmq):
+    x = _clamp(h, 0.0, 1.0) * 128.0
+    i = min(int(x), FM_QUANT_SIZE - 2)
+    return fmq[i] + (fmq[i + 1] - fmq[i]) * (x - i)
+
+
+def fm_params(h, c, m, fmq, note=60):
+    """(ratio, index, carrier -> modulator frequency, modulator -> itself) as in fe_block."""
+    semis = fm_semis(h, fmq)
+    taming = _clamp(1.0 - (note + semis - 72.0) * 0.025, 0.0, 1.0) ** 2
+    fb = 2.0 * m - 1.0
+    return (2.0 ** (semis / 12.0), 2.0 * c * c * taming, 0.5 * fb * fb if fb < 0.0 else 0.0,
+            0.25 * fb * fb if fb > 0.0 else 0.0)
+
+
+def wave_coords(h, c, m):
+    """(column, row, bank) of Wave, snapped in the upper half of Harmonics, as in fe_block."""
+    out = []
+    v = (c * 6.9999, m * 6.9999, h * 6.9999)
+    q = _clamp(v[2] - 3.0, 0.0, 1.0)
+    for x in v:
+        i = math.floor(x)
+        f = x - i
+        f += q * (_clamp((f - 0.5) * 16.0, -0.5, 0.5) + 0.5 - f)
+        out.append(i + f)
+    return out
+
+
+def _wave_offset(x, y, z):
+    if z >= 4:
+        z = 7 - z
+    i = x + y * 8 + z * 64
+    if z == 3:
+        i = i * 101 % NWAVES
+    return i * WAVE_STRIDE
+
+
+def _hermite_slope(t, o, i, f):
+    xm1, x0, x1, x2 = t[o + i], t[o + i + 1], t[o + i + 2], t[o + i + 3]
+    c = (x1 - xm1) * 0.5
+    v = x0 - x1
+    w = c + v
+    a = w + v + (x2 - x0) * 0.5
+    b = w + a
+    return (3.0 * a * f - 2.0 * b) * f + c
+
+
+def wave_value(waves, coords, ph):
+    """The blended wave at phase ph, -1..1 (the slope of its integral)."""
+    p = (ph % 1.0) * WAVE_LEN
+    pi = min(int(p), WAVE_LEN - 1)
+    pf = p - pi
+    x, y, z = coords
+    xi, yi, zi = int(x), int(y), int(z)
+    xf, yf, zf = x - xi, y - yi, z - zi
+    out = 0.0
+    for k in range(8):
+        dx, dy, dz = k & 1, (k >> 1) & 1, k >> 2
+        w = (xf if dx else 1.0 - xf) * (yf if dy else 1.0 - yf) * (zf if dz else 1.0 - zf)
+        if w:
+            out += w * _hermite_slope(waves, _wave_offset(xi + dx, yi + dy, zi + dz), pi, pf)
+    return out / 1024.0
+
+
+def principal_values(source, h, c, m, n, periods=2.0):
+    """The Principal, n + 1 values over `periods` periods, for Source and its knobs 0..1."""
+    tables = engine_tables()
+    if source == 1:
+        r = 2.0 ** (va_detune(h) / 12.0)
+        s1, s2 = va_shape(c), va_shape(m)
+        return [0.5 * (va_value((periods * i / n) % 1.0, *s1) + va_value((periods * i / n * r) % 1.0, *s2))
+                for i in range(n + 1)]
+    if source == 2 and tables:
+        ratio, amount, pfb, mfb = fm_params(h, c, m, tables[1])
+        steps = 256                                          # per period; 2 periods of settling first
+        coef = 1.0 - math.exp(-2.0 * math.pi * 1530.0 / (steps * C4_HZ))
+        cph = mph = fb = 0.0
+        ys = []
+        total = int((periods + 2.0) * steps)
+        for k in range(total + 1):
+            mph += ratio * (1.0 + fb * pfb) / steps
+            cph += 1.0 / steps
+            mod = math.sin(2.0 * math.pi * (mph + mfb * fb))
+            y = math.sin(2.0 * math.pi * (cph + amount * mod))
+            fb += (y - fb) * coef
+            ys.append(y)
+        ys = ys[2 * steps:]
+        return [ys[min(int(i * (len(ys) - 1) / n), len(ys) - 1)] for i in range(n + 1)]
+    if source == 3 and tables:
+        coords = wave_coords(h, c, m)
+        return [wave_value(tables[0], coords, periods * i / n) for i in range(n + 1)]
+    return [math.sin(2.0 * math.pi * periods * i / n) for i in range(n + 1)]
+
+
+def source_text(source, h, c, m):
+    """What Harmonics, Color and Morph do now, short."""
+    tables = engine_tables()
+    if source == 1:
+        return "2nd osc %+.1f st   1: %s   2: %s" % (va_detune(h), va_shape_name(c), va_shape_name(m))
+    if source == 2 and tables:
+        ratio, amount, pfb, mfb = fm_params(h, c, m, tables[1])
+        fb = round((2.0 * m - 1.0) * 100)
+        return "ratio %.2f   index %.2f   feedback %+d%%" % (ratio, amount, fb)
+    if source == 3:
+        x, y, z = wave_coords(h, c, m)
+        zz = int(z)
+        bank = (7 - zz if zz >= 4 else zz) + 1
+        return "bank %d%s   column %.1f   row %.1f" % (bank, " stepped" if z >= 4.0 else "", x + 1, y + 1)
+    return "Harmonics, Color, Morph: not used by Sine"
+
+
+def wave_points(values, x0, x1, y0, y1):
+    """Points of values over the box, DC removed (the plugin removes it)."""
     mid, amp = (y0 + y1) / 2.0, (y1 - y0) / 2.0 * 0.9
+    n = len(values) - 1
+    mean = sum(values[:-1]) / n
     pts = []
-    n = max(int((x1 - x0) / 2), 8)
-    for i in range(n + 1):
-        t = i / n
-        y = math.sin(2.0 * math.pi * periods * t)           # Sine; other sources at stage 4
-        pts += [x0 + t * (x1 - x0), mid - y * amp]
+    for i, y in enumerate(values):
+        pts += [x0 + i * (x1 - x0) / n, mid - _clamp(y - mean, -1.1, 1.1) * amp]
     return pts
 
 
@@ -339,7 +527,7 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         self.widget_canvas.bind("<ButtonPress-1>", self._on_press)
         self.widget_canvas.bind("<B1-Motion>", self._on_motion)
         self.widget_canvas.bind("<ButtonRelease-1>", self._on_release)
-        self.drag = None             # (symbol, start value, start y) while a finger is on a value box
+        self.drag = None             # (symbol, start value, start y, min, max, px per step) on a value box
         self.last_tap = (None, 0.0)  # (symbol, time) for a double tap
         self._clear()
 
@@ -367,6 +555,8 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         self.wave_drawn = 0.0        # when it was drawn
         self.tiles_view = None
         self.tile_boxes = []         # (x0, y0, x1, y1, source index)
+        self.value_boxes = []        # Osc: (x0, y0, x1, y1, symbol, min, max, px per step): Pitch, Fine
+        self.info_view = None
         self.notes_view = None       # text of the sounding notes shown now
         self.meter_view = None       # meter height shown now
         self.mod_view = None         # values the Mod tab curves were drawn for
@@ -526,17 +716,37 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                     self.refresh_gui()
                     return
                 self.last_tap = (sym, now)
-                self.drag = (sym, int(round(self._zval(sym, 0))), event.y)
-        # Osc: Source tiles, only Sine for now, nothing to switch
+                self.drag = (sym, int(round(self._zval(sym, 0))), event.y, -100, 100, DRAG_PX)
+        if self.tab == 0:
+            for x0, y0, x1, y1, i in self.tile_boxes:
+                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                    self._zset("source", i)
+                    self.tiles_view = self.wave_view = self.info_view = None
+                    self.wave_drawn = 0.0
+                    self.refresh_gui()
+                    return
+            for x0, y0, x1, y1, sym, lo, hi, px in self.value_boxes:
+                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                    now = time.monotonic()
+                    if self.last_tap[0] == sym and now - self.last_tap[1] < DOUBLE_TAP:
+                        self._zset(sym, 0)                  # double tap: reset
+                        self.last_tap = (None, 0.0)
+                        self.drag = None
+                        self.tiles_view = self.notes_view = None
+                        self.refresh_gui()
+                        return
+                    self.last_tap = (sym, now)
+                    self.drag = (sym, int(round(self._zval(sym, 0))), event.y, lo, hi, px)
+                    return
 
     def _on_motion(self, event):
         if not self.drag:
             return
-        sym, start, y0 = self.drag
-        value = max(-100, min(100, start + int((y0 - event.y) / DRAG_PX)))
+        sym, start, y0, lo, hi, px = self.drag
+        value = max(lo, min(hi, start + int((y0 - event.y) / px)))
         if value != int(round(self._zval(sym, 0))):
             self._zset(sym, value)
-            self.env_view = None
+            self.env_view = self.tiles_view = self.notes_view = None
             self.refresh_gui()
 
     def _on_release(self, event):
@@ -617,35 +827,51 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
 
     # ---------- Osc tab ----------
     def _osc_layout(self):
-        """Boxes: Source tiles (a row under the tabs), the waveform, the meter at its right, the notes line."""
+        """Boxes: the top row (Source tiles, then Pitch and Fine), the waveform, the meter at its right, the line
+        of what the knobs do, the notes line."""
         w, h = max(int(self.width), 60), max(int(self.height), 60)
         hh, fs = self._header_h(), self._font_size()
         row = 2 * fs + 6
         tiles = (4, hh + 4, w - 4, hh + 4 + row)
         meter_w = max(6, fs // 2 + 2)
         notes_y = h - row // 2 - 2
-        wave = (4, tiles[3] + 6, w - meter_w - 12, h - row - 6)
+        info_y = notes_y - fs - 6
+        wave = (4, tiles[3] + 6, w - meter_w - 12, info_y - fs // 2 - 4)
         meter = (w - meter_w - 4, wave[1], w - 4, wave[3])
-        return tiles, wave, meter, notes_y
+        return tiles, wave, meter, notes_y, info_y
+
+    def _source(self):
+        return int(_clamp(round(self._zval("source", 0)), 0, len(SOURCES) - 1))
+
+    def _knobs(self):
+        return tuple(_clamp(self._zval(k, 50.0) / 100.0, 0.0, 1.0) for k in ("harmonics", "color", "morph"))
 
     def _draw_osc(self):
-        tiles, wave, meter, notes_y = self._osc_layout()
+        tiles, wave, meter, notes_y, info_y = self._osc_layout()
         self._draw_tiles(tiles)
         self._draw_wave(wave)
+        self._draw_info(info_y)
         self._draw_meter(meter)
         self._draw_notes(notes_y)
 
     def _draw_tiles(self, box):
-        source = 0
-        view = (box, source)
+        source = self._source()
+        pitch, fine = int(round(self._zval("pitch", 0))), int(round(self._zval("fine", 0)))
+        view = (box, source, pitch, fine)
         if view == self.tiles_view:
             return
         self.tiles_view = view
         c = self.widget_canvas
         c.delete("tiles")
         self.tile_boxes = []
+        self.value_boxes = []
         x0, y0, x1, y1 = box
-        tw = min((x1 - x0) / max(len(SOURCES), 4), 140)
+        fs = self._font_size()
+        try:
+            bw = tkinter.font.Font(family=zynthian_gui_config.font_family, size=fs).measure("Fine +100") + fs
+        except Exception:
+            bw = 9 * fs
+        tw = min((x1 - x0 - 2 * bw - 8) / len(SOURCES), 140)
         for i, name in enumerate(SOURCES):
             bx = x0 + i * tw
             on = i == source
@@ -654,10 +880,18 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             c.create_text(bx + (tw - 4) / 2, (y0 + y1) / 2, text=name, font=self._font(),
                           fill=("#000000" if on else zynthian_gui_config.color_tx), tags="tiles")
             self.tile_boxes.append((bx, y0, bx + tw - 4, y1, i))
+        for k, (sym, text, lo, hi, px) in enumerate((("pitch", "Pitch %+d" % pitch, -24, 24, PITCH_DRAG_PX),
+                                                    ("fine", "Fine %+d" % fine, -100, 100, DRAG_PX))):
+            bx1 = x1 - (1 - k) * (bw + 4)
+            bx0 = bx1 - bw
+            c.create_rectangle(bx0, y0, bx1, y1, outline=ROUTE_OFF, tags="tiles")
+            c.create_text((bx0 + bx1) / 2, (y0 + y1) / 2, text=text, font=self._font(),
+                          fill=zynthian_gui_config.color_tx, tags="tiles")
+            self.value_boxes.append((bx0, y0, bx1, y1, sym, lo, hi, px))
 
     def _draw_wave(self, box):
-        source = 0
-        view = (box, source)
+        source, knobs = self._source(), self._knobs()
+        view = (box, source, knobs if source else None)
         if view == self.wave_view:
             return
         now = time.monotonic()
@@ -671,7 +905,20 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         mid = (y0 + y1) / 2
         c.create_rectangle(x0, y0, x1, y1, outline=AXIS_COLOR, tags="wave")
         c.create_line(x0, mid, x1, mid, fill=AXIS_COLOR, tags="wave")
-        c.create_line(*wave_points(source, x0, x1, y0, y1), fill=WAVE_COLOR, width=2, tags="wave")
+        n = max(int((x1 - x0) / 2), 8)
+        values = principal_values(source, *knobs, n)
+        c.create_line(*wave_points(values, x0, x1, y0, y1), fill=WAVE_COLOR, width=2, tags="wave")
+
+    def _draw_info(self, y):
+        text = source_text(self._source(), *self._knobs())
+        view = (y, self.width, text)
+        if view == self.info_view:
+            return
+        self.info_view = view
+        c = self.widget_canvas
+        c.delete("info")
+        c.create_text(6, y, anchor="w", text=text, font=self._font(max(7, self._font_size() - 2)),
+                      fill=LABEL_COLOR, tags="info")
 
     def _draw_meter(self, box):
         x0, y0, x1, y1 = box
@@ -697,7 +944,7 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             if 0 <= n <= 127 and n not in notes:
                 notes.append(n)
         if not notes:
-            return "Pitch %+d st  Fine %+d ct" % (round(pitch), round(fine))
+            return ""
         return "   ".join("%s %.1f Hz" % (note_name(n), note_freq(n, pitch, fine)) for n in sorted(notes))
 
     def _draw_notes(self, y):
@@ -854,10 +1101,15 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         return (self._zval("timbre", 0.0) / 100.0, self._zval("order", 0.0) / 100.0,
                 self._zval("symmetry", 0.0) / 100.0, self._zval("drive", 0.0) / 100.0)
 
+    def _fold_source(self):
+        source = self._source()
+        return (source, self._knobs() if source else None)
+
     def _draw_fold(self):
         left, right, order, bottom_y = self._fold_layout()
         vals = self._fold_values()
-        view = (left, right, vals)
+        src = self._fold_source()
+        view = (left, right, vals, src)
         if view == self.fold_view:
             return
         now = time.monotonic()
@@ -886,13 +1138,13 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             xin = -1.0 + 2.0 * i / n
             pts += [cx + xin * half, cy - shape(xin, timbre, o, sym, drive, a) * half]
         c.create_line(*pts, fill=WAVE_COLOR, width=2, tags="fold")
-        # the Principal sine through it, 2 periods, DC removed
+        # the Principal (the Source's wave) through it, 2 periods, DC removed
         c.create_rectangle(*right, outline=AXIS_COLOR, tags="fold")
         self._box_label(right, "Principal \u2192 Timbre", "fold")
         x0, y0, x1, y1 = self._curve_box(right)
         mid_y, amp = (y0 + y1) / 2.0, (y1 - y0) / 2.0 * 0.85
         n = max(int((x1 - x0) / 2), 16)
-        ys = [shape(math.sin(4.0 * math.pi * i / n), timbre, o, sym, drive, a) for i in range(n + 1)]
+        ys = [shape(x, timbre, o, sym, drive, a) for x in principal_values(src[0], *(src[1] or (0, 0, 0)), n)]
         mean = sum(ys[:-1]) / n
         pts = []
         for i, y in enumerate(ys):

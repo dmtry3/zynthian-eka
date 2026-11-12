@@ -92,6 +92,7 @@ class Processor:
         self.engine = Engine()
         self.id = 1
         self.controllers_dict = {s: NumCtrl(s, v) for s, v in (("pitch", 0), ("fine", 0.0),
+                                 ("source", 0), ("harmonics", 50.0), ("color", 50.0), ("morph", 50.0),
                                  ("gate_mode", 2), ("gate_decay", 30.0), ("gate_res", 0.0), ("level", 80.0),
                                  ("fg1_rise", 5.0), ("fg1_fall", 300.0), ("fg2_rise", 300.0), ("fg2_fall", 800.0),
                                  ("fg1_mode", 1), ("fg2_mode", 1), ("m_fg2_timbre", 0),
@@ -199,7 +200,7 @@ def main():
     # tabs, title, tiles, waveform
     check("tabs Osc, Mod, Fold, Gate, Env drawn", texts("tabs") == ["Osc", "Mod", "Fold", "Gate", "Env"])
     check("page title drawn", texts("title") == ["Osc"])
-    check("Source tile Sine", texts("tiles") == ["Sine"])
+    check("Source tiles, Pitch and Fine", texts("tiles") == ["Sine", "VA", "FM2", "Wave", "Pitch +0", "Fine +0"])
     lines = [i for i in c.find_withtag("wave") if c.type(i) == "line" and len(c.coords(i)) > 8]
     check("waveform drawn", len(lines) == 1)
     if lines:
@@ -220,7 +221,7 @@ def main():
 
     # notes and the meter follow the monitors; the waveform stays
     wave_ids = c.find_withtag("wave")
-    check("idle: Pitch and Fine shown", texts("notes") == ["Pitch +0 st  Fine +0 ct"])
+    check("idle: no notes line", texts("notes") == [""])
     proc.engine.notes = [64, 60, 67]
     proc.engine.peak = -10.0
     wdg.update()
@@ -252,6 +253,125 @@ def main():
     check("back on Osc", texts("title") == ["Osc"])
     wdg._on_press(Tap(100, 100))                     # a tap below the tabs does nothing yet
     check("tap on the waveform: no error", True)
+
+    # ---------- Osc: sources, Pitch, Fine ----------
+    check("engine tables found next to the plugin", bool(mod.engine_tables()))
+    def tile_center(i):
+        x0, y0, x1, y1, _ = wdg.tile_boxes[i]
+        return Tap((x0 + x1) / 2, (y0 + y1) / 2)
+    infos = {}
+    for i, name in enumerate(mod.SOURCES):
+        wave_ids = c.find_withtag("wave")
+        wdg._on_press(tile_center(i))
+        wdg.update()
+        lit = [c.itemcget(t, "text") for t in c.find_withtag("tiles")
+               if c.type(t) == "text" and c.itemcget(t, "fill") == "#000000"]
+        lines = [t for t in c.find_withtag("wave") if c.type(t) == "line" and len(c.coords(t)) > 8]
+        x0, y0, x1, y1 = wdg._osc_layout()[1]
+        ys = c.coords(lines[0])[1::2] if lines else []
+        ok = proc.controllers_dict["source"].value == i and lit == [name] and len(lines) == 1 and \
+            min(ys) >= y0 and max(ys) <= y1 and (i == 0 or c.find_withtag("wave") != wave_ids)
+        check("tap on %s: selected, its wave drawn inside the box" % name, ok)
+        infos[name] = texts("info")
+    check("knobs line per source", infos["Sine"][0].startswith("Harmonics, Color, Morph: not used") and
+          infos["VA"][0].startswith("2nd osc +0.0 st") and infos["FM2"][0].startswith("ratio 2.02") and
+          infos["Wave"][0].startswith("bank 4"))
+    # the knobs change the wave
+    wdg._on_press(tile_center(1))
+    wdg.update()
+    before = [c.coords(t) for t in c.find_withtag("wave") if c.type(t) == "line" and len(c.coords(t)) > 8]
+    proc.controllers_dict["color"].value = 0.0
+    wdg.wave_drawn = 0.0
+    wdg.update()
+    after = [c.coords(t) for t in c.find_withtag("wave") if c.type(t) == "line" and len(c.coords(t)) > 8]
+    check("Color moves the VA wave and the knobs line", before != after and "1: tri" in texts("info")[0])
+    proc.controllers_dict["color"].value = 50.0
+    # Pitch and Fine: a finger up / down on their box, a double tap resets
+    def box_tap(sym):
+        for x0, y0, x1, y1, s_, lo, hi, px in wdg.value_boxes:
+            if s_ == sym:
+                return Tap((x0 + x1) / 2, (y0 + y1) / 2)
+    proc.controllers_dict["pitch"].value = proc.controllers_dict["fine"].value = 0
+    t = box_tap("pitch")
+    wdg.last_tap = (None, 0.0)
+    wdg._on_press(t)
+    wdg._on_motion(Tap(t.x, t.y - 5 * mod.PITCH_DRAG_PX - 1))
+    wdg._on_release(t)
+    wdg.update()
+    check("Pitch: a finger up 5 steps", proc.controllers_dict["pitch"].value == 5 and "Pitch +5" in texts("tiles"))
+    t = box_tap("fine")
+    wdg.last_tap = (None, 0.0)
+    wdg._on_press(t)
+    wdg._on_motion(Tap(t.x, t.y + 300))
+    wdg._on_release(t)
+    wdg.update()
+    check("Fine: a finger down, clamped to -100", proc.controllers_dict["fine"].value == -100)
+    wdg._on_press(box_tap("pitch"))
+    wdg._on_press(box_tap("pitch"))
+    wdg._on_press(box_tap("fine"))
+    wdg._on_press(box_tap("fine"))
+    wdg.update()
+    check("double tap resets Pitch and Fine", proc.controllers_dict["pitch"].value == 0 and
+          proc.controllers_dict["fine"].value == 0 and "Pitch +0" in texts("tiles"))
+    # the Fold tab draws the Source's wave through the shapers
+    ctl.select(3)
+    wdg.update()
+    fold_va = [c.coords(t) for t in c.find_withtag("fold") if c.type(t) == "line" and c.itemcget(t, "fill") == mod.CURVE2_COLOR]
+    proc.controllers_dict["source"].value = 0
+    wdg.fold_drawn = 0.0
+    wdg.update()
+    fold_sine = [c.coords(t) for t in c.find_withtag("fold") if c.type(t) == "line" and c.itemcget(t, "fill") == mod.CURVE2_COLOR]
+    check("Fold tab follows the Source", fold_va and fold_sine and fold_va != fold_sine)
+    ctl.select(1)
+    wdg.update()
+
+    # the widget's engine formulas against the C engines (build_test/libengines.so, built by test.sh)
+    lib_path = os.path.join(ROOT, "build_test", "libengines.so")
+    if os.path.exists(lib_path):
+        import ctypes
+        lib = ctypes.CDLL(lib_path)
+        F = ctypes.c_float
+
+        class FeState(ctypes.Structure):
+            _fields_ = [("ph", F * 2), ("p", F * 6), ("fb", F), ("w_prev", F), ("out", F), ("fresh", ctypes.c_int)]
+
+        class FeBlock(ctypes.Structure):
+            _fields_ = [("sine", ctypes.POINTER(F)), ("sine_n", ctypes.c_int), ("t", F * 6), ("glide", F),
+                        ("fb_coef", F), ("wave_lp", F), ("wave_gain", F)]
+        lib.fe_tick.restype = F
+        lib.fe_tick.argtypes = [ctypes.POINTER(FeState), ctypes.POINTER(FeBlock), ctypes.c_int, F]
+        lib.fe_block.argtypes = [ctypes.POINTER(FeBlock), ctypes.c_int, F, F, F, F, F, ctypes.POINTER(F), ctypes.c_int]
+        sine_n = 2048
+        table = (F * (sine_n + 1))(*[math.sin(2 * math.pi * i / sine_n) for i in range(sine_n + 1)])
+
+        def c_engine(engine, knobs, hz, steps, count):
+            st, blk = FeState(), FeBlock()
+            lib.fe_reset(ctypes.byref(st))
+            lib.fe_block(ctypes.byref(blk), engine, knobs[0], knobs[1], knobs[2], hz, hz * steps, table, sine_n)
+            return [lib.fe_tick(ctypes.byref(st), ctypes.byref(blk), engine, 1.0 / steps) for _ in range(count)]
+
+        for knobs in ((0.5, 1 / 3.0, 1 / 3.0), (0.622, 0.0, 0.8), (0.1, 0.95, 0.5)):
+            # VA, 2048 samples a period: the same phases; only the samples next to a step differ (polyBLEP)
+            cv = c_engine(0, knobs, mod.C4_HZ, 2048, 4096)
+            pv = mod.principal_values(1, *knobs, 4096)[1:]
+            err = sorted(abs(a - b) for a, b in zip(cv, pv))
+            check("VA %s: the widget's wave is the engine's (95 %% within %.4f)" % (knobs, err[int(0.95 * len(err))]),
+                  err[int(0.95 * len(err))] < 1e-3)
+            # FM2, 256 samples a period, 2 periods of settling: the same steps
+            cv = c_engine(1, knobs, mod.C4_HZ, 256, 4 * 256 + 1)[512:]
+            pv = mod.principal_values(2, *knobs, 512)
+            err = max(abs(a - b) for a, b in zip(cv, pv))
+            check("FM2 %s: the widget's wave is the engine's (max %.5f)" % (knobs, err), err < 1e-3)
+            # Wave, 128 samples a period (one table point a sample): the engine's mean over the sample
+            hz = 48.0
+            cv = c_engine(2, knobs, hz, 128, 256)[128:]
+            gain = 0.95 - hz / 48000.0
+            pv = [sum(mod.wave_value(mod.engine_tables()[0], mod.wave_coords(*knobs), (k + (j + 0.5) / 8) / 128.0)
+                      for j in range(8)) / 8 for k in range(128, 256)]   # item k: phases k / 128 .. (k + 1) / 128
+            err = max(abs(a / gain - b) for a, b in zip(cv, pv))
+            check("Wave %s: the widget's wave is the engine's (max %.4f)" % (knobs, err), err < 0.01)
+    else:
+        print("Note: build_test/libengines.so not found (run scripts/test.sh), formulas not checked against C.")
 
     # ---------- Mod tab ----------
     # the widget's Mod Freq formulas and ratios are those of fold_core
@@ -614,9 +734,15 @@ def main():
         root.update()
         wdg.update()
         root.update()
-        tiles, wave, meter_box, notes_y = wdg._osc_layout()
-        ok = tiles[3] < wave[1] and wave[3] < notes_y and wave[2] < meter_box[0] and meter_box[2] <= wdg.width
-        check("layout %s: tiles, wave, meter, notes do not overlap" % geo, ok)
+        tiles, wave, meter_box, notes_y, info_y = wdg._osc_layout()
+        ok = tiles[3] < wave[1] and wave[3] < info_y - wdg._font_size() / 2 and info_y < notes_y - wdg._font_size() \
+            and wave[2] < meter_box[0] and meter_box[2] <= wdg.width
+        check("layout %s: tiles, wave, meter, info, notes do not overlap" % geo, ok)
+        ok = wdg.tile_boxes[-1][2] < wdg.value_boxes[0][0] and wdg.value_boxes[0][2] < wdg.value_boxes[1][0] \
+            and wdg.value_boxes[1][2] <= wdg.width and wdg.tile_boxes[0][2] - wdg.tile_boxes[0][0] > 20
+        check("layout %s: Source tiles, Pitch and Fine side by side" % geo, ok)
+        it = [i for i in c.find_withtag("info") if c.type(i) == "text"]
+        check("layout %s: the knobs line fits" % geo, len(it) == 1 and c.bbox(it[0])[2] <= wdg.width)
         left, mid, right, bottom_y = wdg._mod_layout()
         ok = left[2] < mid[0] and mid[2] < right[0] and right[2] <= wdg.width and \
             max(left[3], mid[3], right[3]) < bottom_y - wdg._font_size() and left[1] >= wdg._header_h()
@@ -673,6 +799,25 @@ def main():
     full = (time.perf_counter() - t0) / 50 * 1000
     print("refresh on this PC: %.3f ms with live data changing, %.3f ms without changes, %.3f ms full redraw"
           % (live, idle, full))
+    # the Osc and Fold tabs for each Source (the wave is computed in Python; Wave reads 8 waves a point)
+    times = []
+    for src in range(len(mod.SOURCES)):
+        proc.controllers_dict["source"].value = src
+        for page in (1, 3):
+            ctl.select(page)
+            wdg.next_update = 0.0
+            wdg.update()
+            t0 = time.perf_counter()
+            for i in range(10):
+                wdg._clear()
+                wdg.refresh_gui()
+                root.update_idletasks()
+            times.append((time.perf_counter() - t0) / 10 * 1000)
+    print("Osc / Fold full redraw on this PC: " + ", ".join("%s %.1f / %.1f ms" % (n, times[2 * i], times[2 * i + 1])
+                                                          for i, n in enumerate(mod.SOURCES)))
+    proc.controllers_dict["source"].value = 0
+    ctl.select(1)
+    wdg.update()
     # the Mod tab with a moving phase mark, and its full redraw (the result curve is computed in Python)
     ctl.select(2)
     proc.controllers_dict["mod_mode"].value = 0

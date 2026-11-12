@@ -7,6 +7,10 @@
  * are at multiples of f/q), relative to the power on them, in dB, in the band to 16 kHz.
  * Phase modulation was compared here at stage 1 and dropped on 2026-11-11 (saw Mod OSC: -19 dB on C5 against
  * -61 for linear FM).
+ * Stage 4: the engines VA, FM2, Wave at harmonic settings (VA: Harmonics 50 % = unison; FM2: Harmonics 30/128 =
+ * ratio 1), with FM and Sync. Known limits (2026-11-12): a bright Wave on high notes (most of its 64 harmonics
+ * above the voices' Nyquist, as in the original engine), and a VA saw under strong FM from a saw Mod OSC (the
+ * frequency step bends the saw's slope; polyBLEP corrects only steps of the wave).
  * Usage: alias_report (prints a table; no pass/fail) */
 #include <math.h>
 #include <stdio.h>
@@ -43,10 +47,13 @@ static void fft(double* xr, double* xi, int n) {
 
 typedef struct {
   const char* label;
+  int source;                     /* FC_SRC_* */
+  float h, c, m;                  /* Harmonics, Color, Morph */
   float ratio;                    /* Mod ratio (Ratio mode); lines at multiples of f / q */
   double q;
   float index; int shape;         /* Mod OSC into FM */
   float timbre, order, sym, drive;
+  int sync;
 } Case;
 
 /* NFFT samples at 48 kHz of one held note (after 0.2 s of settling). */
@@ -60,6 +67,8 @@ static void render_note(float* out, int note, const Case* k) {
   p.mod_mode = FC_MODE_RATIO; p.mod_freq = (float)r * FC_FREQ_MAX / (FC_NRATIOS - 1);
   p.mod_index = k->index; p.mod_shape = k->shape; p.route_fm = 1;
   p.timbre = k->timbre; p.order = k->order; p.symmetry = k->sym; p.drive = k->drive;
+  p.source = k->source; p.harmonics = k->h; p.color = k->c; p.morph = k->m;
+  p.route_sync = k->sync;
   fc_set_params(&core, &p);
   fc_note_on(&core, note, 127);
   static float r_[64], skip[64];
@@ -90,15 +99,30 @@ static double alias_db(const float* x, double f0) {
 int main(void) {
   static float x[NFFT];
   const int notes[4] = { 60, 72, 84, 96 };
+#define S0 FC_SRC_SINE, 0, 0, 0
+#define VA_SAW FC_SRC_VA, 0.5f, 1 / 3.0f, 1 / 3.0f
+#define FM2_R1 FC_SRC_FM2, 30 / 128.0f
+#define WAVE FC_SRC_WAVE
   const Case cases[] = {
-    { "folder, Timbre 30%", 1, 1, 0, FC_MOD_SINE, 0.3f, 0, 0, 0 },
-    { "folder, Timbre 70%", 1, 1, 0, FC_MOD_SINE, 0.7f, 0, 0, 0 },
-    { "folder, Timbre 100%", 1, 1, 0, FC_MOD_SINE, 1.0f, 0, 0, 0 },
-    { "folder, Timbre 70%, Symmetry +30", 1, 1, 0, FC_MOD_SINE, 0.7f, 0, 0.3f, 0 },
-    { "folder 70% + FM sine ratio 3/2, Index 50%", 1.5f, 2, 0.5f, FC_MOD_SINE, 0.7f, 0, 0, 0 },
-    { "Saw, Timbre 100%", 1, 1, 0, FC_MOD_SINE, 1.0f, 0.5f, 0, 0 },
-    { "M, Timbre 100%, Drive 100%", 1, 1, 0, FC_MOD_SINE, 1.0f, 1.0f, 0, 1.0f },
-    { "FM saw ratio 1, Index 100% (no Timbre)", 1, 1, 1.0f, FC_MOD_SAW, 0, 0, 0, 0 },
+    { "folder, Timbre 30%", S0, 1, 1, 0, FC_MOD_SINE, 0.3f, 0, 0, 0, 0 },
+    { "folder, Timbre 70%", S0, 1, 1, 0, FC_MOD_SINE, 0.7f, 0, 0, 0, 0 },
+    { "folder, Timbre 100%", S0, 1, 1, 0, FC_MOD_SINE, 1.0f, 0, 0, 0, 0 },
+    { "folder, Timbre 70%, Symmetry +30", S0, 1, 1, 0, FC_MOD_SINE, 0.7f, 0, 0.3f, 0, 0 },
+    { "folder 70% + FM sine ratio 3/2, Index 50%", S0, 1.5f, 2, 0.5f, FC_MOD_SINE, 0.7f, 0, 0, 0, 0 },
+    { "Saw, Timbre 100%", S0, 1, 1, 0, FC_MOD_SINE, 1.0f, 0.5f, 0, 0, 0 },
+    { "M, Timbre 100%, Drive 100%", S0, 1, 1, 0, FC_MOD_SINE, 1.0f, 1.0f, 0, 1.0f, 0 },
+    { "FM saw ratio 1, Index 100% (no Timbre)", S0, 1, 1, 1.0f, FC_MOD_SAW, 0, 0, 0, 0, 0 },
+    { "VA saw", VA_SAW, 1, 1, 0, FC_MOD_SINE, 0, 0, 0, 0, 0 },
+    { "VA pulse 90%", FC_SRC_VA, 0.5f, 0.95f, 0.95f, 1, 1, 0, FC_MOD_SINE, 0, 0, 0, 0, 0 },
+    { "VA saw + folder 70%", VA_SAW, 1, 1, 0, FC_MOD_SINE, 0.7f, 0, 0, 0, 0 },
+    { "VA saw + FM sine ratio 1, Index 100%", VA_SAW, 1, 1, 1.0f, FC_MOD_SINE, 0, 0, 0, 0, 0 },
+    { "VA saw + FM saw ratio 1, Index 100%", VA_SAW, 1, 1, 1.0f, FC_MOD_SAW, 0, 0, 0, 0, 0 },
+    { "VA saw, Sync 3/2", VA_SAW, 1.5f, 2, 0, FC_MOD_SINE, 0, 0, 0, 0, 1 },
+    { "FM2 ratio 1, Color 100%", FM2_R1, 1.0f, 0.5f, 1, 1, 0, FC_MOD_SINE, 0, 0, 0, 0, 0 },
+    { "FM2 ratio 1, Color 50%, Sync 3/2", FM2_R1, 0.5f, 0.5f, 1.5f, 2, 0, FC_MOD_SINE, 0, 0, 0, 0, 1 },
+    { "Wave middle", WAVE, 0.5f, 0.5f, 0.5f, 1, 1, 0, FC_MOD_SINE, 0, 0, 0, 0, 0 },
+    { "Wave bright (H 10%, C 95%, M 50%)", WAVE, 0.1f, 0.95f, 0.5f, 1, 1, 0, FC_MOD_SINE, 0, 0, 0, 0, 0 },
+    { "Wave middle, Sync 3/2", WAVE, 0.5f, 0.5f, 0.5f, 1.5f, 2, 0, FC_MOD_SINE, 0, 0, 0, 0, 1 },
   };
   printf("Aliasing to 16 kHz, dB below the harmonics (voices at 2x, ADAA on the folder). Lower is better;\n"
          "about -60 dB is inaudible, above -30 dB is clearly audible.\n\n");

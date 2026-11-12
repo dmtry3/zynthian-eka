@@ -15,4 +15,4 @@ test:
 	./scripts/test.sh
 
 clean:
-	rm -rf build build_test dist
+	rm -rf build build_obj build_test dist

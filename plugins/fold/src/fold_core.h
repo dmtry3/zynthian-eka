@@ -1,5 +1,6 @@
 /* Eka Fold engine, without LV2: tested in WSL as a plain program (test/test_core.c).
- * Stage 3: 4 voices; each voice has a Principal oscillator (sine; more sources at stage 4) and a Mod OSC
+ * Stage 4: 4 voices; each voice has a Principal oscillator (Source: Sine, or one of the engines VA, FM2, Wave
+ * of src/plaits/, with Harmonics, Color, Morph) and a Mod OSC
  * (triangle, sine, saw, square; Free / Keytrack / Ratio) that modulates it through FM, AM, Sync and Timbre with
  * one Mod Index; then the Timbre section: three shapers (folder, saw, M) blended by Order, Timbre = depth,
  * Symmetry = offset before them, Drive = soft saturation after them; a DC blocker; then the lopass gate:
@@ -11,6 +12,8 @@
 #define FOLD_CORE_H
 
 #include <stdint.h>
+
+#include "plaits/engines.h"
 
 #define FC_VOICES 4
 #define FC_SINE_N 2048            /* table size (power of two); one more entry for interpolation */
@@ -73,6 +76,11 @@ enum { FC_GATE_VCA, FC_GATE_LP, FC_GATE_COMBO, FC_NGATE_MODES };
 #define FC_COEF_EVERY 32          /* filter coefficients are updated every 32 samples (at the 2x rate) */
 float fc_decay_ms(float decay);   /* Decay 0..1 -> ms */
 
+/* Principal sources: the order of the scale points of Source in lv2/eka_fold.ttl and of the widget's tiles.
+ * The engines are FE_* = source - 1. A change of Source crossfades a sounding voice over FC_SRC_FADE_MS. */
+enum { FC_SRC_SINE, FC_SRC_VA, FC_SRC_FM2, FC_SRC_WAVE, FC_NSOURCES };
+#define FC_SRC_FADE_MS 10.0f
+
 /* Mod OSC shapes and modes: the order of the scale points in lv2/eka_fold.ttl and of the widget's lists. */
 enum { FC_MOD_TRI, FC_MOD_SINE, FC_MOD_SAW, FC_MOD_SQUARE, FC_NMOD_SHAPES };
 enum { FC_MODE_FREE, FC_MODE_KEY, FC_MODE_RATIO, FC_NMODES };
@@ -93,6 +101,8 @@ int fc_ratio_index(float units);
 typedef struct {
   float pitch;                    /* semitones */
   float fine;                     /* cents */
+  int source;                     /* FC_SRC_* */
+  float harmonics, color, morph;  /* 0..1: the engine's knobs (Sine has none) */
   float fg_rise_ms[2], fg_fall_ms[2];
   int fg_mode[2];
   int gate_mode;
@@ -124,7 +134,10 @@ typedef struct {
   float a1, a2, a3;               /* its coefficients, every FC_COEF_EVERY samples */
   int coef_count;
   float sg;                       /* steal fade, 1 = none */
-  float phase;                    /* Principal, cycles 0..1 */
+  float phase;                    /* Principal, cycles 0..1 (Sine) */
+  int src, src_prev;              /* Source, and the one it fades from while xf < 1 */
+  float xf;                       /* crossfade 0..1 */
+  FeState fe[FE_NENGINES];        /* the engines' states (each one keeps its own phase) */
   float mphase;                   /* Mod OSC, cycles 0..1 */
   float idx, gfm, gam, gtim;      /* Mod Index and the FM / AM / Timbre switches, smoothed */
   float tim, ord, sym, drv;       /* Timbre knobs, smoothed */
@@ -146,6 +159,9 @@ typedef struct {
   int sustain_pedal;
   float bend;                     /* semitones */
   float tune;                     /* semitones: pitch + fine */
+  int src_t;                      /* Source */
+  float harm_t, color_t, morph_t; /* engine knobs */
+  float src_fade;                 /* crossfade step per sample */
   float fg_rise_inc[2], fg_fall_inc[2];   /* per sample */
   int fg_mode[2];
   float vac_rise, vac_fall;       /* vactrol: one-pole steps per sample (fall before the slow-down) */

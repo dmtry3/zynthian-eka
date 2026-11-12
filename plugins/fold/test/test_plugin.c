@@ -21,7 +21,7 @@ static int fails = 0;
 #define FOLD_URI "http://dmtry3.github.io/zynthian-eka/fold"
 #define N 256
 /* ports, as in lv2/eka_fold.ttl */
-enum { P_PITCH, P_FINE, P_MOD_FREQ, P_MOD_INDEX, P_MOD_SHAPE, P_MOD_MODE,
+enum { P_SOURCE, P_HARMONICS, P_COLOR, P_MORPH, P_MOD_FREQ, P_MOD_INDEX, P_MOD_SHAPE, P_MOD_MODE,
        P_TIMBRE, P_ORDER, P_SYMMETRY, P_DRIVE, P_GATE_MODE, P_GATE_DECAY, P_GATE_RES, P_LEVEL,
        P_FG1_RISE, P_FG1_FALL, P_FG2_RISE, P_FG2_FALL,
        P_MIDI_IN, P_OUT_L, P_OUT_R, P_NOTIFY, P_NOTE1, P_NOTE4 = P_NOTE1 + 3, P_PEAK, P_MOD_PHASE,
@@ -178,7 +178,7 @@ int main(int argc, char** argv) {
   CHECK(h != NULL);
   if (!h) return 1;
   /* the knob defaults of the .ttl */
-  ctl[P_PITCH] = 0; ctl[P_FINE] = 0;
+  ctl[P_SOURCE] = 0; ctl[P_HARMONICS] = 50; ctl[P_COLOR] = 50; ctl[P_MORPH] = 50;
   ctl[P_GATE_MODE] = 2; ctl[P_GATE_DECAY] = 30; ctl[P_GATE_RES] = 0; ctl[P_LEVEL] = 80;
   ctl[P_FG1_RISE] = 5; ctl[P_FG1_FALL] = 300; ctl[P_FG2_RISE] = 300; ctl[P_FG2_FALL] = 800;
   ctl[P_MOD_FREQ] = 30; ctl[P_MOD_INDEX] = 0; ctl[P_MOD_SHAPE] = 1; ctl[P_MOD_MODE] = 2;
@@ -225,17 +225,32 @@ int main(int argc, char** argv) {
   for (int i = 0; i < 400; i++) run_seq();
   CHECK(ctl[P_PEAK] < 0.0f);
 
-  /* the Pitch knob: an octave up, the frequency doubles */
+  /* Pitch (a parameter, set in the widget): an octave up, the frequency doubles */
   seq_midi(0, 0xB0, 123, 0);                                            /* All Notes Off */
   run_seq();
   for (int i = 0; i < 400; i++) run_seq();   /* 2 s: FG1 Fall 300 ms, then the vactrol tail to -60 dB (~1 s) */
   CHECK(ctl[P_NOTE1] == -1.0f);
-  ctl[P_PITCH] = 12;
+  seq_set("pitch", 12.0f);
   seq_midi(0, 0x90, 69, 127);
   run_seq();
   int cross = crossings(2.0);
   printf("A4 + 12: %d crossings in 2 s\n", cross);
   CHECK(cross >= 1758 && cross <= 1762);
+  seq_get();
+  run_seq();
+  CHECK(reported("pitch") == 12 && reported("fine") == 0);
+  /* Fine -100 cents with Pitch +12: 11 semitones up */
+  seq_set("fine", -100.0f);
+  run_seq();
+  cross = crossings(2.0);
+  printf("A4 + 12 - 100 cents: %d crossings in 2 s\n", cross);
+  CHECK(fabs(cross - 2 * 440.0 * pow(2.0, 11.0 / 12.0)) <= 2.5);
+  seq_set("fine", 0.0f);
+  seq_set("pitch", 99.0f);                                              /* clamped to +24 */
+  run_seq();
+  seq_get();
+  run_seq();
+  CHECK(reported("pitch") == 24);
 
   /* patch:Get: the plugin reports the routing switches (defaults FM on, AM, Sync and Timbre off) */
   seq_get();
@@ -247,7 +262,7 @@ int main(int argc, char** argv) {
    * (the DC blocker) that is -cos(2x) / 2: an octave up, 880 crossings in a second.
    * A new note: Ratio mode restarts both phases together (switching while a note sounds glides through some
    * FM for 5 ms, which shifts the phases: sin * cos then) */
-  ctl[P_PITCH] = 0;
+  seq_set("pitch", 0.0f);
   ctl[P_MOD_INDEX] = 100;
   seq_set("route_fm", 0.0f);
   seq_set("route_am", 1.0f);
@@ -270,7 +285,7 @@ int main(int argc, char** argv) {
   /* State: save, change, restore; the restored values are reported on the next run */
   nitems = 0;
   CHECK(si->save(h, store, NULL, 0, NULL) == LV2_STATE_SUCCESS);
-  CHECK(nitems == 7);
+  CHECK(nitems == 9);
   seq_set("route_am", 0.0f);
   seq_set("route_sync", 0.0f);
   seq_set("route_fm", 1.0f);
