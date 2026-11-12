@@ -688,11 +688,12 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                               text=f"{info}   {bpm:.0f} BPM", font=self._font(h, 15, 8))
                 # metronome: one box per beat of the bar, the downbeat is brighter
                 nb = max(1, min(int(bpb), 8))
-                mw = max(6, int(w * 0.035))
-                mx = w // 2 - (nb * mw + (nb - 1) * 4) // 2
-                ma, mb = int(h * 0.03), int(h * 0.10)
+                gap = 5
+                mw = max(8, min(int(w * 0.075), int((w * 0.42 - (nb - 1) * gap) / nb)))
+                mx = w // 2 - (nb * mw + (nb - 1) * gap) // 2
+                ma, mb = int(h * 0.01), int(h * 0.125)
                 for i in range(nb):
-                    x = mx + i * (mw + 4)
+                    x = mx + i * (mw + gap)
                     on = run and (int(beat) % nb == i)
                     c.create_rectangle(x, ma, x + mw, mb, tags="dyn",
                                        outline=zynthian_gui_config.color_tx_off,
