@@ -13,9 +13,10 @@ in every voice. Up to 8 voices. Inspired by the Buchla 259 / 292 / 281 and the M
 
 ## Features
 
-- **Principal oscillator** with four sources: **Sine**, **VA** (two variable-shape oscillators: triangle, saw,
+- **Principal oscillator** with six sources: **Sine**, **VA** (two variable-shape oscillators: triangle, saw,
   square, narrow pulse, the second one up to two octaves away), **FM2** (two-operator FM with feedback), **Wave**
-  (4 banks of 8 x 8 waves). Harmonics, Color and Morph shape each source; changing the source crossfades.
+  (4 banks of 8 x 8 waves), **Harm** (additive, 24 harmonics), **PD** (phase distortion). Harmonics, Color and
+  Morph shape each source; changing the source crossfades.
 - **Mod OSC** (triangle, sine, saw, square) in **Free** (0.01 Hz .. 10 kHz: an LFO or an audio oscillator),
   **Keytrack** or **Ratio** mode, into the Principal through **FM** (linear, through zero), **AM**, hard **Sync** and
   **Timbre**, all with one **Mod Index**.
@@ -34,7 +35,7 @@ in every voice. Up to 8 voices. Inspired by the Buchla 259 / 292 / 281 and the M
   The tail keeps the voice alive after the key is let go.
 - **Play:** Poly (1..8 voices), **Mono** (last key wins, back to the key still held), **Legato**; Glide; pitch bend
   range.
-- **25 factory presets** in the bank *Factory*: Perc, String, Bell, Pad, Drone, Bass, Lead, FX.
+- **28 factory presets** in the bank *Factory*: Perc, String, Bell, Pad, Drone, Bass, Lead, FX.
 - **Touch widget** with a tab for every page: the waveforms, the folder curve, the gate's response, the function
   generators, the loop's EQ and shaper, the voices, the matrix grid; live marks (notes, Mod OSC phase, vactrol,
   FG points, the delay line's level).
@@ -74,7 +75,7 @@ Seven pages of 4 knobs (the 4 zynpots). The widget's tab follows the page, and a
 
 | Page | Knobs | |
 |---|---|---|
-| **Osc** | Source, Harmonics, Color, Morph | Sine / VA / FM2 / Wave and its three knobs |
+| **Osc** | Source, Harmonics, Color, Morph | Sine / VA / FM2 / Wave / Harm / PD and its three knobs |
 | **Mod** | Mod Freq, Mod Index, Mod Shape, Mod Mode | Mod Freq is read by the mode: Hz, semitones or a ratio (1/8 .. 16) |
 | **Timbre** | Timbre, Order, Symmetry, Drive | Folder (Order 0) .. Saw (50) .. M (100) |
 | **Gate** | Gate Mode, Decay, Resonance, Level | VCA / LP / Combo; Decay 10 ms .. 2 s |
@@ -127,7 +128,7 @@ The presets are generated: edit `scripts/gen_presets.py`, then run it (it writes
 - `src/fold_core.c`: the engine, plain C without LV2 (tested as a normal program). Voices at 2x the rate with a
   halfband decimator; the mod matrix and the filter coefficients every 32 samples, empty matrix cells skipped;
   nothing allocated in the audio thread.
-- The VA, FM2 and Wave sources: a small C++ unit in `src/` (no exceptions, no RTTI, no STL) behind a C interface
+- The VA, FM2, Wave, Harm and PD sources: a small C++ unit in `src/` (no exceptions, no RTTI, no STL) behind a C interface
   (`engines.h`).
 - `src/eka_fold.c`: the LV2 wrapper. The widget's settings and the matrix are LV2 parameters (`patch:writable`),
   saved in LV2 State; live data for the widget comes from output ports.
@@ -136,5 +137,5 @@ The presets are generated: edit `scripts/gen_presets.py`, then run it (it writes
 
 ## License
 
-GPL-3.0-or-later. The VA, FM2 and Wave sources and two of their tables are derived from MIT-licensed code by
+GPL-3.0-or-later. The VA, FM2, Wave, Harm and PD sources and two of their tables are derived from MIT-licensed code by
 Emilie Gillet: see [THIRD_PARTY.md](THIRD_PARTY.md) for the license text and what was changed.

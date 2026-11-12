@@ -1,6 +1,6 @@
 /* Eka Fold engine, without LV2: tested in WSL as a plain program (test/test_core.c).
- * Stage 4: 4 voices; each voice has a Principal oscillator (Source: Sine, or one of the engines VA, FM2, Wave
- * of src/plaits/, with Harmonics, Color, Morph) and a Mod OSC
+ * Each voice has a Principal oscillator (Source: Sine, or one of the engines VA, FM2, Wave, Harm, PD of
+ * src/plaits/, with Harmonics, Color, Morph) and a Mod OSC
  * (triangle, sine, saw, square; Free / Keytrack / Ratio) that modulates it through FM, AM, Sync and Timbre with
  * one Mod Index; then the Timbre section: three shapers (folder, saw, M) blended by Order, Timbre = depth,
  * Symmetry = offset before them, Drive = soft saturation after them; a DC blocker; then the lopass gate:
@@ -83,7 +83,7 @@ float fc_decay_ms(float decay);   /* Decay 0..1 -> ms */
 
 /* Principal sources: the order of the scale points of Source in lv2/eka_fold.ttl and of the widget's tiles.
  * The engines are FE_* = source - 1. A change of Source crossfades a sounding voice over FC_SRC_FADE_MS. */
-enum { FC_SRC_SINE, FC_SRC_VA, FC_SRC_FM2, FC_SRC_WAVE, FC_NSOURCES };
+enum { FC_SRC_SINE, FC_SRC_VA, FC_SRC_FM2, FC_SRC_WAVE, FC_SRC_HARM, FC_SRC_PD, FC_NSOURCES };
 #define FC_SRC_FADE_MS 10.0f
 
 /* Waveguide / delay (TZ 4.6), in each voice after the lopass gate: a delay line whose output goes through a

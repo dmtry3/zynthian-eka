@@ -24,16 +24,24 @@
 //
 // -----------------------------------------------------------------------------
 //
-// The three Principal engines of Eka Fold, derived from plaits/dsp/engine/virtual_analog_engine.cc
-// (VA_VARIANT 0), fm_engine.cc and wavetable_engine.cc, with plaits/dsp/oscillator/variable_shape_oscillator.h
-// and wavetable_oscillator.h (github.com/pichenettes/eurorack). Modified for Eka Fold, 2026-11-12:
+// The Principal engines of Eka Fold, derived from plaits/dsp/engine/virtual_analog_engine.cc (VA_VARIANT 0),
+// fm_engine.cc, wavetable_engine.cc, additive_engine.cc and plaits/dsp/engine2/phase_distortion_engine.cc, with
+// plaits/dsp/oscillator/variable_shape_oscillator.h, wavetable_oscillator.h and harmonic_oscillator.h
+// (github.com/pichenettes/eurorack). Modified for Eka Fold, 2026-11-12 (Harm and PD 2026-11-13):
 // - one sample at a time with a signed phase increment per sample (through-zero FM) at any rate, and an
 //   external hard sync (see engines.h);
 // - VA: the variable-shape oscillator is band-limited by polyBLEP / polyBLAMP residuals computed from the
 //   phase (they hold for either direction of the phase) instead of the stateful BLEPs of the original;
 // - FM2: rendered at the voice rate (2x the plugin rate in Eka Fold), not 4x oversampled; no sub output;
 // - Wave: the slope of the integrated wave between two phases (signed), with the original low-pass and gain;
-//   the table map fixed (no user waves).
+//   the table map fixed (no user waves);
+// - Harm: the 24 integer harmonics only (no organ output), as one sum of Chebyshev polynomials of the sine of the
+//   phase (a function of the phase alone: through-zero FM and sync come for free); harmonics above half the rate
+//   are left out sample by sample; the amplitudes glide over ~20 ms (the original: ~0.25 s, too slow for the mod
+//   matrix);
+// - PD: the hard-synced skewed triangle is computed from the master phase (slave = frac(ratio x master)), band-
+//   limited with polyBLAMP like VA, at the voice rate (the original: 2x with a naive decimation); no aux output;
+//   the amount held so that the bent phase stays under 18 kHz.
 
 #include "engines.h"
 
@@ -160,6 +168,63 @@ inline float wave_naive(const FeState* s, const FeBlock* b, float ph) {
   return sl * b->wave_gain * static_cast<float>(FE_WAVE_LEN);
 }
 
+// FM2's and PD's ratio quantizer: semitones for harmonics 0..1 (stmlib Interpolate(table, harmonics, 128)).
+inline float quantized_semis(float harmonics) {
+  const float x = harmonics * 128.0f;
+  int i = static_cast<int>(x);
+  if (i > FE_FM_QUANTIZER_SIZE - 2) i = FE_FM_QUANTIZER_SIZE - 2;
+  return fe_fm_quantizer[i] + (fe_fm_quantizer[i + 1] - fe_fm_quantizer[i]) * (x - static_cast<float>(i));
+}
+
+// ---------- Harm ----------
+// The raw gains of the 24 harmonics (AdditiveEngine::UpdateAmplitudes before its one-pole and normalization).
+void harm_gains(float centroid, float slope, float bumps, float* g, const FeBlock* b) {
+  const float n = static_cast<float>(FE_HARMONICS) - 1.0f;
+  const float margin = (1.0f / slope - 1.0f) / (1.0f + bumps);
+  const float center = centroid * (n + margin) - 0.5f * margin;
+  for (int i = 0; i < FE_HARMONICS; i++) {
+    const float order = fabsf(static_cast<float>(i) - center) * slope;
+    float gain = 1.0f - order;
+    gain += fabsf(gain);
+    gain *= gain;
+    const float bump = 1.0f + sine(b, 0.25f + order * bumps);
+    gain *= bump;
+    gain *= gain;
+    gain *= gain;
+    g[i] = gain;
+  }
+}
+
+// sum amp[n] T_(n+1)(sin 2 pi ph): harmonic n + 1 of the phase (in sine and cosine phases); only the harmonics
+// below b->top for the increment dt (24 kHz, as the original at 48 kHz: above it, at 2x, they would only reach the
+// decimator's edge and fold back).
+inline float harm_value(const FeBlock* b, const FeState* s, float ph, float dt) {
+  const float x = sine(b, ph);
+  const float two_x = 2.0f * x;
+  int n = dt > 1e-9f ? static_cast<int>(b->top / dt) : FE_HARMONICS;   // harmonics k with k dt < top
+  if (n > FE_HARMONICS) n = FE_HARMONICS;
+  float prev = 1.0f, cur = x, sum = 0.0f;
+  for (int i = 0; i < n; i++) {
+    sum += s->amp[i] * b->amp[i] * cur;
+    const float next = two_x * cur - prev;
+    prev = cur;
+    cur = next;
+  }
+  return sum;
+}
+
+// ---------- PD ----------
+// p[0] ratio, p[1] amount, p[2] skew (the triangle's up part); ph = the master phase 0..1, dt = |increment|.
+inline float pd_value(const FeBlock* b, const FeState* s, float ph, float dt) {
+  const float ratio = s->p[0], pw = s->p[2];
+  const float sl = wrap(ratio * ph);                            // the slave, hard-synced to the master
+  const float tri = 0.5f * (va_osc(sl, dt * ratio, 0.0f, pw) + 1.0f);   // 0..1
+  const float w = 4.0f * (1.0f - ph) * ph;                      // the window: no step where the slave restarts
+  const float p2 = ph * ph;
+  const float phasor = ph + (p2 * p2 - ph) * fabsf(pw - 0.5f) * 2.0f;
+  return sine(b, phasor + s->p[1] * tri * w * (2.0f - w) + 0.25f);
+}
+
 inline void glide(FeState* s, const FeBlock* b) {
   if (s->fresh) {
     for (int i = 0; i < FE_NPARAMS; i++) s->p[i] = b->t[i];
@@ -173,7 +238,7 @@ inline void glide(FeState* s, const FeBlock* b) {
 
 extern "C" {
 
-void fe_block(FeBlock* b, int engine, float harmonics, float color, float morph, float hz, float sr,
+void fe_block(FeBlock* b, FeState* s, int engine, float harmonics, float color, float morph, float hz, float sr,
               const float* sine_table, int sine_n) {
   harmonics = clampf(harmonics, 0.0f, 1.0f);
   color = clampf(color, 0.0f, 1.0f);
@@ -186,6 +251,7 @@ void fe_block(FeBlock* b, int engine, float harmonics, float color, float morph,
   const float f48 = clampf(hz / 48000.0f, 1e-6f, 0.5f);        // the original's units: cycles at 48 kHz
   b->wave_lp = 1.0f;
   b->wave_gain = 0.0f;
+  b->top = 0.5f;
   switch (engine) {
     case FE_VA:
       b->t[0] = exp2f(detuning(harmonics) * (1.0f / 12.0f));
@@ -195,10 +261,7 @@ void fe_block(FeBlock* b, int engine, float harmonics, float color, float morph,
       b->t[4] = clampf(0.5f + (morph - 0.66f) * 1.4f, 0.5f, 0.99f);
       break;
     case FE_FM2: {
-      const float x = harmonics * 128.0f;                     // stmlib Interpolate(table, harmonics, 128)
-      int i = static_cast<int>(x);
-      if (i > FE_FM_QUANTIZER_SIZE - 2) i = FE_FM_QUANTIZER_SIZE - 2;
-      const float semis = fe_fm_quantizer[i] + (fe_fm_quantizer[i + 1] - fe_fm_quantizer[i]) * (x - i);
+      const float semis = quantized_semis(harmonics);
       // a lower index for high modulators, against aliasing
       const float mod_note = 69.0f + 12.0f * log2f(hz > 1.0f ? hz / 440.0f : 1.0f / 440.0f) + semis;
       float taming = clampf(1.0f - (mod_note - 72.0f) * 0.025f, 0.0f, 1.0f);
@@ -226,6 +289,44 @@ void fe_block(FeBlock* b, int engine, float harmonics, float color, float morph,
       b->wave_gain = (0.95f - f48) / (static_cast<float>(FE_WAVE_LEN) * 1024.0f);
       break;
     }
+    case FE_HARM: {
+      // AdditiveEngine: Harmonics = bumps, Timbre (our Color) = centroid, Morph = slope
+      const float raw_slope = (1.0f - 0.6f * harmonics) * morph;
+      const float slope = 0.01f + 1.99f * raw_slope * raw_slope * raw_slope;
+      const float bumps = 16.0f * harmonics * harmonics;
+      float g[FE_HARMONICS];
+      harm_gains(color, slope, bumps, g, b);
+      const float k = s->fresh ? 1.0f : 1.0f - expf(-static_cast<float>(FE_BLOCK_SAMPLES) / (0.02f * sr));
+      float sum = 0.001f;
+      for (int i = 0; i < FE_HARMONICS; i++) {
+        s->amp[i] += (g[i] - s->amp[i]) * k;
+        sum += s->amp[i];
+      }
+      for (int i = 0; i < FE_HARMONICS; i++) {     // normalized, and the original's roll-off towards 24 kHz
+        const float f = clampf(hz * static_cast<float>(i + 1) / 48000.0f, 0.0f, 0.5f);
+        b->amp[i] = (1.0f - 2.0f * f) / sum;
+      }
+      b->top = 24000.0f / sr;
+      break;
+    }
+    case FE_PD: {
+      const float ratio = exp2f(quantized_semis(harmonics) * (1.0f / 12.0f));
+      // the original's units: cycles per sample at 2 x 48 kHz; the modulator capped at a quarter of that
+      const float mf = clampf(hz * ratio / 96000.0f, 0.0f, 0.25f);
+      const float pw = 0.5f + morph * 0.49f;
+      float amount = 8.0f * color * color * (1.0f - mf * 3.8f);
+      // Eka Fold: the bent phase runs at most (phasor slope + amount x ratio x the triangle's steeper slope) times
+      // the note: the amount is held so that this stays under 18 kHz (at 2.75, 80 %, skew 90 % it reached 50 x the
+      // note, the aliases -17 dB on C5)
+      const float steep = ratio * (pw > 0.5f ? 1.0f / (1.0f - pw) : 1.0f / pw);
+      const float phasor = 1.0f + 3.0f * fabsf(pw - 0.5f) * 2.0f;
+      const float most = (18000.0f / (hz > 1.0f ? hz : 1.0f) - phasor) / steep;
+      if (amount > most) amount = most > 0.0f ? most : 0.0f;
+      b->t[0] = ratio;
+      b->t[1] = amount;
+      b->t[2] = pw;
+      break;
+    }
     default:
       break;
   }
@@ -238,6 +339,7 @@ void fe_reset(FeState* s) {
   s->w_prev = 0.0f;
   s->out = 0.0f;
   s->fresh = 1;
+  for (int i = 0; i < FE_HARMONICS; i++) s->amp[i] = 0.0f;
 }
 
 float fe_tick(FeState* s, const FeBlock* b, int engine, float pinc) {
@@ -270,6 +372,12 @@ float fe_tick(FeState* s, const FeBlock* b, int engine, float pinc) {
       s->out += (slope - s->out) * b->wave_lp;
       return s->out;
     }
+    case FE_HARM:
+      s->ph[0] = wrap(s->ph[0] + pinc);
+      return harm_value(b, s, s->ph[0], fabsf(pinc));
+    case FE_PD:
+      s->ph[0] = wrap(s->ph[0] + pinc);
+      return pd_value(b, s, s->ph[0], fabsf(pinc));
     default:
       return 0.0f;
   }
@@ -314,6 +422,18 @@ float fe_sync(FeState* s, const FeBlock* b, int engine, float pinc, float t, flo
       *half = 0.0f;
       return s->out;
     }
+    case FE_HARM:
+      before = harm_value(b, s, wrap(s->ph[0] + pinc * late), 0.0f);
+      at0 = harm_value(b, s, 0.0f, 0.0f);
+      s->ph[0] = wrap(pinc * t);
+      y = harm_value(b, s, s->ph[0], fabsf(pinc));
+      break;
+    case FE_PD:
+      before = pd_value(b, s, wrap(s->ph[0] + pinc * late), 0.0f);
+      at0 = pd_value(b, s, 0.0f, 0.0f);
+      s->ph[0] = wrap(pinc * t);
+      y = pd_value(b, s, s->ph[0], fabsf(pinc));
+      break;
     default:
       break;
   }

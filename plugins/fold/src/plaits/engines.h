@@ -1,7 +1,8 @@
 /* Copyright 2016 Emilie Gillet; adapted for Eka Fold, 2026. MIT license: see THIRD_PARTY.md.
  *
- * The C interface of the three Principal engines of Eka Fold (VA, FM2, Wave), derived from the virtual
- * analog, 2-operator FM and wavetable engines of github.com/pichenettes/eurorack (plaits/dsp/engine). The
+ * The C interface of the Principal engines of Eka Fold (VA, FM2, Wave, Harm, PD), derived from the virtual
+ * analog, 2-operator FM, wavetable and additive engines of github.com/pichenettes/eurorack (plaits/dsp/engine)
+ * and its phase distortion engine (plaits/dsp/engine2). The
  * C++ code (engines.cc) is built with g++ -fno-exceptions -fno-rtti, without the STL; fold_core.c calls only
  * what is here.
  *
@@ -17,6 +18,10 @@
  *         into itself).
  *   Wave: 4 banks of 8 x 8 waves. Harmonics: the bank (its upper half steps through them without
  *         blending), Color: the column, Morph: the row.
+ *   Harm: 24 sine harmonics (additive). Harmonics: the bumps in the spectrum, Color: its centre, Morph: its
+ *         slope (narrow .. wide).
+ *   PD:   phase distortion (as the Casio CZ): a sine read through a phase bent by a skewed triangle hard-synced to
+ *         it. Harmonics: the triangle's ratio (quantized as FM2), Color: the amount, Morph: the skew.
  * Every engine gives -1..1. */
 #ifndef FOLD_ENGINES_H
 #define FOLD_ENGINES_H
@@ -27,9 +32,10 @@
 extern "C" {
 #endif
 
-enum { FE_VA, FE_FM2, FE_WAVE, FE_NENGINES };
+enum { FE_VA, FE_FM2, FE_WAVE, FE_HARM, FE_PD, FE_NENGINES };
 
 #define FE_NPARAMS 6
+#define FE_HARMONICS 24
 #define FE_FM_QUANTIZER_SIZE 130
 #define FE_WAVE_LEN 128
 #define FE_WAVE_STRIDE (FE_WAVE_LEN + 4)
@@ -47,6 +53,7 @@ typedef struct {
   float w_prev;                   /* Wave: the integral at the last phase */
   float out;                      /* Wave: the last output (low-passed slope) */
   int fresh;                      /* the parameters jump to their targets on the first sample */
+  float amp[FE_HARMONICS];        /* Harm: the harmonics' amplitudes, gliding (in fe_block) */
 } FeState;
 
 /* What one voice's engine needs for a block of samples: the knobs decoded. */
@@ -58,10 +65,14 @@ typedef struct {
   float fb_coef;                  /* FM2: the feedback low-pass, per sample */
   float wave_lp;                  /* Wave: the slope low-pass, per sample */
   float wave_gain;                /* Wave: 1 / (128 x 1024 x the increment), without the increment */
+  float amp[FE_HARMONICS];        /* Harm: the amplitudes for this block, normalized, with the top roll-off */
+  float top;                      /* Harm: the highest frequency kept, cycles per sample (24 kHz) */
 } FeBlock;
 
-/* Decode the knobs (0..1) for a voice at hz, rendered at sr. */
-void fe_block(FeBlock* b, int engine, float harmonics, float color, float morph, float hz, float sr,
+/* Decode the knobs (0..1) for a voice at hz, rendered at sr; called every FE_BLOCK_SAMPLES or so (Harm glides its
+ * amplitudes in s here). */
+#define FE_BLOCK_SAMPLES 32
+void fe_block(FeBlock* b, FeState* s, int engine, float harmonics, float color, float morph, float hz, float sr,
               const float* sine, int sine_n);
 /* Start from phase 0 (a new note). */
 void fe_reset(FeState* s);

@@ -948,13 +948,17 @@ static void test_engine_pitch(void) {
   /* each engine at a harmonic setting: in tune (the power on the harmonics of the note) and at a sane level */
   const struct { int src; float h, c, m; } k[] = {
     { FC_SRC_VA, 0.5f, VA_SAW, VA_SAW }, { FC_SRC_VA, 0.5f, 0.0f, 0.95f },
-    { FC_SRC_FM2, FM2_RATIO1, 0.6f, 0.5f }, { FC_SRC_WAVE, 0.5f, 0.5f, 0.5f }, { FC_SRC_WAVE, 0.1f, 0.9f, 0.3f } };
+    { FC_SRC_FM2, FM2_RATIO1, 0.6f, 0.5f }, { FC_SRC_WAVE, 0.5f, 0.5f, 0.5f }, { FC_SRC_WAVE, 0.1f, 0.9f, 0.3f },
+    { FC_SRC_HARM, 0.3f, 0.3f, 0.6f }, { FC_SRC_HARM, 0.7f, 0.8f, 0.9f },
+    { FC_SRC_PD, FM2_RATIO1, 0.5f, 0.5f }, { FC_SRC_PD, 0.6f, 0.5f, 0.7f } };
   const int notes[] = { 45, 69, 93 };
   for (unsigned i = 0; i < sizeof k / sizeof k[0]; i++)
     for (int n = 0; n < 3; n++) {
       /* a bright wave has most of its 64 harmonics above the voices' Nyquist at A6: it loses level and aliases
        * (as in the original engine, which runs at 48 kHz); checked up to A4 */
       if (k[i].src == FC_SRC_WAVE && k[i].h < 0.2f && notes[n] > 69) continue;
+      /* Harm centred on high harmonics: at A6 they are above 24 kHz, left out (the original too) */
+      if (k[i].src == FC_SRC_HARM && k[i].c > 0.6f && notes[n] > 69) continue;
       play_source(k[i].src, k[i].h, k[i].c, k[i].m, notes[n]);
       const double f0 = 440.0 * pow(2.0, (notes[n] - 69) / 12.0);
       const double share = harmonic_share(f0);
@@ -1001,33 +1005,58 @@ static void test_engine_knobs(void) {
     printf("Wave: %s moves a harmonic by %.1f dB\n", k == 0 ? "Color" : k == 1 ? "Morph" : "Harmonics", d);
     CHECK(d > 6.0);
   }
+  /* Harm: Color moves the centre of the spectrum (low: h1 strongest; high: h12 above h1); Morph widens it
+   * (more harmonics within -40 dB of the strongest) */
+  play_source(FC_SRC_HARM, 0.0f, 0.0f, 0.5f, 45);
+  const double lo1 = harm(110.0, 1), lo12 = harm(110.0, 12);
+  play_source(FC_SRC_HARM, 0.0f, 0.5f, 0.5f, 45);
+  const double hi1 = harm(110.0, 1), hi12 = harm(110.0, 12);
+  int narrow = 0, wide = 0;
+  for (int w = 0; w < 2; w++) {
+    play_source(FC_SRC_HARM, 0.0f, 0.4f, w ? 0.2f : 0.9f, 45);
+    double top = 0, a[24];
+    for (int i = 0; i < 24; i++) { a[i] = harm(110.0, i + 1); top = fmax(top, a[i]); }
+    for (int i = 0; i < 24; i++) {
+      if (a[i] > 0.01 * top) { if (w) wide++; else narrow++; }
+    }
+  }
+  printf("Harm: Color 0 h12 %.1f dB below h1; Color 50 %% h12 %.1f dB above h1; Morph 90 / 20 %%: %d / %d harmonics\n",
+         db(lo1 / lo12), db(hi12 / hi1), narrow, wide);
+  CHECK(lo1 > 100 * lo12 && hi12 > hi1 && wide > narrow);
+  /* PD: Color 0 with the skew at 50 % = a sine; Color 70 % = harmonics */
+  play_source(FC_SRC_PD, FM2_RATIO1, 0.0f, 0.0f, 57);
+  const double pd0 = fmax(harm(f0, 2), harm(f0, 3)) / harm(f0, 1);
+  play_source(FC_SRC_PD, FM2_RATIO1, 0.7f, 0.0f, 57);
+  const double pd7 = fmax(harm(f0, 2), harm(f0, 3)) / harm(f0, 1);
+  printf("PD ratio 1: h2/h3 at Color 0 %.1f dB, at 70 %% %.1f dB\n", db(pd0), db(pd7));
+  CHECK(db(pd0) < -60 && db(pd7) > -20);
 }
 
 static void test_source_switch(void) {
-  /* a held note through Sine -> VA -> FM2 -> Wave -> Sine: a crossfade, no click, the new source plays */
+  /* a held note through Sine -> VA -> FM2 -> Wave -> Harm -> PD -> Sine: a crossfade, no click, the new source plays */
   reset(SR);
   FcParams p;
   base_params(&p);
   p.color = 0.3f;                                   /* VA: soft shapes; FM2: some index */
   fc_set_params(&core, &p);
   fc_note_on(&core, 57, 127);
-  const int seq[] = { FC_SRC_VA, FC_SRC_FM2, FC_SRC_WAVE, FC_SRC_SINE };
-  const uint32_t q = SR / 4;
+  const int seq[] = { FC_SRC_VA, FC_SRC_FM2, FC_SRC_WAVE, FC_SRC_HARM, FC_SRC_PD, FC_SRC_SINE };
+  const uint32_t q = SR / 8;
   render(&core, 0, q);
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 6; i++) {
     p.source = seq[i];
     fc_set_params(&core, &p);
     render(&core, (i + 1) * q, q);
     CHECK(core.v[0].src == seq[i] && core.v[0].xf == 1.0f);
   }
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 6; i++) {
     const uint32_t at = (i + 1) * q;
     const float steady = fmaxf(max_step(L, at - SR / 20, at), max_step(L, at + SR / 20, at + SR / 10));
     const float sw = max_step(L, at, at + SR / 50);
     printf("source switch to %d: max step %.4f (steady %.4f)\n", seq[i], sw, steady);
     CHECK(sw <= 1.2f * steady + 1e-4f);
   }
-  CHECK(all_finite(L, 5 * q));
+  CHECK(all_finite(L, 7 * q));
 }
 
 static void test_engine_sync(void) {

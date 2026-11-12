@@ -1,5 +1,11 @@
 # Changelog
 
+## Next
+
+- Two more Principal sources: **Harm** (additive, 24 harmonics: Harmonics = bumps, Color = centre, Morph = slope)
+  and **PD** (phase distortion: Harmonics = ratio, Color = amount, Morph = skew; held under 18 kHz).
+- Presets Pad - Organ, Bass - PD, Lead - Harm Fold (28 in all).
+
 ## 0.7 (2026-11-12)
 
 First version (LV2 version 0.7: lv2:minorVersion 0, lv2:microVersion 7).

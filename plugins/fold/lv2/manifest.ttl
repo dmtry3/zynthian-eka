@@ -104,6 +104,12 @@
     rdfs:label "Pad - Soft Choir" ;
     rdfs:seeAlso <presets.ttl> .
 
+<http://dmtry3.github.io/zynthian-eka/fold#preset_harm_organ>
+    a pset:Preset ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
+    rdfs:label "Pad - Organ" ;
+    rdfs:seeAlso <presets.ttl> .
+
 <http://dmtry3.github.io/zynthian-eka/fold#preset_west_coast_drone>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
@@ -134,6 +140,12 @@
     rdfs:label "Bass - Sync" ;
     rdfs:seeAlso <presets.ttl> .
 
+<http://dmtry3.github.io/zynthian-eka/fold#preset_pd_bass>
+    a pset:Preset ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
+    rdfs:label "Bass - PD" ;
+    rdfs:seeAlso <presets.ttl> .
+
 <http://dmtry3.github.io/zynthian-eka/fold#preset_glide_lead>
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
@@ -144,6 +156,12 @@
     a pset:Preset ;
     lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
     rdfs:label "Lead - Sync" ;
+    rdfs:seeAlso <presets.ttl> .
+
+<http://dmtry3.github.io/zynthian-eka/fold#preset_harm_lead>
+    a pset:Preset ;
+    lv2:appliesTo <http://dmtry3.github.io/zynthian-eka/fold> ;
+    rdfs:label "Lead - Harm Fold" ;
     rdfs:seeAlso <presets.ttl> .
 
 <http://dmtry3.github.io/zynthian-eka/fold#preset_echo_plucks>

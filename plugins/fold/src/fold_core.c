@@ -617,14 +617,15 @@ static void voice_source(const FoldCore* c, FcVoice* v) {
 }
 
 /* The engine blocks of a voice for the coming samples (its Source and, while it fades, the old one). */
-static void voice_blocks(const FoldCore* c, const FcRate* r, const FcVoice* v, float inc, FeBlock* blk) {
+static void voice_blocks(const FoldCore* c, const FcRate* r, FcVoice* v, float inc, FeBlock* blk) {
   const float hz = inc * r->sr;
   const float h = clampf(c->harm_t + v->md[FC_MD_HARM], 0.0f, 1.0f);
   const float co = clampf(c->color_t + v->md[FC_MD_COLOR], 0.0f, 1.0f);
   const float mo = clampf(c->morph_t + v->md[FC_MD_MORPH], 0.0f, 1.0f);
-  if (v->src != FC_SRC_SINE) fe_block(&blk[0], v->src - 1, h, co, mo, hz, r->sr, c->table, FC_SINE_N);
+  if (v->src != FC_SRC_SINE)
+    fe_block(&blk[0], &v->fe[v->src - 1], v->src - 1, h, co, mo, hz, r->sr, c->table, FC_SINE_N);
   if (v->xf < 1.0f && v->src_prev != FC_SRC_SINE)
-    fe_block(&blk[1], v->src_prev - 1, h, co, mo, hz, r->sr, c->table, FC_SINE_N);
+    fe_block(&blk[1], &v->fe[v->src_prev - 1], v->src_prev - 1, h, co, mo, hz, r->sr, c->table, FC_SINE_N);
 }
 
 /* Delay of the EQ at w radians per sample, in samples: Tuned takes it off the line. */

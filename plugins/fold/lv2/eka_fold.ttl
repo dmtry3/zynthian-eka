@@ -930,7 +930,7 @@
     doap:name "Eka Fold" ;
     doap:license <http://opensource.org/licenses/GPL-3.0> ;
     lv2:minorVersion 0 ;
-    lv2:microVersion 7 ;
+    lv2:microVersion 8 ;
     lv2:requiredFeature urid:map ;
     lv2:optionalFeature lv2:hardRTCapable ;
     lv2:extensionData state:interface ;
@@ -948,7 +948,7 @@
         <http://dmtry3.github.io/zynthian-eka/fold#m_at_pitch> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_harmonics> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_color> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_morph> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_index> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_order> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_symmetry> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_timbre> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_lpg> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_dtime> , <http://dmtry3.github.io/zynthian-eka/fold#m_at_dfb> ;
     # Control input ports MUST be indices 0..N-1 (before atom and audio ports): Zynthian numbers LV2 parameters
     # from len(control ports)+1 and would overwrite a control port with a higher index.
-    # Source: Sine or one of the engines VA, FM2, Wave; Harmonics, Color, Morph: their knobs (TZ 4.1; Color is
+    # Source: Sine or one of the engines VA, FM2, Wave, Harm, PD; Harmonics, Color, Morph: their knobs (TZ 4.1; Color is
     # what the engines call Timbre: Timbre here is the shaper depth).
     # Outputs for the widget: note1..8 = MIDI note of each sounding voice, -1 = idle; out_peak = output peak, dB;
     # mod_phase = Mod OSC phase 0..1 of the newest voice, -1 = none; gate_level = its vactrol state 0..1;
@@ -967,9 +967,9 @@
     [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 0 ; lv2:symbol "source" ; lv2:name "Source" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3 ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 5 ;
         lv2:portProperty lv2:integer , lv2:enumeration ;
-        lv2:scalePoint [ rdfs:label "Sine" ; rdf:value 0 ] , [ rdfs:label "VA" ; rdf:value 1 ] , [ rdfs:label "FM2" ; rdf:value 2 ] , [ rdfs:label "Wave" ; rdf:value 3 ] ;
+        lv2:scalePoint [ rdfs:label "Sine" ; rdf:value 0 ] , [ rdfs:label "VA" ; rdf:value 1 ] , [ rdfs:label "FM2" ; rdf:value 2 ] , [ rdfs:label "Wave" ; rdf:value 3 ] , [ rdfs:label "Harm" ; rdf:value 4 ] , [ rdfs:label "PD" ; rdf:value 5 ] ;
         lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/fold#g_osc> ;
     ] ,
     [

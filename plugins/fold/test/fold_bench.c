@@ -71,6 +71,8 @@ int main(void) {
   bench("VA, FM+AM+Sync, folder", FC_SRC_VA, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
   bench("FM2, FM+AM+Sync, folder", FC_SRC_FM2, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
   bench("Wave, FM+AM+Sync, folder", FC_SRC_WAVE, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  bench("Harm, FM+AM+Sync, folder", FC_SRC_HARM, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
+  bench("PD, FM+AM+Sync, folder", FC_SRC_PD, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);
   nvoices = 8;                                       /* stage 5b: up to 8 voices */
   full_matrix = 1;
   bench("8 voices: VA, FM+AM+Sync, folder, all cells", FC_SRC_VA, FC_MOD_SAW, 0.7f, 1, 1, 1, 0.7f, 0.0f);

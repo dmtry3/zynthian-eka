@@ -108,7 +108,8 @@ MOD_SEMIS = 12.0                 # FC_MOD_SEMIS: Pitch 100 % = 12 semitones
 MOD_POS = (77, 171, 247)         # positive cells: blue (as in Eka Mist)
 MOD_NEG = (255, 146, 43)         # negative cells: orange
 CELL_BG = (34, 34, 34)
-SOURCES = ["Sine", "VA", "FM2", "Wave"]   # Source tiles: FC_SRC_* of fold_core.h, the scale points of Source
+SOURCES = ["Sine", "VA", "FM2", "Wave", "Harm", "PD"]   # Source tiles: FC_SRC_* of fold_core.h, Source's scale points
+HARMONICS = 24                   # FE_HARMONICS
 VA_INTERVALS = (0.0, 7.01, 12.01, 19.01, 24.01)   # src/plaits/engines.cc
 WAVE_LEN = 128
 WAVE_STRIDE = 132
@@ -497,6 +498,58 @@ def wave_value(waves, coords, ph):
     return out / 1024.0
 
 
+def harm_amps(h, c, m, hz=0.0):
+    """Harm: the amplitudes of the 24 harmonics (src/plaits/engines.cc, settled: no glide), normalized, with the
+    roll-off towards 24 kHz for a note at hz (0 = none)."""
+    raw_slope = (1.0 - 0.6 * h) * m
+    slope = 0.01 + 1.99 * raw_slope ** 3
+    bumps = 16.0 * h * h
+    n = HARMONICS - 1.0
+    margin = (1.0 / slope - 1.0) / (1.0 + bumps)
+    center = c * (n + margin) - 0.5 * margin
+    gains = []
+    for i in range(HARMONICS):
+        order = abs(i - center) * slope
+        g = 1.0 - order
+        g = (g + abs(g)) ** 2
+        g *= 1.0 + math.sin(2.0 * math.pi * (0.25 + order * bumps))
+        gains.append((g * g) ** 2)
+    total = sum(gains) + 0.001
+    return [g / total * (1.0 - 2.0 * min(0.5, hz * (i + 1) / 48000.0)) for i, g in enumerate(gains)]
+
+
+def harm_value(amps, ph, dt=0.0, top_inc=0.5):
+    """sum amps[n] T_(n+1)(sin 2 pi ph), the harmonics below top_inc (cycles per sample) for the increment dt"""
+    x = math.sin(2.0 * math.pi * ph)
+    top = HARMONICS if dt <= 1e-9 else min(HARMONICS, int(top_inc / dt))
+    prev, cur, total = 1.0, x, 0.0
+    for i in range(top):
+        total += amps[i] * cur
+        prev, cur = cur, 2.0 * x * cur - prev
+    return total
+
+
+def pd_params(h, c, m, fmq, hz=C4_HZ):
+    """PD: (ratio, amount, skew) as src/plaits/engines.cc"""
+    ratio = 2.0 ** (fm_semis(h, fmq) / 12.0)
+    mf = _clamp(hz * ratio / 96000.0, 0.0, 0.25)
+    pw = 0.5 + m * 0.49
+    amount = 8.0 * c * c * (1.0 - mf * 3.8)
+    steep = ratio * (1.0 / (1.0 - pw) if pw > 0.5 else 1.0 / pw)       # held under 18 kHz, as the engine
+    most = (18000.0 / max(hz, 1.0) - (1.0 + 6.0 * abs(pw - 0.5))) / steep
+    return ratio, min(amount, max(most, 0.0)), pw
+
+
+def pd_value(params, ph):
+    """PD at the master phase ph 0..1 (without the band-limiting)"""
+    ratio, amount, pw = params
+    sl = (ratio * ph) % 1.0
+    tri = sl / pw if sl < pw else 1.0 - (sl - pw) / (1.0 - pw)
+    w = 4.0 * (1.0 - ph) * ph
+    phasor = ph + (ph ** 4 - ph) * abs(pw - 0.5) * 2.0
+    return math.sin(2.0 * math.pi * (phasor + amount * tri * w * (2.0 - w) + 0.25))
+
+
 def principal_values(source, h, c, m, n, periods=2.0):
     """The Principal, n + 1 values over `periods` periods, for Source and its knobs 0..1."""
     tables = engine_tables()
@@ -524,6 +577,12 @@ def principal_values(source, h, c, m, n, periods=2.0):
     if source == 3 and tables:
         coords = wave_coords(h, c, m)
         return [wave_value(tables[0], coords, periods * i / n) for i in range(n + 1)]
+    if source == 4:
+        amps = harm_amps(h, c, m)
+        return [harm_value(amps, (periods * i / n) % 1.0) for i in range(n + 1)]
+    if source == 5 and tables:
+        params = pd_params(h, c, m, tables[1])
+        return [pd_value(params, (periods * i / n) % 1.0) for i in range(n + 1)]
     return [math.sin(2.0 * math.pi * periods * i / n) for i in range(n + 1)]
 
 
@@ -541,6 +600,14 @@ def source_text(source, h, c, m):
         zz = int(z)
         bank = (7 - zz if zz >= 4 else zz) + 1
         return "bank %d%s   column %.1f   row %.1f" % (bank, " stepped" if z >= 4.0 else "", x + 1, y + 1)
+    if source == 4:
+        amps = harm_amps(h, c, m)
+        top = max(range(HARMONICS), key=lambda i: amps[i]) + 1
+        used = sum(1 for a in amps if a > 0.01 * max(amps))
+        return "strongest h%d   %d harmonics   bumps %.0f" % (top, used, 16.0 * h * h)
+    if source == 5 and tables:
+        ratio, amount, pw = pd_params(h, c, m, tables[1])
+        return "ratio %.2f   amount %.2f   skew %d%%" % (ratio, amount, round(pw * 100))
     return "Harmonics, Color, Morph: not used by Sine"
 
 
@@ -1104,26 +1171,48 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         self.tile_boxes = []
         self.value_boxes = []
         x0, y0, x1, y1 = box
-        fs = self._font_size()
-        try:
-            bw = tkinter.font.Font(family=zynthian_gui_config.font_family, size=fs).measure("Fine +100") + fs
-        except Exception:
-            bw = 9 * fs
-        tw = min((x1 - x0 - 2 * bw - 8) / len(SOURCES), 140)
+        # the largest font in which the six tiles and the two boxes fit side by side; on a very narrow screen the
+        # boxes say only P and F
+        fonts = self.__dict__.setdefault("fit_fonts", {})
+        fam = zynthian_gui_config.font_family
+        key = (x1 - x0, self._font_size())
+        fit = self.__dict__.setdefault("tile_fit", {}).get(key)
+        for short in (() if fit else (False, True)):
+            for fs in range(self._font_size(), 6, -1):
+                try:
+                    if fs not in fonts:
+                        fonts[fs] = tkinter.font.Font(family=fam, size=fs)
+                    bw = fonts[fs].measure("F +100" if short else "Fine +100") + fs
+                    need = max(fonts[fs].measure(n) for n in SOURCES) + 4
+                except Exception:
+                    bw, need = 9 * fs, 5 * fs
+                tw = min((x1 - x0 - 2 * bw - 8) / len(SOURCES), 140)
+                last = (short, fs, bw, tw)
+                if tw - 4 >= need:
+                    fit = last
+                    break
+            if fit:
+                break
+        if not fit:
+            fit = last                                    # the smallest: short labels, 7 pt
+        self.tile_fit[key] = fit
+        short, fs, bw, tw = fit
+        font = (fam, fs)
         for i, name in enumerate(SOURCES):
             bx = x0 + i * tw
             on = i == source
             c.create_rectangle(bx, y0, bx + tw - 4, y1, outline=TILE_ON, fill=(TILE_ON if on else TILE_OFF),
                                tags="tiles")
-            c.create_text(bx + (tw - 4) / 2, (y0 + y1) / 2, text=name, font=self._font(),
+            c.create_text(bx + (tw - 4) / 2, (y0 + y1) / 2, text=name, font=font,
                           fill=("#000000" if on else zynthian_gui_config.color_tx), tags="tiles")
             self.tile_boxes.append((bx, y0, bx + tw - 4, y1, i))
-        for k, (sym, text, lo, hi, px) in enumerate((("pitch", "Pitch %+d" % pitch, -24, 24, PITCH_DRAG_PX),
-                                                    ("fine", "Fine %+d" % fine, -100, 100, DRAG_PX))):
+        names = ("P", "F") if short else ("Pitch", "Fine")
+        for k, (sym, text, lo, hi, px) in enumerate((("pitch", "%s %+d" % (names[0], pitch), -24, 24, PITCH_DRAG_PX),
+                                                    ("fine", "%s %+d" % (names[1], fine), -100, 100, DRAG_PX))):
             bx1 = x1 - (1 - k) * (bw + 4)
             bx0 = bx1 - bw
             c.create_rectangle(bx0, y0, bx1, y1, outline=ROUTE_OFF, tags="tiles")
-            c.create_text((bx0 + bx1) / 2, (y0 + y1) / 2, text=text, font=self._font(),
+            c.create_text((bx0 + bx1) / 2, (y0 + y1) / 2, text=text, font=font,
                           fill=zynthian_gui_config.color_tx, tags="tiles")
             self.value_boxes.append((bx0, y0, bx1, y1, sym, lo, hi, px))
 

@@ -211,7 +211,8 @@ def main():
     check("tabs Osc, Mod, Fold, Gate, Env, Delay, Play, Matrix drawn", texts("tabs") == [
         "Osc", "Mod", "Fold", "Gate", "Env", "Delay", "Play", "Matrix"])
     check("page title drawn", texts("title") == ["Osc"])
-    check("Source tiles, Pitch and Fine", texts("tiles") == ["Sine", "VA", "FM2", "Wave", "Pitch +0", "Fine +0"])
+    check("Source tiles, Pitch and Fine", texts("tiles") == ["Sine", "VA", "FM2", "Wave", "Harm", "PD", "Pitch +0",
+                                                             "Fine +0"])
     lines = [i for i in c.find_withtag("wave") if c.type(i) == "line" and len(c.coords(i)) > 8]
     check("waveform drawn", len(lines) == 1)
     if lines:
@@ -344,21 +345,24 @@ def main():
         F = ctypes.c_float
 
         class FeState(ctypes.Structure):
-            _fields_ = [("ph", F * 2), ("p", F * 6), ("fb", F), ("w_prev", F), ("out", F), ("fresh", ctypes.c_int)]
+            _fields_ = [("ph", F * 2), ("p", F * 6), ("fb", F), ("w_prev", F), ("out", F), ("fresh", ctypes.c_int),
+                        ("amp", F * 24)]
 
         class FeBlock(ctypes.Structure):
             _fields_ = [("sine", ctypes.POINTER(F)), ("sine_n", ctypes.c_int), ("t", F * 6), ("glide", F),
-                        ("fb_coef", F), ("wave_lp", F), ("wave_gain", F)]
+                        ("fb_coef", F), ("wave_lp", F), ("wave_gain", F), ("amp", F * 24)]
         lib.fe_tick.restype = F
         lib.fe_tick.argtypes = [ctypes.POINTER(FeState), ctypes.POINTER(FeBlock), ctypes.c_int, F]
-        lib.fe_block.argtypes = [ctypes.POINTER(FeBlock), ctypes.c_int, F, F, F, F, F, ctypes.POINTER(F), ctypes.c_int]
+        lib.fe_block.argtypes = [ctypes.POINTER(FeBlock), ctypes.POINTER(FeState), ctypes.c_int, F, F, F, F, F,
+                                 ctypes.POINTER(F), ctypes.c_int]
         sine_n = 2048
         table = (F * (sine_n + 1))(*[math.sin(2 * math.pi * i / sine_n) for i in range(sine_n + 1)])
 
         def c_engine(engine, knobs, hz, steps, count):
             st, blk = FeState(), FeBlock()
             lib.fe_reset(ctypes.byref(st))
-            lib.fe_block(ctypes.byref(blk), engine, knobs[0], knobs[1], knobs[2], hz, hz * steps, table, sine_n)
+            lib.fe_block(ctypes.byref(blk), ctypes.byref(st), engine, knobs[0], knobs[1], knobs[2], hz, hz * steps,
+                         table, sine_n)
             return [lib.fe_tick(ctypes.byref(st), ctypes.byref(blk), engine, 1.0 / steps) for _ in range(count)]
 
         for knobs in ((0.5, 1 / 3.0, 1 / 3.0), (0.622, 0.0, 0.8), (0.1, 0.95, 0.5)):
@@ -381,6 +385,20 @@ def main():
                       for j in range(8)) / 8 for k in range(128, 256)]   # item k: phases k / 128 .. (k + 1) / 128
             err = max(abs(a / gain - b) for a, b in zip(cv, pv))
             check("Wave %s: the widget's wave is the engine's (max %.4f)" % (knobs, err), err < 0.01)
+            # Harm, 512 samples a period: the same sum (the roll-off and the harmonics kept for the increment)
+            cv = c_engine(3, knobs, mod.C4_HZ, 512, 1024)
+            amps = mod.harm_amps(*knobs, hz=mod.C4_HZ)
+            top = 24000.0 / (mod.C4_HZ * 512)
+            pv = [mod.harm_value(amps, ((k + 1) / 512.0) % 1.0, 1.0 / 512, top) for k in range(1024)]
+            err = max(abs(a - b) for a, b in zip(cv, pv))
+            check("Harm %s: the widget's wave is the engine's (max %.5f)" % (knobs, err), err < 1e-3)
+            # PD, 2048 samples a period: only the samples next to the triangle's corners differ (polyBLAMP)
+            cv = c_engine(4, knobs, mod.C4_HZ, 2048, 4096)
+            params = mod.pd_params(*knobs, mod.engine_tables()[1])
+            pv = [mod.pd_value(params, ((k + 1) / 2048.0) % 1.0) for k in range(4096)]
+            err = sorted(abs(a - b) for a, b in zip(cv, pv))
+            check("PD %s: the widget's wave is the engine's (95 %% within %.4f)" % (knobs, err[int(0.95 * len(err))]),
+                  err[int(0.95 * len(err))] < 1e-3)
     else:
         print("Note: build_test/libengines.so not found (run scripts/test.sh), formulas not checked against C.")
 
@@ -913,7 +931,11 @@ def main():
         check("layout %s: tiles, wave, meter, info, notes do not overlap" % geo, ok)
         ok = wdg.tile_boxes[-1][2] < wdg.value_boxes[0][0] and wdg.value_boxes[0][2] < wdg.value_boxes[1][0] \
             and wdg.value_boxes[1][2] <= wdg.width and wdg.tile_boxes[0][2] - wdg.tile_boxes[0][0] > 20
-        check("layout %s: Source tiles, Pitch and Fine side by side" % geo, ok)
+        boxes = [b[:4] for b in wdg.tile_boxes] + [b[:4] for b in wdg.value_boxes]
+        labels = [i for i in c.find_withtag("tiles") if c.type(i) == "text"]
+        ok = ok and len(labels) == len(boxes) and all(
+            c.bbox(t)[0] >= b[0] and c.bbox(t)[2] <= b[2] for t, b in zip(labels, boxes))
+        check("layout %s: Source tiles, Pitch and Fine side by side, every label inside its box" % geo, ok)
         it = [i for i in c.find_withtag("info") if c.type(i) == "text"]
         check("layout %s: the knobs line fits" % geo, len(it) == 1 and c.bbox(it[0])[2] <= wdg.width)
         left, mid, right, bottom_y = wdg._mod_layout()

@@ -11,7 +11,7 @@ Used in `src/plaits/`:
 | File | What it takes | Changes |
 |---|---|---|
 | `src/plaits/tables.cc` | Two tables of `plaits/resources.cc`: the FM ratio quantizer and the integrated waves of the wavetable engine | None to the values; new names, C linkage |
-| `src/plaits/engines.cc` | The algorithms of `plaits/dsp/engine/virtual_analog_engine.cc` (variant 0), `fm_engine.cc`, `wavetable_engine.cc`, `plaits/dsp/oscillator/variable_shape_oscillator.h`, `wavetable_oscillator.h` | One sample at a time with a signed phase increment (through-zero FM) at any rate, external hard sync; VA band-limited by stateless polyBLEP / polyBLAMP; FM2 without 4x oversampling and the sub output; Wave from the slope of the integral between two phases |
+| `src/plaits/engines.cc` | The algorithms of `plaits/dsp/engine/virtual_analog_engine.cc` (variant 0), `fm_engine.cc`, `wavetable_engine.cc`, `additive_engine.cc`, `plaits/dsp/engine2/phase_distortion_engine.cc`, `plaits/dsp/oscillator/variable_shape_oscillator.h`, `wavetable_oscillator.h`, `harmonic_oscillator.h` | One sample at a time with a signed phase increment (through-zero FM) at any rate, external hard sync; VA band-limited by stateless polyBLEP / polyBLAMP; FM2 without 4x oversampling and the sub output; Wave from the slope of the integral between two phases; Harm (additive): the 24 integer harmonics only, as one Chebyshev sum of the sine of the phase, cut at 24 kHz, amplitudes gliding over 20 ms; PD: the synced triangle computed from the master phase, band-limited by polyBLAMP, the amount held under 18 kHz, no aux output |
 | `src/plaits/engines.h` | The C interface of the above | New |
 
 The build writes the two tables again into `build/eka-fold.lv2/engine_tables.bin` for the widget, which draws

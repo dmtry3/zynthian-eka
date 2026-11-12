@@ -35,7 +35,7 @@ def read_ttl():
 PORTS, PARAMS = read_ttl()
 
 # the knobs' units (fold_core.c)
-SINE_SRC, VA, FM2, WAVE = range(4)
+SINE_SRC, VA, FM2, WAVE, HARM, PD = range(6)
 TRI, SINE, SAW, SQUARE = range(4)
 FREE, KEY, RATIO = range(3)
 VCA, LP, COMBO = range(3)
@@ -167,6 +167,14 @@ PRESETS = [
       "gate_decay": decay(500), "fg1_rise": 600, "fg1_fall": 1500, "fg2_rise": 150, "fg2_fall": 150, "level": 70},
      {"fg2_mode": CYCLE, "m_fg2_pitch": 1, "m_wheel_timbre": 40}),
 
+    ("harm_organ", "Pad - Organ",
+     {"source": HARM, "harmonics": 0, "color": 25, "morph": 70, "gate_mode": LP, "gate_decay": decay(700),
+      "fg1_rise": 400, "fg1_fall": 1200, "fg2_rise": 2500, "fg2_fall": 2500, "mod_mode": FREE,
+      "mod_freq": free_hz(5.5), "delay_mode": FREE_DL, "delay_time": free_ms(450), "delay_fb": 25, "delay_mix": 20,
+      "level": 70},
+     {"route_fm": 0, "fg2_mode": CYCLE, "m_fg2_color": 25, "m_mod_pitch": 1, "m_wheel_harmonics": 50,
+      "delay_shaper": 0}),
+
     # drones: Cycle and long feedback
     ("west_coast_drone", "Drone - West Coast",
      {"mod_shape": TRI, "mod_freq": ratio(3 / 2), "mod_index": 30, "fg1_rise": 2000, "fg1_fall": 4000,
@@ -194,6 +202,11 @@ PRESETS = [
       "play_mode": MONO, "level": 100},
      {"route_fm": 0, "route_sync": 1, "pitch": 12, "fg2_mode": ONCE, "m_fg2_timbre": 40}),
 
+    ("pd_bass", "Bass - PD",
+     {"source": PD, "harmonics": FM2_RATIO1, "color": 45, "morph": 60, "gate_decay": decay(200), "fg1_rise": 1,
+      "fg1_fall": 300, "fg2_rise": 1, "fg2_fall": 250, "play_mode": MONO, "level": 100},
+     {"fg2_mode": ONCE, "m_fg2_color": 40, "m_vel_color": 20}),
+
     # leads
     ("glide_lead", "Lead - Glide",
      {"source": VA, "color": VA_SAW, "morph": VA_SAW, "mod_mode": FREE, "mod_freq": free_hz(5.5), "gate_mode": LP,
@@ -204,6 +217,12 @@ PRESETS = [
      {"source": WAVE, "harmonics": 30, "mod_freq": ratio(1 / 2), "gate_decay": decay(300), "fg1_rise": 3,
       "fg1_fall": 400, "fg2_rise": 1, "fg2_fall": 600, "play_mode": LEGATO, "glide": glide(60), "level": 100},
      {"route_fm": 0, "route_sync": 1, "pitch": 12, "fg2_mode": ONCE, "m_fg2_morph": 50}),
+
+    ("harm_lead", "Lead - Harm Fold",
+     {"source": HARM, "harmonics": 30, "color": 15, "morph": 40, "timbre": 45, "symmetry": 10, "gate_mode": LP,
+      "gate_res": 25, "gate_decay": decay(300), "fg1_rise": 5, "fg1_fall": 400, "fg2_rise": 600, "fg2_fall": 600,
+      "play_mode": LEGATO, "glide": glide(90), "level": 100},
+     {"fg2_mode": CYCLE, "m_fg2_timbre": 20, "m_wheel_color": 40, "m_at_timbre": 30}),
 
     # echoes and textures
     ("echo_plucks", "FX - Echo Plucks",

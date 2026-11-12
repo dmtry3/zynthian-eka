@@ -124,6 +124,11 @@ int main(void) {
     { "FM2 ratio 1, Color 50%, Sync 3/2", FM2_R1, 0.5f, 0.5f, 1.5f, 2, 0, FC_MOD_SINE, 0, 0, 0, 0, 1 },
     { "Wave middle", WAVE, 0.5f, 0.5f, 0.5f, 1, 1, 0, FC_MOD_SINE, 0, 0, 0, 0, 0 },
     { "Wave bright (H 10%, C 95%, M 50%)", WAVE, 0.1f, 0.95f, 0.5f, 1, 1, 0, FC_MOD_SINE, 0, 0, 0, 0, 0 },
+    { "Harm wide (H 30%, C 50%, M 20%)", FC_SRC_HARM, 0.3f, 0.5f, 0.2f, 1, 1, 0, FC_MOD_SINE, 0, 0, 0, 0, 0 },
+    { "Harm wide + folder 70%", FC_SRC_HARM, 0.3f, 0.5f, 0.2f, 1, 1, 0, FC_MOD_SINE, 0.7f, 0, 0, 0, 0 },
+    { "PD ratio 1, Color 50%", FC_SRC_PD, 30 / 128.0f, 0.5f, 0.5f, 1, 1, 0, FC_MOD_SINE, 0, 0, 0, 0, 0 },
+    { "PD ratio 2.75, Color 80%, skew 90%", FC_SRC_PD, 0.6f, 0.8f, 0.9f, 1, 1, 0, FC_MOD_SINE, 0, 0, 0, 0, 0 },
+    { "PD ratio 1, Color 50% + folder 70%", FC_SRC_PD, 30 / 128.0f, 0.5f, 0.5f, 1, 1, 0, FC_MOD_SINE, 0.7f, 0, 0, 0, 0 },
     { "Wave middle, Sync 3/2", WAVE, 0.5f, 0.5f, 0.5f, 1.5f, 2, 0, FC_MOD_SINE, 0, 0, 0, 0, 1 },
   };
   printf("Aliasing to 16 kHz, dB below the harmonics (voices at 2x, ADAA on the folder).\n"
