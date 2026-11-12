@@ -32,7 +32,7 @@ static void bench(const char* label, int source, int shape, float index, int fm,
   /* the defaults: FG1 Gate, the lopass gate in Combo (low-pass and level): the full voice */
   p.source = source;
   p.delay_mode = delay_mode; p.delay_fb = 0.9f; p.delay_mix = 0.5f; p.delay_shaper = 0.5f;
-  p.delay_eq_db = -0.5f; p.delay_time = delay_mode == FC_DL_FREE ? 80.0f : 50.0f;   /* Free: 250 ms */
+  p.delay_eq_db = -0.5f; p.delay_time = 50.0f;   /* Tuned: the note; Free: 250 ms */
   for (int s = 0; s < FC_NMSRC; s++)
     for (int d = 0; d < FC_NMDST; d++) p.matrix[s][d] = full_matrix ? 0.1f : 0.0f;
   p.mod_shape = shape; p.mod_index = index; p.route_fm = fm; p.route_am = am; p.route_sync = sync;

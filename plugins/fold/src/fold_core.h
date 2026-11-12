@@ -89,7 +89,7 @@ enum { FC_SRC_SINE, FC_SRC_VA, FC_SRC_FM2, FC_SRC_WAVE, FC_NSOURCES };
  * peaking EQ and a soft shaper, times Feedback (100 % = FC_DL_FB_MAX: a string still ends), back into the line; the
  * voice hears (1 - Mix) of the gate and Mix of the line. Modes: Off (no CPU), Tuned (the line is a period of the
  * note moved by Time, -24..+24 semitones: a string, Karplus-Strong), Free (Time FC_DL_MIN_MS..FC_DL_MAX_MS,
- * logarithmic: echoes). Tuned subtracts the delay of the EQ at the note's frequency, so it stays in tune. The EQ
+ * cubic: echoes). Tuned subtracts the delay of the EQ at the note's frequency, so it stays in tune. The EQ
  * acts on every pass: in Tuned a cut of 1 dB already damps the string (high notes pass hundreds of times a second;
  * a fixed damping low-pass was tried and dropped: at 10 kHz it killed a C8 string in 0.1 s).
  * Shaper: tanh(g x) / g with g = 1 + FC_DL_DRIVE x Shaper^2, blended in over the first quarter of the knob: slope 1
@@ -102,8 +102,9 @@ enum { FC_DL_OFF_MODE, FC_DL_TUNED, FC_DL_FREE, FC_NDL_MODES };
 #define FC_DL_TIME_MAX 100.0f
 #define FC_DL_SEMIS 24.0f
 #define FC_DL_MIN_MS 1.0f
-#define FC_DL_MAX_MS 1000.0f
-#define FC_DL_LEN 131072          /* samples per voice (power of two): 1.36 s at 2 x 48 kHz, 0.68 s at 2 x 96 kHz */
+#define FC_DL_MAX_MS 2000.0f      /* Free: FC_DL_MAX_MS x (Time / 100)^3, at least FC_DL_MIN_MS (a log scale was too
+                                     fine below 30 and too coarse above, 2026-11-12) */
+#define FC_DL_LEN 262144          /* samples per voice (power of two): 2.73 s at 2 x 48 kHz, 1.36 s at 2 x 96 kHz */
 #define FC_DL_FB_MAX 0.999f
 #define FC_DL_EQ_Q 0.7f
 #define FC_DL_EQ_MIN_HZ 100.0f    /* EQ Freq 0..100 % : 100 Hz .. 10 kHz, logarithmic */

@@ -79,7 +79,7 @@ MATRIX_TAB = 6
 DELAY_TAB = 5
 DL_MODES = ["Off", "Tuned", "Free"]           # FC_DL_* of fold_core.h, the Delay knob
 DL_SEMIS = 24.0                               # FC_DL_SEMIS, FC_DL_MIN_MS, FC_DL_MAX_MS, FC_DL_EQ_*, FC_DL_LIM
-DL_MIN_MS, DL_MAX_MS = 1.0, 1000.0
+DL_MIN_MS, DL_MAX_MS = 1.0, 2000.0          # Free: DL_MAX_MS x (Time / 100)^3
 DL_EQ_MIN_HZ, DL_EQ_MAX_HZ, DL_EQ_Q = 100.0, 10000.0, 0.7
 DL_LIM = 2.0
 DL_DRIVE = 9.0                                # FC_DL_DRIVE
@@ -552,7 +552,7 @@ def dl_semis(u):
 
 
 def dl_ms(u):
-    return DL_MIN_MS * (DL_MAX_MS / DL_MIN_MS) ** (_clamp(u, 0.0, 100.0) / 100.0)
+    return max(DL_MIN_MS, DL_MAX_MS * (_clamp(u, 0.0, 100.0) / 100.0) ** 3)
 
 
 def dl_eq_hz(u):
@@ -605,8 +605,7 @@ def cell_text(si, di, v):
     elif MATRIX_DSTS[di][0] == "lpg" and v:
         head += " (the gate %s)" % ("opens wider" if v > 0 else "closes")
     elif MATRIX_DSTS[di][0] == "dtime" and v:
-        k = (DL_MAX_MS / DL_MIN_MS) ** (v / 100.0)
-        head += " (Tuned %+.0f st, Free x%s)" % (2 * DL_SEMIS * v / 100.0, ("%.0f" % k) if k >= 10 else ("%.2f" % k))
+        head += " (Tuned %+.0f st at the top)" % (2 * DL_SEMIS * v / 100.0)
     return head
 
 

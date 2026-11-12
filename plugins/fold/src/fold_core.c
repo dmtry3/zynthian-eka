@@ -26,7 +26,9 @@ static float clampf(float v, float lo, float hi) { return v < lo ? lo : v > hi ?
 
 float fc_dl_semis(float u) { return (clampf(u, 0.0f, FC_DL_TIME_MAX) / FC_DL_TIME_MAX * 2.0f - 1.0f) * FC_DL_SEMIS; }
 float fc_dl_ms(float u) {
-  return FC_DL_MIN_MS * powf(FC_DL_MAX_MS / FC_DL_MIN_MS, clampf(u, 0.0f, FC_DL_TIME_MAX) / FC_DL_TIME_MAX);
+  const float x = clampf(u, 0.0f, FC_DL_TIME_MAX) / FC_DL_TIME_MAX;
+  const float ms = FC_DL_MAX_MS * x * x * x;
+  return ms > FC_DL_MIN_MS ? ms : FC_DL_MIN_MS;
 }
 float fc_dl_eq_hz(float u) { return FC_DL_EQ_MIN_HZ * powf(FC_DL_EQ_MAX_HZ / FC_DL_EQ_MIN_HZ, clampf(u, 0.0f, 1.0f)); }
 
@@ -59,7 +61,7 @@ void fc_default_params(FcParams* p) {
   p->level = 0.8f;
   memset(p->matrix, 0, sizeof p->matrix);
   p->delay_mode = FC_DL_OFF_MODE; /* the voice as before until the delay is turned on */
-  p->delay_time = 50.0f;          /* Tuned: the note itself; Free: 32 ms */
+  p->delay_time = 50.0f;          /* Tuned: the note itself; Free: 250 ms */
   p->delay_fb = 0.5f;
   p->delay_mix = 0.3f;
   p->delay_shaper = 0.3f;

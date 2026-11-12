@@ -954,7 +954,7 @@
     # fg1, fg2 = where its function generators are: 0..1 rising, 1.5 holding, 2..3 falling, 3 ended;
     # delay_level = the peak in its delay line (0 with the delay Off).
     # Delay: Off / Tuned / Free; Time 0..100 read by the mode (Tuned: -24..+24 semitones from the note; Free:
-    # 1 ms..1 s, logarithmic); Feedback -100..100 %; Mix: how much of the line the voice hears.
+    # 2 s x (Time / 100)^3, at least 1 ms); Feedback -100..100 %; Mix: how much of the line the voice hears.
     # Mod Freq: 0..100, read by Mod Mode (Free: 0.01 Hz..10 kHz, logarithmic; Keytrack: -48..+48 semitones;
     # Ratio: 25 ratios 1/8..16); the widget shows what it means.
     # Timbre: depth of the shapers (0 = the Principal passes); Order: Folder (0) .. Saw (50) .. M (100);

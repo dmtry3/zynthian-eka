@@ -791,7 +791,8 @@ def main():
           abs(mod.dl_shape(3.0, 1.0) - 0.1) < 1e-9 and abs(mod.dl_shape(0.001, 1.0) - 0.001) < 1e-5 and
           1.0 < mod.dl_shape(10, 0) <= 2.0)
     check("Delay Time read by the mode", abs(mod.dl_semis(50) ) < 1e-9 and abs(mod.dl_semis(100) - 24) < 1e-9 and
-          abs(mod.dl_ms(0) - 1) < 1e-9 and abs(mod.dl_ms(100) - 1000) < 1e-6 and abs(mod.dl_eq_hz(50) - 1000) < 1e-6)
+          abs(mod.dl_ms(0) - 1) < 1e-9 and abs(mod.dl_ms(100) - 2000) < 1e-6 and
+          abs(mod.dl_ms(50) - 250) < 1e-6 and abs(mod.dl_eq_hz(50) - 1000) < 1e-6)
     ctl.selected = []
     tx = (wdg.tab_boxes[5][0] + wdg.tab_boxes[5][1]) / 2
     wdg._on_press(Tap(tx, 5))
@@ -812,7 +813,7 @@ def main():
     proc.controllers_dict["delay_time"].value = 80.0
     wdg.dl_drawn = 0.0
     wdg.update()
-    check("Free: Time in ms", any(t.startswith("251 ms") for t in texts("delay")))
+    check("Free: Time in ms", any(t.startswith("1024 ms") for t in texts("delay")))
     bx = [b for b in wdg.dl_boxes if b[4] == "delay_eq_gain"][0]
     cx_, cy_ = (bx[0] + bx[2]) / 2, (bx[1] + bx[3]) / 2
     wdg.last_tap = (None, 0.0)

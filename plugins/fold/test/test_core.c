@@ -1246,6 +1246,7 @@ static void test_matrix_extremes(void) {
 }
 
 /* ---------- waveguide / delay (stage 5a) ---------- */
+static float free_time(float ms) { return 100.0f * cbrtf(ms / FC_DL_MAX_MS); }   /* Free: Time knob for ms */
 static void pluck_params(FcParams* p) {
   base_params(p);
   p->gate_mode = FC_GATE_COMBO; p->gate_decay = 0.1f;
@@ -1328,7 +1329,7 @@ static void test_delay_free(void) {
     reset(SR);
     pluck_params(&p);
     p.delay_mode = FC_DL_FREE; p.delay_fb = 0.0f; p.delay_mix = k ? 1.0f : 0.0f;
-    p.delay_time = 100.0f * logf(100.0f) / logf(1000.0f);   /* 100 ms */
+    p.delay_time = free_time(100.0f);   /* 100 ms */
     fc_set_params(&core, &p);
     fc_note_on(&core, 69, 127);
     render(&core, 0, SR / 2);
@@ -1342,7 +1343,7 @@ static void test_delay_free(void) {
   reset(SR);
   pluck_params(&p);
   p.delay_mode = FC_DL_FREE; p.delay_fb = 0.5f; p.delay_mix = 1.0f;
-  p.delay_time = 100.0f * logf(100.0f) / logf(1000.0f);
+  p.delay_time = free_time(100.0f);
   fc_set_params(&core, &p);
   fc_note_on(&core, 69, 127);
   render(&core, 0, SR / 2);
@@ -1359,7 +1360,7 @@ static void test_delay_tail(void) {
   reset(SR);
   pluck_params(&p);
   p.delay_mode = FC_DL_FREE; p.delay_fb = 0.7f; p.delay_mix = 0.5f;
-  p.delay_time = 100.0f * logf(200.0f) / logf(1000.0f);   /* 200 ms */
+  p.delay_time = free_time(200.0f);   /* 200 ms */
   fc_set_params(&core, &p);
   fc_note_on(&core, 60, 127);
   fc_note_off(&core, 60);
@@ -1435,7 +1436,7 @@ static void test_delay_stable(void) {
       FcParams p;
       pluck_params(&p);
       p.delay_mode = m; p.delay_fb = 0.99f; p.delay_shaper = k / 4.0f; p.delay_mix = 0.5f;
-      p.delay_time = m == FC_DL_FREE ? 50.0f : 50.0f;   /* Free: 32 ms */
+      p.delay_time = m == FC_DL_FREE ? free_time(32.0f) : 50.0f;
       fc_set_params(&core, &p);
       fc_note_on(&core, 48, 127);
       render(&core, 0, SR / 2);
@@ -1456,7 +1457,7 @@ static void test_delay_shaper(void) {
     FcParams p;
     base_params(&p);
     p.delay_mode = FC_DL_FREE; p.delay_fb = 0.0f; p.delay_mix = 1.0f; p.delay_shaper = k / 2.0f;
-    p.delay_time = 100.0f * logf(50.0f) / logf(1000.0f);
+    p.delay_time = free_time(50.0f);
     fc_set_params(&core, &p);
     fc_note_on(&core, 57, 100);
     render(&core, 0, SR / 2);
@@ -1494,7 +1495,7 @@ static void test_delay_extremes(void) {
   fc_set_wheel(&core, 1.0f);
   fc_note_on(&core, 60, 127);
   render(&core, 0, 256);
-  CHECK(fabsf(core.v[0].dl_len_g - 2.0f * SR) < 1.0f && fabsf(core.v[0].dl_fb_g + 0.5f * FC_DL_FB_MAX) < 1e-6f);   /* 1 s at 2x */
+  CHECK(fabsf(core.v[0].dl_len_g - 4.0f * SR) < 1.0f && fabsf(core.v[0].dl_fb_g + 0.5f * FC_DL_FB_MAX) < 1e-6f);   /* 2 s at 2x */
 }
 
 int main(void) {
