@@ -19,6 +19,10 @@ gcc $OPT -Wall -Wextra $(pkg-config --cflags lv2) -o "$ROOT/build_test/test_plug
 cd "$ROOT/build_test"
 ./test_core
 ./test_plugin "$ROOT/build/eka-fold.lv2/eka_fold.so"
+# every factory preset loads and plays; renders in build_test/presets/ to listen to
+gcc $OPT -Wall -Wextra $(pkg-config --cflags lv2) -o "$ROOT/build_test/preset_check" "$ROOT/test/preset_check.c" -ldl -lm
+mkdir -p "$ROOT/build_test/presets"
+./preset_check "$ROOT/build/eka-fold.lv2/eka_fold.so" "$ROOT/build/eka-fold.lv2/presets.ttl" "$ROOT/build_test/presets"
 if command -v lv2ls >/dev/null; then
     LV2_PATH="$ROOT/build" lv2ls | grep -qx "http://dmtry3.github.io/zynthian-eka/fold" \
         && echo "PASS: lv2ls finds the plugin" || { echo "FAIL: lv2ls does not find the plugin"; exit 1; }

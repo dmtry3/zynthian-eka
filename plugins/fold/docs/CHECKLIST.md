@@ -2,6 +2,32 @@
 
 Отмечайте `[x]`, а проблемы записывайте под пунктом. Логи: `journalctl -u zynthian -f`.
 
+# Этап 5б, часть 2: заводские пресеты
+
+В WSL уже проверено тестами: 25 пресетов (банк Factory) загружаются в плагин как в Zynthian (порты из пресета,
+параметры через State) и звучат: нет тишины, NaN и клипа; громкость: пики −0,6…−14 дБ (одноголосые тише аккордов).
+Звучание послушать можно и в WSL: `build_test/presets/<имя>.wav` (аккорд или фраза, 5 с).
+
+## 1. Установка
+
+- [ ] `cd /root/zynthian-eka && git pull && cd plugins/fold && sudo make install && systemctl restart zynthian`
+- [ ] В меню пресетов Eka Fold есть банк Factory с 25 пресетами.
+
+## 2. Каждый пресет
+
+Отметить, что хорошо, а что переделать (громкость, характер, название):
+- [ ] Init ___
+- [ ] Удары: Bongo ___, Marimba ___, Woodblock ___, Low Tom ___
+- [ ] Струны: Pluck ___, Harp ___, Snap String ___, Koto Glide ___
+- [ ] Колокола: Glass Bell ___, Gong ___, Tubular ___
+- [ ] Пэды: Fold Pad ___, Wave Drift ___, Soft Choir ___
+- [ ] Дроны: West Coast Drone ___, Dark Hum ___
+- [ ] Басы: FM Bass ___, Fold Bass ___, Sync Bass ___
+- [ ] Лиды: Glide Lead ___, Sync Lead ___
+- [ ] Эхо и текстуры: Echo Plucks ___, Random Bloops ___, Metal Texture ___
+- [ ] Загрузить пресет, изменить ручку, загрузить другой и вернуться: значения пресета на месте (все ячейки матрицы).
+- [ ] Свой пресет: сохранить в новый банк, перезапустить Zynthian, загрузить.
+
 # Этап 5б, часть 1: 8 голосов, Play (Poly / Mono / Legato), Glide, Bend
 
 В WSL уже проверено тестами: Voices 1…8 — звучит столько нот; Voices 8 → 3 на ходу без щелчка; Mono — последняя

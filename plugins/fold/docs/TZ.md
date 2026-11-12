@@ -2,7 +2,7 @@
 
 Версия 0.12 · 2026-11-12 · черновик для обсуждения
 
-Изменения в 0.12: этап 5б, часть 1: до 8 голосов (по умолчанию 8), режимы Poly / Mono / Legato, Glide, Bend range; страница ручек и вкладка Play (§5, §12).
+Изменения в 0.12: этап 5б: 25 заводских пресетов (Init и 24 звука, `scripts/gen_presets.py`); часть 1: до 8 голосов (по умолчанию 8), режимы Poly / Mono / Legato, Glide, Bend range; страница ручек и вкладка Play (§5, §12).
 
 Изменения в 0.11: этап M5 разбит на 5а (delay, вкладка Delay), 5б (голоса, моно, пресеты), 5в (оптимизация); страница DELAY: Mode, Time, Feedback, Mix, а Shaper и EQ — в виджете; Time в Tuned — ±24 полутона от ноты; в матрице приёмники Delay Time и Delay Feedback (§4.5, §4.6, §5, §12).
 
@@ -135,6 +135,7 @@
 - MIDI: Note On/Off, velocity, pitch bend, mod wheel, CC-маппинг ключевых параметров, sustain.
 - Полифония с первой версии: режимы mono (legato/retrigger) и poly 4 / poly 8; цель — 4 голоса стабильно, 8 желательно. Число голосов ограничиваем параметром, чтобы можно было подобрать под CPU. Unison — после v1.
 - Пресеты: LV2-пресеты (.ttl) + набор из 20–30 стартовых звуков (удары-bongo, щипок, drone, bell, pad, FM-bass).
+- Сделано на этапе 5б: банк Factory, 25 пресетов (Init; удары Bongo, Marimba, Woodblock, Low Tom; струны Pluck, Harp, Snap String, Koto Glide; колокола Glass Bell, Gong, Tubular; пэды Fold Pad, Wave Drift, Soft Choir; дроны West Coast Drone, Dark Hum; басы FM Bass, Fold Bass, Sync Bass; лиды Glide Lead, Sync Lead; Echo Plucks, Random Bloops, Metal Texture). `lv2/presets.ttl` и `lv2/manifest.ttl` пишет `scripts/gen_presets.py` (порты, параметры и их пределы он берёт из `eka_fold.ttl`); `test/preset_check.c` проигрывает каждый пресет через плагин (тишина, NaN, клип — ошибка) и пишет wav в `build_test/presets/`. Струна в Tuned выше ноты звенит только на совпадающих гармониках удара: её возбуждают пилой или шумом, не квадратом.
 
 ### 5.1 Виджет (с первого этапа, на каждой вкладке)
 
