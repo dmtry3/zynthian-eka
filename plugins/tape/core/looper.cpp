@@ -1431,11 +1431,19 @@ void Looper::set_time(const TimeInfo& ti) {
   rolling_ = ti.rolling;
   if (rolling_) beats_ = ti.beats;  // сетка Zynthian; иначе продолжаем свой счёт
   // Транспорт пошёл или перескочил: лупы в Quantize встают в фазу с позицией Zynthian.
+  // Пуск или перескок на начало (такт 1, доля 1): лупы — с начала цикла, во взаимной фазе
+  // (решение пользователя 2026-11-12); с другого места — в фазе с позицией, как раньше.
+  const bool at_top = rolling_ && beats_ < 0.5;
   if (time_seen_ && pool_.ok()) {
-    if (started) transport_start();
-    else if (jumped)
+    if (started) {
+      if (at_top) rebase_pending_ = true;
+      transport_start();
+    } else if (jumped) {
+      if (at_top) session_rebase(0.0);
       for (int k = idx(0); k < idx(0) + ns_; ++k) resync(k);
-    else if (stopped_now) transport_stop();
+    } else if (stopped_now) {
+      transport_stop();
+    }
   }
   time_seen_ = true;
 }
@@ -1477,9 +1485,9 @@ void Looper::transport_stop() {
 // (записанные в Free — с начала цикла), остальные встают в фазу.
 void Looper::transport_start() {
   tstop_ = false;
-  if (rebase_pending_) {  // загруженная сессия: фаза от точки пуска
+  if (rebase_pending_) {  // загруженная сессия или пуск с начала: фаза от точки пуска (черта такта)
     rebase_pending_ = false;
-    session_rebase(beats_);
+    session_rebase(std::floor(beats_ / bpb_ + 1e-9) * bpb_);
   }
   for (int k = idx(0); k < idx(0) + ns_; ++k) {
     Track& t = tr_[k];
@@ -2056,14 +2064,18 @@ void Looper::process(const float* in_l, const float* in_r, float* out_l, float* 
   update_speeds(n);
   lat_ = (uint32_t)std::lround(std::fmin(100.0f, std::fmax(0.0f, set_.latency_ms)) * sr_ / 1000.0);
   float mbl = 0.0f, mbr = 0.0f;
-  // «конец цикла» для смены парта — по самой длинной играющей дорожке текущего парта
+  // «конец цикла» для смены парта — по самой длинной играющей дорожке текущего парта с Lock
+  // (они переходят в новый парт), без Lock — по самой длинной вообще (решение 2026-11-12)
   master_ = -1;
-  uint64_t longest = 0;
-  for (int k = idx(0); k < idx(0) + ns_; ++k) {
-    const Track& t = tr_[k];
-    if ((t.st == TState::Play || t.st == TState::Dub) && t.len > longest) {
-      longest = t.len;
-      master_ = k;
+  for (int pass = 0; pass < 2 && master_ < 0; ++pass) {
+    uint64_t longest = 0;
+    for (int k = idx(0); k < idx(0) + ns_; ++k) {
+      const Track& t = tr_[k];
+      if (pass == 0 && !t.locked) continue;
+      if ((t.st == TState::Play || t.st == TState::Dub) && t.len > longest) {
+        longest = t.len;
+        master_ = k;
+      }
     }
   }
   if (pend_part_ >= 0 && set_.part_q == 3 && master_ < 0) part_due_ = true;  // нечему доигрывать

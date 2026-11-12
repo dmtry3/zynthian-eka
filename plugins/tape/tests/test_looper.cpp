@@ -806,6 +806,65 @@ static void test_transport_stop_start() {
   s.wav("transport_stop_start");
 }
 
+// Пуск транспорта с начала (такт 1): луп на 2 такта, записанный со 2-го такта, играет с начала цикла
+// (раньше — с середины, в фазе со старой сеткой). Пуск с другого места — в фазе, как раньше.
+static void test_transport_top() {
+  const uint64_t BAR = 96000;
+  const double bpf = 120.0 / 60.0 / SR;
+  Sim s(64, true);
+  s.set.length[0] = 2;
+  s.apply();
+  s.in_l = sine(180.0, 0.4f);
+  s.run(BLOCK);
+  s.cmd(Cmd::Rec);  // запись с черты 2-го такта (доля 4)
+  s.run(BAR * 3 + BLOCK * 8);
+  s.in_l = [](uint64_t) { return 0.0f; };
+  CHECK(s.v().state == 3 && std::fabs(s.v().len_s - 4.0f) < 1e-3f);
+  s.run(BAR / 3);
+  auto stop_start = [&](double from) {
+    const double frozen = s.beats_now();
+    s.ti.rolling = false;
+    s.beats_at = [frozen](uint64_t) { return frozen; };
+    s.run(BAR);  // затихла
+    const uint64_t t0 = s.t;
+    s.ti.rolling = true;
+    s.beats_at = [t0, bpf, from](uint64_t t) { return from + (double)(t - t0) * bpf; };
+    s.run(BAR / 2);
+    return t0;
+  };
+  uint64_t t0 = stop_start(0.0);
+  double want = (double)(s.t - t0) / (2.0 * BAR);
+  CHECK(std::fabs(s.v().pos - want) < 0.001);  // с начала цикла
+  CHECK(rms(s.slice(s.t - 9600, 9600)) > 0.1f);
+  t0 = stop_start(5.0);  // продолжение с середины 2-го такта: доля 5 из цикла в 8 долей
+  want = std::fmod((5.0 * SR / 2.0 + (double)(s.t - t0)) / (2.0 * BAR), 1.0);
+  CHECK(std::fabs(s.v().pos - want) < 0.001);
+}
+
+// PART AT: LOOP END — по дорожке с Lock (она переходит в новый парт), а не по самой длинной.
+static void test_part_at_lock() {
+  const uint64_t BAR = 96000;
+  Sim s(64, true);
+  s.set.length[0] = 1;
+  s.set.length[1] = 2;
+  s.apply();
+  CHECK(s.lp->view(0).locked && !s.lp->view(1).locked);
+  s.in_l = sine(200.0, 0.3f);
+  s.run(BLOCK);
+  s.cmd(Cmd::Rec);              // дорожка 1 (Lock): 1 такт с доли 4
+  s.run(BAR * 2 + BLOCK * 8);
+  s.cmd(Cmd::TrackNext);
+  s.cmd(Cmd::Rec);              // дорожка 2: 2 такта с доли 12
+  s.run(BAR * 3 + BLOCK * 8);
+  s.in_l = [](uint64_t) { return 0.0f; };
+  CHECK(s.v(0).state == 3 && s.v(1).state == 3);
+  while (s.beats_now() < 21.5) s.run(BLOCK);  // цикл дорожки 2 кончается на доле 28, Lock — на 24
+  s.cmd(Cmd::PartNext);
+  while (s.beats_now() < 24.2) s.run(BLOCK);
+  CHECK(s.lp->part() == 1);
+  CHECK(s.v(0).state == 3);  // копия с Lock играет в новом парте
+}
+
 // Play/Stop: стоп на границе такта (транспорт идёт дальше), старт с начала такта в фазе.
 static void test_play_stop() {
   const uint64_t BAR = 96000;
@@ -1932,6 +1991,8 @@ int main() {
   test_reverse_quantized();
   test_transport_restart_resync();
   test_transport_stop_start();
+  test_transport_top();
+  test_part_at_lock();
   test_play_stop();
   test_peaks();
   test_rec_peaks();
