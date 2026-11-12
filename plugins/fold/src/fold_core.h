@@ -42,19 +42,12 @@
  * decimator on the mix. Chosen on 2026-11-11 from four modes (1x, ADAA, 2x, 2x + ADAA; test/alias_report.c,
  * fold_bench on the Pi 5): folder at Timbre 70 % on C5: -37 / -49 / -50 / -70 dB of aliasing; 4 voices with
  * everything on: 1.4 % of one Pi 5 core (4.3 % with the Saw shaper).
- * 2026-11-12 (stage 4a): a voice whose Source is an engine (VA, FM2, Wave: steps and corners, which the folder
- * and the shapers turn into aliases at -35..-45 dB on C5) runs at 4x instead: its own halfband takes it down to
- * 2x (FC_HB4_TAPS, -80 dB above 3/8 of the 4x rate) and joins the 2x mix, which is delayed by as much
- * (FC_HB4_DELAY). TEMPORARY: 4x was turned down for its CPU (2x the engines' cost on the Pi 5), it stays behind
- * FcParams.engines_4x (off by default) until the owner has compared the two by ear. The rate is chosen at the note-on and kept to its end: a voice cannot move between the two
- * decimators while it sounds (the cut in one does not add up with the start in the other: a click), so a change
- * of Source on a held note crossfades at the note's rate, the next note takes the new one. */
+ * 2026-11-12: the engine voices (VA, FM2, Wave) were tried at 4x (cleaner by 8..22 dB through the folder, twice
+ * their CPU on the Pi 5) and compared by ear: no clear difference, so everything stays at 2x (commit fbc05b7 has
+ * the 4x code: the rate must be chosen at the note-on, a voice moving between two decimators clicks). */
 #define FC_OS 2
-#define FC_OS_HI 4
-#define FC_CHUNK 64               /* output samples rendered at a time */
-#define FC_HB_TAPS 63             /* halfband decimator 2x -> 1x */
-#define FC_HB4_TAPS 25            /* halfband 4x -> 2x: 4 x FC_HB4_DELAY + 1 taps (the two ends are 0) */
-#define FC_HB4_DELAY 6            /* its delay in 2x samples */
+#define FC_CHUNK 64               /* output samples rendered at a time (the 2x buffer) */
+#define FC_HB_TAPS 63             /* halfband decimator */
 
 /* Function generators (after the Buchla 281): Rise and Fall are linear segments, FC_FG_MIN_MS..FC_FG_MAX_MS.
  * Once: a note rises and falls, the key does not matter. Gate: rises, holds while the key (or the sustain
@@ -143,7 +136,6 @@ typedef struct {
   int route_fm, route_am, route_sync, route_timbre;
   float timbre, order, drive;     /* 0..1 */
   float symmetry;                 /* -1..1 */
-  int engines_4x;                 /* TEMPORARY (to compare by ear): engine voices at FC_OS_HI; 0 = all at FC_OS */
 } FcParams;
 
 enum { FC_IDLE, FC_PLAY, FC_STEAL };
@@ -174,7 +166,6 @@ typedef struct {
   float ic1, ic2;                 /* low-pass state (TPT state-variable filter) */
   float a1, a2, a3;               /* its coefficients, every FC_COEF_EVERY samples */
   int tick;                       /* samples to the next matrix / coefficient update */
-  int hi;                         /* the note runs at FC_OS_HI (an engine at its note-on), else at FC_OS */
   float sg;                       /* steal fade, 1 = none */
   float phase;                    /* Principal, cycles 0..1 (Sine) */
   int src, src_prev;              /* Source, and the one it fades from while xf < 1 */
@@ -193,9 +184,9 @@ typedef struct {
   int next_note, next_vel;        /* FC_STEAL: the note that starts when the fade ends */
 } FcVoice;
 
-/* What depends on the voices' rate: one for FC_OS, one for FC_OS_HI. */
+/* What depends on the voices' rate. */
 typedef struct {
-  float sr;                       /* the plugin rate x FC_OS or FC_OS_HI */
+  float sr;                       /* the plugin rate x FC_OS */
   float step;                     /* plugin samples per voice sample: 1 / os */
   float smooth;                   /* one-pole coefficient for FC_SMOOTH_MS */
   float dc_r;                     /* DC blocker pole */
@@ -206,7 +197,7 @@ typedef struct {
 
 typedef struct {
   float sr_out;                   /* the plugin rate */
-  FcRate rt[2];                   /* rt[0]: FC_OS, rt[1]: FC_OS_HI */
+  FcRate rt;
   FcVoice v[FC_VOICES];
   uint32_t clock;
   int sustain_pedal;
@@ -223,18 +214,13 @@ typedef struct {
   float idx_t, fm_t, am_t, tim_route_t;   /* targets of the smoothed values */
   float tim_t, ord_t, sym_t, drv_t;
   float hb[FC_HB_TAPS];           /* halfband taps 2x -> 1x */
-  float hb4[FC_HB4_TAPS];         /* halfband taps 4x -> 2x */
   float hbuf[FC_HB_TAPS - 1 + FC_OS * FC_CHUNK];        /* 2x mix: history, then the chunk */
-  float dbuf[FC_HB4_DELAY + FC_OS * FC_CHUNK];          /* the 2x voices: FC_HB4_DELAY behind, then the chunk */
-  float qbuf[FC_HB4_TAPS - 1 + FC_OS_HI * FC_CHUNK];    /* the 4x voices: history, then the chunk */
-  int q_tail;                     /* 4x samples still to flush through hb4 (0: its history is silence) */
   int sync;
   int ncells;                     /* the non-empty matrix cells */
   uint8_t cell_src[FC_NCELLS], cell_dst[FC_NCELLS];
   float cell_amt[FC_NCELLS];
   float wheel, chan_at;           /* mod wheel, channel aftertouch: 0..1 */
   uint32_t rng;                   /* Random */
-  int engines_4x;                 /* FcParams.engines_4x */
   float table[FC_SINE_N + 1];
 } FoldCore;
 

@@ -1,5 +1,5 @@
-/* Aliasing of the folder, the other shapers and FM as the plugin makes them: voices at 2x (the engines at 4x since
- * 2026-11-12), ADAA on the folder, halfband decimators. Chosen on 2026-11-11 from four modes; their table then (to 16 kHz, dB):
+/* Aliasing of the folder, the other shapers and FM as the plugin makes them: voices at 2x, ADAA on the folder,
+ * halfband decimator. Chosen on 2026-11-11 from four modes; their table then (to 16 kHz, dB):
  *   folder Timbre 70 %   C4  C5  C6  C7:   1x -45 -37 -28 -18   ADAA -57 -49 -44 -33
  *                                          2x -58 -50 -40 -30   2x + ADAA -75 -70 -59 -55
  *   ADAA alone cost -1.4 dB at 8.4 kHz (an average over a sample), at 2x -0.3 dB.
@@ -10,8 +10,9 @@
  * Stage 4: the engines VA, FM2, Wave at harmonic settings (VA: Harmonics 50 % = unison; FM2: Harmonics 30/128 =
  * ratio 1), with FM and Sync. Known limits (2026-11-12): a bright Wave on high notes (most of its 64 harmonics
  * above the voices' Nyquist, as in the original engine), and a VA saw under strong FM from a saw Mod OSC (the
- * frequency step bends the saw's slope; polyBLEP corrects only steps of the wave). At 4x, on C5 (at 2x before):
- * VA saw + folder 70 % -44 (-36), Wave bright -71 (-54), VA saw + saw FM -51 (-29).
+ * frequency step bends the saw's slope; polyBLEP corrects only steps of the wave). Tried at 4x for the engines
+ * (2026-11-12, turned down: no clear difference by ear, twice the CPU), on C5: VA saw + folder 70 % -44 (-36 at
+ * 2x), Wave bright -71 (-54), VA saw + saw FM -51 (-29).
  * Usage: alias_report (prints a table; no pass/fail) */
 #include <math.h>
 #include <stdio.h>
@@ -25,7 +26,6 @@
 
 static double re[NFFT], im[NFFT];
 static FoldCore core;
-static int engines_4x;                            /* alias_report 4x: the engine voices at 4x (TEMPORARY switch) */
 
 static void fft(double* xr, double* xi, int n) {
   for (int i = 1, j = 0; i < n; i++) {
@@ -71,7 +71,6 @@ static void render_note(float* out, int note, const Case* k) {
   p.timbre = k->timbre; p.order = k->order; p.symmetry = k->sym; p.drive = k->drive;
   p.source = k->source; p.harmonics = k->h; p.color = k->c; p.morph = k->m;
   p.route_sync = k->sync;
-  p.engines_4x = engines_4x;
   fc_set_params(&core, &p);
   fc_note_on(&core, note, 127);
   static float r_[64], skip[64];
@@ -99,8 +98,7 @@ static double alias_db(const float* x, double f0) {
   return 10.0 * log10((bad + 1e-30) / (good + 1e-30));
 }
 
-int main(int argc, char** argv) {
-  engines_4x = argc > 1 && strcmp(argv[1], "4x") == 0;
+int main(void) {
   static float x[NFFT];
   const int notes[4] = { 60, 72, 84, 96 };
 #define S0 FC_SRC_SINE, 0, 0, 0
@@ -128,9 +126,9 @@ int main(int argc, char** argv) {
     { "Wave bright (H 10%, C 95%, M 50%)", WAVE, 0.1f, 0.95f, 0.5f, 1, 1, 0, FC_MOD_SINE, 0, 0, 0, 0, 0 },
     { "Wave middle, Sync 3/2", WAVE, 0.5f, 0.5f, 0.5f, 1.5f, 2, 0, FC_MOD_SINE, 0, 0, 0, 0, 1 },
   };
-  printf("Aliasing to 16 kHz, dB below the harmonics (Sine voices at 2x, engines at %dx, ADAA on the folder).\n"
+  printf("Aliasing to 16 kHz, dB below the harmonics (voices at 2x, ADAA on the folder).\n"
          "Lower is better; "
-         "about -60 dB is inaudible, above -30 dB is clearly audible.\n\n", engines_4x ? FC_OS_HI : FC_OS);
+         "about -60 dB is inaudible, above -30 dB is clearly audible.\n\n");
   printf("%-44s %6s %6s %6s %6s\n", "", "C4", "C5", "C6", "C7");
   for (unsigned c = 0; c < sizeof cases / sizeof cases[0]; c++) {
     printf("%-44s", cases[c].label);
