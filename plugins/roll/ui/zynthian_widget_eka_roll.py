@@ -8,6 +8,7 @@ import os
 import struct
 import time
 import tkinter
+from datetime import datetime
 
 from zyngui import zynthian_gui_config
 from zyngui import zynthian_widget_base
@@ -37,6 +38,54 @@ except Exception:
 EXPORT_STEPS_PER_BEAT = 4          # steps per beat in the exported pattern
 EXPORT_USE_OFFSET = True           # keep exact note timing via an offset inside the step
 CC_LANE = 0.74                      # fraction of the height kept for notes (the rest is the CC lane)
+QGRID_TICKS = (0, 960, 480, 240, 120)  # Quantize grid: Off, 1/4, 1/8, 1/16, 1/32 (same as the engine)
+GRID_COLOR = "#3a8fd8"
+
+# Undo/Redo on one knob: tap = Undo, long press (touch or encoder push) = Redo.
+# Open Roll widgets by processor id: the touch hook below is shared by all instances.
+ROLL_WIDGETS = {}
+
+
+def _flip(proc, sym):
+    try:
+        z = proc.controllers_dict[sym]
+        z.set_value(0 if float(z.value) >= 0.5 else 1)
+        return True
+    except Exception:
+        return False
+
+
+def _roll_undo_zctrl(zc):
+    """The controller shows the Undo/Redo control of an Eka Roll instance -> its widget, else None."""
+    z = getattr(zc, "zctrl", None)
+    if z is None or getattr(z, "symbol", None) != "undo":
+        return None
+    return ROLL_WIDGETS.get(getattr(getattr(z, "processor", None), "id", None))
+
+
+def _hook_touch_release(zc):
+    """Long touch on the Undo/Redo knob = Redo (without this Zynthian would open MIDI-learn options)."""
+    if getattr(zc, "_eka_roll_hook", False):
+        return
+    orig = zc.cb_canvas_release
+
+    def release(event, zc=zc, orig=orig):
+        wdg = _roll_undo_zctrl(zc)
+        try:
+            if (wdg is not None and zc.canvas_push_ts and zc.enabled and zc.active_motion_axis == 0
+                    and not wdg.zyngui_control.midi_learning
+                    and zynthian_gui_config.enable_touch_controller_switches):
+                dts = (datetime.now() - zc.canvas_push_ts).total_seconds()
+                if dts >= zynthian_gui_config.zynswitch_bold_seconds:
+                    zc.canvas_push_ts = None
+                    wdg.redo()
+                    return
+        except Exception as e:
+            logging.debug("Eka Roll touch hook: %s", e)
+        return orig(event)
+
+    zc.bind("<ButtonRelease-1>", release)
+    zc._eka_roll_hook = True
 
 
 def dim(col, f):
@@ -81,7 +130,42 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         self._roll = False
         self._rng = None
         self._geo = None
+        self.qgrid_t = 0.0
+        self.qgrid_last = None
         self.after(300, self._follow_tick)
+
+    def set_processor(self, processor):
+        super().set_processor(processor)
+        ROLL_WIDGETS[getattr(processor, "id", None)] = self
+
+    # ---------- Undo/Redo knob ----------
+    def redo(self):
+        if _flip(self.processor, "redo"):
+            self._toast("Redo", 1.5)
+
+    def _hook_controllers(self):
+        try:
+            for zc in self.zyngui_control.zgui_controllers:
+                _hook_touch_release(zc)
+        except Exception:
+            pass
+
+    def cuia_v5_zynpot_switch(self, params):
+        """Encoder push on the Undo/Redo knob: short = Undo, bold/long = Redo."""
+        try:
+            i, t = int(params[0]), str(params[1]).upper()
+            ctl = self.zyngui_control
+            if ctl.midi_learning or ctl.mode != "control":
+                return False
+            if _roll_undo_zctrl(ctl.zgui_controllers[i]) is not self:
+                return False
+            if t == "S":
+                _flip(self.processor, "undo")
+            else:
+                self.redo()
+            return True
+        except Exception:
+            return False
 
     def on_size(self, event):
         if not super().on_size(event):
@@ -210,7 +294,8 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         return False
 
     # ---------- piano roll + CC ----------
-    def _draw_roll(self, x0, y0, x1, y1, sel, pend, h, L, recording):
+    def _draw_roll(self, x0, y0, x1, y1, sel, pend, h, L, recording, hl=None, grid=0, grid_hot=False):
+        """hl: bit mask of the layers drawn bright (default: the selected one); grid: Quantize grid in ticks"""
         c = self.widget_canvas
         c.delete("roll")
         self._geo = None
@@ -259,6 +344,20 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                               font=(fam, 7))
                 bar_no += 1
             tick += PPQN
+        if grid and w * grid / float(L) >= 3:                       # Quantize grid
+            gcol = GRID_COLOR if grid_hot else dim(GRID_COLOR, 0.6)
+            tick = 0
+            while tick < L:
+                if tick % PPQN:
+                    x = x0 + w * tick / L
+                    c.create_line(x, y0, x, ny1, fill=gcol, tags="roll")
+                tick += grid
+            tick = 0
+            while tick < L:                                            # beats on the grid also get its colour
+                x = x0 + w * tick / L
+                if tick % bar:
+                    c.create_line(x, y0, x, ny1, fill=gcol, width=(2 if grid_hot else 1), tags="roll")
+                tick += PPQN
         c.create_rectangle(x0, y0, x1, ny1, outline="#555555", tags="roll")
         self._geo = (x0, y0, ny1, w, L, lo, hi, rh)
         if has_cc:
@@ -304,15 +403,16 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         # notes
         total = sum(len(n) for n in d["layers"])
         step = max(1, total // 1500)
-        order = [i for i in range(len(d["layers"])) if i != sel]
-        if 0 <= sel < len(d["layers"]):
-            order.append(sel)
+        if hl is None:
+            hl = (1 << sel) if sel >= 0 else 0
+        order = [i for i in range(len(d["layers"])) if not (hl >> i) & 1] + \
+                [i for i in range(len(d["layers"])) if (hl >> i) & 1]
         for i in order:
             muted = (d["mute"] >> i) & 1
             base = LAYER_COLORS[i % 8]
             if muted:
                 col = "#505050"
-            elif i == sel:
+            elif (hl >> i) & 1:
                 col = base
             else:
                 col = dim(base, 0.55)
@@ -672,9 +772,10 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         else:
             mode = "main"
 
-        big = mode in ("roll", "main")         # pages with the piano roll use the taller widget
-        self._roll = big
-        self._set_rows(self.rows_edit if big else self.rows_normal)
+        big = mode != "slots"                  # every page but Slots shows the piano roll
+        self._roll = True                      # all pages use the taller widget (fonts scaled back)
+        self._set_rows(self.rows_edit)
+        self._hook_controllers()
 
         info = f"{bars:.1f} bars" if st in (2, 3) else (f"{bars:g} bars" if bars > 0 else "")
         self.hits = []
@@ -693,8 +794,18 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                               text=info, font=self._font(h, 15, 8))
                 y0 = int(h * 0.22)
             else:
-                sel = int(self._zval("layer", 1)) - 1
+                quant = mode == "quant"
+                qmask = int(self._zval("qmask", 255))
+                sel = -1 if quant else int(self._zval("layer", 1)) - 1
                 pend = 0
+                if quant:
+                    hl = qmask & ((1 << nl) - 1)
+                    g = max(0, min(4, int(round(self._zval("qgrid", 0)))))
+                    if self.qgrid_last is not None and g != self.qgrid_last:
+                        self.qgrid_t = now + 1.5                       # grid just changed: brighter for a moment
+                    self.qgrid_last = g
+                    grid = QGRID_TICKS[g]
+                    grid_hot = now < self.qgrid_t
                 c.create_text(w - 8, 3, anchor="ne", tags="dyn", fill=zynthian_gui_config.color_tx,
                               text=f"{info}   {bpm:.0f} BPM", font=self._font(h, 15, 8))
                 # metronome: one box per beat of the bar, the downbeat is brighter
@@ -709,19 +820,25 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                     c.create_rectangle(x, ma, x + mw, mb, tags="dyn",
                                        outline=zynthian_gui_config.color_tx_off,
                                        fill=("#e0e0e0" if on and i == 0 else ("#808080" if on else "")))
-                # layer strip: tap to select the layer
+                # layer strip: tap to select the layer (Quantize: tap to include / exclude it)
                 lw = (w - 16 - 7 * 4) // 8
                 ya, yb = int(h * 0.14), int(h * 0.21)
                 for i in range(8):
                     x = 8 + i * (lw + 4)
                     lc = LAYER_COLORS[i]
                     if i < nl:
-                        muted = (mask >> i) & 1
+                        if quant:
+                            filled = (qmask >> i) & 1
+                        else:
+                            filled = not ((mask >> i) & 1)
                         c.create_rectangle(x, ya, x + lw, yb, tags="dyn",
                                            outline=("#ffffff" if i == sel else lc),
                                            width=(3 if i == sel else 1),
-                                           fill=("" if muted else lc))
-                        self.hits.append((x, ya - 6, x + lw, yb + 6, "l", i))
+                                           fill=(lc if filled else ""))
+                        if lw >= 18 and yb - ya >= 10:
+                            c.create_text(x + lw // 2, (ya + yb) // 2, text=str(i + 1), tags="dyn",
+                                          fill=("#000000" if filled else lc), font=self._font(h, 22, 7))
+                        self.hits.append((x, ya - 6, x + lw, yb + 6, "q" if quant else "l", i))
                     else:
                         c.create_rectangle(x, ya, x + lw, yb, outline="#303030", tags="dyn")
                 y0 = int(h * 0.25)
@@ -746,10 +863,12 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                 pos = now_t / float(Ld)
             elif Ld > 0:
                 now_t = pos * Ld
-            key = (mode, self.cache_ver, sel, pend, w, h, ok, Ld, recording)
+            if mode != "quant":
+                hl, grid, grid_hot = None, 0, False
+            key = (mode, self.cache_ver, sel, pend, w, h, ok, Ld, recording, hl, grid, grid_hot)
             if key != self.roll_key:
                 self.roll_key = key
-                self._draw_roll(x0, y0, x1, y1, sel, pend, h, Ld, recording)
+                self._draw_roll(x0, y0, x1, y1, sel, pend, h, Ld, recording, hl, grid, grid_hot)
             if self._geo and recording and now_t is not None and d.get("opens"):
                 # notes still held: grow up to the playhead
                 gx0, gy0, gny1, gw, gL, glo, ghi, grh = self._geo
@@ -763,7 +882,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                         xa, xb = gx0 + gw * a / gL, gx0 + gw * b / gL
                         c.create_rectangle(xa, yq, max(xb, xa + 2), yq + max(2.0, grh - 1),
                                            fill=LAYER_COLORS[i % 8], width=0, tags="dyn")
-            if mode == "main" and run and d and Ld > 0:
+            if mode != "roll" and run and d and Ld > 0:
                 # metronome on the grid: soft band over the current beat
                 nbeats = max(1, int(round(Ld / float(PPQN))))
                 bi = min(int(pos * nbeats), nbeats - 1)
@@ -783,68 +902,27 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                           font=self._font(h, 11, 9))
             c.create_text(w - 8, 3, anchor="ne", tags="dyn", fill=zynthian_gui_config.color_tx,
                           text=f"{info}   {bpm:.0f} BPM", font=self._font(h, 15, 8))
-            y0, y1 = int(h * 0.28), int(h * 0.38)
+            y0, y1 = int(h * 0.18), int(h * 0.24)
             c.create_rectangle(8, y0, w - 8, y1, outline=zynthian_gui_config.color_tx_off, tags="dyn")
             c.create_rectangle(8, y0, 8 + int((w - 16) * pos), y1, fill=col, width=0, tags="dyn")
 
-            if mode == "layers":
-                sel = int(self._zval("layer", 1)) - 1
-                c.create_text(8, int(h * 0.44), anchor="nw", text="Layers (tap to select):",
-                              fill=zynthian_gui_config.color_tx, tags="dyn", font=self._font(h, 15, 8))
-                lw = (w - 16 - 7 * 6) // 8
-                for i in range(8):
-                    x = 8 + i * (lw + 6)
-                    ya, yb = int(h * 0.58), int(h * 0.88)
-                    exists = i < nl
-                    muted = exists and ((mask >> i) & 1)
-                    lc = LAYER_COLORS[i]
-                    selected = exists and (i == sel)
-                    c.create_rectangle(x, ya, x + lw, yb, tags="dyn",
-                                       outline=("#ffffff" if selected else (lc if exists else zynthian_gui_config.color_tx_off)),
-                                       width=(4 if selected else (2 if exists else 1)),
-                                       fill=("" if (muted or not exists) else lc))
-                    c.create_text(x + lw // 2, (ya + yb) // 2, text=str(i + 1), tags="dyn",
-                                  fill=(lc if muted else ("#000000" if exists else "#505050")),
-                                  font=self._font(h, 14, 8))
-                    if exists:
-                        self.hits.append((x, ya, x + lw, yb, "l", i))
-            elif mode == "quant":
-                qmask = int(self._zval("qmask", 255))
-                c.create_text(8, int(h * 0.44), anchor="nw", text="Quantize layers (tap to toggle):",
-                              fill=zynthian_gui_config.color_tx, tags="dyn", font=self._font(h, 15, 8))
-                lw = (w - 16 - 7 * 6) // 8
-                for i in range(8):
-                    x = 8 + i * (lw + 6)
-                    ya, yb = int(h * 0.58), int(h * 0.88)
-                    exists = i < nl
-                    on = exists and ((qmask >> i) & 1)
-                    lc = LAYER_COLORS[i]
-                    c.create_rectangle(x, ya, x + lw, yb, tags="dyn",
-                                       outline=(lc if exists else zynthian_gui_config.color_tx_off),
-                                       width=2 if exists else 1,
-                                       fill=(lc if on else ""))
-                    c.create_text(x + lw // 2, (ya + yb) // 2, text=str(i + 1), tags="dyn",
-                                  fill=("#000000" if on else (lc if exists else "#505050")),
-                                  font=self._font(h, 14, 8))
-                    if exists:
-                        self.hits.append((x, ya, x + lw, yb, "q", i))
-            else:  # slots
-                cur = int(self._zval("slot", 1))
-                sw = (w - 16 - 7 * 4) // 8
-                for i in range(16):
-                    r, k = divmod(i, 8)
-                    x = 8 + k * (sw + 4)
-                    ya = int(h * (0.48 + 0.21 * r))
-                    yb = ya + int(h * 0.17)
-                    used = (slots >> i) & 1
-                    selected = (cur == i + 1)
-                    c.create_rectangle(x, ya, x + sw, yb, tags="dyn",
-                                       outline=("#ffffff" if selected else zynthian_gui_config.color_tx_off),
-                                       width=(3 if selected else 1),
-                                       fill=(zynthian_gui_config.color_hl if used else ""))
-                    c.create_text(x + sw // 2, (ya + yb) // 2, text=str(i + 1), tags="dyn",
-                                  fill=("#000000" if used else "#c0c0c0"), font=self._font(h, 18, 7))
-                    self.hits.append((x, ya, x + sw, yb, "s", i))
+            # slots
+            cur = int(self._zval("slot", 1))
+            sw = (w - 16 - 7 * 4) // 8
+            for i in range(16):
+                r, k = divmod(i, 8)
+                x = 8 + k * (sw + 4)
+                ya = int(h * (0.32 + 0.33 * r))
+                yb = ya + int(h * 0.28)
+                used = (slots >> i) & 1
+                selected = (cur == i + 1)
+                c.create_rectangle(x, ya, x + sw, yb, tags="dyn",
+                                   outline=("#ffffff" if selected else zynthian_gui_config.color_tx_off),
+                                   width=(3 if selected else 1),
+                                   fill=(zynthian_gui_config.color_hl if used else ""))
+                c.create_text(x + sw // 2, (ya + yb) // 2, text=str(i + 1), tags="dyn",
+                              fill=("#000000" if used else "#c0c0c0"), font=self._font(h, 10, 8))
+                self.hits.append((x, ya, x + sw, yb, "s", i))
 
         text, tcol = None, "#ff9000"
         if conf in CONFIRMS:

@@ -66,12 +66,11 @@ All buttons are toggle-type: any change counts as a press.
 |---|---|---|
 | **Loop** | Rec/Dub | Empty: arm recording. Recording: arm stop. Playing: overdub on/off |
 | | Play/Stop | Mute / unmute the loop (position keeps running) |
-| | Undo | Undo last edit (Apply/Half/Double), otherwise last overdub layer |
+| | Undo/Redo | Tap: undo last edit (Apply/Half/Double), otherwise last overdub layer. Long press (touch or encoder push): redo the last undone layer |
 | | Clear | Erase everything (press twice) |
 | **Layers** | Layer | Selects layer for Mute / Delete |
 | | L Mute | Mute/unmute selected layer |
 | | L Delete | Delete selected layer (press twice) |
-| | Redo | Restore last undone layer |
 | **Timing** | Length | Free, 1, 2, 4, 8, 16 bars |
 | | Launch | Beat / Bar / Loop: when recording and play start |
 | | Half / Double | Halve / double the loop (also affects the CC lane) |
@@ -94,9 +93,11 @@ they can be mapped to hardware buttons.
 
 - All pages: state (EMPTY, ARM REC, REC, OVERDUB, PLAY, STOP, ...), bars/BPM, loop progress, beat blocks, layers
   (each layer has its own colour), messages and confirmations.
-- **Quantize:** tap the layer squares to choose which layers are quantized.
-- **Edit:** piano roll with bars/beats, coloured layers, white preview outline for the pending transposition,
-  and a CC lane underneath.
+- Every page except Slots: piano roll with bars/beats, coloured layers and a CC lane underneath; the beat blocks and
+  the layer strip on top (tap a layer to select it).
+- **Quantize:** the layer strip chooses which layers are quantized (tap to toggle); the chosen grid is drawn in blue
+  over the notes (brighter for a moment after it changes).
+- **Edit:** white preview outline for the pending transposition.
 - **Slots:** 16-cell map of occupied slots.
 
 ## Export

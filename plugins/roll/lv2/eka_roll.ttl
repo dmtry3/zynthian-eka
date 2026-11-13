@@ -45,7 +45,7 @@
         lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/roll#g_loop> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 4 ; lv2:symbol "undo" ; lv2:name "Undo" ;
+        lv2:index 4 ; lv2:symbol "undo" ; lv2:name "Undo/Redo" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
         lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/roll#g_loop> ;
     ] , [
@@ -71,8 +71,7 @@
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 9 ; lv2:symbol "redo" ; lv2:name "Redo" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
-        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/roll#g_layers> ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled , pprops:notOnGUI ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 10 ; lv2:symbol "length" ; lv2:name "Length" ;
