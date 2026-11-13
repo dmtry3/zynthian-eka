@@ -24,8 +24,9 @@ a loop to a Standard MIDI File and straight into a `zynseq` pattern.
   Touching a knob mutes that controller's playback and overwrites its old data while you move it; after 0.5 s of
   inactivity playback resumes.
 - **Quantize** (1/4 ... 1/32, strength, starts/ends/both) applied to the layers you pick on screen. Undoable.
-- **Edit.** Half / Double loop, **per-layer transposition**.
-- **16 slots** on disk, auto-load of the saved slot when a Zynthian snapshot is restored.
+- **Edit.** Half / Double loop, **per-layer transposition**, **shift a layer in time** (steps of 1/4 ... 1/64),
+  **delete a note by tapping it** on the piano roll. All undoable.
+- **16 slots** on disk, picked by touch; auto-load of the selected slot when a Zynthian snapshot is restored.
 - **Export** to a `.mid` file and into a `zynseq` pattern (4 steps per beat) with one button.
 - **Touch widget.** State, progress, beat/layer indicators; piano roll with bars, notes and a CC lane (Edit page);
   layer selector (Quantize page); slot map (Slots page).
@@ -40,7 +41,7 @@ a loop to a Standard MIDI File and straight into a `zynseq` pattern.
 | ![Timing](docs/3-timing.png) | ![Quantize](docs/4-quantize.png) |
 | **Timing:** length, launch, Half / Double | **Quantize:** the grid drawn over the roll, the layers to quantize |
 | ![Edit](docs/5-edit.png) | ![Slots](docs/6-slots.png) |
-| **Edit:** the layer to transpose, export | **Slots:** the 16 slots on disk |
+| **Edit:** transpose / shift a layer, tap a note to delete it | **Slots:** tap a slot, then Load / Save / Delete / Export |
 
 ## Requirements
 
@@ -89,13 +90,14 @@ All buttons are toggle-type: any change counts as a press.
 | | Strength | 0-100 % |
 | | Target | Starts / Ends / Both |
 | | Apply | Quantize the layers selected on the widget |
-| **Edit** | Layer | Layer to transpose |
+| **Edit** | Layer | Layer to transpose / shift (its notes can be deleted by touch) |
 | | Transpose | Semitones to add (-12...+12) |
-| | Apply | Adds Transpose to the layer's offset; the knob returns to 0 |
+| | Shift | Move the layer in time: each click = the step picked on the slider that appears on the widget (1/4, 1/8, 1/16, 1/32, 1/64; tap to pick). Right = later, left = earlier; steps can be mixed. Notes that pass the loop end come in at the start |
+| | Apply | Applies Transpose and Shift to the layer (one Undo step); the knobs return to 0, the slider goes away. Shift is not possible during an overdub |
+| **Slots** | Load | Load the slot tapped on the widget (load happens at loop end) |
+| | Save | Save to the tapped slot |
+| | Delete | Delete the tapped slot's file (press twice) |
 | | Export | `.mid` file + `zynseq` pattern |
-| **Slots** | Slot | 1-16 (0 = none) |
-| | Save / Load | Save to / load from slot (load happens at loop end) |
-| | Del Slot | Delete slot file (press twice) |
 
 When the transport starts (or zynseq starts a scene after a stop) the loop plays from its first bar.
 
@@ -116,8 +118,10 @@ they can be mapped to hardware buttons.
   the layer strip on top (tap a layer to select it).
 - **Quantize:** the layer strip chooses which layers are quantized (tap to toggle); the chosen grid is drawn in blue
   over the notes (brighter for a moment after it changes).
-- **Edit:** white preview outline for the pending transposition.
-- **Slots:** 16-cell map of occupied slots.
+- **Edit:** white preview outline for the pending transposition and shift; the Shift slider under the layer name
+  (with the pending amount, e.g. `+3/16`); tap a note of the selected layer to delete it (Undo brings it back).
+- **Slots:** 16-cell map of occupied slots; tap a slot to select it (light green). The selected slot is an LV2
+  parameter, so Zynthian snapshots keep it.
 
 ## Export
 
@@ -134,7 +138,8 @@ they can be mapped to hardware buttons.
   cancels that recording.
 - Played-back CC also drive Zynthian MIDI-learn bindings (synth and effect parameters, on-screen knobs). This is done by the widget, so it starts once the Eka Roll page has been opened after boot. An echo guard prevents feedback loops.
 - Capacity: 8 layers x 4000 events, 16384 controller events.
-- Snapshots store control values only; loop data lives in slots (a saved slot is auto-loaded on restore).
+- Snapshots store control values only; loop data lives in slots (the selected slot is auto-loaded on restore).
+  Snapshots saved before 0.9 don't remember the slot: tap it once on the Slots page and save the snapshot again.
 - Loop timing is tied to the transport position at the moment of recording.
 
 ## Troubleshooting

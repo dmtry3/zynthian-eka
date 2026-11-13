@@ -46,6 +46,21 @@ static void position(float speed, long bar, float bar_beat) {
   lv2_atom_forge_pop(&forge, &f);
 }
 
+/* the slot files are written / read by a real thread: wait for it */
+static void wait_worker(void) {
+  for (int i = 0; i < 2000 && atomic_load(&L->req) != 0; i++) usleep(1000);
+}
+
+/* patch:Set of the sslot parameter, as jalv sends it when Zynthian sets the parameter */
+static void patch_set_slot(int slot) {
+  LV2_Atom_Forge_Frame f;
+  lv2_atom_forge_frame_time(&forge, 0);
+  lv2_atom_forge_object(&forge, &f, 0, L->patch_Set);
+  lv2_atom_forge_key(&forge, L->patch_property); lv2_atom_forge_urid(&forge, L->par_sslot);
+  lv2_atom_forge_key(&forge, L->patch_value); lv2_atom_forge_float(&forge, (float)slot);
+  lv2_atom_forge_pop(&forge, &f);
+}
+
 static void end_block_run(void) {
   lv2_atom_forge_pop(&forge, &seq_frame);
   L->uiin->zbeat = (int)zbeat; L->uiin->qmask = qmask_ui; L->uiin->magic = UIIN_MAGIC;
@@ -336,6 +351,86 @@ int main(void) {
   check("restart, stale 0 from the snapshot: running (JACK)", outv[O_RUN] == 1.0f);
   hb(1.2);
   check("restart, widget says zynseq stopped: paused", outv[O_RUN] == 0.0f);
+
+  /* ---- Edit page: Shift (ticks from the widget) + Apply, note delete by touch ---- */
+  cleanup(L);
+  L = (Looper*)instantiate(&desc, SR, "/tmp", feats);
+  connect_all();
+  zbeat = -1;
+  begin_block(); position(1, 0, 0); end_block_run();
+  run_secs(0.2);
+  make_loop();
+  ctl[I_ELAYER] = 1; ctl[I_TRANSP] = 0;
+  L->uiin->shift = 3 * 240;                                       /* 3/16 later */
+  run_cmd(L, C_EAPPLY);
+  check("shift: layer 1 moved 3/16 later", L->layers[0].ev[0].tick == 720 && L->layers[1].ev[0].tick == 0 &&
+        L->msg_code == 21);
+  L->uiin->shift = -960;                                          /* a quarter earlier: wraps to the loop end */
+  run_cmd(L, C_EAPPLY);
+  check("shift: earlier than the start wraps to the end", L->layers[0].ev[0].tick == 4 * PPQN - 240);
+  run_cmd(L, C_UNDO);
+  check("undo shift", L->layers[0].ev[0].tick == 720 && L->msg_code == 30 + E_SHIFT);
+  run_cmd(L, C_REDO);
+  check("redo shift", L->layers[0].ev[0].tick == 4 * PPQN - 240 && L->msg_code == 40 + E_SHIFT);
+  L->uiin->shift = 240; ctl[I_TRANSP] = 2;
+  run_cmd(L, C_EAPPLY);
+  check("shift + transpose in one Apply", L->layers[0].ev[0].tick == 0 && L->layers[0].transp == 2 &&
+        L->msg_code == 22);
+  run_cmd(L, C_UNDO);
+  check("one undo takes back both", L->layers[0].ev[0].tick == 4 * PPQN - 240 && L->layers[0].transp == 0);
+  L->uiin->shift = 0; ctl[I_TRANSP] = 0;
+  run_cmd(L, C_EAPPLY);
+  check("nothing to apply", L->msg_code == 18);
+  L->state = ST_OVERDUB; L->uiin->shift = 240;
+  run_cmd(L, C_EAPPLY);
+  check("no shift while overdubbing", L->msg_code == 10 && L->layers[0].ev[0].tick == 4 * PPQN - 240);
+  L->state = ST_PLAY; L->uiin->shift = 0;
+
+  make_loop();
+  L->layers[0].n = 2;
+  L->layers[0].ev[1] = (Ev){ .tick = 960, .dur = 100, .st = 0x90, .d1 = 64, .d2 = 100 };
+  L->uiin->ndel_layer = 0; L->uiin->ndel_tick = 960; L->uiin->ndel_pitch = 64; L->uiin->ndel++;
+  begin_block(); end_block_run();
+  check("tap deletes the note", L->layers[0].n == 1 && L->layers[0].ev[0].d1 == 60 && L->msg_code == 23);
+  L->uiin->ndel_tick = 480; L->uiin->ndel++;
+  begin_block(); end_block_run();
+  check("tap on a note that isn't there: nothing", L->layers[0].n == 1 && L->msg_code == 10);
+  run_cmd(L, C_UNDO);
+  check("undo note delete", L->layers[0].n == 2 && L->msg_code == 30 + E_NDEL);
+  begin_block(); end_block_run();
+  check("no repeat without a new tap", L->layers[0].n == 2);
+
+  /* ---- slot selected by touch (LV2 parameter sslot): save, and load on a snapshot restore ---- */
+  char dir[] = "/tmp/eka_roll_testXXXXXX";
+  if (!mkdtemp(dir)) { printf("FAIL: mkdtemp\n"); return 1; }
+  snprintf(L->dir, sizeof L->dir, "%s", dir);
+  run_cmd(L, C_SAVE);
+  check("save without a selected slot: asks for one", L->msg_code == 12);
+  begin_block(); patch_set_slot(3); end_block_run();
+  check("sslot parameter selects slot 3", L->sel_slot == 3);
+  run_cmd(L, C_SAVE);
+  wait_worker();
+  run_secs(0.1);
+  check("saved to slot 3", (atomic_load(&L->slot_mask) & 4) && L->msg_code == 1);
+
+  cleanup(L);
+  L = (Looper*)instantiate(&desc, SR, "/tmp", feats);
+  connect_all();
+  snprintf(L->dir, sizeof L->dir, "%s", dir);
+  worker_request(L, 4, 0);
+  wait_worker();
+  begin_block(); position(1, 0, 0); end_block_run();
+  run_secs(0.3);
+  ctl[I_QGRID] = 2; ctl[I_QSTR] = 50;                            /* snapshot restore: a burst of values... */
+  run_secs(0.2);
+  begin_block(); patch_set_slot(3); end_block_run();             /* ...then the slot parameter */
+  wait_worker();
+  run_secs(2.5);
+  check("snapshot restore loads the selected slot", L->state == ST_PLAY && L->nlayers == 2);
+  {
+    char p[320];
+    slot_path(L, 3, p, sizeof p); remove(p); rmdir(dir);
+  }
 
   cleanup(L);
   printf("%d failed\n", fails);

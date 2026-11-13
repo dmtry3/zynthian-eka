@@ -102,12 +102,12 @@ PAGES = {
     "layers": ("layer", "lmute", "ldel"),
     "timing": ("length", "launch", "half", "double"),
     "quant":  ("qgrid", "qstr", "qtarget", "qapply"),
-    "edit":   ("elayer", "transp", "eapply", "export"),
-    "slots":  ("slot", "save", "load", "sdel"),
+    "edit":   ("elayer", "transp", "shift", "eapply"),
+    "slots":  ("load", "save", "sdel", "export"),
 }
 DEFAULTS = {"rec": 0, "play": 0, "undo": 0, "clear": 0, "layer": 1, "lmute": 0, "ldel": 0, "redo": 0,
             "length": 0, "launch": 2, "half": 0, "double": 0, "qgrid": 0, "qstr": 100, "qtarget": 2,
-            "qapply": 0, "elayer": 1, "transp": 0, "eapply": 0, "slot": 1, "save": 0, "load": 0,
+            "qapply": 0, "elayer": 1, "transp": 0, "eapply": 0, "slot": 1, "save": 0, "load": 0, "shift": 0, "sslot": 0,
             "sdel": 0, "qmask": 255, "export": 0, "zbeat": -1}
 
 
@@ -134,7 +134,7 @@ class FakeViz:
         lay2 = [(i * 480 + 15, 200, 0x90, 60 + (i % 5), 90) for i in range(16)]
         lay3 = [(i * 1920, 1800, 0x90, 67, 80) for i in range(4)]
         layers = [lay1, lay2, lay3]
-        buf = bytearray(self.HDR.size + (8 * 4000 + 16384) * self.EV.size + 4 + 32 * 8 + 64)   # + UiIn
+        buf = bytearray(self.HDR.size + (8 * 4000 + 16384) * self.EV.size + 4 + 32 * 8 + 128)   # + UiIn
         ns = [len(x) for x in layers] + [0] * 5
         self.HDR.pack_into(buf, 0, 0x4D4C5A31, 2, 7, L, len(layers), 4, 4, 0b100,
                            *ns, *([0] * 8), 0, 0)
@@ -498,6 +498,72 @@ def main():
         proc.engine.msg = proc.engine.msg // 100 * 100 + code
         show("loop")
         check("message %d shown at the bottom: %r" % (code, text), text in bottom_text())
+
+    # Edit page: Shift knob -> slider; each click = one slider step; Apply hides it
+    show("edit")
+    check("edit: no slider before Shift is turned", not [hh for hh in wdg.hits if hh[4] == "sh"])
+    zs = proc.controllers_dict["shift"]
+    zs.value = 1
+    show("edit")
+    shh = [hh for hh in wdg.hits if hh[4] == "sh"]
+    check("edit: Shift turned -> slider with 5 steps", len(shh) == 5)
+    check("edit: one click = 1/16 (240 ticks) sent to the engine", wdg.shift_ticks == 240 and ui()[13] == 240)
+    x0, y0, x1, y1, kind, i = shh[0]
+    wdg.last_click = 0
+    wdg._on_click(Ev((x0 + x1) // 2, (y0 + y1) // 2))
+    zs.value = 3
+    show("edit")
+    check("edit: step 1/4 picked on the slider, two more clicks = 240 + 2*960", ui()[13] == 240 + 2 * 960)
+    texts = [c.itemcget(i, "text") for i in c.find_withtag("dyn") if c.type(i) == "text"]
+    check("edit: pending shift shown as +9/16 (%r)" % [t for t in texts if "/" in t][-1:], "+9/16" in texts)
+    ghosts = [i for i in c.find_withtag("roll") if c.type(i) == "rectangle" and c.itemcget(i, "outline") == "#ffffff"]
+    check("edit: shifted layer previewed on the roll (%d)" % len(ghosts), len(ghosts) >= 8)
+    snap("edit_shift")
+    zs.value = 1
+    show("edit")
+    check("edit: turning back takes 2 steps of 1/4 off", ui()[13] == 240)
+    proc.engine.msg = proc.engine.msg // 100 * 100 + 100 + 21           # engine: "Layer shifted"
+    show("edit")
+    check("edit: after Apply the slider is gone, knob and shift back to 0",
+          not [hh for hh in wdg.hits if hh[4] == "sh"] and zs.value == 0 and ui()[13] == 0)
+    show("edit")
+    check("edit: knob reset is not a new turn", not wdg.shift_show and wdg.shift_ticks == 0)
+    check("edit: 'Layer shifted' shown first", "Layer shifted" in bottom_text())
+    wdg.toast_until = 0
+    show("edit")
+    check("edit: then the hint about deleting notes", "Tap a note of layer 1 to delete it" in bottom_text())
+
+    # tap on a note of the selected layer (layer 1: 8 notes, t = i*960+37, len 400) -> delete request
+    gx0, gy0, gny1, gw, gL, glo, ghi, grh = wdg._geo
+    t, p = 2 * 960 + 37, 48 + 2 * 3
+    xn = gx0 + gw * (t + 200) / gL
+    yn = gny1 - (p - glo + 1) * grh + grh / 2
+    n0 = ui()[17]
+    wdg.last_click = 0
+    wdg._on_click(Ev(int(xn), int(yn)))
+    u = ui()
+    check("edit: tap on a note sends it for deletion (%r)" % (u[14:18],), u[14:18] == (0, t, p, n0 + 1))
+    wdg.last_click = 0
+    wdg._on_click(Ev(int(gx0 + gw * 0.99), int(gy0 + 2)))
+    check("edit: tap on an empty place sends nothing", ui()[17] == n0 + 1)
+    proc.controllers_dict["elayer"].value = 2
+    show("edit")
+    wdg.last_click = 0
+    wdg._on_click(Ev(int(xn), int(yn)))
+    check("edit: notes of other layers are not deleted", ui()[17] == n0 + 1)
+    proc.controllers_dict["elayer"].value = 1
+
+    # Slots: tap selects (parameter sslot), the selected slot is light green
+    show("slots")
+    sh_ = [hh for hh in wdg.hits if hh[4] == "s"]
+    x0, y0, x1, y1, kind, i = sh_[2]
+    wdg.last_click = 0
+    wdg._on_click(Ev((x0 + x1) // 2, (y0 + y1) // 2))
+    show("slots")
+    check("slots: tap on slot 3 selects it", proc.v("sslot") == 3)
+    green = [i for i in c.find_withtag("dyn") if c.type(i) == "rectangle" and c.itemcget(i, "outline") == mod.SLOT_SEL]
+    check("slots: selected slot drawn light green", len(green) == 1 and c.itemcget(green[0], "fill") == mod.SLOT_SEL)
+    snap("slots_sel")
 
     proc.engine.viz.remove()
     print("%d failed" % fails)

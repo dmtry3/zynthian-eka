@@ -2,6 +2,7 @@
 #include <lv2/atom/atom.h>
 #include <lv2/atom/util.h>
 #include <lv2/midi/midi.h>
+#include <lv2/patch/patch.h>
 #include <lv2/time/time.h>
 #include <lv2/urid/urid.h>
 #include <fcntl.h>
@@ -32,6 +33,7 @@
 #define N_IN 33
 #define N_OUT 11
 #define OUT_BASE 35
+#define P_SHIFT 46         /* Shift knob: read by the widget only (it turns the knob into ticks, see UiIn) */
 /* zbeat (UiIn): zynseq beat written by the widget: -1 unknown, 0 / -2 zynseq stopped, 1..16 beat */
 #define ZS_STOP_FRESH 1.5  /* s: "zynseq stopped" counts only while the widget keeps alternating 0 / -2 */
 #define ZS_START_GRACE 1.0 /* s: after a JACK start, wait for the widget to see zynseq playing */
@@ -60,7 +62,7 @@ typedef struct {
 } Snap;
 /* history entry: an overdub layer (undo = hide it) or an edit with a snapshot of the other state */
 enum { H_LAYER = 1, H_EDIT = 2 };
-enum { E_QUANT = 0, E_HALF, E_DOUBLE, E_TRANSP, E_CC };   /* E_CC: an overdub pass with only CC */
+enum { E_QUANT = 0, E_HALF, E_DOUBLE, E_TRANSP, E_CC, E_SHIFT, E_NDEL };   /* E_CC: an overdub pass with only CC */
 typedef struct { uint8_t kind, edit; int8_t snap; } HEnt;
 #define HIST 32
 #define NSNAP 8
@@ -89,6 +91,9 @@ typedef struct {
   int32_t qmask, zbeat;
   uint32_t redo;            /* counter: +1 = Redo */
   uint32_t ccm[8];          /* CC numbers bound to the looper's own controls (never recorded) */
+  int32_t shift;            /* Edit page: pending shift of the layer in ticks (applied with Apply) */
+  uint32_t ndel_layer, ndel_tick, ndel_pitch;   /* note tapped on the Edit page: layer 0-7, start tick, pitch */
+  uint32_t ndel;            /* counter: +1 = delete that note */
   uint32_t pad[3];
 } UiIn;
 #define UIIN_MAGIC 0x55494E31u
@@ -103,6 +108,7 @@ typedef struct {
   LV2_URID_Map* map;
   LV2_URID midi_Event, atom_Object, atom_Float, atom_Double, atom_Long, atom_Int;
   LV2_URID time_Position, time_bar, time_barBeat, time_bpm, time_speed, time_bpb;
+  LV2_URID patch_Set, patch_property, patch_value, atom_URID, par_sslot;
 
   double sr, clk, bpm;
   int bpb;
@@ -138,6 +144,9 @@ typedef struct {
   VizCc* ccout;
   volatile UiIn* uiin;
   uint32_t ui_redo; int ui_redo_seen;
+  uint32_t ui_ndel; int ui_ndel_seen;
+  int sel_slot;                       /* slot tapped on the Slots page (LV2 parameter sslot, kept in snapshots) */
+  int autoloaded; uint64_t autoload_until;
   uint64_t cc_out_t[16][128];
   uint8_t cc_out_v[16][128];
   CcIn cc_ring[16];
@@ -744,7 +753,7 @@ static void edit_quantize(Looper* L) {
 }
 
 /* ---------- slots ---------- */
-static int cur_slot(const Looper* L) { return (int)(*L->ctl[I_SLOT] + 0.5f); }
+static int cur_slot(const Looper* L) { return L->sel_slot; }
 
 static void request_save(Looper* L) {
   int slot = cur_slot(L);
@@ -784,6 +793,46 @@ static void poll_worker(Looper* L) {
     L->load_clk = next_boundary(L, L->load_kind, !L->rolling);
     post_msg(L, 13);
   }
+}
+
+/* ---------- Edit page: shift a layer, delete a note ---------- */
+static int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+/* Move every event of layer s by sh ticks; what passes the loop end comes in at the start (and back). */
+static void shift_layer(Looper* L, int s, int sh) {
+  const int64_t len = L->loop_len;
+  if (len <= 0) return;
+  Layer* ly = &L->layers[s];
+  for (uint32_t j = 0; j < ly->n; j++) {
+    int64_t t = ((int64_t)ly->ev[j].tick + sh) % len;
+    ly->ev[j].tick = (uint32_t)(t < 0 ? t + len : t);
+  }
+}
+
+/* A note tapped on the widget: layer, start tick and pitch (without transposition) as the widget saw them. */
+static void delete_note(Looper* L, int layer, uint32_t tick, int pitch) {
+  if (!editable(L) || layer < 0 || layer >= L->nlayers) { post_msg(L, 10); return; }
+  Layer* ly = &L->layers[layer];
+  for (uint32_t j = 0; j < ly->n; j++) {
+    const Ev* e = &ly->ev[j];
+    if ((e->st & 0xF0) != 0x90 || e->dur == 0 || e->tick != tick || e->d1 != pitch) continue;
+    hist_edit(L, E_NDEL);
+    memmove(&ly->ev[j], &ly->ev[j + 1], (ly->n - j - 1) * sizeof(Ev));
+    ly->n--;
+    L->viz_dirty = 1;                  /* a note sounding now ends at its own note-off */
+    post_msg(L, 23);
+    return;
+  }
+  post_msg(L, 10);
+}
+
+/* Snapshot restore: load the slot it selected (once, while the loop is still empty). */
+static void try_autoload(Looper* L) {
+  const int sl = L->sel_slot;
+  if (L->autoloaded || L->samples >= L->autoload_until || L->state != ST_EMPTY) return;
+  if (sl < 1 || sl > 16 || !(atomic_load(&L->slot_mask) & (1 << (sl - 1)))) return;
+  L->autoloaded = 1;
+  request_load(L, sl);
 }
 
 /* ---------- commands ---------- */
@@ -975,7 +1024,17 @@ static void run_cmd(Looper* L, int cmd) {
       if (L->nlayers > 0 && (L->state == ST_PLAY || L->state == ST_STOP || L->state == ST_OVERDUB)) {
         int s = sel_from(L, I_ELAYER);
         int t = (int)floor(*L->ctl[I_TRANSP] + 0.5);
-        if (t == 0) { post_msg(L, 18); break; }
+        const int sh = ui_ok(L) ? (int)L->uiin->shift : 0;
+        if (t == 0 && sh == 0) { post_msg(L, 18); break; }
+        if (sh != 0) {                                        /* shift moves notes: not while recording */
+          if (!editable(L)) { post_msg(L, 10); break; }
+          hist_edit(L, E_SHIFT);
+          shift_layer(L, s, sh);
+          if (t) L->layers[s].transp = (int8_t)clampi(L->layers[s].transp + t, -48, 48);
+          silence_loop(L);
+          post_msg(L, t ? 22 : 21);
+          break;
+        }
         if (L->state != ST_OVERDUB) hist_edit(L, E_TRANSP);   /* during an overdub: not undoable on its own */
         int nv = L->layers[s].transp + t;
         if (nv < -48) nv = -48;
@@ -1038,9 +1097,8 @@ static void process_controls(Looper* L) {
   if (changed >= 2) L->settle_until = L->samples + (uint64_t)(0.2 * L->sr);
   if (restore && changed >= 2 && !L->restored_once) {   /* first parameter burst after start = snapshot restore */
     L->restored_once = 1;
-    int sl = (int)(cur[I_SLOT] + 0.5f);
-    if (L->state == ST_EMPTY && sl >= 1 && sl <= 16 && (atomic_load(&L->slot_mask) & (1 << (sl - 1))))
-      request_load(L, sl);
+    L->autoload_until = L->samples + (uint64_t)(3.0 * L->sr);   /* the slot parameter may come a bit later */
+    try_autoload(L);
   }
   if (!restore && changed > 0) {
     static const int cmds[14] = { C_REC, C_PLAY, C_CLEAR, C_LMUTE, C_LDEL, C_REDO,
@@ -1203,6 +1261,22 @@ static void advance_to(Looper* L, uint32_t target) {
     L->cur_frame = seg_end;
     if (fire) { if (ck == 2) apply_load(L, cand); else fire_action(L, cand); }
   }
+}
+
+/* ---------- LV2 parameter: the selected slot ---------- */
+static void handle_patch_set(Looper* L, const LV2_Atom_Object* obj) {
+  const LV2_Atom *prop = NULL, *val = NULL;
+  lv2_atom_object_get(obj, L->patch_property, &prop, L->patch_value, &val, 0);
+  if (!prop || prop->type != L->atom_URID || !val) return;
+  if (((const LV2_Atom_URID*)prop)->body != L->par_sslot) return;
+  double v;
+  if (val->type == L->atom_Float) v = ((const LV2_Atom_Float*)val)->body;
+  else if (val->type == L->atom_Double) v = ((const LV2_Atom_Double*)val)->body;
+  else if (val->type == L->atom_Int) v = ((const LV2_Atom_Int*)val)->body;
+  else if (val->type == L->atom_Long) v = (double)((const LV2_Atom_Long*)val)->body;
+  else return;
+  L->sel_slot = clampi((int)lrint(v), 0, 16);
+  try_autoload(L);
 }
 
 /* ---------- MIDI and transport ---------- */
@@ -1453,6 +1527,11 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double rate, const char* 
   L->time_bpm      = m->map(m->handle, LV2_TIME__beatsPerMinute);
   L->time_speed    = m->map(m->handle, LV2_TIME__speed);
   L->time_bpb      = m->map(m->handle, LV2_TIME__beatsPerBar);
+  L->patch_Set      = m->map(m->handle, LV2_PATCH__Set);
+  L->patch_property = m->map(m->handle, LV2_PATCH__property);
+  L->patch_value    = m->map(m->handle, LV2_PATCH__value);
+  L->atom_URID      = m->map(m->handle, LV2_ATOM__URID);
+  L->par_sslot      = m->map(m->handle, LOOPER_URI "#sslot");
   L->sr = rate; L->bpm = 120.0; L->bpb = 4; L->zb_prev = ZB_UNSET;
   L->state = ST_EMPTY; L->arm_clk = -1; L->auto_clk = -1;
 
@@ -1505,6 +1584,10 @@ static void run(LV2_Handle h, uint32_t n) {
     const uint32_t r = L->uiin->redo;
     if (L->ui_redo_seen && r != L->ui_redo) fire_undo_redo(L, C_REDO);
     L->ui_redo = r; L->ui_redo_seen = 1;
+    const uint32_t d = L->uiin->ndel;                    /* a note tapped on the Edit page */
+    if (L->ui_ndel_seen && d != L->ui_ndel)
+      delete_note(L, (int)L->uiin->ndel_layer, L->uiin->ndel_tick, (int)L->uiin->ndel_pitch);
+    L->ui_ndel = d; L->ui_ndel_seen = 1;
   }
   zynseq_sync(L);
 
@@ -1517,6 +1600,7 @@ static void run(LV2_Handle h, uint32_t n) {
     else if (ev->body.type == L->atom_Object) {
       const LV2_Atom_Object* o = (const LV2_Atom_Object*)&ev->body;
       if (o->body.otype == L->time_Position) handle_pos(L, o);
+      else if (o->body.otype == L->patch_Set) handle_patch_set(L, o);
     }
   }
   advance_to(L, n);
