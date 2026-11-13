@@ -36,11 +36,11 @@ MIDI-лупер для [Zynthian](https://zynthian.org): **LV2-плагин (MID
 | | |
 |---|---|
 | ![Loop](docs/1-loop.png) | ![Layers](docs/2-layers.png) |
-| **Loop:** состояние, прогресс, доли и пианоролл | **Layers:** mute, удаление, undo / redo по слоям |
+| **Loop:** состояние, доли, полоса слоёв и пианоролл с плейхедом | **Layers:** выбор слоя для mute и удаления |
 | ![Timing](docs/3-timing.png) | ![Quantize](docs/4-quantize.png) |
-| **Timing:** длина и запуск | **Quantize:** сетка, сила, какие слои квантовать |
+| **Timing:** длина, запуск, Half / Double | **Quantize:** сетка поверх ролла, какие слои квантовать |
 | ![Edit](docs/5-edit.png) | ![Slots](docs/6-slots.png) |
-| **Edit:** пианоролл с дорожкой CC, транспонирование | **Slots:** 16 слотов на диске |
+| **Edit:** слой для транспонирования, экспорт | **Slots:** 16 слотов на диске |
 
 ## Требования
 

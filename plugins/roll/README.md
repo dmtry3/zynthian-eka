@@ -36,11 +36,11 @@ a loop to a Standard MIDI File and straight into a `zynseq` pattern.
 | | |
 |---|---|
 | ![Loop](docs/1-loop.png) | ![Layers](docs/2-layers.png) |
-| **Loop:** state, progress, beats and the piano roll | **Layers:** mute, delete, undo / redo per layer |
+| **Loop:** state, beats, the layer strip and the piano roll with the playhead | **Layers:** pick a layer to mute or delete |
 | ![Timing](docs/3-timing.png) | ![Quantize](docs/4-quantize.png) |
-| **Timing:** length and launch | **Quantize:** grid, strength, the layers to quantize |
+| **Timing:** length, launch, Half / Double | **Quantize:** the grid drawn over the roll, the layers to quantize |
 | ![Edit](docs/5-edit.png) | ![Slots](docs/6-slots.png) |
-| **Edit:** piano roll with the CC lane, transposition | **Slots:** the 16 slots on disk |
+| **Edit:** the layer to transpose, export | **Slots:** the 16 slots on disk |
 
 ## Requirements
 
