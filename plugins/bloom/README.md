@@ -22,8 +22,8 @@ played notes, a keyboard for the key and the chords of the scale, and an editor 
 - **Groove:** Swing with four feels, Drunk timing, Accent.
 - **Live effects** while a finger is on a pad: **Roll** 1/8 · 1/16 · 1/32 (beat repeat), **Fill**, **Oct+**,
   **Half time**, **Drop**, **Rev**; an **XY pad** for Density and Dynamics. Released = back on the grid.
-- **Transport-locked:** steps follow the Zynthian song grid while it plays, and its own clock at the Zynthian tempo
-  while it is stopped.
+- **Transport-locked:** steps follow the Zynthian song grid while it plays; stopping the transport silences it,
+  starting plays the pattern from step 1. Before the transport has ever run, it plays on its own clock.
 - **6 factory presets**, your own presets and Zynthian snapshots keep the whole pattern.
 - **Touch widget** that follows the knob page: Play pads, roll of the played notes (Arp), keyboard and degrees
   (Scale), and the step editor with mutation marks and the playhead of every row.
@@ -71,10 +71,14 @@ the *Other* category: the category can't be set from the plugin, but you can cha
 Hold a chord and the arpeggiator plays its notes one per step.
 
 **Transport.**
-- **Stopped:** the arp runs on its own clock at the Zynthian tempo, and the first note sounds as
-  soon as you press a key.
+- **Not started yet** (since the plugin was loaded): the arp runs on its own clock at the Zynthian tempo, and the
+  first note sounds as soon as you press a key.
 - **Playing:** steps are locked to the song grid. A new chord comes in on the next step of the grid.
-  Starting the transport or jumping to another position silences the sounding note.
+  Every start plays the pattern from step 1 at the bar it starts in. Jumping to another position silences the
+  sounding note.
+- **Stopped** (after playing): silent; held and latched keys stay for the next start.
+- The sequencer may stop or restart a scene while Zynthian's JACK transport keeps running; the widget passes
+  zynseq's state to Bloom (shared memory), so Bloom stops and restarts with the scene too.
 
 **Note order** follows the last played pitch. If you add a note to the chord, Up continues upward from
 where it was rather than starting over.

@@ -1,7 +1,10 @@
 /* Eka Bloom: LV2 wrapper around arp_core.
  * Transport rolling: ticks follow time:Position (steps on the song grid).
- * Transport stopped: ticks come from an internal clock at the host tempo.
- * Rolling, the pattern step follows the song grid (step 1 on tick 0), see arp_set_sync().
+ * Transport stopped: silent once the transport has run since loading; before that, ticks come from an
+ * internal clock at the host tempo (arpeggiate without the sequencer).
+ * Every transport start plays the pattern from step 1 at the bar it starts in (origin), see start_here().
+ * zynseq (Zynthian vangelis) stops / restarts scenes while JACK keeps rolling: the widget writes zynseq's
+ * beat to shared memory (UiIn), see zynseq_sync().
  * The widget's note roll reads the played notes from shared memory /dev/shm/eka_bloom_<pid>, see Viz. */
 #include <lv2/core/lv2.h>
 #include <lv2/atom/atom.h>
@@ -57,12 +60,19 @@ typedef struct { LV2_Atom_Event ev; uint8_t msg[3]; } MidiOut;
 #define VIZ_MAGIC 0x4D4F4C42u   /* "BLOM" */
 #define VIZ_NOTES 512           /* ring of the last played notes (4 bars of 1/32 with 4 hits each) */
 typedef struct { double on, off; uint8_t note, vel, ch, pad[5]; } VizNote;   /* off < 0: still sounding */
+/* written by the widget: zynseq beat, -1 unknown, 0 / -2 alternating = zynseq stopped, 1..16 = beat */
+typedef struct { uint32_t magic, seq; int32_t zbeat; uint32_t pad[5]; } UiIn;
+#define UIIN_MAGIC 0x55494E31u
 typedef struct {
   uint32_t magic, seq, head, bpb, nheld, rolling;   /* head: notes written so far (ring index head % VIZ_NOTES) */
   double clk;                                        /* current position in ticks */
   uint8_t held[ARP_MAX_NOTES];                       /* keys being arpeggiated */
   VizNote ring[VIZ_NOTES];
+  UiIn ui;                                           /* the widget writes here (after the ring) */
 } Viz;
+#define ZS_STOP_FRESH 1.5   /* s: "zynseq stopped" counts only while the widget keeps alternating 0 / -2 */
+#define ZS_START_GRACE 1.0  /* s: after a JACK start, wait for the widget to see zynseq playing */
+#define ZB_UNSET (-1000)
 
 typedef struct {
   const LV2_Atom_Sequence* in;
@@ -81,8 +91,13 @@ typedef struct {
   LV2_URID param[ARP_MAX_STEPS][N_FIELDS];
   int stepv[ARP_MAX_STEPS][N_FIELDS];
 
-  double sr, clk, bpm;   /* clk: current position in ticks */
+  double sr, clk, bpm;   /* clk: current position in ticks (song time) */
   int bpb, rolling;
+  int ran;               /* the transport has rolled since loading: stopped = silent */
+  double origin;         /* song tick of the bar where the transport last started: the core counts from it */
+  uint64_t samples;
+  int zb_prev, zs_stopped, zb_miss_n, zb_miss_cnt;
+  uint64_t zs_stop_at, zs_grace_until;
   int reset_prev;        /* last value of the reset port, -1 before the first run */
   ArpCore core;
   Viz* viz;
@@ -123,15 +138,17 @@ static void viz_note(Arp* A, double tick, uint8_t st, uint8_t d1, uint8_t d2) {
 static void core_emit(void* user, double tick, uint8_t st, uint8_t d1, uint8_t d2) {
   Arp* A = (Arp*)user;
   viz_note(A, tick, st, d1, d2);
-  double d = (tick - A->clk) / tps(A);
+  double d = (tick + A->origin - A->clk) / tps(A);       /* core time -> song time */
   uint32_t f = A->cur_frame + (d > 1e-6 ? (uint32_t)ceil(d - 1e-6) : 0);
   emit(A, f, st, d1, d2);
 }
 
+static int paused(const Arp* A) { return A->zs_stopped || (A->ran && !A->rolling); }
+
 static void advance_to(Arp* A, uint32_t target) {
   if (target <= A->cur_frame) return;
   double end = A->clk + (double)(target - A->cur_frame) * tps(A);
-  arp_process(&A->core, A->clk, end, core_emit, A);
+  if (!paused(A)) arp_process(&A->core, A->clk - A->origin, end - A->origin, core_emit, A);
   A->clk = end;
   A->cur_frame = target;
 }
@@ -145,6 +162,16 @@ static double numv(const Arp* A, const LV2_Atom* a, double def) {
   return def;
 }
 
+static void go_silent(Arp* A) { arp_silence(&A->core, A->clk - A->origin, core_emit, A); }
+
+/* the transport (re)starts: the pattern plays from step 1 at the start of this bar */
+static void start_here(Arp* A) {
+  const double bt = (double)A->bpb * ARP_PPQN;
+  A->origin = floor(A->clk / bt) * bt;
+  arp_restart(&A->core);
+  A->ran = 1;
+}
+
 static void handle_pos(Arp* A, const LV2_Atom_Object* obj) {
   const LV2_Atom *bpm = NULL, *speed = NULL, *bb = NULL, *bar = NULL, *bpb = NULL;
   lv2_atom_object_get(obj, A->time_bpm, &bpm, A->time_speed, &speed, A->time_barBeat, &bb,
@@ -154,13 +181,62 @@ static void handle_pos(Arp* A, const LV2_Atom_Object* obj) {
   const int was_rolling = A->rolling;
   if (speed) A->rolling = numv(A, speed, 0) != 0;
   arp_set_sync(&A->core, A->rolling);
-  /* Stopped: the position is frozen, keep the internal clock running. */
-  if (!A->rolling || !bar || !bb) return;
-  double ht = (numv(A, bar, 0) * A->bpb + numv(A, bb, 0)) * ARP_PPQN;
-  const int jump = fabs(ht - A->clk) > JUMP_TICKS;
-  if (jump) arp_silence(&A->core, A->clk, core_emit, A);
-  if (jump || !was_rolling) arp_restart(&A->core);   /* every start (and jump) plays the same */
-  A->clk = ht;
+  if (was_rolling && !A->rolling) { go_silent(A); return; }       /* stop: silent until the next start */
+  if (!A->rolling) return;                                         /* stopped: position frozen */
+  const int start = !was_rolling;
+  if (start) {
+    A->zs_stopped = 0;
+    A->zs_grace_until = A->samples + (uint64_t)(ZS_START_GRACE * A->sr);
+  }
+  if (bar && bb) {
+    double ht = (numv(A, bar, 0) * A->bpb + numv(A, bb, 0)) * ARP_PPQN;
+    const int jump = fabs(ht - A->clk) > JUMP_TICKS;
+    if (jump || start) go_silent(A);
+    if (jump && !start) arp_restart(&A->core);   /* a jump plays the same as from there */
+    A->clk = ht;
+  }
+  if (start) start_here(A);
+}
+
+/* ---------- zynseq (see UiIn) ---------- */
+static int zbeat_of(const Arp* A) { return (A->viz && A->viz->ui.magic == UIIN_MAGIC) ? A->viz->ui.zbeat : -1; }
+
+static void zynseq_sync(Arp* A) {
+  const int zb = zbeat_of(A);
+  const int prev = A->zb_prev, changed = (zb != prev);
+  A->zb_prev = zb;
+  const int stop_val = (zb == 0 || zb == -2);
+  if (changed && prev != ZB_UNSET && stop_val) A->zs_stop_at = A->samples ? A->samples : 1;
+  const int fresh = stop_val && A->zs_stop_at &&
+                    A->samples - A->zs_stop_at < (uint64_t)(ZS_STOP_FRESH * A->sr);
+  const double bt = (double)A->bpb * ARP_PPQN;
+  if (A->zs_stopped) {
+    if (changed && zb >= 1 && zb <= A->bpb && A->rolling) {      /* zynseq restarted without a JACK start */
+      A->zs_stopped = 0;
+      A->clk = floor(A->clk / bt) * bt + (zb - 1) * ARP_PPQN;
+      A->zb_miss_cnt = 0;
+      start_here(A);
+    } else if (!fresh || !A->rolling) {
+      A->zs_stopped = 0;                                          /* no news from the widget: JACK decides */
+    }
+    return;
+  }
+  if (fresh && A->rolling && A->samples >= A->zs_grace_until) {  /* zynseq stopped, JACK still rolling */
+    go_silent(A);
+    A->zs_stopped = 1;
+    return;
+  }
+  if (!changed || prev == ZB_UNSET || zb < 1 || zb > A->bpb || !A->rolling) return;
+  double d = (zb - 1) - fmod(fmod(A->clk, bt) + bt, bt) / ARP_PPQN;   /* beats behind zynseq */
+  d -= A->bpb * floor(d / A->bpb + 0.5);
+  const int nb = (int)lround(d);
+  if (nb == 0 || fabs(d - nb) > 0.45) { A->zb_miss_cnt = 0; return; }
+  if (nb == A->zb_miss_n) A->zb_miss_cnt++;
+  else { A->zb_miss_n = nb; A->zb_miss_cnt = 1; }
+  if (A->zb_miss_cnt < 2) return;                                 /* same offset on two beats in a row */
+  A->zb_miss_cnt = 0;
+  go_silent(A);
+  A->clk += nb * ARP_PPQN;
 }
 
 static void apply_step(Arp* A, int i) {
@@ -243,6 +319,7 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double rate, const char* 
   arp_reset_mutation(&A->core);   /* a different loop after every start */
   A->reset_prev = -1;
   A->report_next = -1;
+  A->zb_prev = ZB_UNSET;
   lv2_atom_forge_init(&A->forge, m);
   /* shared memory for the widget (one jalv process per plugin in Zynthian: the pid names it) */
   snprintf(A->viz_path, sizeof A->viz_path, "/dev/shm/eka_bloom_%d", (int)getpid());
@@ -329,6 +406,7 @@ static void run(LV2_Handle h, uint32_t n) {
   arp_set_passing(&A->core, ctl_int(A, P_PASSING, 0), ctl_int(A, P_PASS_STYLE, ARP_PASS_NEIGHBOR));
   arp_set_groove(&A->core, ctl_int(A, P_SWING, 50), ctl_int(A, P_FEEL, ARP_FEEL_PAIRS),
                  ctl_int(A, P_DRUNK, 0), ctl_int(A, P_ACCENT, 0));
+  zynseq_sync(A);
   const int rs = ctl_int(A, P_RESET, 0) != 0;
   if (A->reset_prev >= 0 && rs != A->reset_prev) arp_reset_mutation(&A->core);
   A->reset_prev = rs;
@@ -347,13 +425,14 @@ static void run(LV2_Handle h, uint32_t n) {
     }
   }
   advance_to(A, n);
+  A->samples += n;
   report_params(A, n);
   if (A->step_count_out) *A->step_count_out = (float)(A->core.step_count & 0xFFFFFFu);
   for (int i = 0; i < ARP_MAX_STEPS; i++)
     if (A->dev_out[i]) *A->dev_out[i] = pack_dev(A->core.dev[i]);
   if (A->viz) {
     Viz* v = A->viz;
-    v->clk = A->clk; v->bpb = (uint32_t)A->bpb; v->rolling = (uint32_t)A->rolling;
+    v->clk = A->clk - A->origin; v->bpb = (uint32_t)A->bpb; v->rolling = (uint32_t)(A->rolling && !paused(A));
     v->nheld = (uint32_t)A->core.nheld;
     for (int i = 0; i < A->core.nheld; i++) v->held[i] = A->core.held[i].note;
     __atomic_store_n(&v->seq, vseq + 2, __ATOMIC_RELEASE);

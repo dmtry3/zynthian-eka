@@ -8,6 +8,7 @@
 # eka_bloom.c); the Play page shows pads and an XY pad for live effects (held = on, released = off);
 # the Scale page a keyboard (tap = Key), the scales and the degrees (tap = the arpeggio moves to that chord
 # of the key); the other pages show the step editor.
+import ctypes
 import glob
 import logging
 import math
@@ -88,6 +89,12 @@ VIZ_HDR = struct.Struct("<6Id32s")       # magic, seq, head, bpb, nheld, rolling
 VIZ_NOTE = struct.Struct("<ddBBB5x")     # on, off (< 0: sounding), note, vel, ch
 VIZ_NOTES = 512
 VIZ_SIZE = VIZ_HDR.size + VIZ_NOTES * VIZ_NOTE.size
+# Written by the widget for the engine (UiIn in eka_bloom.c, after the ring): magic, seq, zbeat, pad[5].
+# zynseq stops / restarts scenes while JACK keeps rolling; the widget passes zynseq's beat to the plugin:
+# 0 / -2 alternating = zynseq stopped (silent), 1..16 = the beat. (jalv drops values for notOnGUI ports.)
+UIIN = struct.Struct("<IIi5I")
+UIIN_OFF = VIZ_SIZE
+UIIN_MAGIC = 0x55494E31
 BLACK_KEYS = (1, 3, 6, 8, 10)
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
@@ -110,6 +117,9 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
 
     def __init__(self, parent):
         super().__init__(parent)
+        self.mmw = None
+        self.mmw_path = None
+        self.after(300, self._zs_tick)
         self.rows = max(2, self.rows - 1)
         self.lane = 0
         self.drag = None             # (lane, last column, last y) while a finger is on the grid
@@ -513,6 +523,73 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         while size > 6 and self._text_w(fam, size, text, weight) > maxw:
             size -= 1
         return size
+
+    # ---------- zynseq -> plugin (shared memory) ----------
+    _zs_fn = None
+
+    @classmethod
+    def _zs_state(cls, lib):
+        """zynseq's transport state (0 stopped, 1 playing, 2 starting, 3 stopping). In vangelis-2610
+        getTransportState is exported without extern "C": try the C++ name, then the global."""
+        if cls._zs_fn is None:
+            for name in ("getTransportState", "_Z17getTransportStatev"):
+                try:
+                    f = lib[name]
+                    f.restype = ctypes.c_uint8
+                    f.argtypes = []
+                    cls._zs_fn = f
+                    break
+                except Exception:
+                    pass
+            if cls._zs_fn is None:
+                var = ctypes.c_uint8.in_dll(lib, "g_nTransportState")
+                cls._zs_fn = lambda: var.value
+        return int(cls._zs_fn())
+
+    def _zs_beat(self):
+        """zynseq beat for the plugin: 1..16 playing, 0 / -2 alternating stopped, None = unknown / starting."""
+        try:
+            lib = self.zyngui.state_manager.zynseq.libseq
+            st = self._zs_state(lib)
+            beat = int(lib.getBeat())
+        except Exception:
+            return None
+        if st == 1 and 1 <= beat <= 16:
+            return beat
+        if st in (0, 3, 5):
+            return 0 if int(time.monotonic() * 2) % 2 == 0 else -2
+        return None
+
+    def _open_mmw(self):
+        if not self._open_mm():
+            return None
+        if self.mmw is not None and self.mmw_path == self.mm_path:
+            return self.mmw
+        try:
+            if self.mmw is not None:
+                self.mmw.close()
+            with open(self.mm_path, "r+b") as f:
+                mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_WRITE)
+            if len(mm) < UIIN_OFF + UIIN.size:              # an older plugin without the block
+                mm.close()
+                return None
+            self.mmw, self.mmw_path = mm, self.mm_path
+            return mm
+        except Exception:
+            self.mmw = None
+            return None
+
+    def _zs_tick(self):
+        try:
+            if self.processor is not None:
+                zb = self._zs_beat()
+                mm = self._open_mmw() if zb is not None else None
+                if mm is not None:
+                    seq = UIIN.unpack_from(mm, UIIN_OFF)[1]
+                    UIIN.pack_into(mm, UIIN_OFF, UIIN_MAGIC, (seq + 1) & 0xFFFFFFFF, zb, 0, 0, 0, 0, 0)
+        except Exception as e:
+            logging.debug("Eka Bloom zynseq sync: %s", e)
+        self.after(33, self._zs_tick)
 
     # ---------- Roll tab: the notes Bloom has played ----------
     def _open_mm(self):

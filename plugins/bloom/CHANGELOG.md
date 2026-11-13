@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Transport stop silences the arp (once the transport has run since loading; before that it still plays on its
+  own clock); every start plays the pattern from step 1 at the bar it starts in.
+- zynseq stopping or restarting a scene while JACK keeps rolling: the widget passes zynseq's state and beat to the
+  plugin through shared memory (`UiIn` after the note ring), so Bloom follows the scene.
+
 ## 0.22 (2026-11-13)
 
 - **Ratch** row: 1–4 even hits per step (same note and velocity), its own length; **Ratch every** plays the
