@@ -66,7 +66,7 @@ All buttons are toggle-type: any change counts as a press.
 |---|---|---|
 | **Loop** | Rec/Dub | Empty: arm recording. Recording: arm stop. Playing: overdub on/off |
 | | Play/Stop | Mute / unmute the loop (position keeps running) |
-| | Undo/Redo | Turn the knob and back right away (or tap / push it): undo the last action (overdub layer, Quantize, Half, Double, Transpose), several steps back. Turn it and leave it 0.5 s (or hold the touch / push): redo what was undone, in order; the knob returns by itself. A new overdub or edit clears what could be redone; Clear, Delete layer and loading a slot clear the history. Every Undo/Redo shows what it did at the bottom of the screen |
+| | Undo/Redo | Turn the knob and back right away (or tap / push it): undo the last action (overdub pass with its notes and CC, Quantize, Half, Double, Transpose), several steps back. Turn it and leave it 0.5 s (or hold the touch / push): redo what was undone, in order; the knob returns by itself. A new overdub or edit clears what could be redone; Clear, Delete layer and loading a slot clear the history. Every Undo/Redo shows what it did at the bottom of the screen |
 | | Clear | Erase everything (press twice) |
 | **Layers** | Layer | Selects layer for Mute / Delete |
 | | L Mute | Mute/unmute selected layer |
@@ -85,6 +85,8 @@ All buttons are toggle-type: any change counts as a press.
 | **Slots** | Slot | 1-16 (0 = none) |
 | | Save / Load | Save to / load from slot (load happens at loop end) |
 | | Del Slot | Delete slot file (press twice) |
+
+When the transport starts (or zynseq starts a scene after a stop) the loop plays from its first bar.
 
 A second Undo/Redo within 0.3 s is ignored (touch screens sometimes report one tap twice).
 

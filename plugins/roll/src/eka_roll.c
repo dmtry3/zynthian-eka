@@ -60,7 +60,7 @@ typedef struct {
 } Snap;
 /* history entry: an overdub layer (undo = hide it) or an edit with a snapshot of the other state */
 enum { H_LAYER = 1, H_EDIT = 2 };
-enum { E_QUANT = 0, E_HALF, E_DOUBLE, E_TRANSP };
+enum { E_QUANT = 0, E_HALF, E_DOUBLE, E_TRANSP, E_CC };   /* E_CC: an overdub pass with only CC */
 typedef struct { uint8_t kind, edit; int8_t snap; } HEnt;
 #define HIST 32
 #define NSNAP 8
@@ -279,7 +279,17 @@ static void snap_to_layers(Looper* L, const Snap* s, int keep_mute) {
 
 /* ---------- undo / redo history ---------- */
 static void hist_free(Looper* L, const HEnt* e) {
-  if (e->kind == H_EDIT && e->snap >= 0) L->pool_used[(int)e->snap] = 0;
+  if (e->snap >= 0) L->pool_used[(int)e->snap] = 0;
+}
+/* Overdub layers and CC-only passes keep only the CC lane of the other state in their snapshot:
+   undo / redo swap it with the current lane (no extra memory). */
+static void cc_swap(Looper* L, Snap* s) {
+  const uint32_t n = L->ncc > s->ncc ? L->ncc : s->ncc;
+  for (uint32_t i = 0; i < n; i++) { Ev t = L->cc[i]; L->cc[i] = s->cc[i]; s->cc[i] = t; }
+  const uint32_t t = L->ncc; L->ncc = s->ncc; s->ncc = t;
+}
+static int cc_lane_same(const Looper* L, const Snap* s) {
+  return L->ncc == s->ncc && !memcmp(L->cc, s->cc, L->ncc * sizeof(Ev));
 }
 static void red_clear(Looper* L) {
   for (int i = 0; i < L->nred; i++) hist_free(L, &L->red[i]);
@@ -300,18 +310,18 @@ static void push(Looper* L, HEnt* st, int* n, HEnt e) {
   if (*n >= HIST) drop_bottom(L, st, n);
   st[(*n)++] = e;
 }
-static int has_edit(const HEnt* st, int n) {
-  for (int i = 0; i < n; i++) if (st[i].kind == H_EDIT) return 1;
+static int has_snap(const HEnt* st, int n) {
+  for (int i = 0; i < n; i++) if (st[i].snap >= 0) return 1;
   return 0;
 }
-/* a free snapshot; when all are taken, the oldest undo edit (else the farthest redo edit) is forgotten */
+/* a free snapshot; when all are taken, the oldest undo entry holding one (else the farthest redo one) is forgotten */
 static int snap_get(Looper* L) {
   for (int tries = 0; tries < 2 * HIST + 2; tries++) {
     for (int i = 0; i < NSNAP; i++) if (!L->pool_used[i]) { L->pool_used[i] = 1; return i; }
-    HEnt* st = has_edit(L->und, L->nund) ? L->und : L->red;
+    HEnt* st = has_snap(L->und, L->nund) ? L->und : L->red;
     int* n = (st == L->und) ? &L->nund : &L->nred;
-    if (!has_edit(st, *n)) return -1;
-    while (*n > 0) { const int was_edit = st[0].kind == H_EDIT; drop_bottom(L, st, n); if (was_edit) break; }
+    if (!has_snap(st, *n)) return -1;
+    while (*n > 0) { const int had = st[0].snap >= 0; drop_bottom(L, st, n); if (had) break; }
   }
   return -1;
 }
@@ -830,7 +840,15 @@ static void learn_button_cc(Looper* L) {
 static void drop_empty_overdub_layer(Looper* L) {
   if (L->state == ST_OVERDUB && L->nlayers > 1 && L->layers[L->nlayers - 1].n == 0) {
     L->nlayers--;
-    if (L->nund > 0 && L->und[L->nund - 1].kind == H_LAYER) L->nund--;
+    if (L->nund > 0 && L->und[L->nund - 1].kind == H_LAYER) {
+      HEnt* e = &L->und[L->nund - 1];
+      if (e->snap >= 0 && !cc_lane_same(L, &L->pool[(int)e->snap])) {
+        e->kind = H_EDIT; e->edit = E_CC;              /* only CC were recorded: an undoable CC pass */
+      } else {
+        hist_free(L, e);
+        L->nund--;
+      }
+    }
   }
 }
 
@@ -840,8 +858,10 @@ static void do_undo(Looper* L) {
   if (L->state == ST_OVERDUB) {
     drop_all_open(L); silence_loop(L);
     L->nlayers--; L->state = ST_PLAY;
-    if (L->nund > 0 && L->und[L->nund - 1].kind == H_LAYER) L->nund--;
-    push(L, L->red, &L->nred, (HEnt){ H_LAYER, 0, -1 });
+    HEnt e = { H_LAYER, 0, -1 };
+    if (L->nund > 0 && L->und[L->nund - 1].kind == H_LAYER) e = L->und[--L->nund];
+    if (e.snap >= 0) cc_swap(L, &L->pool[(int)e.snap]);   /* CC of this pass go too */
+    push(L, L->red, &L->nred, e);
     post_msg(L, 20);
     return;
   }
@@ -852,8 +872,13 @@ static void do_undo(Looper* L) {
   silence_loop(L); drop_all_open(L);
   if (e.kind == H_LAYER) {
     L->nlayers--;
+    if (e.snap >= 0) cc_swap(L, &L->pool[(int)e.snap]);
     push(L, L->red, &L->nred, e);
     post_msg(L, 50 + L->nlayers + 1);
+  } else if (e.edit == E_CC) {
+    cc_swap(L, &L->pool[(int)e.snap]);
+    push(L, L->red, &L->nred, e);
+    post_msg(L, 30 + E_CC);
   } else {
     const int after = snap_get(L);                       /* the edited state, for Redo */
     if (after >= 0) snap_from_layers(L, &L->pool[after]);
@@ -871,8 +896,13 @@ static void do_redo(Looper* L) {
   silence_loop(L); drop_all_open(L);
   if (e.kind == H_LAYER) {
     L->nlayers++;
+    if (e.snap >= 0) cc_swap(L, &L->pool[(int)e.snap]);
     push(L, L->und, &L->nund, e);
     post_msg(L, 60 + L->nlayers);
+  } else if (e.edit == E_CC) {
+    cc_swap(L, &L->pool[(int)e.snap]);
+    push(L, L->und, &L->nund, e);
+    post_msg(L, 40 + E_CC);
   } else {
     const int before = snap_get(L);                      /* the state now, for Undo again */
     if (before >= 0) snap_from_layers(L, &L->pool[before]);
@@ -899,7 +929,9 @@ static void run_cmd(Looper* L, int cmd) {
             ly->n = 0; ly->muted = 0; ly->transp = 0;
             L->nlayers++; L->state = ST_OVERDUB;
             red_clear(L);
-            push(L, L->und, &L->nund, (HEnt){ H_LAYER, 0, -1 });
+            const int cs = snap_get(L);                  /* the CC lane before this pass */
+            if (cs >= 0) { L->pool[cs].ncc = L->ncc; memcpy(L->pool[cs].cc, L->cc, L->ncc * sizeof(Ev)); }
+            push(L, L->und, &L->nund, (HEnt){ H_LAYER, 0, (int8_t)cs });
           }
           break;
         case ST_OVERDUB: drop_empty_overdub_layer(L); L->state = ST_PLAY; break;
@@ -1180,6 +1212,14 @@ static void advance_to(Looper* L, uint32_t target) {
    stops changing, e.g. one restored from a snapshot, is ignored), 1..bpb = current beat (restart after a pause,
    fix whole-beat offsets). -1 = no widget: plain JACK behaviour. */
 static void recalc_targets(Looper* L);
+/* Transport (re)started: the loop plays from its first bar, starting at the bar the transport starts in. */
+static void loop_from_start(Looper* L) {
+  if (L->loop_len == 0) return;
+  const double bt = bar_ticks(L);
+  L->loop_anchor = floor(L->clk / bt) * bt;
+  silence_loop(L);
+  L->viz_dirty = 1;
+}
 static void zs_pause(Looper* L) {
   L->zs_stopped = 1;
   silence_loop(L);
@@ -1200,6 +1240,7 @@ static void zynseq_sync(Looper* L) {
       L->zs_stopped = 0;
       L->clk = floor(L->clk / bt) * bt + (zb - 1) * PPQN;
       L->zb_miss_cnt = 0;
+      loop_from_start(L);
       recalc_targets(L);
     } else if (!fresh || !L->rolling) {
       L->zs_stopped = 0;                                           /* no news from the widget: JACK decides */
@@ -1266,13 +1307,15 @@ static void handle_pos(Looper* L, const LV2_Atom_Object* obj) {
       if (has_pos) { L->stop_pos = ht; L->stop_has_pos = 1; }
       if (!L->rolling && has_pos) set_clock(L, ht);
     } else {
-      if (!L->rolling) {                          /* a real transport start */
+      const int start = !L->rolling || L->stop_pending;   /* a real transport start (or a quick stop + start) */
+      if (!L->rolling) {
         L->zs_stopped = 0;
         L->zs_grace_until = L->samples + (uint64_t)(ZS_START_GRACE * L->sr);
       }
       L->stop_pending = 0;
       L->rolling = 1;
       if (has_pos) set_clock(L, ht);
+      if (start && L->state != ST_REC && L->state != ST_ARM_STOP) loop_from_start(L);
     }
   } else if (has_pos) {
     set_clock(L, ht);

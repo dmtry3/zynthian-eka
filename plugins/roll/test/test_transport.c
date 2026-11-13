@@ -206,6 +206,40 @@ int main(void) {
   for (int k = 0; k < 14; k++) { REDO(); if (L->msg_code >= 40 && L->msg_code < 44) redone++; }
   check("and redone the same number of times", redone == undone);
 
+  /* CC recorded in an overdub pass are part of the history */
+#define ADD_CC(t, v) do { L->cc[L->ncc++] = (Ev){ .tick = (t), .dur = 0, .st = 0xB0, .d1 = 74, .d2 = (v) }; } while (0)
+  make_loop();
+  L->layers[0].ev[0].tick = 37; L->layers[1].ev[0].tick = 517; L->ncc = 0;
+  run_cmd(L, C_QAPPLY);
+  run_cmd(L, C_REC);                                    /* overdub pass with only CC */
+  ADD_CC(100, 10); ADD_CC(900, 90);
+  run_cmd(L, C_REC);
+  check("CC-only pass: no empty layer, CC kept", L->nlayers == 2 && L->ncc == 2);
+  UNDO();
+  check("undo: the CC pass goes ('Undo: CC'), quantize stays",
+        L->ncc == 0 && L->msg_code == 30 + E_CC && L->layers[0].ev[0].tick == 0);
+  UNDO();
+  check("undo: then the quantize", L->layers[0].ev[0].tick == 37 && L->msg_code == 30 + E_QUANT && L->ncc == 0);
+  REDO();
+  check("redo: quantize", L->layers[0].ev[0].tick == 0 && L->ncc == 0);
+  REDO();
+  check("redo: the CC pass ('Redo: CC')", L->ncc == 2 && L->cc[1].d2 == 90 && L->msg_code == 40 + E_CC);
+
+  run_cmd(L, C_REC);                                    /* overdub pass with notes and CC */
+  L->layers[2].n = 1; L->layers[2].ev[0] = (Ev){ .tick = 960, .dur = 100, .st = 0x90, .d1 = 72, .d2 = 90 };
+  ADD_CC(1500, 50);
+  run_cmd(L, C_REC);
+  UNDO();
+  check("undo of a layer also removes the CC of its pass", L->nlayers == 2 && L->ncc == 2 && L->msg_code == 53);
+  REDO();
+  check("redo brings both back", L->nlayers == 3 && L->ncc == 3);
+  run_cmd(L, C_REC);
+  ADD_CC(2000, 60);
+  UNDO();
+  check("undo during an overdub drops its CC too", L->state == ST_PLAY && L->nlayers == 3 && L->ncc == 3);
+  REDO();
+  check("redo: that pass back with its CC", L->nlayers == 4 && L->ncc == 4);
+
   /* clear / load / delete forget the history */
   make_loop(); run_cmd(L, C_HALF);
   L->state = ST_PLAY; ctl[I_LAYER] = 1;
@@ -272,6 +306,27 @@ int main(void) {
 
   /* Zynthian restart with JACK still rolling: new instance, zbeat restored as 0, widget alternates -> pause
      after the start grace; a 0 that never changes (no widget) does not pause */
+  /* transport stopped and started again: the loop plays from its first bar */
+  make_loop();
+  L->loop_len = 8 * PPQN;                                /* 2 bars */
+  zbeat = -1; run_secs(0.1);
+  begin_block(); position(1, 0, 0); end_block_run();
+  run_secs(3.1);                                         /* 120 bpm: 1.5 bars in */
+  double lp = pmod(L->clk - L->loop_anchor, L->loop_len) / PPQN;
+  check("playing: in the second bar of the loop", lp > 5.5 && lp < 6.6);
+  begin_block(); position(0, 1, 2.2f); end_block_run();
+  run_secs(1.0);
+  begin_block(); position(1, 1, 0); end_block_run();     /* zynseq starts on beat 1 of its bar */
+  run_secs(0.02);
+  lp = pmod(L->clk - L->loop_anchor, L->loop_len) / PPQN;
+  check("stop + start: the loop starts from its first bar", lp < 0.1);
+  run_secs(0.5);
+  begin_block(); position(0, 1, 1.0f); end_block_run();
+  begin_block(); position(1, 3, 0); end_block_run();     /* quick stop + start (< 0.1 s) */
+  run_secs(0.02);
+  lp = pmod(L->clk - L->loop_anchor, L->loop_len) / PPQN;
+  check("a quick stop + start also starts from the first bar", lp < 0.1);
+
   cleanup(L);
   L = (Looper*)instantiate(&desc, SR, "/tmp", feats);
   connect_all();

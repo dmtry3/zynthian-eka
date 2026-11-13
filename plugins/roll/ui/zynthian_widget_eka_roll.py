@@ -25,7 +25,7 @@ MSGS = {1: "Saved", 2: "Loaded", 3: "Slot deleted", 4: "Slot empty", 5: "Save fa
         14: "Grid is OFF", 15: "Busy", 16: "Layer transposed",
         17: "No layers selected", 18: "Transpose is 0", 19: "Exporting...",
         20: "Undo: overdub", 25: "Nothing to undo", 26: "Nothing to redo"}
-for _i, _e in enumerate(("Quantize", "Half", "Double", "Transpose")):
+for _i, _e in enumerate(("Quantize", "Half", "Double", "Transpose", "CC")):
     MSGS[30 + _i] = "Undo: " + _e
     MSGS[40 + _i] = "Redo: " + _e
 for _n in range(1, 9):
