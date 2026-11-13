@@ -23,7 +23,14 @@ MSGS = {1: "Saved", 2: "Loaded", 3: "Slot deleted", 4: "Slot empty", 5: "Save fa
         6: "No loop", 7: "Quantized", 8: "Loop /2", 9: "Loop x2", 10: "Not possible",
         11: "Edit undone", 12: "Select a slot (1-16)", 13: "Load pending...",
         14: "Grid is OFF", 15: "Busy", 16: "Layer transposed",
-        17: "No layers selected", 18: "Transpose is 0", 19: "Exporting..."}
+        17: "No layers selected", 18: "Transpose is 0", 19: "Exporting...",
+        20: "Undo: overdub", 25: "Nothing to undo", 26: "Nothing to redo"}
+for _i, _e in enumerate(("Quantize", "Half", "Double", "Transpose")):
+    MSGS[30 + _i] = "Undo: " + _e
+    MSGS[40 + _i] = "Redo: " + _e
+for _n in range(1, 9):
+    MSGS[50 + _n] = "Undo: layer %d" % _n
+    MSGS[60 + _n] = "Redo: layer %d" % _n
 CONFIRMS = {1: "Press again: CLEAR", 2: "Press again: DELETE LAYER", 3: "Press again: DELETE SLOT"}
 
 HDR = struct.Struct("<8I8I8i2I")    # magic,seq,ver,loop_len,nlayers,bpb,state,mute ; n[8] ; transp[8] ; ncc,pad
@@ -236,8 +243,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             self._zset("undo", 0)
 
     def redo(self):
-        if self._ui_put(redo=True) or _flip(self.processor, "redo"):
-            self._toast("Redo", 1.5)
+        self._ui_put(redo=True) or _flip(self.processor, "redo")     # the engine posts what was redone
 
     # ---------- values for the engine (shared memory) ----------
     def _open_mmw(self):

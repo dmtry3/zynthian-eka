@@ -78,7 +78,9 @@ static double beat_in_bar(void) { return pmod(L->clk, bar_ticks(L)) / PPQN; }
 
 /* a 1-bar loop with two layers, playing */
 static void make_loop(void) {
-  L->loop_len = 4 * PPQN; L->loop_anchor = 0; L->nlayers = 2; L->nredo = 0; L->bk_valid = 0;
+  L->loop_len = 4 * PPQN; L->loop_anchor = 0; L->nlayers = 2;
+  hist_clear(L);
+  push(L, L->und, &L->nund, (HEnt){ H_LAYER, 0, -1 });          /* layer 2 was an overdub */
   for (int i = 0; i < 2; i++) {
     L->layers[i].n = 1;
     L->layers[i].ev[0] = (Ev){ .tick = 0, .dur = 100, .st = 0x90, .d1 = 60 + i, .d2 = 100 };
@@ -100,47 +102,127 @@ int main(void) {
   run_secs(0.5);
   check("transport rolling", outv[O_RUN] == 1.0f);
 
-  /* ---- Undo/Redo knob: turned and back = Undo, held 0.5 s = Redo ---- */
+  /* ---- Undo/Redo knob gesture: turned and back = Undo, left 0.5 s = Redo ---- */
   make_loop();
-  backup_make(L);                                     /* as Quantize does */
+  run_cmd(L, C_HALF); run_cmd(L, C_DOUBLE);                       /* two edits to undo */
   ctl[C_UNDO] = 1; run_secs(0.1);
-  check("knob turned: nothing yet", L->nlayers == 2 && L->bk_valid);
+  check("knob turned: nothing yet", L->nund == 3);
   ctl[C_UNDO] = 0; run_secs(0.05);
-  check("turned and back: edit undone, layers kept", L->nlayers == 2 && !L->bk_valid);
+  check("turned and back: Undo (Double)", L->nund == 2 && L->msg_code == 30 + E_DOUBLE);
   ctl[C_UNDO] = 1; run_secs(0.03); ctl[C_UNDO] = 0; run_secs(0.05);
-  check("a bounce right after is ignored", L->nlayers == 2);
-  run_secs(0.4);
-  ctl[C_UNDO] = 1; run_secs(0.1); ctl[C_UNDO] = 0; run_secs(0.05);
-  check("next turn-and-back removes the last layer", L->nlayers == 1 && L->nredo == 1);
+  check("a bounce right after is ignored", L->nund == 2);
   run_secs(0.4);
   ctl[C_UNDO] = 1; run_secs(0.45);
-  check("held 0.45 s: nothing yet", L->nlayers == 1);
+  check("held 0.45 s: nothing yet", L->nred == 1);
   run_secs(0.1);
-  check("held 0.5 s: Redo, the layer is back", L->nlayers == 2 && L->nredo == 0);
+  check("held 0.5 s: Redo (Double)", L->nred == 0 && L->msg_code == 40 + E_DOUBLE);
   run_secs(0.5);
   ctl[C_UNDO] = 0; run_secs(0.05);
-  check("turning back after the Redo does nothing", L->nlayers == 2);
+  check("turning back after the Redo does nothing", L->nund == 3);
   run_secs(0.4);
   ctl[C_UNDO] = 1; ctl[C_PLAY] = 1; run_secs(0.7);    /* two ports at once = snapshot restore */
-  check("undo set by a snapshot restore is not a gesture", L->nlayers == 2 && L->state == ST_PLAY);
-  ctl[C_UNDO] = 0; ctl[C_PLAY] = 0; run_secs(0.5);
-  run_secs(0.4);
-  ctl[C_UNDO] = 1; run_secs(0.1); ctl[C_UNDO] = 0; run_secs(0.05);
-  check("undo before the widget redo", L->nlayers == 1);
-  run_secs(0.4);
+  check("undo set by a snapshot restore is not a gesture", L->nund == 3 && L->state == ST_PLAY);
+  ctl[C_UNDO] = 0; ctl[C_PLAY] = 0; run_secs(0.9);
   L->uiin->redo++; run_secs(0.05);
-  check("redo counter in shared memory (widget): Redo", L->nlayers == 2);
+  check("redo counter in shared memory (widget) reaches the engine", L->msg_code == 26);
+
+  /* ---- Undo/Redo scenarios ---- */
+#define UNDO() do { run_secs(0.35); run_cmd(L, C_UNDO); } while (0)
+#define REDO() do { run_secs(0.35); run_cmd(L, C_REDO); } while (0)
+  make_loop();
+  L->layers[0].ev[0].tick = 37; L->layers[1].ev[0].tick = 517;
+  ctl[I_QGRID] = 3; qmask_ui = 255; run_secs(0.02);
+  run_cmd(L, C_QAPPLY);
+  check("quantize: both layers on the grid", L->layers[0].ev[0].tick == 0 && L->layers[1].ev[0].tick == 480);
+  UNDO();
+  check("undo quantize: notes back, message 'Undo: Quantize'",
+        L->layers[0].ev[0].tick == 37 && L->layers[1].ev[0].tick == 517 && L->msg_code == 30 + E_QUANT);
+  REDO();
+  check("redo quantize: on the grid again, 'Redo: Quantize'",
+        L->layers[0].ev[0].tick == 0 && L->layers[1].ev[0].tick == 480 && L->msg_code == 40 + E_QUANT);
+  UNDO();
+  check("undo it again", L->layers[0].ev[0].tick == 37 && L->layers[1].ev[0].tick == 517);
+  UNDO();
+  check("next undo hides overdub layer 2 ('Undo: layer 2')", L->nlayers == 1 && L->msg_code == 52);
+  UNDO();
+  check("nothing more to undo (the first layer stays)", L->nlayers == 1 && L->msg_code == 25);
+  REDO();
+  check("redo: layer 2 back ('Redo: layer 2')", L->nlayers == 2 && L->msg_code == 62 && L->layers[1].ev[0].tick == 517);
+  REDO();
+  check("redo: quantize again", L->layers[0].ev[0].tick == 0 && L->layers[1].ev[0].tick == 480 && L->msg_code == 40);
+  REDO();
+  check("nothing more to redo", L->msg_code == 26);
+
+  /* a new edit forgets what could be redone */
+  UNDO();
+  run_cmd(L, C_HALF);
+  REDO();
+  check("after a new edit, Redo has nothing", L->msg_code == 26);
+  UNDO();
+  check("undo Half", L->loop_len == 4 * PPQN && L->msg_code == 30 + E_HALF);
+
+  /* overdub: undo while recording drops the take, redo brings it back */
+  run_cmd(L, C_REC);
+  check("overdub started (layer 3)", L->state == ST_OVERDUB && L->nlayers == 3);
+  L->layers[2].n = 1; L->layers[2].ev[0] = (Ev){ .tick = 960, .dur = 100, .st = 0x90, .d1 = 70, .d2 = 90 };
+  UNDO();
+  check("undo during overdub: take dropped, playing ('Undo: overdub')",
+        L->state == ST_PLAY && L->nlayers == 2 && L->msg_code == 20);
+  REDO();
+  check("redo: the take is back as layer 3", L->nlayers == 3 && L->layers[2].n == 1 && L->msg_code == 63);
+  UNDO();
+  check("undo: layer 3 hidden again", L->nlayers == 2 && L->msg_code == 53);
+  run_cmd(L, C_REC); run_cmd(L, C_REC);                 /* empty overdub: not kept, not in the history */
+  REDO();
+  check("a new (empty) overdub forgets the hidden layer", L->nlayers == 2 && L->msg_code == 26);
+
+  /* an edit after hiding a layer: undo the edit keeps the hidden layer for redo */
+  run_cmd(L, C_REC); L->layers[2].n = 1; run_cmd(L, C_REC);      /* overdub layer 3 with one note */
+  UNDO();                                                         /* hide layer 3 */
+  ctl[I_TRANSP] = 5; ctl[I_ELAYER] = 1; run_secs(0.02);
+  run_cmd(L, C_EAPPLY);
+  check("transpose is an edit", L->layers[0].transp == 5);
+  UNDO();
+  check("undo transpose", L->layers[0].transp == 0 && L->msg_code == 30 + E_TRANSP);
+  REDO();
+  check("redo transpose", L->layers[0].transp == 5 && L->msg_code == 40 + E_TRANSP);
+  ctl[I_TRANSP] = 0;
+
+  /* mutes are not undone */
+  L->layers[0].muted = 1;
+  UNDO();
+  check("undo of an edit keeps the current mute", L->layers[0].muted == 1 && L->layers[0].transp == 0);
+  L->layers[0].muted = 0;
+
+  /* many edits: the oldest are forgotten, the newest undo and redo fine */
+  make_loop();
+  for (int k = 0; k < 12; k++) run_cmd(L, (k & 1) ? C_DOUBLE : C_HALF);
+  int undone = 0;
+  for (int k = 0; k < 14; k++) { UNDO(); if (L->msg_code == 30 + E_HALF || L->msg_code == 30 + E_DOUBLE) undone++; }
+  /* edits alternate Half / Double: after undoing k of 12 the loop is as after edit 12 - k */
+  check("12 edits: at least 6 can be undone, back to the right state",
+        undone >= 6 && L->loop_len == (((12 - undone) & 1) ? 2 * PPQN : 4 * PPQN));
+  int redone = 0;
+  for (int k = 0; k < 14; k++) { REDO(); if (L->msg_code >= 40 && L->msg_code < 44) redone++; }
+  check("and redone the same number of times", redone == undone);
+
+  /* clear / load / delete forget the history */
+  make_loop(); run_cmd(L, C_HALF);
+  L->state = ST_PLAY; ctl[I_LAYER] = 1;
+  run_cmd(L, C_LDEL); run_cmd(L, C_LDEL);
+  UNDO();
+  check("after deleting a layer there is nothing to undo", L->msg_code == 25);
 
   /* ---- Quantize: only the layers in qmask (the device log had qmask = 253: layer 1 on, layer 2 off) ---- */
   make_loop();
   L->layers[0].ev[0].tick = 37; L->layers[1].ev[0].tick = 517;          /* both off the 1/16 grid */
+  hist_clear(L);
   ctl[I_QGRID] = 3; qmask_ui = 253; run_secs(0.05);
   ctl[C_QAPPLY] = 1; run_secs(0.05);
   check("quantize qmask 253: layer 1 moved, layer 2 untouched",
         L->layers[0].ev[0].tick == 0 && L->layers[1].ev[0].tick == 517);
   ctl[C_QAPPLY] = 0; run_secs(0.05);
   qmask_ui = 255; ctl[I_QGRID] = 0;
-  L->bk_valid = 0;
 
   /* ---- zynseq sync ---- */
   zbeat = 3; run_secs(0.02);

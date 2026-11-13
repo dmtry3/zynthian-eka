@@ -58,6 +58,12 @@ typedef struct {
   uint32_t n[MAX_LAYERS]; Ev* ev[MAX_LAYERS];
   Ev* cc; uint32_t ncc;
 } Snap;
+/* history entry: an overdub layer (undo = hide it) or an edit with a snapshot of the other state */
+enum { H_LAYER = 1, H_EDIT = 2 };
+enum { E_QUANT = 0, E_HALF, E_DOUBLE, E_TRANSP };
+typedef struct { uint8_t kind, edit; int8_t snap; } HEnt;
+#define HIST 32
+#define NSNAP 8
 typedef struct { double clk; uint8_t ch, p; } Off;
 typedef struct { uint32_t frame; uint8_t prio, st, d1, d2, final; } Out;
 typedef struct { uint8_t ch, p, vel, closed; double on_clk, dur; } Pre;
@@ -112,7 +118,7 @@ typedef struct {
 
   int state;
   Layer layers[MAX_LAYERS];
-  int nlayers, nredo;
+  int nlayers;
   uint32_t loop_len;
   double loop_anchor, rec_start, arm_clk, auto_clk;
   int arm_kind;
@@ -146,7 +152,9 @@ typedef struct {
   int confirm;
   uint64_t confirm_until;
 
-  Snap bk; int bk_valid;
+  /* undo / redo history: overdub layers and edits, in the order they were done */
+  HEnt und[HIST], red[HIST]; int nund, nred;
+  Snap pool[NSNAP]; uint8_t pool_used[NSNAP];   /* snapshots for edits (state before / after) */
   Snap save_s, load_s;
   int pending_load, load_kind;
   double load_clk;
@@ -257,16 +265,64 @@ static void snap_from_layers(const Looper* L, Snap* s) {
     memcpy(s->ev[i], L->layers[i].ev, L->layers[i].n * sizeof(Ev));
   }
 }
-static void snap_to_layers(Looper* L, const Snap* s) {
-  for (int i = 0; i < MAX_LAYERS; i++) { L->layers[i].n = 0; L->layers[i].muted = 0; L->layers[i].transp = 0; }
+/* Restore layers 0..s->nlayers-1 (layers above, kept for Redo, are left alone). keep_mute: undo/redo
+   doesn't bring back old mutes, they are a performance control. */
+static void snap_to_layers(Looper* L, const Snap* s, int keep_mute) {
   for (int i = 0; i < s->nlayers; i++) {
-    L->layers[i].n = s->n[i]; L->layers[i].muted = s->muted[i]; L->layers[i].transp = s->transp[i];
+    L->layers[i].n = s->n[i]; L->layers[i].transp = s->transp[i];
+    if (!keep_mute) L->layers[i].muted = s->muted[i];
     memcpy(L->layers[i].ev, s->ev[i], s->n[i] * sizeof(Ev));
   }
   L->nlayers = s->nlayers; L->loop_len = s->len;
   L->ncc = s->ncc; memcpy(L->cc, s->cc, s->ncc * sizeof(Ev));
 }
-static void backup_make(Looper* L) { snap_from_layers(L, &L->bk); L->bk_valid = 1; }
+
+/* ---------- undo / redo history ---------- */
+static void hist_free(Looper* L, const HEnt* e) {
+  if (e->kind == H_EDIT && e->snap >= 0) L->pool_used[(int)e->snap] = 0;
+}
+static void red_clear(Looper* L) {
+  for (int i = 0; i < L->nred; i++) hist_free(L, &L->red[i]);
+  L->nred = 0;
+}
+static void hist_clear(Looper* L) {
+  red_clear(L);
+  for (int i = 0; i < L->nund; i++) hist_free(L, &L->und[i]);
+  L->nund = 0;
+}
+static void drop_bottom(Looper* L, HEnt* st, int* n) {         /* forget the oldest entry */
+  if (*n <= 0) return;
+  hist_free(L, &st[0]);
+  memmove(st, st + 1, (size_t)(*n - 1) * sizeof(HEnt));
+  (*n)--;
+}
+static void push(Looper* L, HEnt* st, int* n, HEnt e) {
+  if (*n >= HIST) drop_bottom(L, st, n);
+  st[(*n)++] = e;
+}
+static int has_edit(const HEnt* st, int n) {
+  for (int i = 0; i < n; i++) if (st[i].kind == H_EDIT) return 1;
+  return 0;
+}
+/* a free snapshot; when all are taken, the oldest undo edit (else the farthest redo edit) is forgotten */
+static int snap_get(Looper* L) {
+  for (int tries = 0; tries < 2 * HIST + 2; tries++) {
+    for (int i = 0; i < NSNAP; i++) if (!L->pool_used[i]) { L->pool_used[i] = 1; return i; }
+    HEnt* st = has_edit(L->und, L->nund) ? L->und : L->red;
+    int* n = (st == L->und) ? &L->nund : &L->nred;
+    if (!has_edit(st, *n)) return -1;
+    while (*n > 0) { const int was_edit = st[0].kind == H_EDIT; drop_bottom(L, st, n); if (was_edit) break; }
+  }
+  return -1;
+}
+/* before an edit: remember the state for Undo; a new edit forgets what could be redone */
+static void hist_edit(Looper* L, int kind) {
+  red_clear(L);
+  const int s = snap_get(L);
+  if (s < 0) return;
+  snap_from_layers(L, &L->pool[s]);
+  push(L, L->und, &L->nund, (HEnt){ H_EDIT, (uint8_t)kind, (int8_t)s });
+}
 
 /* ---------- slot files (worker thread) ---------- */
 static void slot_path(const Looper* L, int slot, char* out, size_t sz) {
@@ -516,9 +572,10 @@ static void reset_layers(Looper* L) {
 static void do_clear(Looper* L) {
   silence_loop(L);
   reset_layers(L);
-  L->nlayers = 0; L->nredo = 0; L->loop_len = 0;
+  L->nlayers = 0; L->loop_len = 0;
+  hist_clear(L);
   L->state = ST_EMPTY; L->arm_clk = -1; L->auto_clk = -1;
-  L->confirm = 0; L->npre = 0; L->bk_valid = 0;
+  L->confirm = 0; L->npre = 0;
   L->ncc = 0; memset(L->touch, 0, sizeof L->touch);
   L->pending_load = 0; atomic_store(&L->load_state, 0);
   drop_all_open(L);
@@ -527,7 +584,8 @@ static void do_clear(Looper* L) {
 
 static void begin_rec(Looper* L, double at) {
   reset_layers(L);
-  L->nlayers = 1; L->nredo = 0; L->loop_len = 0; L->bk_valid = 0;
+  L->nlayers = 1; L->loop_len = 0;
+  hist_clear(L);
   L->ncc = 0; memset(L->touch, 0, sizeof L->touch);
   L->pending_load = 0; atomic_store(&L->load_state, 0);
   L->rec_start = at; L->state = ST_REC; L->arm_clk = -1;
@@ -568,9 +626,11 @@ static void finish_rec(Looper* L, double at) {
 static void apply_load(Looper* L, double at) {
   silence_loop(L);
   drop_all_open(L);
-  snap_to_layers(L, &L->load_s);
-  L->nredo = 0; L->loop_anchor = at; L->state = ST_PLAY;
-  L->arm_clk = -1; L->auto_clk = -1; L->bk_valid = 0;
+  for (int i = L->load_s.nlayers; i < MAX_LAYERS; i++) { L->layers[i].n = 0; L->layers[i].muted = 0; L->layers[i].transp = 0; }
+  snap_to_layers(L, &L->load_s, 0);
+  hist_clear(L);
+  L->loop_anchor = at; L->state = ST_PLAY;
+  L->arm_clk = -1; L->auto_clk = -1;
   L->pending_load = 0; atomic_store(&L->load_state, 0);
   L->viz_dirty = 1;
   post_msg(L, 2);
@@ -602,7 +662,7 @@ static int editable(const Looper* L) {
 
 static void edit_half(Looper* L) {
   if (!editable(L) || L->loop_len < 2 * PPQN) { post_msg(L, 10); return; }
-  backup_make(L); silence_loop(L); drop_all_open(L);
+  hist_edit(L, E_HALF); silence_loop(L); drop_all_open(L);
   uint32_t nl = L->loop_len / 2;
   for (int i = 0; i < L->nlayers; i++) {
     Layer* ly = &L->layers[i];
@@ -625,7 +685,7 @@ static void edit_double(Looper* L) {
   for (int i = 0; i < L->nlayers; i++)
     if (L->layers[i].n * 2 > MAX_EVENTS) { post_msg(L, 10); return; }
   if (L->ncc * 2 > MAX_CC) { post_msg(L, 10); return; }
-  backup_make(L); silence_loop(L); drop_all_open(L);
+  hist_edit(L, E_DOUBLE); silence_loop(L); drop_all_open(L);
   for (int i = 0; i < L->nlayers; i++) {
     Layer* ly = &L->layers[i];
     for (uint32_t j = 0; j < ly->n; j++) {
@@ -649,7 +709,7 @@ static void edit_quantize(Looper* L) {
   int qmask = qmask_of(L), qany = 0;
   for (int i = 0; i < L->nlayers; i++) if ((qmask >> i) & 1) qany = 1;
   if (!qany) { post_msg(L, 17); return; }
-  backup_make(L); silence_loop(L); drop_all_open(L);
+  hist_edit(L, E_QUANT); silence_loop(L); drop_all_open(L);
   const double u = units[g], k = str / 100.0, len = (double)L->loop_len;
   for (int i = 0; i < L->nlayers; i++) {
     Layer* ly = &L->layers[i];
@@ -768,7 +828,59 @@ static void learn_button_cc(Looper* L) {
 
 /* leaving OVERDUB: a layer without any notes is not kept */
 static void drop_empty_overdub_layer(Looper* L) {
-  if (L->state == ST_OVERDUB && L->nlayers > 1 && L->layers[L->nlayers - 1].n == 0) L->nlayers--;
+  if (L->state == ST_OVERDUB && L->nlayers > 1 && L->layers[L->nlayers - 1].n == 0) {
+    L->nlayers--;
+    if (L->nund > 0 && L->und[L->nund - 1].kind == H_LAYER) L->nund--;
+  }
+}
+
+/* Undo: the overdub being recorded, else the last history entry (a layer or an edit). Messages: 20 overdub,
+   50+n layer n hidden, 30+edit, 25 nothing. Redo: 60+n layer n back, 40+edit, 26 nothing. */
+static void do_undo(Looper* L) {
+  if (L->state == ST_OVERDUB) {
+    drop_all_open(L); silence_loop(L);
+    L->nlayers--; L->state = ST_PLAY;
+    if (L->nund > 0 && L->und[L->nund - 1].kind == H_LAYER) L->nund--;
+    push(L, L->red, &L->nred, (HEnt){ H_LAYER, 0, -1 });
+    post_msg(L, 20);
+    return;
+  }
+  if (!(L->state == ST_PLAY || L->state == ST_STOP) || L->nund == 0) { post_msg(L, 25); return; }
+  const HEnt e = L->und[L->nund - 1];
+  if (e.kind == H_LAYER && L->nlayers <= 1) { post_msg(L, 25); return; }
+  L->nund--;
+  silence_loop(L); drop_all_open(L);
+  if (e.kind == H_LAYER) {
+    L->nlayers--;
+    push(L, L->red, &L->nred, e);
+    post_msg(L, 50 + L->nlayers + 1);
+  } else {
+    const int after = snap_get(L);                       /* the edited state, for Redo */
+    if (after >= 0) snap_from_layers(L, &L->pool[after]);
+    snap_to_layers(L, &L->pool[(int)e.snap], 1);
+    L->pool_used[(int)e.snap] = 0;
+    if (after >= 0) push(L, L->red, &L->nred, (HEnt){ H_EDIT, e.edit, (int8_t)after });
+    post_msg(L, 30 + e.edit);
+  }
+}
+static void do_redo(Looper* L) {
+  if (!(L->state == ST_PLAY || L->state == ST_STOP) || L->nred == 0) { post_msg(L, 26); return; }
+  const HEnt e = L->red[L->nred - 1];
+  if (e.kind == H_LAYER && L->nlayers >= MAX_LAYERS) { post_msg(L, 26); return; }
+  L->nred--;
+  silence_loop(L); drop_all_open(L);
+  if (e.kind == H_LAYER) {
+    L->nlayers++;
+    push(L, L->und, &L->nund, e);
+    post_msg(L, 60 + L->nlayers);
+  } else {
+    const int before = snap_get(L);                      /* the state now, for Undo again */
+    if (before >= 0) snap_from_layers(L, &L->pool[before]);
+    snap_to_layers(L, &L->pool[(int)e.snap], 1);
+    L->pool_used[(int)e.snap] = 0;
+    if (before >= 0) push(L, L->und, &L->nund, (HEnt){ H_EDIT, e.edit, (int8_t)before });
+    post_msg(L, 40 + e.edit);
+  }
 }
 
 static void run_cmd(Looper* L, int cmd) {
@@ -785,7 +897,9 @@ static void run_cmd(Looper* L, int cmd) {
           if (L->nlayers < MAX_LAYERS) {
             Layer* ly = &L->layers[L->nlayers];
             ly->n = 0; ly->muted = 0; ly->transp = 0;
-            L->nlayers++; L->nredo = 0; L->bk_valid = 0; L->state = ST_OVERDUB;
+            L->nlayers++; L->state = ST_OVERDUB;
+            red_clear(L);
+            push(L, L->und, &L->nund, (HEnt){ H_LAYER, 0, -1 });
           }
           break;
         case ST_OVERDUB: drop_empty_overdub_layer(L); L->state = ST_PLAY; break;
@@ -797,23 +911,8 @@ static void run_cmd(Looper* L, int cmd) {
       else if (L->state == ST_STOP) arm_or_fire(L, ST_ARM_PLAY);
       else if (L->state == ST_ARM_PLAY) { L->state = ST_STOP; L->arm_clk = -1; }
       break;
-    case C_UNDO:
-      if (L->bk_valid && (L->state == ST_PLAY || L->state == ST_STOP)) {
-        silence_loop(L); drop_all_open(L);
-        snap_to_layers(L, &L->bk); L->bk_valid = 0; L->nredo = 0;
-        post_msg(L, 11);
-      } else if (L->state == ST_OVERDUB) {
-        drop_all_open(L); silence_loop(L);
-        L->nlayers--; L->nredo++; L->state = ST_PLAY;
-      } else if ((L->state == ST_PLAY || L->state == ST_STOP) && L->nlayers > 1) {
-        silence_loop(L); L->nlayers--; L->nredo++;
-      }
-      break;
-    case C_REDO:
-      if ((L->state == ST_PLAY || L->state == ST_STOP) && L->nredo > 0 && L->nlayers < MAX_LAYERS) {
-        L->nlayers++; L->nredo--;
-      }
-      break;
+    case C_UNDO: do_undo(L); break;
+    case C_REDO: do_redo(L); break;
     case C_CLEAR:
       if (L->state != ST_EMPTY && confirm_cmd(L, 1)) do_clear(L);
       break;
@@ -831,7 +930,8 @@ static void run_cmd(Looper* L, int cmd) {
         for (int k = s; k < MAX_LAYERS - 1; k++) L->layers[k] = L->layers[k + 1];
         tmp.n = 0; tmp.muted = 0; tmp.transp = 0;
         L->layers[MAX_LAYERS - 1] = tmp;
-        L->nlayers--; L->nredo = 0; L->bk_valid = 0;
+        L->nlayers--;
+        hist_clear(L);
         drop_all_open(L); silence_loop(L);
         if (L->nlayers == 0) do_clear(L);
       }
@@ -844,6 +944,7 @@ static void run_cmd(Looper* L, int cmd) {
         int s = sel_from(L, I_ELAYER);
         int t = (int)floor(*L->ctl[I_TRANSP] + 0.5);
         if (t == 0) { post_msg(L, 18); break; }
+        if (L->state != ST_OVERDUB) hist_edit(L, E_TRANSP);   /* during an overdub: not undoable on its own */
         int nv = L->layers[s].transp + t;
         if (nv < -48) nv = -48;
         if (nv > 48) nv = 48;
@@ -1270,7 +1371,8 @@ static void reconcile_notes(Looper* L) {
 /* ---------- LV2 ---------- */
 static void free_all(Looper* L) {
   for (int i = 0; i < MAX_LAYERS; i++) free(L->layers[i].ev);
-  snap_free(&L->bk); snap_free(&L->save_s); snap_free(&L->load_s);
+  for (int i = 0; i < NSNAP; i++) snap_free(&L->pool[i]);
+  snap_free(&L->save_s); snap_free(&L->load_s);
   free(L->cc);
   if (L->viz) { munmap(L->viz, L->viz_size); unlink(L->viz_path); }
   if (L->viz_fd > 0) close(L->viz_fd);
@@ -1289,7 +1391,8 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double rate, const char* 
     L->layers[i].ev = (Ev*)calloc(MAX_EVENTS, sizeof(Ev));
     if (!L->layers[i].ev) ok = 0;
   }
-  if (!snap_alloc(&L->bk) || !snap_alloc(&L->save_s) || !snap_alloc(&L->load_s)) ok = 0;
+  if (!snap_alloc(&L->save_s) || !snap_alloc(&L->load_s)) ok = 0;
+  for (int i = 0; i < NSNAP; i++) if (!snap_alloc(&L->pool[i])) ok = 0;
   L->cc = (Ev*)calloc(MAX_CC, sizeof(Ev));
   if (!L->cc) ok = 0;
   if (!ok) { free_all(L); return NULL; }

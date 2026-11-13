@@ -162,10 +162,11 @@ class Engine:
     def __init__(self):
         self.viz = FakeViz()
         self.proc = Proc(self.viz.pid)
+        self.msg = 0
 
     def get_monitors_dict(self):
         return {"state": 4, "run": 1, "bars": 2.0, "pos": 0.3, "layers": 3, "mute": 0b100, "confirm": 0,
-                "bpm": 120.0, "beat": 1, "slots": 0b101, "msg": 0}
+                "bpm": 120.0, "beat": 1, "slots": 0b101, "msg": self.msg}
 
 
 class Processor:
@@ -485,6 +486,18 @@ def main():
     proc.controllers_dict["qmask"].value = 253
     wdg._ui_put()
     check("qmask written for the engine (253)", ui()[0] == mod.UIIN_MAGIC and ui()[2] == 253)
+
+    # undo / redo messages from the engine appear at the bottom of the screen
+    def bottom_text():
+        return [c.itemcget(i, "text") for i in c.find_withtag("dyn")
+                if c.type(i) == "text" and c.coords(i)[1] > wdg.height * 0.9]
+    show("loop")
+    for code, text in ((30, "Undo: Quantize"), (40, "Redo: Quantize"), (52, "Undo: layer 2"), (62, "Redo: layer 2"),
+                       (20, "Undo: overdub"), (25, "Nothing to undo"), (26, "Nothing to redo"), (33, "Undo: Transpose")):
+        proc.engine.msg += 100
+        proc.engine.msg = proc.engine.msg // 100 * 100 + code
+        show("loop")
+        check("message %d shown at the bottom: %r" % (code, text), text in bottom_text())
 
     proc.engine.viz.remove()
     print("%d failed" % fails)
