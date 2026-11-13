@@ -449,13 +449,19 @@ def main():
     check("Ratch tab selected", wdg.lane == 4)
     time.sleep(DT); wdg._on_press(Ev(cx(0), y0 + 1)); wdg._on_release(None)
     time.sleep(DT); wdg._on_press(Ev(cx(1), y1 - 1)); wdg._on_release(None)
-    time.sleep(DT); wdg._on_press(Ev(cx(2), int(y0 + (y1 - y0) * 0.5))); wdg._on_release(None)
+    time.sleep(DT); wdg._on_press(Ev(cx(2), int(y1 - (y1 - y0) * 0.4))); wdg._on_release(None)
     check("ratch: top 4, bottom 1, middle 2 (got %d %d %d)" % (proc.v("ratch1"), proc.v("ratch2"), proc.v("ratch3")),
           (proc.v("ratch1"), proc.v("ratch2"), proc.v("ratch3")) == (4, 1, 2))
     wdg.update()
     hits = len(wdg.widget_canvas.find_withtag("hit"))
     check("ratch: one bar per hit (4 + 1 + 2 + 13 x 1 = 20, got %d)" % hits, hits == 20)
     check("ratch: labels x4 and x2", {"x4", "x2"} <= set(texts()))
+    proc.controllers_dict["ratch_every"].value = 4; wdg.update()
+    lab = wdg.widget_canvas.bbox(wdg.widget_canvas.find_withtag("every")[0])
+    tops = [wdg.widget_canvas.bbox(i)[1] for i in wdg.widget_canvas.find_withtag("dyn")
+            if wdg.widget_canvas.type(i) == "text" and wdg.widget_canvas.itemcget(i, "text") == "x4"]
+    check("ratch x4 label stays below the 'every' label", tops and min(tops) >= lab[3])
+    proc.controllers_dict["ratch_every"].value = 1
     time.sleep(DT); wdg._on_press(Ev(cx(0), y1 - 1)); wdg._on_press(Ev(cx(0), y1 - 1)); wdg._on_release(None)
     check("ratch: double tap resets to 1", proc.v("ratch1") == 1)
     wdg._on_press(Ev(cx(5), h - 3))

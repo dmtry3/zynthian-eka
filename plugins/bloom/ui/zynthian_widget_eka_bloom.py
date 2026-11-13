@@ -43,6 +43,7 @@ SCALE_STEPS = [list(range(12)), [0, 2, 4, 5, 7, 9, 11], [0, 2, 3, 5, 7, 8, 10], 
                [0, 2, 3, 5, 7, 9, 11], [0, 2, 4, 7, 9], [0, 3, 5, 7, 10], [0, 3, 5, 6, 7, 10]]
 MUT_MAX = (3, 3, 3, 4)      # drift limits per row (prob, shift, vel, gate), as in arp_core.h; Ratch doesn't drift
 DOUBLE_TAP = 0.35            # seconds: second tap on the same step resets it
+RATCH_TOP = 0.8              # Ratch bars use 80 % of the height: the "every N" label sits above them
 
 # ---------- views by knob page ----------
 PAGE_VIEWS = {"g_arp": "roll", "g_play": "play", "g_scale": "scale"}   # port group -> view; others: editor
@@ -178,8 +179,8 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         if key == "gate":
             v = min(GATE_VALUES, key=lambda g: abs(g - v))
             return GATE_VALUES.index(v) / float(len(GATE_VALUES) - 1)
-        if key == "ratch":                                   # 1 hit = a quarter, 4 hits = full height
-            return v / float(hi)
+        if key == "ratch":                                   # 1 hit = a quarter of RATCH_TOP, 4 hits = RATCH_TOP
+            return v / float(hi) * RATCH_TOP
         return (v - lo) / float(hi - lo)
 
     def _value_at(self, lane, y):
@@ -189,7 +190,7 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         if key == "gate":
             return GATE_VALUES[int(round(f * (len(GATE_VALUES) - 1)))]
         if key == "ratch":
-            return min(max(int(f * hi + 0.5), lo), hi)
+            return min(max(int(f / RATCH_TOP * hi + 0.5), lo), hi)
         v = lo + f * (hi - lo)
         if key == "shift":
             return self._snap_shift(v)
