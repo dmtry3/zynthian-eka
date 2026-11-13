@@ -194,6 +194,10 @@ class Control:
     def display_widget(self, name):
         pass
 
+    def cuia_v5_zynpot_switch(self, params):     # as in Zynthian vangelis: bold/long push = controller options
+        self.options_opened = getattr(self, "options_opened", 0) + (params[1] in ("B", "L"))
+        return True
+
 
 def load_widget():
     path = os.path.join(ROOT, "ui", "zynthian_widget_eka_roll.py")
@@ -347,6 +351,21 @@ def main():
     ctl.midi_learning = False
     show("layers")
     check("encoder: Layers page knob 3 (L Delete) not taken", not wdg.cuia_v5_zynpot_switch((2, "B")))
+
+    # newer Zynthian (vangelis): pushes and long touches reach the control screen, not the widget
+    show("loop")
+    ctl.options_opened = 0
+    ctl.cuia_v5_zynpot_switch((2, "B"))
+    check("vangelis: bold push on Undo/Redo = Redo, no options menu", proc.v("redo") == 1 and ctl.options_opened == 0)
+    ctl.cuia_v5_zynpot_switch((2, "L"))
+    check("vangelis: long push on Undo/Redo = Redo", proc.v("redo") == 0 and ctl.options_opened == 0)
+    ctl.cuia_v5_zynpot_switch((2, "S"))
+    check("vangelis: short push on Undo/Redo = Undo", proc.v("undo") == 1)
+    ctl.cuia_v5_zynpot_switch((0, "B"))
+    check("vangelis: bold push on Rec keeps the options menu", ctl.options_opened == 1)
+    show("loop")
+    ctl.cuia_v5_zynpot_switch((2, "B"))
+    check("vangelis: hook installed only once (redraws)", proc.v("redo") == 1 and ctl.options_opened == 1)
 
     proc.engine.viz.remove()
     print("%d failed" % fails)

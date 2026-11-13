@@ -63,9 +63,30 @@ def _roll_undo_zctrl(zc):
     return ROLL_WIDGETS.get(getattr(getattr(z, "processor", None), "id", None))
 
 
+def _hook_control_cuia(ctl):
+    """Knob pushes (encoder, and touch on newer Zynthian) go to the control screen's cuia_v5_zynpot_switch,
+    which would open the controller options. Ask the Roll widget first when the knob is Undo/Redo."""
+    if getattr(ctl.__dict__.get("cuia_v5_zynpot_switch"), "_eka_roll", False):
+        return
+    orig = getattr(ctl, "cuia_v5_zynpot_switch", None)
+
+    def cuia_v5_zynpot_switch(params, ctl=ctl, orig=orig):
+        try:
+            wdg = _roll_undo_zctrl(ctl.zgui_controllers[int(params[0])])
+            if wdg is not None and wdg.cuia_v5_zynpot_switch(params):
+                return True
+        except Exception as e:
+            logging.debug("Eka Roll knob hook: %s", e)
+        return orig(params) if callable(orig) else False
+
+    cuia_v5_zynpot_switch._eka_roll = True
+    ctl.cuia_v5_zynpot_switch = cuia_v5_zynpot_switch
+
+
 def _hook_touch_release(zc):
-    """Long touch on the Undo/Redo knob = Redo (without this Zynthian would open MIDI-learn options)."""
-    if getattr(zc, "_eka_roll_hook", False):
+    """Older Zynthian (oram): a long touch on the Undo/Redo knob = Redo, decided on release.
+    Newer versions send the long touch through cuia_v5_zynpot_switch (see above)."""
+    if getattr(zc, "_eka_roll_hook", False) or not hasattr(zc, "canvas_push_ts"):
         return
     orig = zc.cb_canvas_release
 
@@ -145,6 +166,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
 
     def _hook_controllers(self):
         try:
+            _hook_control_cuia(self.zyngui_control)
             for zc in self.zyngui_control.zgui_controllers:
                 _hook_touch_release(zc)
         except Exception:
