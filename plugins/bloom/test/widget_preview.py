@@ -87,12 +87,13 @@ class FakeViz:
         self.pid = 900000 + os.getpid() % 90000
         self.path = "/dev/shm/eka_bloom_%d" % self.pid
         self.clk, self.held, self.notes, self.seq = 0.0, [], [], 0
+        self.rolling = 1
         self.write()
 
     def write(self, magic=0x4D4F4C42):
         buf = bytearray(self.HDR.size + 512 * self.NOTE.size)
         head = len(self.notes)
-        self.HDR.pack_into(buf, 0, magic, self.seq, head, 4, len(self.held), 1, self.clk,
+        self.HDR.pack_into(buf, 0, magic, self.seq, head, 4, len(self.held), self.rolling, self.clk,
                            bytes(self.held + [0] * (32 - len(self.held))))
         for i, (on, off, note, vel) in enumerate(self.notes[-512:]):
             k = (head - min(head, 512) + i) % 512
@@ -588,6 +589,27 @@ def main():
     lit = [i for i in wdg.widget_canvas.find_withtag("pad") if wdg.widget_canvas.itemcget(i, "fill") != "#161616"]
     check("FX set from the encoder: Drop pad lit", len(lit) == 1)
     proc.controllers_dict["fx"].value = 0
+
+    # Latch: a button under the pads (tap toggles), off when the transport stops
+    wdg.update()
+    lb = wdg.latch_box
+    wdg._on_press(Ev(*mid(lb))); wdg._on_release(None); wdg.update()
+    lbox = wdg.widget_canvas.find_withtag("latch")
+    check("Play: Latch button, tap = on (lit)", proc.v("latch") == 1 and len(lbox) == 1 and
+          wdg.widget_canvas.itemcget(lbox[0], "fill") == mod.LATCH_COLOR and proc.v("fx") == 0)
+    wdg._on_press(Ev(*mid(lb))); wdg._on_release(None); wdg.update()
+    check("tap again = off", proc.v("latch") == 0)
+    proc.controllers_dict["latch"].value = 1
+    viz = proc.engine.viz
+    viz.rolling = 1; viz.write(); wdg._latch_follow()
+    check("transport playing: Latch stays on", proc.v("latch") == 1)
+    viz.rolling = 0; viz.write(); wdg._latch_follow()
+    check("transport stops: Latch off", proc.v("latch") == 0)
+    proc.controllers_dict["latch"].value = 1
+    wdg._latch_follow()
+    check("Latch switched on while stopped stays on", proc.v("latch") == 1)
+    proc.controllers_dict["latch"].value = 0
+    viz.rolling = 1; viz.write()
     ctl.page("g_pattern"); wdg.update()
 
     # Scale page: keyboard = Key, scale buttons, degrees
@@ -646,7 +668,7 @@ def main():
         ctl.page("g_play"); wdg.update(); root.update()
         pads, xy = wdg._play_geo()
         bad = 0
-        for r in pads + [xy]:
+        for r in pads + [xy, wdg.latch_box]:
             for i in cv.find_enclosed(r[0] - 30, r[1] - 30, r[2] + 30, r[3] + 30):
                 if cv.type(i) == "text" and r[0] <= cv.coords(i)[0] <= r[2] and r[1] <= cv.coords(i)[1] <= r[3]:
                     bx = cv.bbox(i)

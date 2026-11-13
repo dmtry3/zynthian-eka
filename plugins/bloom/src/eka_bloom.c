@@ -163,12 +163,15 @@ static double numv(const Arp* A, const LV2_Atom* a, double def) {
 }
 
 static void go_silent(Arp* A) { arp_silence(&A->core, A->clk - A->origin, core_emit, A); }
+/* the timeline of the notes changed (start, jump, beat fix): the widget's roll starts empty */
+static void viz_forget(Arp* A) { if (A->viz) A->viz->head = 0; }
 
 /* the transport (re)starts: the pattern plays from step 1 at the start of this bar */
 static void start_here(Arp* A) {
   const double bt = (double)A->bpb * ARP_PPQN;
   A->origin = floor(A->clk / bt) * bt;
   arp_restart(&A->core);
+  viz_forget(A);
   A->ran = 1;
 }
 
@@ -192,7 +195,7 @@ static void handle_pos(Arp* A, const LV2_Atom_Object* obj) {
     double ht = (numv(A, bar, 0) * A->bpb + numv(A, bb, 0)) * ARP_PPQN;
     const int jump = fabs(ht - A->clk) > JUMP_TICKS;
     if (jump || start) go_silent(A);
-    if (jump && !start) arp_restart(&A->core);   /* a jump plays the same as from there */
+    if (jump && !start) { arp_restart(&A->core); viz_forget(A); }   /* a jump plays the same as from there */
     A->clk = ht;
   }
   if (start) start_here(A);
@@ -237,6 +240,7 @@ static void zynseq_sync(Arp* A) {
   A->zb_miss_cnt = 0;
   go_silent(A);
   A->clk += nb * ARP_PPQN;
+  viz_forget(A);
 }
 
 static void apply_step(Arp* A, int i) {

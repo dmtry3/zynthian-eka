@@ -105,10 +105,12 @@ int main(void) {
   check("stopped after running: silent", ons == 0);
 
   /* start again at another bar: from step 1 again, not where it stopped */
+  ons = 0;
   begin_block(); position(1, 7, 0); end_block_run();
   check("start again: step 1", A->core.step_count == 1);
-  ons = 0; run_secs(0.6);
+  run_secs(0.6);
   check("start again: plays", ons >= 3);
+  check("the widget's roll starts empty: only the notes since the start", A->viz->head == (uint32_t)ons);
 
   /* zynseq: the widget says stopped (JACK still rolling) -> silent; a beat again -> step 1 */
   zbeat = 3; run_secs(0.02);

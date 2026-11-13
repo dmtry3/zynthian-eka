@@ -95,12 +95,12 @@ The controllers are grouped into pages of four:
 | Play | FX | Off, Roll 1/8, Roll 1/16, Roll 1/32, Fill, Oct+, Half, Drop, Rev | the live effect (the pads set it while held) |
 | | Density | 0–100 (50 = as drawn) | fewer or more steps play |
 | | Dynamics | 0–100 (50 = as drawn) | softer and shorter, or louder and longer |
+| | Latch | on/off | the chord keeps playing after the keys are released (also a button under the pads) |
 | Arp | Rate | 1/4, 1/8, 1/8T, 1/16, 1/16T, 1/32 | step length |
 | | Gate % | 5–100 | note length as a share of the step, unless a step sets its own |
 | | Order | Up, Down, Up‑Down, Down‑Up, As played, Random, Loop | order of the chord notes (see below) |
 | | Octaves | 1–4 | the chord repeated over this many octaves |
-| Pattern | Latch | on/off | the chord keeps playing after the keys are released |
-| | Transpose | −2 … +2 octaves | added to every note at the very end |
+| Pattern | Transpose | −2 … +2 octaves | added to every note at the very end |
 | | Repeats | 1–5, Rnd 3, Rnd 5 | how many steps each chord note plays |
 | | Rpt mode | Same, Run up, Run down, Octave, Echo | what the repeats do |
 | Lengths | Prob len, Shift len, Vel len, Gate len, Ratch len | 1–16 | length of each pattern row (polyrhythm) |
@@ -135,6 +135,8 @@ The controllers are grouped into pages of four:
 
 - **On:** released keys keep playing. A new chord, pressed after all keys were released, replaces the old one.
 - **Off:** only the keys still held keep playing.
+- On the **Play** page: a knob and a LATCH button under the pads. Stopping the transport switches Latch off
+  (done by the widget, so it needs Bloom's widget opened once since Zynthian started).
 
 The control can be mapped to a button on a MIDI controller (Zynthian's MIDI learn; use the momentary
 switch option in the binding settings if you want it to act only while held).

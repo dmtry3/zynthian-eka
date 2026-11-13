@@ -57,6 +57,7 @@ PAD_COLS = 4
 ROLL_PAD_COLOR = "#f783ac"
 FX_PAD_COLOR = "#38d9a9"
 XY_COLOR = "#74c0fc"
+LATCH_COLOR = "#ffd43b"
 
 # ---------- Scale view ----------
 SCALE_COLOR = "#b197fc"
@@ -119,6 +120,8 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         super().__init__(parent)
         self.mmw = None
         self.mmw_path = None
+        self.latch_box = (0, 0, 0, 0)
+        self._was_rolling = None
         self.after(300, self._zs_tick)
         self.rows = max(2, self.rows - 1)
         self.lane = 0
@@ -579,6 +582,15 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
             self.mmw = None
             return None
 
+    def _latch_follow(self):
+        """Transport stopped (the plugin went from playing to silent): Latch off."""
+        if not self._open_mm():
+            return
+        rolling = struct.unpack_from("<I", self.mm, 20)[0] != 0     # Viz.rolling: playing on the transport
+        if self._was_rolling and not rolling and self._zval("latch", 0) >= 0.5:
+            self._zset("latch", 0)
+        self._was_rolling = rolling
+
     def _zs_tick(self):
         try:
             if self.processor is not None:
@@ -587,6 +599,7 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
                 if mm is not None:
                     seq = UIIN.unpack_from(mm, UIIN_OFF)[1]
                     UIIN.pack_into(mm, UIIN_OFF, UIIN_MAGIC, (seq + 1) & 0xFFFFFFFF, zb, 0, 0, 0, 0, 0)
+                self._latch_follow()
         except Exception as e:
             logging.debug("Eka Bloom zynseq sync: %s", e)
         self.after(33, self._zs_tick)
@@ -755,15 +768,18 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         gap = 4
         bottom = h - pad
         split = x0 + (x1 - x0) * 0.6                        # pads on the left, XY pad on the right
+        lh = max(24, int((bottom - y0) * 0.17))             # Latch button under the pads
+        pbot = bottom - lh - gap
         rows = (len(PLAY_PADS) + PAD_COLS - 1) // PAD_COLS
         pw = (split - x0 - gap * PAD_COLS) / float(PAD_COLS)
-        ph = (bottom - y0 - gap * (rows - 1)) / float(rows)
+        ph = (pbot - y0 - gap * (rows - 1)) / float(rows)
         pads = []
         for k in range(len(PLAY_PADS)):
             r, col = divmod(k, PAD_COLS)
             a, b = x0 + col * (pw + gap), y0 + r * (ph + gap)
             pads.append((a, b, a + pw, b + ph))
         xy = (split + gap, y0, x1, bottom)
+        self.latch_box = (x0, bottom - lh, split - gap, bottom)
         return pads, xy
 
     def _pad_at(self, x, y):
@@ -785,9 +801,12 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
             self._layout()
         pads, (a, b, c_, d) = self._play_geo()
         k = self._pad_at(x, y)
+        la, lb, lc, ld = self.latch_box
         if k is not None:
             self.touch = "pad"
             self._zset("fx", PLAY_PADS[k][0])
+        elif la <= x <= lc and lb <= y <= ld:                # Latch: tap toggles
+            self._zset("latch", 0 if self._zval("latch", 0) >= 0.5 else 1)
         elif a <= x <= c_ and b <= y <= d:
             self.touch = "xy"
             self._xy_set(x, y)
@@ -840,6 +859,14 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
                           fill=("#000000" if on else col), font=(fam, fs_t, "bold"))
             c.create_text((pa + pc) / 2.0, (pb + pd) / 2.0 + ph * 0.2, text=sub, tags="dyn",
                           fill=("#000000" if on else tx_off), font=(fam, fs_s))
+        # Latch: keys stay on after release; switched off when the transport stops
+        la, lb, lc, ld = self.latch_box
+        lon = self._zval("latch", 0) >= 0.5
+        c.create_rectangle(la, lb, lc, ld, fill=(LATCH_COLOR if lon else "#161616"), outline=LATCH_COLOR,
+                           width=(2 if lon else 1), tags=("dyn", "latch"))
+        fs_lt = self._fit_size(fam, "LATCH  on", (lc - la) - 8, max(8, int((ld - lb) * 0.45)), "bold")
+        c.create_text((la + lc) / 2.0, (lb + ld) / 2.0, text="LATCH  %s" % ("on" if lon else "off"), tags="dyn",
+                      fill=("#000000" if lon else LATCH_COLOR), font=(fam, fs_lt, "bold"))
         # XY pad: x = density (sparse .. dense), y = dynamics (soft and short .. loud and long)
         live = self.touch == "xy" or dens != 50 or dyn != 50
         c.create_rectangle(a, b, c_, d, fill="#101010", outline=XY_COLOR, width=(2 if live else 1), tags=("dyn", "xy"))

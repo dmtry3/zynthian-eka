@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Latch** moved to the **Play** page (knob) with a LATCH button under the pads; stopping the transport switches
+  it off. The widget's roll starts empty after a start, a jump or a beat fix (no notes of the last pass mixed in).
+
 - Transport stop silences the arp (once the transport has run since loading; before that it still plays on its
   own clock); every start plays the pattern from step 1 at the bar it starts in.
 - zynseq stopping or restarting a scene while JACK keeps rolling: the widget passes zynseq's state and beat to the
