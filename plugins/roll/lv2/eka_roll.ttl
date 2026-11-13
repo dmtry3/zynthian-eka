@@ -255,4 +255,9 @@
         a lv2:OutputPort , lv2:ControlPort ;
         lv2:index 45 ; lv2:symbol "msg" ; lv2:name "Out: Msg" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100000 ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 46 ; lv2:symbol "zbeat" ; lv2:name "Zynseq Beat" ;
+        lv2:default -1 ; lv2:minimum -1 ; lv2:maximum 16 ;
+        lv2:portProperty lv2:integer , pprops:notOnGUI ;
     ] .

@@ -729,8 +729,27 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         for (seq, ch, cc, val) in sorted(ents):
             self._inject_cc(ch, cc, val)
 
+    def _sync_zynseq(self):
+        """zynseq beat / state -> the zbeat port (0 = zynseq stopped, 1..16 = current beat).
+        Zynseq may stop or restart scenes while the JACK transport keeps rolling; the plugin can't see that."""
+        try:
+            lib = self.zyngui.state_manager.zynseq.libseq
+            st = int(lib.getTransportState())
+            beat = int(lib.getBeat())
+        except Exception:
+            return
+        if st == 1 and 1 <= beat <= 16:          # PLAYING
+            z = beat
+        elif st in (0, 3, 5):                    # STOPPED, STOPPING (zynseq is already silent)
+            z = 0
+        else:                                    # STARTING: wait for the first beat
+            return
+        if int(round(self._zval("zbeat", -1))) != z:
+            self._zset("zbeat", z)
+
     def _follow_tick(self):
         try:
+            self._sync_zynseq()
             self._follow_cc()
             self._sync_n += 1
             if self._sync_n >= 15:

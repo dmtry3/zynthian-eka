@@ -5,3 +5,4 @@ __pycache__/
 *.bak
 *.log
 dist/
+build_test/

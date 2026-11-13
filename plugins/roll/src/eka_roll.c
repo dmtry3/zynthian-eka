@@ -32,6 +32,9 @@
 #define N_IN 33
 #define N_OUT 11
 #define OUT_BASE 35
+#define ZBEAT_PORT 46      /* zynseq beat written by the widget: -1 unknown, 0 zynseq stopped, 1..16 beat */
+#define ZB_UNSET (-1000)
+#define UNDO_DEBOUNCE 0.3  /* s: a second Undo/Redo this soon is a touch bounce */
 #define VIZ_MAGIC 0x4D4C5A31u
 
 enum { ST_EMPTY = 0, ST_ARM_REC, ST_REC, ST_ARM_STOP, ST_PLAY, ST_OVERDUB, ST_STOP, ST_ARM_PLAY };
@@ -85,6 +88,8 @@ typedef struct {
   uint64_t samples;
   uint32_t nframes, cur_frame;
   int rolling, stop_pending, stop_has_pos;
+  const float* zbeat;
+  int zb_prev, zs_stopped, zb_miss_n, zb_miss_cnt;
   uint64_t stop_deadline;
   double stop_pos;
 
@@ -145,7 +150,7 @@ static double bar_ticks(const Looper* L) { return (double)L->bpb * PPQN; }
 static int is_armed(const Looper* L) {
   return L->state == ST_ARM_REC || L->state == ST_ARM_STOP || L->state == ST_ARM_PLAY;
 }
-static int advancing(const Looper* L) { return L->rolling && !L->stop_pending; }
+static int advancing(const Looper* L) { return L->rolling && !L->stop_pending && !L->zs_stopped; }
 static int msg_len(uint8_t st) { uint8_t t = st & 0xF0; return (t == 0xC0 || t == 0xD0) ? 2 : 3; }
 static void post_msg(Looper* L, int code) { L->msg_seq = (L->msg_seq + 1) % 1000; L->msg_code = code; }
 
@@ -865,7 +870,13 @@ static void process_controls(Looper* L) {
       int was = L->prev[i] >= 0.5f, now = cur[i] >= 0.5f;
       if (was == now) continue;
       int press;
-      if (!is_momentary(i)) press = 1;
+      if (!is_momentary(i)) {
+        press = 1;
+        if (i == C_UNDO || i == C_REDO) {
+          if (L->rise_at[i] && L->samples - L->rise_at[i] < (uint64_t)(UNDO_DEBOUNCE * L->sr)) press = 0;
+          else L->rise_at[i] = L->samples ? L->samples : 1;
+        }
+      }
       else if (now) { press = 1; L->rise_at[i] = L->samples; }                       /* press */
       else press = (L->samples - L->rise_at[i]) > (uint64_t)(1.0 * L->sr);           /* ignore the release if < 1 s */
       if (press) run_cmd(L, i);
@@ -1019,6 +1030,49 @@ static void advance_to(Looper* L, uint32_t target) {
 }
 
 /* ---------- MIDI and transport ---------- */
+/* Zynseq (Zynthian vangelis) can stop or restart its scenes while the JACK transport keeps rolling, and jalv
+   only sends time:Position on a JACK start/stop/jump. The widget reads zynseq's beat and state and writes them
+   to the zbeat port: 0 = zynseq stopped (pause the loop), 1..bpb = current beat (restart / fix whole-beat offsets). */
+static void recalc_targets(Looper* L);
+static void zynseq_sync(Looper* L) {
+  if (!L->zbeat) return;
+  const int zb = (int)floorf(*L->zbeat + 0.5f);
+  if (zb == L->zb_prev) return;
+  const int prev = L->zb_prev;
+  L->zb_prev = zb;
+  if (prev == ZB_UNSET || zb < 0 || zb > L->bpb) return;
+  const double bt = bar_ticks(L);
+  if (zb == 0) {
+    if (advancing(L)) {
+      L->zs_stopped = 1;
+      silence_loop(L);
+      if (L->state == ST_REC || L->state == ST_ARM_STOP) do_clear(L);
+      else recalc_targets(L);
+    }
+    return;
+  }
+  if (!L->rolling || L->stop_pending) return;
+  if (L->zs_stopped) {                                   /* zynseq restarted without a JACK start */
+    L->zs_stopped = 0;
+    L->clk = floor(L->clk / bt) * bt + (zb - 1) * PPQN;
+    L->zb_miss_cnt = 0;
+    recalc_targets(L);
+    return;
+  }
+  double d = (zb - 1) - pmod(L->clk, bt) / PPQN;          /* beats the loop clock is behind zynseq */
+  d -= L->bpb * floor(d / L->bpb + 0.5);
+  const int n = (int)lround(d);
+  if (n == 0 || fabs(d - n) > 0.45) { L->zb_miss_cnt = 0; return; }
+  if (n == L->zb_miss_n) L->zb_miss_cnt++;
+  else { L->zb_miss_n = n; L->zb_miss_cnt = 1; }
+  if (L->zb_miss_cnt < 2) return;                        /* same offset on two beats in a row */
+  if (L->state == ST_REC || L->state == ST_ARM_STOP || L->state == ST_OVERDUB) return;
+  L->zb_miss_cnt = 0;
+  silence_loop(L);
+  L->clk += n * PPQN;
+  recalc_targets(L);
+}
+
 static double numv(const Looper* L, const LV2_Atom* a, double def) {
   if (!a) return def;
   if (a->type == L->atom_Float)  return ((const LV2_Atom_Float*)a)->body;
@@ -1061,6 +1115,7 @@ static void handle_pos(Looper* L, const LV2_Atom_Object* obj) {
       if (has_pos) { L->stop_pos = ht; L->stop_has_pos = 1; }
       if (!L->rolling && has_pos) set_clock(L, ht);
     } else {
+      if (!L->rolling) L->zs_stopped = 0;        /* a real transport start */
       L->stop_pending = 0;
       L->rolling = 1;
       if (has_pos) set_clock(L, ht);
@@ -1199,7 +1254,7 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double rate, const char* 
   L->time_bpm      = m->map(m->handle, LV2_TIME__beatsPerMinute);
   L->time_speed    = m->map(m->handle, LV2_TIME__speed);
   L->time_bpb      = m->map(m->handle, LV2_TIME__beatsPerBar);
-  L->sr = rate; L->bpm = 120.0; L->bpb = 4;
+  L->sr = rate; L->bpm = 120.0; L->bpb = 4; L->zb_prev = ZB_UNSET;
   L->state = ST_EMPTY; L->arm_clk = -1; L->auto_clk = -1;
 
   /* shared memory for the widget's piano roll */
@@ -1232,6 +1287,7 @@ static void connect_port(LV2_Handle h, uint32_t port, void* data) {
   else if (port == 1) L->out = (LV2_Atom_Sequence*)data;
   else if (port >= 2 && port < 2 + N_IN) L->ctl[port - 2] = (const float*)data;
   else if (port >= OUT_BASE && port < OUT_BASE + N_OUT) L->outp[port - OUT_BASE] = (float*)data;
+  else if (port == ZBEAT_PORT) L->zbeat = (const float*)data;
 }
 
 static void activate(LV2_Handle h) { (void)h; }
@@ -1246,6 +1302,7 @@ static void run(LV2_Handle h, uint32_t n) {
 
   poll_worker(L);
   process_controls(L);
+  zynseq_sync(L);
 
   LV2_ATOM_SEQUENCE_FOREACH(L->in, ev) {
     uint32_t f = (uint32_t)ev->time.frames;
