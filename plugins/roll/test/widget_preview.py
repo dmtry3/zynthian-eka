@@ -25,7 +25,32 @@ cfg.zynswitch_bold_seconds = 0.3
 cfg.zynswitch_long_seconds = 2.0
 
 
+class FakeFn:
+    def __init__(self, fn):
+        self.fn, self.restype, self.argtypes = fn, None, None
+
+    def __call__(self, *a):
+        return self.fn(*a)
+
+
+class FakeLibseq:
+    """zynseq as built in vangelis-2610: getTransportState only under its C++ name"""
+    def __init__(self):
+        self.state, self.beat = 0, 1
+
+    def __getitem__(self, name):
+        if name == "_Z17getTransportStatev":
+            return FakeFn(lambda: self.state)
+        raise AttributeError(name)
+
+    def getBeat(self):
+        return self.beat
+
+
 class FakeZyngui:
+    def __init__(self):
+        self.state_manager = types.SimpleNamespace(zynseq=types.SimpleNamespace(libseq=FakeLibseq()))
+
     def after_idle(self, fn, *args):
         fn(*args)
 
@@ -83,7 +108,7 @@ PAGES = {
 DEFAULTS = {"rec": 0, "play": 0, "undo": 0, "clear": 0, "layer": 1, "lmute": 0, "ldel": 0, "redo": 0,
             "length": 0, "launch": 2, "half": 0, "double": 0, "qgrid": 0, "qstr": 100, "qtarget": 2,
             "qapply": 0, "elayer": 1, "transp": 0, "eapply": 0, "slot": 1, "save": 0, "load": 0,
-            "sdel": 0, "qmask": 255, "export": 0}
+            "sdel": 0, "qmask": 255, "export": 0, "zbeat": -1}
 
 
 class Ctrl:
@@ -94,6 +119,9 @@ class Ctrl:
     def set_value(self, v, send=True):
         self.value = v
         self.writes += 1
+
+    def midi_control_change(self, val, send=True):     # Zynthian, absolute CC on a toggle
+        self.set_value(1 if val >= 64 else 0)
 
 
 class FakeViz:
@@ -377,6 +405,38 @@ def main():
     r0 = proc.v("redo")
     ctl.cuia_v5_zynpot_switch((2, "B"))
     check("vangelis: hook installed only once (redraws)", proc.v("redo") != r0 and ctl.options_opened == 1)
+
+    # zynseq state through the C++ name; stopped -> 0 / -2 alternating, playing -> the beat
+    import time as _t
+    lib = cfg.zyngui.state_manager.zynseq.libseq
+    lib.state = 0
+    seen = set()
+    for _ in range(4):
+        wdg._sync_zynseq()
+        seen.add(proc.v("zbeat"))
+        _t.sleep(0.5)
+    check("zynseq stopped: zbeat alternates 0 / -2 (%r)" % sorted(seen), seen == {0, -2})
+    lib.state, lib.beat = 1, 3
+    wdg._sync_zynseq()
+    check("zynseq playing: zbeat = beat", proc.v("zbeat") == 3)
+    lib.state = 2
+    wdg._sync_zynseq()
+    check("zynseq starting: zbeat kept", proc.v("zbeat") == 3)
+
+    # MIDI button learned to Undo/Redo: tap = Undo on release, hold 0.5 s = Redo, release after hold = nothing
+    zu = proc.controllers_dict["undo"]
+    u0, r0 = proc.v("undo"), proc.v("redo")
+    zu.midi_control_change(127)
+    check("MIDI press: nothing yet", proc.v("undo") == u0 and proc.v("redo") == r0)
+    zu.midi_control_change(0)
+    check("MIDI tap: Undo on release", proc.v("undo") != u0 and proc.v("redo") == r0)
+    u0 = proc.v("undo")
+    zu.midi_control_change(127)
+    _t.sleep(0.7)
+    check("MIDI hold 0.5 s: Redo", proc.v("redo") != r0 and proc.v("undo") == u0)
+    r0 = proc.v("redo")
+    zu.midi_control_change(0)
+    check("MIDI release after hold: no Undo", proc.v("undo") == u0 and proc.v("redo") == r0)
 
     proc.engine.viz.remove()
     print("%d failed" % fails)

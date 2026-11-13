@@ -32,7 +32,9 @@
 #define N_IN 33
 #define N_OUT 11
 #define OUT_BASE 35
-#define ZBEAT_PORT 46      /* zynseq beat written by the widget: -1 unknown, 0 zynseq stopped, 1..16 beat */
+#define ZBEAT_PORT 46      /* zynseq beat written by the widget: -1 unknown, 0 / -2 zynseq stopped, 1..16 beat */
+#define ZS_STOP_FRESH 1.5  /* s: "zynseq stopped" counts only while the widget keeps alternating 0 / -2 */
+#define ZS_START_GRACE 1.0 /* s: after a JACK start, wait for the widget to see zynseq playing */
 #define ZB_UNSET (-1000)
 #define UNDO_DEBOUNCE 0.3  /* s: a second Undo/Redo this soon is a touch bounce */
 #define VIZ_MAGIC 0x4D4C5A31u
@@ -90,6 +92,7 @@ typedef struct {
   int rolling, stop_pending, stop_has_pos;
   const float* zbeat;
   int zb_prev, zs_stopped, zb_miss_n, zb_miss_cnt;
+  uint64_t zs_stop_at, zs_grace_until;
   uint64_t stop_deadline;
   double stop_pos;
 
@@ -1030,35 +1033,43 @@ static void advance_to(Looper* L, uint32_t target) {
 }
 
 /* ---------- MIDI and transport ---------- */
-/* Zynseq (Zynthian vangelis) can stop or restart its scenes while the JACK transport keeps rolling, and jalv
-   only sends time:Position on a JACK start/stop/jump. The widget reads zynseq's beat and state and writes them
-   to the zbeat port: 0 = zynseq stopped (pause the loop), 1..bpb = current beat (restart / fix whole-beat offsets). */
+/* Zynseq (Zynthian vangelis) can stop or restart its scenes while the JACK transport keeps rolling (e.g. after a
+   Zynthian restart), and jalv sends time:Position only on a JACK start/stop/jump. The widget reads zynseq's state
+   and beat and writes them to the zbeat port: 0 / -2 alternating = zynseq stopped (pause the loop; a value that
+   stops changing, e.g. one restored from a snapshot, is ignored), 1..bpb = current beat (restart after a pause,
+   fix whole-beat offsets). -1 = no widget: plain JACK behaviour. */
 static void recalc_targets(Looper* L);
+static void zs_pause(Looper* L) {
+  L->zs_stopped = 1;
+  silence_loop(L);
+  if (L->state == ST_REC || L->state == ST_ARM_STOP) do_clear(L);
+  else recalc_targets(L);
+}
 static void zynseq_sync(Looper* L) {
   if (!L->zbeat) return;
   const int zb = (int)floorf(*L->zbeat + 0.5f);
-  if (zb == L->zb_prev) return;
-  const int prev = L->zb_prev;
+  const int prev = L->zb_prev, changed = (zb != prev);
   L->zb_prev = zb;
-  if (prev == ZB_UNSET || zb < 0 || zb > L->bpb) return;
+  const int stop_val = (zb == 0 || zb == -2);
+  if (changed && prev != ZB_UNSET && stop_val) L->zs_stop_at = L->samples ? L->samples : 1;
+  const int fresh = stop_val && L->zs_stop_at &&
+                    L->samples - L->zs_stop_at < (uint64_t)(ZS_STOP_FRESH * L->sr);
   const double bt = bar_ticks(L);
-  if (zb == 0) {
-    if (advancing(L)) {
-      L->zs_stopped = 1;
-      silence_loop(L);
-      if (L->state == ST_REC || L->state == ST_ARM_STOP) do_clear(L);
-      else recalc_targets(L);
+  if (L->zs_stopped) {
+    if (changed && zb >= 1 && zb <= L->bpb && L->rolling) {       /* zynseq restarted without a JACK start */
+      L->zs_stopped = 0;
+      L->clk = floor(L->clk / bt) * bt + (zb - 1) * PPQN;
+      L->zb_miss_cnt = 0;
+      recalc_targets(L);
+    } else if (!fresh || !L->rolling) {
+      L->zs_stopped = 0;                                           /* no news from the widget: JACK decides */
+      recalc_targets(L);
     }
     return;
   }
+  if (fresh && L->rolling && !L->stop_pending && L->samples >= L->zs_grace_until) { zs_pause(L); return; }
+  if (!changed || prev == ZB_UNSET || zb < 1 || zb > L->bpb) return;
   if (!L->rolling || L->stop_pending) return;
-  if (L->zs_stopped) {                                   /* zynseq restarted without a JACK start */
-    L->zs_stopped = 0;
-    L->clk = floor(L->clk / bt) * bt + (zb - 1) * PPQN;
-    L->zb_miss_cnt = 0;
-    recalc_targets(L);
-    return;
-  }
   double d = (zb - 1) - pmod(L->clk, bt) / PPQN;          /* beats the loop clock is behind zynseq */
   d -= L->bpb * floor(d / L->bpb + 0.5);
   const int n = (int)lround(d);
@@ -1115,7 +1126,10 @@ static void handle_pos(Looper* L, const LV2_Atom_Object* obj) {
       if (has_pos) { L->stop_pos = ht; L->stop_has_pos = 1; }
       if (!L->rolling && has_pos) set_clock(L, ht);
     } else {
-      if (!L->rolling) L->zs_stopped = 0;        /* a real transport start */
+      if (!L->rolling) {                          /* a real transport start */
+        L->zs_stopped = 0;
+        L->zs_grace_until = L->samples + (uint64_t)(ZS_START_GRACE * L->sr);
+      }
       L->stop_pending = 0;
       L->rolling = 1;
       if (has_pos) set_clock(L, ht);
