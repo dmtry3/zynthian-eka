@@ -35,6 +35,7 @@ void arp_init(ArpCore* a) {
   for (int i = 0; i < ARP_MAX_STEPS; i++) { arp_set_step(a, i, 100, 0, 100, ARP_GATE_GLOBAL); arp_set_ratch(a, i, 1); }
   arp_set_loop(a, 0, 8);
   arp_set_repeats(a, 1, ARP_RPT_SAME);
+  arp_set_ratch_every(a, 1);
   arp_set_groove(a, 50, ARP_FEEL_PAIRS, 0, 0);
   arp_set_passing(a, 0, ARP_PASS_NEIGHBOR);
   a->done_s = -INFINITY;
@@ -106,6 +107,8 @@ void arp_set_step(ArpCore* a, int i, int prob, int shift, int vel, int gate) {
 void arp_set_ratch(ArpCore* a, int i, int hits) {
   if (i >= 0 && i < ARP_MAX_STEPS) a->steps[i].ratch = clampi(hits, 1, ARP_MAX_RATCH);
 }
+
+void arp_set_ratch_every(ArpCore* a, int n) { a->ratch_every = clampi(n, 1, ARP_MAX_RATCH_EVERY); }
 
 void arp_set_params(ArpCore* a, int rate, int gate_pct, int order, int octaves) {
   a->rate = clampi(rate, 0, ARP_NRATES - 1);
@@ -489,7 +492,10 @@ static void do_step(ArpCore* a, long long g, double s, arp_emit_fn emit, void* u
     gt = (gate == ARP_GATE_GLOBAL) ? a->gate_ticks : a->step_ticks * gate / 100;
     if (a->accent) gt = gt * (1200 - a->accent * a->off_sixths) / 1200;   /* delayed steps shorter, down to 1/2 */
   }
-  const int hits = a->steps[idx[ARP_LANE_RATCH]].ratch;
+  int hits = a->steps[idx[ARP_LANE_RATCH]].ratch;
+  if (hits > 1 && a->ratch_every > 1 &&                 /* Ratch every N: only the last pass of each N */
+      (pos / (uint64_t)a->lane_len[ARP_LANE_RATCH]) % (uint64_t)a->ratch_every != (uint64_t)(a->ratch_every - 1))
+    hits = 1;
   if (hits > 1) {   /* ratchet: even hits from s to the next grid step, each with the step's gate share */
     const double span = (double)(g + 1) * a->step_ticks - s;
     a->rat_len = span / hits;

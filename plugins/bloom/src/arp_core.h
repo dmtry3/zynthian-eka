@@ -11,6 +11,7 @@
 #define ARP_GATE_GLOBAL 0     /* step gate: use the global Gate */
 #define ARP_GATE_TIE 101      /* step gate: legato into the next step */
 #define ARP_MAX_RATCH 4       /* step ratchet: 1..4 even hits inside the step */
+#define ARP_MAX_RATCH_EVERY 8 /* Ratch every: 1..8 passes of the Ratch row */
 /* Step mutation: one notch of each row and how far a step may drift from the drawn value (in notches). */
 #define ARP_MUT_PROB_NOTCH 20 /* % */
 #define ARP_MUT_VEL_NOTCH 20  /* % */
@@ -76,6 +77,7 @@ typedef struct {
   int key_auto;                 /* Key = Auto: key follows the lowest held note */
   int passing, pass_style;      /* 0..100 % chance of a passing note before a new chord note, ARP_PASS_* */
   int transpose;                /* -2..+2 octaves, added to every generated note */
+  int ratch_every;              /* 1..ARP_MAX_RATCH_EVERY: ratchets only on every N-th pass of the Ratch row */
   int rpt, rpt_mode;            /* repeats 1..5 or ARP_RPT_RND*, ARP_RPT_* mode */
   int swing, feel, drunk, accent; /* swing 50..75 %, ARP_FEEL_*, drunk 0..100 %, accent 0..100 % (velocity and gate) */
 
@@ -133,6 +135,9 @@ void arp_set_step(ArpCore* a, int i, int prob, int shift, int vel, int gate);
  * so a step delayed by the groove plays them closer together. Each hit gets the step's gate share
  * of its own length (Tie: the hits touch and the last one ties into the next step). */
 void arp_set_ratch(ArpCore* a, int i, int hits);
+/* Ratchets only on every N-th pass of the Ratch row (the last pass of each N; 1 = every pass);
+ * on the other passes the steps play one hit. Passes count like the rows (song grid while rolling). */
+void arp_set_ratch_every(ArpCore* a, int n);
 /* Loop order: length 1..16 and mutation 0..100 % (0 = the loop is frozen). */
 void arp_set_loop(ArpCore* a, int notes_pct, int loop_len);
 /* Step mutation 0..100 %: when a step plays, with this chance one of its rows (the step that row

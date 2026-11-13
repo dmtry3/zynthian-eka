@@ -65,6 +65,7 @@ The controllers are grouped into pages of four:
 | | Repeats | 1–5, Rnd 3, Rnd 5 | how many steps each chord note plays |
 | | Rpt mode | Same, Run up, Run down, Octave, Echo | what the repeats do |
 | Lengths | Prob len, Shift len, Vel len, Gate len, Ratch len | 1–16 | length of each pattern row (polyrhythm) |
+| | Ratch every | 1–8 | ratchets only on every N-th pass of the Ratch row (the last one of each N) |
 | Scale | Key | C … B, Auto | tonic (Auto: the lowest held key) |
 | | Scale | Chromatic, Major, Minor, Dorian, Phrygian, Lydian, Mixolydian, Harm minor, Mel minor, Major pent, Minor pent, Blues | scale for Shift, Run, drift and passing notes |
 | | Passing % | 0–100 | chance of a passing note before a new chord note |
@@ -169,6 +170,9 @@ as fast, 3 = a triplet, 4 = four times as fast. Each hit gets the step's gate sh
 with Tie the hits touch and the last one ties into the next step. The hits end at the next grid step, so a
 step delayed by swing plays them closer together. A silent step has no hits; releasing the keys drops the
 rest. Ratch does not mutate.
+**Ratch every** makes them rarer: with 4 the ratchets play only on every 4th pass of the Ratch row (the
+last pass of each four, like a fill before the phrase starts again); the other passes play one hit per
+step. The widget shows the pass (*every 4 · pass 2/4*) and dims the hits while they wait.
 
 **Tie.** The note holds until the next step.
 - If the next note is the same pitch, it just continues (several Ties make one long note).

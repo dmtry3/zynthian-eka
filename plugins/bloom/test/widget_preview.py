@@ -155,6 +155,7 @@ class Processor:
                              ("transpose", 0, -2, 2), ("swing", 50, 50, 75), ("mut_steps", 0, 0, 100),
                              ("mut_notes", 0, 0, 100), ("reset", 0, 0, 1)):
             self.controllers_dict[k] = Ctrl(k, v, lo, hi)
+        self.controllers_dict["ratch_every"] = Ctrl("ratch_every", 1, 1, 8)
         for i in range(1, 17):
             self.controllers_dict["prob%d" % i] = Ctrl("prob%d" % i, 100, 0, 100)
             self.controllers_dict["shift%d" % i] = Ctrl("shift%d" % i, 0, -24, 24)
@@ -437,6 +438,22 @@ def main():
     check("Ratch tab shows its length", "Ratch 6" in texts())
     proc.engine.dev = {3: (1, 1, 1, 1)}; wdg.update()
     check("Ratch tab: no drift marks", marks() == [])
+    ev_text = lambda: [wdg.widget_canvas.itemcget(i, "text") for i in wdg.widget_canvas.find_withtag("every")]
+    check("Ratch every 1: no pass label", ev_text() == [])
+    proc.controllers_dict["ratch_every"].value = 3
+    proc.controllers_dict["ratch3"].value = 3
+    proc.engine.step_count = 6 * 2 + 1; wdg.update()          # length 6: pass 3 -> hits play
+    hit_fill = lambda: set(wdg.widget_canvas.itemcget(i, "fill") for i in wdg.widget_canvas.find_withtag("hit")
+                           if wdg.widget_canvas.coords(i)[0] < cx(3))
+    on = hit_fill()
+    check("Ratch every 3, pass 3/3: label and bright hits", ev_text() == ["every 3 \u00b7 pass 3/3"] and
+          mod.LANE_COLORS[4] in on)
+    proc.engine.step_count = 1; wdg.update()
+    check("Ratch every 3, pass 1/3: hit bars dim", ev_text() == ["every 3 \u00b7 pass 1/3"] and
+          mod.dim(mod.LANE_COLORS[4], 0.45) in hit_fill())
+    proc.engine.step_count = 7
+    proc.controllers_dict["ratch_every"].value = 1
+    proc.controllers_dict["ratch3"].value = 1
     proc.engine.dev = {}
     proc.controllers_dict["len_ratch"].value = 16
 

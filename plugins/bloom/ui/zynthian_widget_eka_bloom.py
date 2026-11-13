@@ -385,6 +385,16 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
             base = y1
         if key == "vel":
             c.create_line(x0, yv(100), x1, yv(100), fill="#606060", dash=(3, 3), tags="dyn")
+        rat_off = False                                      # Ratch every N: this pass plays one hit per step
+        if key == "ratch":
+            every = min(max(int(round(self._zval("ratch_every", 1))), 1), 8)
+            if every > 1:
+                k = ((count - 1) // length) % every + 1 if count > 0 else 0
+                rat_off = count > 0 and k != every
+                unit = "every %d \u00b7 pass %d/%d" % (every, k, every) if k else "every %d passes" % every
+                c.create_text(x1 - 2, y0 + 1, anchor="ne", text=unit, tags=("dyn", "every"),
+                              fill=(LANE_COLORS[lane] if not rat_off else tx_off),
+                              font=(fam, max(6, int(tab_h * 0.26))))
         if key == "shift":                                   # Shift sticks to this scale (nothing for Chromatic)
             sc = self._scale()
             if sc > 0:
@@ -401,6 +411,8 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
             if i + 1 == cur:
                 c.create_rectangle(bx0 - 1, y0, bx1 + 1, y1, fill="#2a2a2a", outline="#ffffff", tags="dyn")
             fill = col if active else dim(col, 0.3)
+            if rat_off and v > 1:                            # hits wait for the N-th pass
+                fill = dim(col, 0.45)
             vy = yv(v)
             if key == "gate" and v <= 0:
                 c.create_rectangle(bx0, y1 - 3, bx1, y1, fill=dim(fill, 0.6), width=0, tags="dyn")

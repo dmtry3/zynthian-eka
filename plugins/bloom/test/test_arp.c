@@ -1510,6 +1510,38 @@ static void test_ratchet(void) {
   else { printf("FAIL: Ratch 1 everywhere plays as before; values clamped to 1..4\n"); failures++; }
 }
 
+static void test_ratch_every(void) {
+  ArpCore a; Log l;
+  /* Ratch row of 4 steps, step 1 has 2 hits, every 3 passes: hits on passes 3 and 6 only (steps 9, 21) */
+  arp_init(&a); chord(&a); arp_set_ratch(&a, 0, 2); arp_set_lane_length(&a, ARP_LANE_RATCH, 4);
+  arp_set_ratch_every(&a, 3);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 24 * 240, collect, &l);
+  int extra[24] = {0}, k = 0;
+  for (int i = 0; i < l.n; i++)
+    if ((l.ev[i].st & 0xF0) == 0x90) { int st = (int)(l.ev[i].tick / 240); if (l.ev[i].tick != st * 240.0) extra[st]++; k++; }
+  int ok = (k == 24 + 2);
+  for (int st = 0; st < 24; st++) if (extra[st] != ((st == 8 || st == 20) ? 1 : 0)) ok = 0;
+  printf("%s: Ratch every 3 (row 4): extra hit only on steps 9 and 21\n", ok ? "PASS" : "FAIL");
+  if (!ok) { print_log("got", &l); failures++; }
+
+  /* every 1 = every pass; out-of-range values clamped */
+  arp_set_ratch_every(&a, 0);
+  int ok1 = a.ratch_every == 1;
+  arp_set_ratch_every(&a, 99);
+  ok1 = ok1 && a.ratch_every == ARP_MAX_RATCH_EVERY;
+  printf("%s: Ratch every clamped to 1..8\n", ok1 ? "PASS" : "FAIL");
+  if (!ok1) failures++;
+
+  /* with the transport rolling, passes follow the song grid: same result from a jump to step 9 */
+  arp_init(&a); chord(&a); arp_set_ratch(&a, 0, 2); arp_set_lane_length(&a, ARP_LANE_RATCH, 4);
+  arp_set_ratch_every(&a, 3); arp_set_sync(&a, 1);
+  memset(&l, 0, sizeof l); arp_process(&a, 8 * 240, 9 * 240, collect, &l);
+  int ons = 0;
+  for (int i = 0; i < l.n; i++) if ((l.ev[i].st & 0xF0) == 0x90) ons++;
+  printf("%s: Ratch every with sync: song step 9 has its 2 hits after a jump\n", ons == 2 ? "PASS" : "FAIL");
+  if (ons != 2) { print_log("got", &l); failures++; }
+}
+
 int main(void) {
   test_up_one_block();
   test_chunks();
@@ -1551,6 +1583,7 @@ int main(void) {
   test_passing();
   test_sync();
   test_ratchet();
+  test_ratch_every();
   printf(failures ? "\n%d FAILED\n" : "\nALL PASSED\n", failures);
   return failures ? 1 : 0;
 }

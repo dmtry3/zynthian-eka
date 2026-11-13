@@ -21,7 +21,7 @@
 <http://dmtry3.github.io/zynthian-eka/bloom>
     a lv2:Plugin , lv2:UtilityPlugin ;
     doap:name "Eka Bloom" ;
-    lv2:minorVersion 19 ;
+    lv2:minorVersion 20 ;
     lv2:microVersion 0 ;
     lv2:requiredFeature urid:map ;
     lv2:extensionData state:interface ;   # pattern steps go into presets
@@ -50,12 +50,12 @@
         atom:bufferType atom:Sequence ;
         atom:supports midi:MidiEvent , time:Position , patch:Message ;
         lv2:designation lv2:control ;
-        lv2:index 25 ; lv2:symbol "midi_in" ; lv2:name "MIDI In" ;
+        lv2:index 26 ; lv2:symbol "midi_in" ; lv2:name "MIDI In" ;
     ] , [
         a lv2:OutputPort , atom:AtomPort ;
         atom:bufferType atom:Sequence ;
         atom:supports midi:MidiEvent , patch:Message ;
-        lv2:index 26 ; lv2:symbol "midi_out" ; lv2:name "MIDI Out" ;
+        lv2:index 27 ; lv2:symbol "midi_out" ; lv2:name "MIDI Out" ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 0 ; lv2:symbol "rate" ; lv2:name "Rate" ;
@@ -166,6 +166,11 @@
         lv2:displayPriority 5 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_lengths> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 25 ; lv2:symbol "ratch_every" ; lv2:name "Ratch every" ;
+        lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 8 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 4 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_lengths> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
         lv2:index 9 ; lv2:symbol "key" ; lv2:name "Key" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 12 ;
         lv2:portProperty lv2:integer , lv2:enumeration ;
@@ -218,72 +223,72 @@
         lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_mutate> ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 27 ; lv2:symbol "step_count" ; lv2:name "Step count" ;
+        lv2:index 28 ; lv2:symbol "step_count" ; lv2:name "Step count" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 16777215 ; lv2:portProperty lv2:integer ;
-        # dev1..dev16 (ports 28..43): drift of each step for the widget, packed (prob+3) + 7*(shift+3) + 49*(vel+3) + 343*(gate+4)
+        # dev1..dev16 (ports 29..44): drift of each step for the widget, packed (prob+3) + 7*(shift+3) + 49*(vel+3) + 343*(gate+4)
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 28 ; lv2:symbol "dev1" ; lv2:name "Drift 1" ;
+        lv2:index 29 ; lv2:symbol "dev1" ; lv2:name "Drift 1" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 29 ; lv2:symbol "dev2" ; lv2:name "Drift 2" ;
+        lv2:index 30 ; lv2:symbol "dev2" ; lv2:name "Drift 2" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 30 ; lv2:symbol "dev3" ; lv2:name "Drift 3" ;
+        lv2:index 31 ; lv2:symbol "dev3" ; lv2:name "Drift 3" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 31 ; lv2:symbol "dev4" ; lv2:name "Drift 4" ;
+        lv2:index 32 ; lv2:symbol "dev4" ; lv2:name "Drift 4" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 32 ; lv2:symbol "dev5" ; lv2:name "Drift 5" ;
+        lv2:index 33 ; lv2:symbol "dev5" ; lv2:name "Drift 5" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 33 ; lv2:symbol "dev6" ; lv2:name "Drift 6" ;
+        lv2:index 34 ; lv2:symbol "dev6" ; lv2:name "Drift 6" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 34 ; lv2:symbol "dev7" ; lv2:name "Drift 7" ;
+        lv2:index 35 ; lv2:symbol "dev7" ; lv2:name "Drift 7" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 35 ; lv2:symbol "dev8" ; lv2:name "Drift 8" ;
+        lv2:index 36 ; lv2:symbol "dev8" ; lv2:name "Drift 8" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 36 ; lv2:symbol "dev9" ; lv2:name "Drift 9" ;
+        lv2:index 37 ; lv2:symbol "dev9" ; lv2:name "Drift 9" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 37 ; lv2:symbol "dev10" ; lv2:name "Drift 10" ;
+        lv2:index 38 ; lv2:symbol "dev10" ; lv2:name "Drift 10" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 38 ; lv2:symbol "dev11" ; lv2:name "Drift 11" ;
+        lv2:index 39 ; lv2:symbol "dev11" ; lv2:name "Drift 11" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 39 ; lv2:symbol "dev12" ; lv2:name "Drift 12" ;
+        lv2:index 40 ; lv2:symbol "dev12" ; lv2:name "Drift 12" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 40 ; lv2:symbol "dev13" ; lv2:name "Drift 13" ;
+        lv2:index 41 ; lv2:symbol "dev13" ; lv2:name "Drift 13" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 41 ; lv2:symbol "dev14" ; lv2:name "Drift 14" ;
+        lv2:index 42 ; lv2:symbol "dev14" ; lv2:name "Drift 14" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 42 ; lv2:symbol "dev15" ; lv2:name "Drift 15" ;
+        lv2:index 43 ; lv2:symbol "dev15" ; lv2:name "Drift 15" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 43 ; lv2:symbol "dev16" ; lv2:name "Drift 16" ;
+        lv2:index 44 ; lv2:symbol "dev16" ; lv2:name "Drift 16" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] .
 
