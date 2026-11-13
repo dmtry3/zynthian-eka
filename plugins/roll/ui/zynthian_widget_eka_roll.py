@@ -45,13 +45,23 @@ GRID_COLOR = "#3a8fd8"
 # Open Roll widgets by processor id: the touch hook below is shared by all instances.
 ROLL_WIDGETS = {}
 
+DEBUG = True                                  # TEMPORARY: diagnostics in the Zynthian log (grep EKA-ROLL)
+
+
+def dbg(msg, *args):
+    if DEBUG:
+        logging.warning("EKA-ROLL " + msg, *args)
+
 
 def _flip(proc, sym):
     try:
         z = proc.controllers_dict[sym]
+        old = z.value
         z.set_value(0 if float(z.value) >= 0.5 else 1)
+        dbg("flip %s: %r -> %r", sym, old, z.value)
         return True
-    except Exception:
+    except Exception as e:
+        dbg("flip %s failed: %r", sym, e)
         return False
 
 
@@ -72,7 +82,9 @@ def _hook_control_cuia(ctl):
 
     def cuia_v5_zynpot_switch(params, ctl=ctl, orig=orig):
         try:
-            wdg = _roll_undo_zctrl(ctl.zgui_controllers[int(params[0])])
+            zc = ctl.zgui_controllers[int(params[0])]
+            dbg("knob push %r on %r", params, getattr(getattr(zc, "zctrl", None), "symbol", None))
+            wdg = _roll_undo_zctrl(zc)
             if wdg is not None and wdg.cuia_v5_zynpot_switch(params):
                 return True
         except Exception as e:
@@ -81,6 +93,12 @@ def _hook_control_cuia(ctl):
 
     cuia_v5_zynpot_switch._eka_roll = True
     ctl.cuia_v5_zynpot_switch = cuia_v5_zynpot_switch
+    try:
+        zg = zynthian_gui_config.zyngui
+        dbg("hook on %s (orig %r); current screen %r -> %s", type(ctl).__name__, orig,
+            getattr(zg, "current_screen", None), type(zg.get_current_screen_obj()).__name__)
+    except Exception as e:
+        dbg("hook info: %r", e)
 
 
 def _hook_touch_release(zc):
@@ -164,7 +182,41 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         if _flip(self.processor, "redo"):
             self._toast("Redo", 1.5)
 
+    def _dbg_watch(self):
+        """Log every change of the command ports and the roll's run flag (who pressed what, when)."""
+        vals = {}
+        for sym in ("undo", "redo", "qapply", "qmask", "qgrid", "zbeat"):
+            vals[sym] = self._zval(sym, None)
+        vals["run"] = (self.monitors or {}).get("run")
+        vals["state"] = (self.monitors or {}).get("state")
+        old = getattr(self, "_dbg_vals", None)
+        if old is not None:
+            ch = {k: (old.get(k), v) for k, v in vals.items() if old.get(k) != v}
+            if ch:
+                dbg("changed %r", ch)
+        self._dbg_vals = vals
+
+    def _dbg_bind(self):
+        try:
+            for zc in self.zyngui_control.zgui_controllers:
+                if getattr(zc, "_eka_roll_dbg", False):
+                    continue
+                zc._eka_roll_dbg = True
+
+                def press(ev, zc=zc):
+                    zc._eka_t = time.monotonic()
+                    dbg("touch press knob %d (%r)", zc.index, getattr(getattr(zc, "zctrl", None), "symbol", None))
+
+                def release(ev, zc=zc):
+                    dbg("touch release knob %d after %.2f s", zc.index, time.monotonic() - getattr(zc, "_eka_t", 0))
+                zc.bind("<Button-1>", press, add="+")
+                zc.bind("<ButtonRelease-1>", release, add="+")
+        except Exception as e:
+            dbg("dbg bind: %r", e)
+
     def _hook_controllers(self):
+        if DEBUG:
+            self._dbg_bind()
         try:
             _hook_control_cuia(self.zyngui_control)
             for zc in self.zyngui_control.zgui_controllers:
@@ -178,6 +230,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             i, t = int(params[0]), str(params[1]).upper()
             ctl = self.zyngui_control
             if ctl.midi_learning or ctl.mode != "control":
+                dbg("widget push %r skipped: midi_learning=%r mode=%r", params, ctl.midi_learning, ctl.mode)
                 return False
             if _roll_undo_zctrl(ctl.zgui_controllers[i]) is not self:
                 return False
@@ -239,7 +292,9 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                 self.last_click = now
                 if kind == "q":
                     mask = int(self._zval("qmask", 255))
-                    self._zset("qmask", mask ^ (1 << i))
+                    ok = self._zset("qmask", mask ^ (1 << i))
+                    dbg("qmask tap layer %d: %d -> %d (set %r, now %r)", i + 1, mask, mask ^ (1 << i), ok,
+                        self._zval("qmask", None))
                 elif kind == "s":
                     self._zset("slot", i + 1)
                 elif kind == "l":
@@ -736,8 +791,15 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             lib = self.zyngui.state_manager.zynseq.libseq
             st = int(lib.getTransportState())
             beat = int(lib.getBeat())
-        except Exception:
+        except Exception as e:
+            if not getattr(self, "_dbg_zs_err", False):
+                self._dbg_zs_err = True
+                dbg("zynseq read failed: %r", e)
             return
+        if st != getattr(self, "_dbg_zs_st", None):
+            self._dbg_zs_st = st
+            dbg("zynseq state %d beat %d, zbeat port %r, roll run %r", st, beat, self._zval("zbeat", None),
+                (self.monitors or {}).get("run"))
         if st == 1 and 1 <= beat <= 16:          # PLAYING
             z = beat
         elif st in (0, 3, 5):                    # STOPPED, STOPPING (zynseq is already silent)
@@ -749,6 +811,8 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
 
     def _follow_tick(self):
         try:
+            if DEBUG:
+                self._dbg_watch()
             self._sync_zynseq()
             self._follow_cc()
             self._sync_n += 1
