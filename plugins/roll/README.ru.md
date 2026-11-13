@@ -31,6 +31,17 @@ MIDI-лупер для [Zynthian](https://zynthian.org): **LV2-плагин (MID
   выбор слоёв (Quantize); карта слотов (Slots).
 - Игра с клавиатуры всегда проходит насквозь, лупер её не блокирует.
 
+## Скриншоты
+
+| | |
+|---|---|
+| ![Loop](docs/1-loop.png) | ![Layers](docs/2-layers.png) |
+| **Loop:** состояние, прогресс, доли и пианоролл | **Layers:** mute, удаление, undo / redo по слоям |
+| ![Timing](docs/3-timing.png) | ![Quantize](docs/4-quantize.png) |
+| **Timing:** длина и запуск | **Quantize:** сетка, сила, какие слои квантовать |
+| ![Edit](docs/5-edit.png) | ![Slots](docs/6-slots.png) |
+| **Edit:** пианоролл с дорожкой CC, транспонирование | **Slots:** 16 слотов на диске |
+
 ## Требования
 
 - Zynthian с работающим `zynseq` как мастером транспорта и темпа.

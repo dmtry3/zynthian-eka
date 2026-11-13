@@ -31,6 +31,17 @@ a loop to a Standard MIDI File and straight into a `zynseq` pattern.
   layer selector (Quantize page); slot map (Slots page).
 - Live MIDI always passes through; the plugin never blocks your playing.
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Loop](docs/1-loop.png) | ![Layers](docs/2-layers.png) |
+| **Loop:** state, progress, beats and the piano roll | **Layers:** mute, delete, undo / redo per layer |
+| ![Timing](docs/3-timing.png) | ![Quantize](docs/4-quantize.png) |
+| **Timing:** length and launch | **Quantize:** grid, strength, the layers to quantize |
+| ![Edit](docs/5-edit.png) | ![Slots](docs/6-slots.png) |
+| **Edit:** piano roll with the CC lane, transposition | **Slots:** the 16 slots on disk |
+
 ## Requirements
 
 - Zynthian with `zynseq` running as transport/tempo master.
