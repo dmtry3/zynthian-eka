@@ -2,10 +2,42 @@
 
 **English** · [Русский](README.ru.md)
 
-An LV2 MIDI plugin that turns into a generative arpeggiator for [Zynthian](https://zynthian.org)
-(tested on Zynthian *Vangelis* on a Raspberry Pi 5). It has a step pattern with probability, pitch shift,
-velocity and gate per step, each row with its own length (polyrhythm), scales, a Turing‑Machine‑style
-note loop, slow mutation of the pattern, and a touchscreen widget for editing the steps.
+A **generative arpeggiator** for [Zynthian](https://zynthian.org), as an **LV2 MIDI-tool plugin** that sits in
+front of a synth, with an **on-screen widget** for the Zynthian touch UI: live effects on pads, a roll of the
+played notes, a keyboard for the key and the chords of the scale, and an editor for the 16 steps of the pattern.
+
+> Tested on: Zynthian **Vangelis** (stable 2610), Raspberry Pi 5, V5 kit, 800x480 touch screen.
+> Other versions/hardware are untested.
+
+## Features
+
+- **Step pattern** of 16 steps with five rows: **Prob** (chance), **Shift** (pitch, sticks to the scale),
+  **Vel**, **Gate** (or Tie) and **Ratch** (1–4 even hits in the step). Every row has its **own length**
+  (polyrhythm); **Ratch every** plays the ratchets only on every N-th pass, as a fill.
+- **Seven note orders:** Up, Down, Up-Down, Down-Up, As played, Random and **Loop**, a Turing-Machine-style loop of
+  positions in the chord; Octaves 1–4, Latch, Transpose, **Repeats** with runs, octaves or echoes.
+- **Scales and degrees:** 12 scales, Key or *Auto* (the lowest held key), **passing notes** before chord notes, and
+  **Degree**: one held chord walks through the chords of the key (C-E-G on IV plays F-A-C).
+- **Mutation:** the note loop and the steps drift slowly from what you drew; *Reset* starts over.
+- **Groove:** Swing with four feels, Drunk timing, Accent.
+- **Live effects** while a finger is on a pad: **Roll** 1/8 · 1/16 · 1/32 (beat repeat), **Fill**, **Oct+**,
+  **Half time**, **Drop**, **Rev**; an **XY pad** for Density and Dynamics. Released = back on the grid.
+- **Transport-locked:** steps follow the Zynthian song grid while it plays, and its own clock at the Zynthian tempo
+  while it is stopped.
+- **6 factory presets**, your own presets and Zynthian snapshots keep the whole pattern.
+- **Touch widget** that follows the knob page: Play pads, roll of the played notes (Arp), keyboard and degrees
+  (Scale), and the step editor with mutation marks and the playhead of every row.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Play: live effects on pads and the XY pad](docs/1-play.png) | ![Arp: the notes Bloom has played](docs/2-arp.png) |
+| **Play:** hold a pad for an effect, the XY pad for density and dynamics | **Arp:** the notes Bloom has actually played |
+| ![Pattern: the Shift row](docs/3-pattern.png) | ![Pattern: the Ratch row](docs/4-ratch.png) |
+| **Pattern:** a row of the pattern, here Shift in D dorian | **Ratch:** hits per step, one slim bar each |
+| ![Scale: keyboard, scales and degrees](docs/5-scale.png) | |
+| **Scale:** tap the key, the scale, a degree | |
 
 ## Install
 
@@ -56,6 +88,9 @@ The controllers are grouped into pages of four:
 
 | Page | Control | Values | What it does |
 |---|---|---|---|
+| Play | FX | Off, Roll 1/8, Roll 1/16, Roll 1/32, Fill, Oct+, Half, Drop, Rev | the live effect (the pads set it while held) |
+| | Density | 0–100 (50 = as drawn) | fewer or more steps play |
+| | Dynamics | 0–100 (50 = as drawn) | softer and shorter, or louder and longer |
 | Arp | Rate | 1/4, 1/8, 1/8T, 1/16, 1/16T, 1/32 | step length |
 | | Gate % | 5–100 | note length as a share of the step, unless a step sets its own |
 | | Order | Up, Down, Up‑Down, Down‑Up, As played, Random, Loop | order of the chord notes (see below) |
@@ -70,6 +105,7 @@ The controllers are grouped into pages of four:
 | | Scale | Chromatic, Major, Minor, Dorian, Phrygian, Lydian, Mixolydian, Harm minor, Mel minor, Major pent, Minor pent, Blues | scale for Shift, Run, drift and passing notes |
 | | Passing % | 0–100 | chance of a passing note before a new chord note |
 | | Pass style | Neighbor, Leap, Approach, Mixed | which passing note |
+| | Degree | I … VII | the arpeggio moves this many scale notes up (not with Chromatic) |
 | Mutate | Notes % | 0–100 | Loop order only: chance that a loop step gets a new note |
 | | Loop len | 1–16 | Loop order only: length of the note loop |
 | | Steps % | 0–100 | any order: chance that a step of the pattern drifts |
@@ -275,3 +311,7 @@ python3 scripts/gen_presets.py   # regenerate lv2/presets.ttl and lv2/manifest.t
 ```
 
 Logs on the device: `journalctl -u zynthian`.
+
+## License
+
+GPL-3.0-or-later, see [LICENSE](LICENSE). Changes: [CHANGELOG.md](CHANGELOG.md).
