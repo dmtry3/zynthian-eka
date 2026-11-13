@@ -424,8 +424,11 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             for (t, d, st, p, v, _) in EV.iter_unpack(chunk):
                 ccs.append((t, st, p, v))
             if DEBUG:
+                # per layer: note count, a checksum of all (start, length, pitch), the first notes as start+length
                 dbg("loop data v%d: %s", ver, " | ".join(
-                    "L%d %s" % (i + 1, [t for (t, du, p) in lay[:6]]) for i, lay in enumerate(layers)))
+                    "L%d n%d #%04x %s" % (i + 1, len(lay), hash(tuple(lay)) & 0xFFFF,
+                                          ["%d+%d" % (t, du) for (t, du, p) in lay[:4]])
+                    for i, lay in enumerate(layers)))
             self.data = {"loop_len": h[3], "bpb": h[5] or 4, "mute": h[7],
                          "transp": list(h[16:24]), "layers": layers, "ccs": ccs, "fnotes": fnotes,
                          "opens": opens}
