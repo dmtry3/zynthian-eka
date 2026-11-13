@@ -93,6 +93,14 @@ def _hook_control_cuia(ctl):
 
     cuia_v5_zynpot_switch._eka_roll = True
     ctl.cuia_v5_zynpot_switch = cuia_v5_zynpot_switch
+    par = getattr(ctl, "parent", None)
+    if DEBUG and par is not None and callable(getattr(par, "cuia_v5_zynpot_switch", None)):
+        porig = par.cuia_v5_zynpot_switch
+
+        def parent_push(params, par=par, porig=porig):
+            dbg("parent push %r, chain_shown %r", params, getattr(par, "chain_shown", None))
+            return porig(params)
+        par.cuia_v5_zynpot_switch = parent_push
     try:
         zg = zynthian_gui_config.zyngui
         dbg("hook on %s (orig %r); current screen %r -> %s", type(ctl).__name__, orig,
@@ -223,6 +231,18 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                 _hook_touch_release(zc)
         except Exception:
             pass
+
+    def switch(self, swi, t):
+        """Classic layouts: the knob pushes are the 4 standard switches (zynpot2switch maps knob -> switch)."""
+        try:
+            z2s = list(getattr(zynthian_gui_config, "zynpot2switch", None) or [0, 1, 2, 3])
+            dbg("switch %r %r (zynpot2switch %r)", swi, t, z2s)
+            if swi not in z2s:
+                return False
+            return self.cuia_v5_zynpot_switch((z2s.index(swi), t))
+        except Exception as e:
+            dbg("switch failed: %r", e)
+            return False
 
     def cuia_v5_zynpot_switch(self, params):
         """Encoder push on the Undo/Redo knob: short = Undo, bold/long = Redo."""

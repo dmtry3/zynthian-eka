@@ -102,6 +102,17 @@ int main(void) {
   ctl[C_REDO] = 0; run_secs(0.05);
   check("redo + bounce: one layer back", L->nlayers == 2 && L->nredo == 0);
 
+  /* ---- Quantize: only the layers in qmask (the device log had qmask = 253: layer 1 on, layer 2 off) ---- */
+  make_loop();
+  L->layers[0].ev[0].tick = 37; L->layers[1].ev[0].tick = 517;          /* both off the 1/16 grid */
+  ctl[I_QGRID] = 3; ctl[I_QMASK] = 253; run_secs(0.05);
+  ctl[C_QAPPLY] = 1; run_secs(0.05);
+  check("quantize qmask 253: layer 1 moved, layer 2 untouched",
+        L->layers[0].ev[0].tick == 0 && L->layers[1].ev[0].tick == 517);
+  ctl[C_QAPPLY] = 0; run_secs(0.05);
+  ctl[I_QMASK] = 255; ctl[I_QGRID] = 0;
+  L->bk_valid = 0;
+
   /* ---- zynseq sync ---- */
   zbeat = 3; run_secs(0.02);
   check("first zbeat value is only remembered", outv[O_RUN] == 1.0f && L->zb_prev == 3);
