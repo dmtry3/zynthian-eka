@@ -136,7 +136,8 @@ Steps can only be delayed, never played early (the plugin does not look ahead).
 
 ## The pattern (widget)
 
-The plugin's screen in Zynthian shows a touch editor for the 16 steps of the pattern.
+The widget follows the knob page: on **Arp** it shows the roll of the played notes, on the other pages
+a touch editor for the 16 steps of the pattern.
 
 - **Tabs Prob · Shift · Vel · Gate · Ratch** choose the row. Each tab shows the length of its row.
 - **Touch or drag a bar** to set the step's value by height. A fast swipe fills the steps in between.
@@ -146,16 +147,12 @@ The plugin's screen in Zynthian shows a touch editor for the 16 steps of the pat
 - **Mutation marks:** a white mark on a bar shows the value the step plays now after mutation. The bar
   keeps the drawn value.
 
-**Roll tab.** The notes Bloom has actually played (with mutation, passing notes, repeats and ratchets),
+**Arp page: the roll.** On the Arp knob page the widget shows the notes Bloom has actually played (with mutation, passing notes, repeats and ratchets),
 on a window of 2 bars of the song grid. The playhead sweeps left to right: notes of this pass are bright
 (brighter = louder), the last pass stays dim ahead of the playhead until it is overwritten. The key strip
 on the left lights the held keys; lighter rows are the notes of the scale (white keys with Chromatic). The
 pitch range follows the notes in whole octaves. **Tap the roll** to switch 1 / 2 / 4 bars.
 
-**Play tab.** Big tiles for playing live without the encoders. Tap the left half of a tile for less,
-the right half for more: Rate, Order, Octaves, Transpose, Gate, Swing, Mutate (Steps %). **Latch** turns
-on and off. **Freeze** stops all mutation (Steps % and Notes % to 0) and keeps what has grown; tap again
-to bring the mutation back. **New loop** is Reset: a new note loop and no step drift.
 
 | Row | Values | Default | Meaning |
 |---|---|---|---|

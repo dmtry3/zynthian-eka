@@ -1,7 +1,8 @@
 #!/usr/bin/python3
 # Runs the Eka Bloom widget outside Zynthian with stub modules.
 #   python3 test/widget_preview.py          scripted touch tests (PASS/FAIL)
-#   python3 test/widget_preview.py --show   open a window to try it by hand (needs a display)
+#   python3 test/widget_preview.py --show   open a window to try it by hand (needs a display);
+#                                            keys: a = Arp page (roll), p = Pattern page (steps)
 import importlib.util
 import math
 import os
@@ -168,11 +169,23 @@ class Processor:
 
 
 class Control:
+    """Zynthian's control screen: list_data rows (group symbol, index, title, processor, page)."""
     def __init__(self, root):
         self.main_frame = root
         self.layout = {"rows": 4}
         self.wide = True
         self.shown = True
+        self.list_data = []
+        self.screen_info = None
+
+    def add_pages(self, proc):
+        self.list_data = [(None, None, "> Eka Bloom", proc)]
+        for j, (g, t) in enumerate((("g_arp", "Arp"), ("g_pattern", "Pattern"), ("g_lengths", "Lengths"),
+                                    ("g_scale", "Scale"), ("g_mutate", "Mutate"), ("g_groove", "Groove"))):
+            self.list_data.append((g, j + 1, t, proc, j))
+
+    def page(self, group):
+        self.screen_info = [r for r in self.list_data if r[0] == group][0]
 
 
 def load_widget():
@@ -194,8 +207,10 @@ def main():
     root = tkinter.Tk()
     root.geometry("480x300")
     proc = Processor()
-    wdg = mod.zynthian_widget_eka_bloom(Control(root))
+    ctl = Control(root)
+    wdg = mod.zynthian_widget_eka_bloom(ctl)
     wdg.set_processor(proc)
+    ctl.add_pages(proc)
     wdg.pack(fill="both", expand=True)
     root.update()
     wdg.update()
@@ -208,6 +223,9 @@ def main():
             v.play_to(v.clk + 60, ratch={3: 2, 7: 3, 13: 4})
             wdg.update()
             root.after(62, tick)
+        # keys: a = Arp page (roll), p = Pattern page (step editor)
+        root.bind("<Key-a>", lambda e: (ctl.page("g_arp"), wdg.update()))
+        root.bind("<Key-p>", lambda e: (ctl.page("g_pattern"), wdg.update()))
         tick()
         root.mainloop()
         proc.engine.viz.remove()
@@ -222,7 +240,7 @@ def main():
 
     w, h, pad, tab_h, num_h, x0, x1, y0, y1, cw = wdg.geo
     cx = lambda i: int(x0 + (i + 0.5) * cw)
-    tab = lambda i: int(w / 7.0 * (i + 0.5))
+    tab = lambda i: int(w / 5.0 * (i + 0.5))
 
     check("widget sized to the window", w >= 400 and h >= 250)
 
@@ -457,12 +475,14 @@ def main():
     proc.engine.dev = {}
     proc.controllers_dict["len_ratch"].value = 16
 
-    # Roll tab: notes from shared memory
+    # the view follows the knob page: Arp = roll of the played notes (from shared memory)
     viz = proc.engine.viz
     notes = lambda: wdg.widget_canvas.find_withtag("note")
-    wdg._on_press(Ev(tab(5), tab_h // 2)); wdg.update()
-    check("Roll tab selected, empty: 'play a chord'", wdg.lane == 5 and "play a chord" in texts() and len(notes()) == 0)
-    check("tabs: 5 rows and Roll", "Roll" in texts() and "Ratch 16" in texts())
+    check("no knob page yet: step editor", wdg.view == "steps")
+    wdg._on_press(Ev(tab(2), tab_h // 2)); wdg.update()      # Vel row chosen in the editor
+    ctl.page("g_arp"); wdg.update()
+    check("Arp page: roll, empty: 'play a chord'", wdg.view == "roll" and "play a chord" in texts() and len(notes()) == 0)
+    check("roll: header instead of the row tabs", "Played notes" in texts() and "Ratch 16" not in texts())
     viz.play_to(1919, ratch={3: 2, 5: 4})            # 8 steps of 1/16 (half a bar), step 3 x2, step 5 x4
     wdg.update()
     check("Roll: 8 steps + 1 + 3 extra hits = 12 notes (got %d)" % len(notes()), len(notes()) == 12)
@@ -500,46 +520,17 @@ def main():
     check("Roll: wrong magic: 'no data from the plugin'", "no data from the plugin" in texts())
     viz.remove(); wdg.mm = None; wdg.mm_path = None; wdg.update()
     check("Roll: no shared memory: 'no data from the plugin'", "no data from the plugin" in texts())
-    wdg._on_press(Ev(tab(0), tab_h // 2)); wdg.update()
-
-    # Play tab: big tiles; left half -, right half +
-    wdg._on_press(Ev(tab(6), tab_h // 2)); wdg.update()
-    tiles = wdg._tile_rects()
-    def tap(k, side):
-        a, b, c_, d = tiles[k]
-        wdg._on_press(Ev(int(a + (c_ - a) * (0.25 if side < 0 else 0.75)), int((b + d) / 2))); wdg.update()
-    check("Play tab: 10 tiles", wdg.lane == 6 and len(wdg.widget_canvas.find_withtag("tile")) == 10)
-    tap(0, 1); check("Latch tap: on", proc.v("latch") == 1 and "On" in texts())
-    tap(0, -1); check("Latch tap again: off", proc.v("latch") == 0)
-    tap(1, 1); check("Rate +: 1/16 -> 1/16T", proc.v("rate") == 4 and "1/16T" in texts())
-    tap(1, 1); tap(1, 1); check("Rate + stops at 1/32", proc.v("rate") == 5)
-    tap(1, -1); check("Rate -: 1/16T", proc.v("rate") == 4)
-    tap(2, -1); check("Order - at Up stays Up", proc.v("order") == 0)
-    tap(2, 1); check("Order +: Down", proc.v("order") == 1 and "Down" in texts())
-    tap(3, 1); check("Octaves +: 2", proc.v("octaves") == 2)
-    tap(4, 1); check("Transpose +: +1 oct", proc.v("transpose") == 1 and "+1 oct" in texts())
-    tap(5, 1); check("Gate +: 55%", proc.v("gate") == 55 and "55%" in texts())
-    proc.controllers_dict["gate"].value = 52; wdg.update()
-    tap(5, 1); check("Gate 52 (from an encoder) +: snaps to 50 then 55", proc.v("gate") == 55)
-    tap(6, 1); check("Swing +: 55%", proc.v("swing") == 55)
-    tap(7, 1); tap(7, 1); check("Mutate +2: 20%", proc.v("mut_steps") == 20)
-    proc.controllers_dict["mut_notes"].value = 30
-    tap(8, 1); check("Freeze: mutation 0, remembered", proc.v("mut_steps") == 0 and proc.v("mut_notes") == 0
-                     and wdg.frozen == (20, 30))
-    tap(8, 1); check("Freeze again: back to 20 / 30", proc.v("mut_steps") == 20 and proc.v("mut_notes") == 30
-                     and wdg.frozen is None)
-    tap(8, 1); proc.controllers_dict["mut_steps"].value = 40; wdg.update()
-    check("Freeze is dropped when mutation is turned on elsewhere", wdg.frozen is None)
-    r0 = proc.v("reset"); tap(9, 1)
-    check("New loop: Reset toggles (plugin resets on any change)", proc.v("reset") == 1 - r0)
-    check("New loop tile flashes", any(wdg.widget_canvas.itemcget(i, "fill") == mod.PLAY_COLOR
-                                       for i in wdg.widget_canvas.find_withtag("tile")))
-    before = {k: proc.v(k) for k in ("prob1", "ratch1", "len_prob")}
-    wdg._on_press(Ev(cx(3), h - 3)); wdg.update()
-    check("Play: taps don't touch steps or lengths", before == {k: proc.v(k) for k in before})
-    for k in ("latch", "rate", "order", "octaves", "transpose", "gate", "swing", "mut_steps", "mut_notes"):
-        proc.controllers_dict[k].value = {"latch": 0, "rate": 3, "order": 0, "octaves": 1, "transpose": 0,
-                                          "gate": 50, "swing": 50}.get(k, 0)
+    for g in ("g_pattern", "g_lengths", "g_scale", "g_mutate", "g_groove"):
+        ctl.page("g_arp"); wdg.update()
+        ctl.page(g); wdg.update()
+        if wdg.view != "steps":
+            break
+    check("Pattern, Lengths, Scale, Mutate, Groove pages: step editor", wdg.view == "steps")
+    check("back to the editor: the chosen row (Vel) is kept", wdg.lane == 2 and "Ratch 16" in texts())
+    ctl.page("g_arp"); wdg.update()
+    ctl.screen_info = (None, None, "> Other", object(), 0); wdg.update()
+    check("a page of another processor keeps the view", wdg.view == "roll")
+    ctl.page("g_pattern"); wdg.update()
     wdg._on_press(Ev(tab(0), tab_h // 2)); wdg.update()
 
     # drawing does not crash with the playing step and resizes
@@ -553,22 +544,16 @@ def main():
     for geo in ("320x180", "480x300", "800x480"):
         root.geometry(geo); root.update(); wdg.update(); root.update()
         cv = wdg.widget_canvas
-        tw6 = wdg.geo[0] / 7.0
+        tw6 = wdg.geo[0] / 5.0
         labs = [i for i in cv.find_withtag("dyn") if cv.type(i) == "text" and cv.coords(i)[1] < wdg.geo[3]]
         widths = [cv.bbox(i)[2] - cv.bbox(i)[0] for i in labs]
-        check("%s: 7 tab labels fit their tabs (widest %d of %d px)" % (geo, max(widths), tw6),
-              len(labs) == 7 and max(widths) <= tw6 - 4)
-        wdg.lane = 6; wdg.update(); root.update()
-        bad = 0
-        for (ta, tb, tc, td) in wdg._tile_rects():
-            for i in cv.find_overlapping(ta + 1, tb + 1, tc - 1, td - 1):
-                if cv.type(i) == "text":
-                    bx = cv.bbox(i)
-                    o = bx[0] < ta or bx[2] > tc or bx[1] < tb - 1 or bx[3] > td + 1
-                    bad += o
-                    if o: print("   out:", repr(cv.itemcget(i, "text")), bx, (ta, tb, tc, td))
-        check("%s: Play tile texts stay inside their tiles" % geo, bad == 0)
-        wdg.lane = 0
+        check("%s: 5 tab labels fit their tabs (widest %d of %d px)" % (geo, max(widths), tw6),
+              len(labs) == 5 and max(widths) <= tw6 - 4)
+        ctl.page("g_arp"); wdg.update(); root.update()
+        hb = [cv.bbox(i) for i in cv.find_withtag("dyn") if cv.type(i) == "text" and cv.coords(i)[1] < wdg.geo[3]]
+        check("%s: roll header fits (2 labels, no overlap)" % geo, len(hb) == 2 and hb[0][2] < hb[1][0] and
+              hb[1][2] <= wdg.geo[0])
+        ctl.page("g_pattern"); wdg.update()
 
     proc.engine.viz.remove()
     print("\n%s" % ("ALL PASSED" if fails == 0 else "%d FAILED" % fails))
