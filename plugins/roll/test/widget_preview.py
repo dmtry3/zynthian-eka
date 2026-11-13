@@ -198,6 +198,30 @@ class GuiCtrl(tkinter.Canvas):
         self.canvas_push_ts = None
 
 
+class VGuiCtrl(tkinter.Canvas):
+    """zynthian_gui_controller as in vangelis: push starts a long-press timer, a short release toggles."""
+    def __init__(self, parent, index):
+        super().__init__(parent, width=10, height=2, highlightthickness=0, bg=cfg.color_bg)
+        self.index, self.zctrl, self.press_id, self.canvas_push_event = index, None, None, None
+        self.active_motion_axis, self.toggles = 0, 0
+        self.bind("<ButtonRelease-1>", self.cb_canvas_release)
+
+    def cb_canvas_push(self, event):
+        self.canvas_push_event = event
+        self.press_id = self.after(2000, lambda: None)
+
+    def cb_canvas_release(self, event):
+        if self.press_id:
+            self.after_cancel(self.press_id)
+            self.press_id = None
+        else:
+            return
+        if (event.time - self.canvas_push_event.time) / 1000 < cfg.zynswitch_bold_seconds:
+            self.toggles += 1
+            self.zctrl.set_value(0 if self.zctrl.value >= 0.5 else 1)
+
+
+
 class Control:
     def __init__(self, root, proc):
         self.main_frame = root
@@ -353,23 +377,43 @@ def main():
     check("quant: tap on layer 1 removes it from qmask", proc.v("qmask") == 254)
     proc.controllers_dict["qmask"].value = 255
 
-    # Undo/Redo knob (Loop page, knob 3)
+    # Undo/Redo knob (Loop page, knob 3). Undo = a quick turn-and-back of the undo port (the plugin times it),
+    # Redo = the hidden redo port.
+    import time as _t
+    zu = proc.controllers_dict["undo"]
+
+    def settle(secs=0.15):
+        end = _t.monotonic() + secs
+        while _t.monotonic() < end:
+            root.update()
+            _t.sleep(0.01)
+
+    def undo_pulse(fn):
+        w0, r0 = zu.writes, proc.v("redo")
+        res = fn()
+        settle()
+        return (res is not False) and zu.writes == w0 + 2 and proc.v("undo") == 0 and proc.v("redo") == r0
+
+    def redo_flip(fn):
+        w0, r0 = zu.writes, proc.v("redo")
+        res = fn()
+        return (res is not False) and proc.v("redo") != r0 and zu.writes == w0
+
     show("loop")
     zc = ctl.zgui_controllers[2]
     check("loop: touch hook installed on the knobs", getattr(zc, "_eka_roll_hook", False))
-    zc.canvas_push_ts = datetime.now()
-    zc.event_generate("<ButtonRelease-1>")
-    check("touch: short tap = Undo", proc.v("undo") == 1 and proc.v("redo") == 0)
-    zc.canvas_push_ts = datetime.now() - timedelta(seconds=0.8)
-    zc.event_generate("<ButtonRelease-1>")
-    check("touch: long press = Redo (undo untouched, MIDI-learn options not opened)",
-          proc.v("undo") == 1 and proc.v("redo") == 1 and zc.orig_calls == 1)
+
+    def tap(age):
+        zc.canvas_push_ts = datetime.now() - timedelta(seconds=age)
+        zc.event_generate("<ButtonRelease-1>")
+    check("touch: short tap = Undo (turn-and-back, no toggle left behind)", undo_pulse(lambda: tap(0)))
+    check("touch: long press = Redo (MIDI-learn options not opened)", redo_flip(lambda: tap(0.8)) and zc.orig_calls == 0)
     z0 = ctl.zgui_controllers[0]
     z0.canvas_push_ts = datetime.now() - timedelta(seconds=0.8)
     z0.event_generate("<ButtonRelease-1>")
-    check("touch: long press on another knob keeps Zynthian's action", z0.orig_calls == 1 and proc.v("redo") == 1)
-    check("encoder: short push = Undo", wdg.cuia_v5_zynpot_switch((2, "S")) and proc.v("undo") == 0)
-    check("encoder: bold push = Redo", wdg.cuia_v5_zynpot_switch((2, "B")) and proc.v("redo") == 0)
+    check("touch: long press on another knob keeps Zynthian's action", z0.orig_calls == 1)
+    check("encoder: short push = Undo", undo_pulse(lambda: wdg.cuia_v5_zynpot_switch((2, "S"))))
+    check("encoder: bold push = Redo", redo_flip(lambda: wdg.cuia_v5_zynpot_switch((2, "B"))))
     check("encoder: other knob not taken", not wdg.cuia_v5_zynpot_switch((0, "S")))
     ctl.midi_learning = True
     check("encoder: MIDI learn mode not taken", not wdg.cuia_v5_zynpot_switch((2, "S")))
@@ -377,34 +421,44 @@ def main():
     show("layers")
     check("encoder: Layers page knob 3 (L Delete) not taken", not wdg.cuia_v5_zynpot_switch((2, "B")))
 
-    # classic layout: knob pushes arrive as the 4 standard switches -> widget.switch()
+    # the knob turned and left there (a Redo in the plugin) goes back to 0 by itself
     show("loop")
-    u0, r0 = proc.v("undo"), proc.v("redo")
-    check("switch: short push of knob 3 = Undo", wdg.switch(2, "S") and proc.v("undo") != u0)
-    check("switch: bold push of knob 3 = Redo", wdg.switch(2, "B") and proc.v("redo") != r0)
+    zu.set_value(1)
+    wdg._undo_return()
+    settle(0.8)
+    wdg._undo_return()
+    check("knob left turned: back to 0 after 0.7 s", proc.v("undo") == 0)
+
+    # classic layout: knob pushes arrive as the 4 standard switches -> widget.switch()
+    check("switch: short push of knob 3 = Undo", undo_pulse(lambda: wdg.switch(2, "S")))
+    check("switch: bold push of knob 3 = Redo", redo_flip(lambda: wdg.switch(2, "B")))
     check("switch: knob 1 push not taken", not wdg.switch(0, "S"))
 
     # newer Zynthian (vangelis): pushes and long touches reach the control screen, not the widget
-    show("loop")
     ctl.options_opened = 0
-    r0 = proc.v("redo")
-    ctl.cuia_v5_zynpot_switch((2, "B"))
-    check("vangelis: bold push on Undo/Redo = Redo, no options menu", proc.v("redo") != r0 and ctl.options_opened == 0)
-    r0 = proc.v("redo")
-    ctl.cuia_v5_zynpot_switch((2, "L"))
-    check("vangelis: long push on Undo/Redo = Redo", proc.v("redo") != r0 and ctl.options_opened == 0)
-    u0 = proc.v("undo")
-    ctl.cuia_v5_zynpot_switch((2, "S"))
-    check("vangelis: short push on Undo/Redo = Undo", proc.v("undo") != u0)
+    check("vangelis: bold push on Undo/Redo = Redo, no options menu",
+          redo_flip(lambda: ctl.cuia_v5_zynpot_switch((2, "B"))) and ctl.options_opened == 0)
+    check("vangelis: long push on Undo/Redo = Redo",
+          redo_flip(lambda: ctl.cuia_v5_zynpot_switch((2, "L"))) and ctl.options_opened == 0)
+    check("vangelis: short push on Undo/Redo = Undo", undo_pulse(lambda: ctl.cuia_v5_zynpot_switch((2, "S"))))
     ctl.cuia_v5_zynpot_switch((0, "B"))
     check("vangelis: bold push on Rec keeps the options menu", ctl.options_opened == 1)
     show("loop")
-    r0 = proc.v("redo")
-    ctl.cuia_v5_zynpot_switch((2, "B"))
-    check("vangelis: hook installed only once (redraws)", proc.v("redo") != r0 and ctl.options_opened == 1)
+    check("vangelis: hook installed only once (redraws)",
+          redo_flip(lambda: ctl.cuia_v5_zynpot_switch((2, "B"))) and ctl.options_opened == 1)
+
+    # vangelis touch: a short tap would toggle the knob; the hook makes it a turn-and-back instead
+    vz = VGuiCtrl(root, 2)
+    vz.zctrl = zu
+    mod._hook_touch_release(vz)
+
+    class TEv:
+        def __init__(self, t):
+            self.time = t
+    vz.cb_canvas_push(TEv(1000))
+    check("vangelis touch: short tap = Undo, no toggle", undo_pulse(lambda: vz._eka_roll_release(TEv(1100))) and vz.toggles == 0)
 
     # zynseq state through the C++ name; stopped -> 0 / -2 alternating, playing -> the beat
-    import time as _t
     lib = cfg.zyngui.state_manager.zynseq.libseq
     lib.state = 0
     seen = set()

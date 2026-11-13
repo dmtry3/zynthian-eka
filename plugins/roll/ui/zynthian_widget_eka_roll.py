@@ -111,28 +111,46 @@ def _hook_control_cuia(ctl):
 
 
 def _hook_touch_release(zc):
-    """Older Zynthian (oram): a long touch on the Undo/Redo knob = Redo, decided on release.
-    Newer versions send the long touch through cuia_v5_zynpot_switch (see above)."""
-    if getattr(zc, "_eka_roll_hook", False) or not hasattr(zc, "canvas_push_ts"):
+    """Touch on the Undo/Redo knob. Zynthian toggles the knob on a short tap, which would leave it turned and
+    so become a Redo after 0.5 s: make a short tap a quick turn-and-back (= Undo) instead.
+    A long touch: older Zynthian (oram) decides it here (= Redo); newer ones send it through
+    cuia_v5_zynpot_switch (see above)."""
+    if getattr(zc, "_eka_roll_hook", False):
         return
-    orig = zc.cb_canvas_release
+    orig = getattr(zc, "cb_canvas_release", None)
+    if not callable(orig):
+        return
 
     def release(event, zc=zc, orig=orig):
         wdg = _roll_undo_zctrl(zc)
         try:
-            if (wdg is not None and zc.canvas_push_ts and zc.enabled and zc.active_motion_axis == 0
-                    and not wdg.zyngui_control.midi_learning
-                    and zynthian_gui_config.enable_touch_controller_switches):
-                dts = (datetime.now() - zc.canvas_push_ts).total_seconds()
-                if dts >= zynthian_gui_config.zynswitch_bold_seconds:
+            if (wdg is not None and getattr(zc, "active_motion_axis", 0) == 0 and getattr(zc, "enabled", True)
+                    and not wdg.zyngui_control.midi_learning):
+                dts = None
+                if getattr(zc, "canvas_push_ts", None):                      # oram
+                    if zynthian_gui_config.enable_touch_controller_switches:
+                        dts = (datetime.now() - zc.canvas_push_ts).total_seconds()
+                elif getattr(zc, "canvas_push_event", None) is not None and getattr(zc, "press_id", None):
+                    dts = (event.time - zc.canvas_push_event.time) / 1000.0   # vangelis
+                if dts is not None and dts < zynthian_gui_config.zynswitch_bold_seconds:
+                    if getattr(zc, "press_id", None):
+                        zc.after_cancel(zc.press_id)
+                        zc.press_id = None
+                    zc.canvas_push_ts = None
+                    zc.canvas_push_event = None
+                    dbg("touch tap on Undo/Redo -> Undo")
+                    wdg.undo()
+                    return
+                if dts is not None and hasattr(zc, "canvas_push_ts"):           # oram: long touch here
                     zc.canvas_push_ts = None
                     wdg.redo()
                     return
         except Exception as e:
-            logging.debug("Eka Roll touch hook: %s", e)
+            dbg("touch hook: %r", e)
         return orig(event)
 
     zc.bind("<ButtonRelease-1>", release)
+    zc._eka_roll_release = release
     zc._eka_roll_hook = True
 
 
@@ -180,6 +198,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         self._geo = None
         self.qgrid_t = 0.0
         self.qgrid_last = None
+        self._undo_since = None
         self.after(300, self._follow_tick)
 
     def set_processor(self, processor):
@@ -187,6 +206,26 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         ROLL_WIDGETS[getattr(processor, "id", None)] = self
 
     # ---------- Undo/Redo knob ----------
+    UNDO_RETURN = 0.7          # s: the knob left turned (a Redo) is turned back to 0 by the widget
+
+    def undo(self):
+        """A quick turn-and-back of the Undo/Redo knob = Undo for the plugin."""
+        if self._zset("undo", 1):
+            dbg("undo pulse")
+            self.after(80, lambda: self._zset("undo", 0))
+
+    def _undo_return(self):
+        v = self._zval("undo", 0)
+        now = time.monotonic()
+        if v < 0.5:
+            self._undo_since = None
+        elif self._undo_since is None:
+            self._undo_since = now
+        elif now - self._undo_since > self.UNDO_RETURN:
+            self._undo_since = None
+            dbg("undo knob back to 0")
+            self._zset("undo", 0)
+
     def redo(self):
         if _flip(self.processor, "redo"):
             self._toast("Redo", 1.5)
@@ -256,7 +295,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             if _roll_undo_zctrl(ctl.zgui_controllers[i]) is not self:
                 return False
             if t == "S":
-                _flip(self.processor, "undo")
+                self.undo()
             else:
                 self.redo()
             return True
@@ -859,6 +898,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             if DEBUG:
                 self._dbg_watch()
             self._sync_zynseq()
+            self._undo_return()
             self._follow_cc()
             self._sync_n += 1
             if self._sync_n >= 15:

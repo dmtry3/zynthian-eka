@@ -37,6 +37,7 @@
 #define ZS_START_GRACE 1.0 /* s: after a JACK start, wait for the widget to see zynseq playing */
 #define ZB_UNSET (-1000)
 #define UNDO_DEBOUNCE 0.3  /* s: a second Undo/Redo this soon is a touch bounce */
+#define UNDO_HOLD 0.5      /* s: Undo/Redo knob turned and back sooner = Undo, held this long = Redo */
 #define VIZ_MAGIC 0x4D4C5A31u
 
 enum { ST_EMPTY = 0, ST_ARM_REC, ST_REC, ST_ARM_STOP, ST_PLAY, ST_OVERDUB, ST_STOP, ST_ARM_PLAY };
@@ -93,6 +94,8 @@ typedef struct {
   const float* zbeat;
   int zb_prev, zs_stopped, zb_miss_n, zb_miss_cnt;
   uint64_t zs_stop_at, zs_grace_until;
+  int undo_down;
+  uint64_t undo_at;
   uint64_t stop_deadline;
   double stop_pos;
 
@@ -848,6 +851,28 @@ static void run_cmd(Looper* L, int cmd) {
 
 static int is_momentary(int i) { return i == C_HALF || i == C_DOUBLE || i == C_QAPPLY || i == C_EAPPLY || i == C_EXPORT; }
 
+/* Undo/Redo, debounced: a second one this soon is a touch bounce */
+static void fire_undo_redo(Looper* L, int cmd) {
+  if (L->rise_at[cmd] && L->samples - L->rise_at[cmd] < (uint64_t)(UNDO_DEBOUNCE * L->sr)) return;
+  L->rise_at[cmd] = L->samples ? L->samples : 1;
+  run_cmd(L, cmd);
+}
+
+/* The Undo/Redo knob: turned (0 -> 1) and back within UNDO_HOLD = Undo, left there UNDO_HOLD = Redo.
+   Going back after a Redo does nothing (the widget turns it back to 0 by itself). */
+static void undo_knob(Looper* L, float was_f, float now_f, int restore) {
+  const int was = was_f >= 0.5f, now = now_f >= 0.5f;
+  if (was != now) {
+    if (restore) L->undo_down = 0;
+    else if (now) { L->undo_down = 1; L->undo_at = L->samples; }
+    else if (L->undo_down) { L->undo_down = 0; fire_undo_redo(L, C_UNDO); }
+  }
+  if (L->undo_down && L->samples - L->undo_at >= (uint64_t)(UNDO_HOLD * L->sr)) {
+    L->undo_down = 0;
+    fire_undo_redo(L, C_REDO);
+  }
+}
+
 static void process_controls(Looper* L) {
   float cur[N_IN];
   for (int i = 0; i < N_IN; i++) cur[i] = *L->ctl[i];
@@ -866,25 +891,21 @@ static void process_controls(Looper* L) {
       request_load(L, sl);
   }
   if (!restore && changed > 0) {
-    static const int cmds[15] = { C_REC, C_PLAY, C_UNDO, C_CLEAR, C_LMUTE, C_LDEL, C_REDO,
+    static const int cmds[14] = { C_REC, C_PLAY, C_CLEAR, C_LMUTE, C_LDEL, C_REDO,
                                   C_HALF, C_DOUBLE, C_QAPPLY, C_EAPPLY, C_SAVE, C_LOAD, C_SDEL, C_EXPORT };
-    for (int k = 0; k < 15; k++) {
+    for (int k = 0; k < 14; k++) {
       int i = cmds[k];
       int was = L->prev[i] >= 0.5f, now = cur[i] >= 0.5f;
       if (was == now) continue;
       int press;
-      if (!is_momentary(i)) {
-        press = 1;
-        if (i == C_UNDO || i == C_REDO) {
-          if (L->rise_at[i] && L->samples - L->rise_at[i] < (uint64_t)(UNDO_DEBOUNCE * L->sr)) press = 0;
-          else L->rise_at[i] = L->samples ? L->samples : 1;
-        }
-      }
+      if (i == C_REDO) { fire_undo_redo(L, C_REDO); continue; }   /* hidden port, written by the widget */
+      if (!is_momentary(i)) press = 1;
       else if (now) { press = 1; L->rise_at[i] = L->samples; }                       /* press */
       else press = (L->samples - L->rise_at[i]) > (uint64_t)(1.0 * L->sr);           /* ignore the release if < 1 s */
       if (press) run_cmd(L, i);
     }
   }
+  undo_knob(L, L->prev[C_UNDO], cur[C_UNDO], restore);
   memcpy(L->prev, cur, sizeof cur);
 }
 

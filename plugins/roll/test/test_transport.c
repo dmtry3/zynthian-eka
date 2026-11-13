@@ -99,19 +99,33 @@ int main(void) {
   run_secs(0.5);
   check("transport rolling", outv[O_RUN] == 1.0f);
 
-  /* ---- Undo after an edit: one tap with a touch bounce undoes only the edit ---- */
+  /* ---- Undo/Redo knob: turned and back = Undo, held 0.5 s = Redo ---- */
   make_loop();
   backup_make(L);                                     /* as Quantize does */
-  ctl[C_UNDO] = 1; run_secs(0.05);
-  ctl[C_UNDO] = 0; run_secs(0.05);                    /* bounce 50 ms later */
-  check("undo + bounce: edit undone, layers kept", L->nlayers == 2 && !L->bk_valid);
+  ctl[C_UNDO] = 1; run_secs(0.1);
+  check("knob turned: nothing yet", L->nlayers == 2 && L->bk_valid);
+  ctl[C_UNDO] = 0; run_secs(0.05);
+  check("turned and back: edit undone, layers kept", L->nlayers == 2 && !L->bk_valid);
+  ctl[C_UNDO] = 1; run_secs(0.03); ctl[C_UNDO] = 0; run_secs(0.05);
+  check("a bounce right after is ignored", L->nlayers == 2);
   run_secs(0.4);
-  ctl[C_UNDO] = 1; run_secs(0.05);
-  check("next undo (0.45 s later) removes the last layer", L->nlayers == 1 && L->nredo == 1);
+  ctl[C_UNDO] = 1; run_secs(0.1); ctl[C_UNDO] = 0; run_secs(0.05);
+  check("next turn-and-back removes the last layer", L->nlayers == 1 && L->nredo == 1);
+  run_secs(0.4);
+  ctl[C_UNDO] = 1; run_secs(0.45);
+  check("held 0.45 s: nothing yet", L->nlayers == 1);
+  run_secs(0.1);
+  check("held 0.5 s: Redo, the layer is back", L->nlayers == 2 && L->nredo == 0);
+  run_secs(0.5);
+  ctl[C_UNDO] = 0; run_secs(0.05);
+  check("turning back after the Redo does nothing", L->nlayers == 2);
+  run_secs(0.4);
+  ctl[C_UNDO] = 1; ctl[C_PLAY] = 1; run_secs(0.7);    /* two ports at once = snapshot restore */
+  check("undo set by a snapshot restore is not a gesture", L->nlayers == 2 && L->state == ST_PLAY);
+  ctl[C_UNDO] = 0; ctl[C_PLAY] = 0; run_secs(0.5);
   run_secs(0.4);
   ctl[C_REDO] = 1; run_secs(0.05);
-  ctl[C_REDO] = 0; run_secs(0.05);
-  check("redo + bounce: one layer back", L->nlayers == 2 && L->nredo == 0);
+  check("hidden redo port (widget): Redo", L->nlayers == 2);
 
   /* ---- Quantize: only the layers in qmask (the device log had qmask = 253: layer 1 on, layer 2 off) ---- */
   make_loop();

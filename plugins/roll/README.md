@@ -66,7 +66,7 @@ All buttons are toggle-type: any change counts as a press.
 |---|---|---|
 | **Loop** | Rec/Dub | Empty: arm recording. Recording: arm stop. Playing: overdub on/off |
 | | Play/Stop | Mute / unmute the loop (position keeps running) |
-| | Undo/Redo | Tap: undo last edit (Apply/Half/Double), otherwise last overdub layer. Long press (touch or encoder push): redo the last undone layer |
+| | Undo/Redo | Turn the knob and back right away (or tap / push it): undo last edit (Apply/Half/Double), otherwise last overdub layer. Turn it and leave it 0.5 s (or hold the touch / push): redo the last undone layer; the knob returns by itself |
 | | Clear | Erase everything (press twice) |
 | **Layers** | Layer | Selects layer for Mute / Delete |
 | | L Mute | Mute/unmute selected layer |
