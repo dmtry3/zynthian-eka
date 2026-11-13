@@ -136,8 +136,24 @@ Steps can only be delayed, never played early (the plugin does not look ahead).
 
 ## The pattern (widget)
 
-The widget follows the knob page: on **Arp** it shows the roll of the played notes, on the other pages
-a touch editor for the 16 steps of the pattern.
+The widget follows the knob page: on **Play** it shows pads for live effects, on **Arp** the roll of the
+played notes, on the other pages a touch editor for the 16 steps of the pattern.
+
+**Play page: effects while you hold.** Nothing is saved: lift the finger and Bloom is back on the grid.
+One touch at a time; slide the finger from pad to pad to change the effect.
+
+| Pad | While held |
+|---|---|
+| Roll 1/8 · 1/16 · 1/32 | the last played note repeats at that rate on the grid (beat repeat); the pattern waits |
+| Fill x3 | every step plays 3 hits |
+| Oct +1 | an octave up |
+| Half time | steps twice as long |
+| Drop | silence; the pattern keeps going, so it comes back in time |
+| Rev | the note order backwards |
+
+The **XY pad** on the right: left to right = *Density* (sparse: fewer steps play; dense: even Prob 0 steps
+play), bottom to top = *Dynamics* (soft and short to loud and long). Back to the middle on release. The
+same three controls (FX, Density, Dynamics) are on the Play knob page; 50 is neutral.
 
 - **Tabs Prob · Shift · Vel · Gate · Ratch** choose the row. Each tab shows the length of its row.
 - **Touch or drag a bar** to set the step's value by height. A fast swipe fills the steps in between.

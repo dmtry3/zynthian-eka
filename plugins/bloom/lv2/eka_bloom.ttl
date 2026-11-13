@@ -11,17 +11,18 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix state: <http://lv2plug.in/ns/ext/state#> .
 
-<http://dmtry3.github.io/zynthian-eka/bloom#g_arp> a pg:Group ; lv2:symbol "g_arp" ; lv2:name "Arp" ; lv2:index 0 ; lv2:displayPriority 60 .
-<http://dmtry3.github.io/zynthian-eka/bloom#g_pattern> a pg:Group ; lv2:symbol "g_pattern" ; lv2:name "Pattern" ; lv2:index 1 ; lv2:displayPriority 50 .
-<http://dmtry3.github.io/zynthian-eka/bloom#g_groove> a pg:Group ; lv2:symbol "g_groove" ; lv2:name "Groove" ; lv2:index 5 ; lv2:displayPriority 10 .
-<http://dmtry3.github.io/zynthian-eka/bloom#g_lengths> a pg:Group ; lv2:symbol "g_lengths" ; lv2:name "Lengths" ; lv2:index 2 ; lv2:displayPriority 40 .
-<http://dmtry3.github.io/zynthian-eka/bloom#g_scale> a pg:Group ; lv2:symbol "g_scale" ; lv2:name "Scale" ; lv2:index 3 ; lv2:displayPriority 30 .
-<http://dmtry3.github.io/zynthian-eka/bloom#g_mutate> a pg:Group ; lv2:symbol "g_mutate" ; lv2:name "Mutate" ; lv2:index 4 ; lv2:displayPriority 20 .
+<http://dmtry3.github.io/zynthian-eka/bloom#g_play> a pg:Group ; lv2:symbol "g_play" ; lv2:name "Play" ; lv2:index 0 ; lv2:displayPriority 70 .
+<http://dmtry3.github.io/zynthian-eka/bloom#g_arp> a pg:Group ; lv2:symbol "g_arp" ; lv2:name "Arp" ; lv2:index 1 ; lv2:displayPriority 60 .
+<http://dmtry3.github.io/zynthian-eka/bloom#g_pattern> a pg:Group ; lv2:symbol "g_pattern" ; lv2:name "Pattern" ; lv2:index 2 ; lv2:displayPriority 50 .
+<http://dmtry3.github.io/zynthian-eka/bloom#g_groove> a pg:Group ; lv2:symbol "g_groove" ; lv2:name "Groove" ; lv2:index 6 ; lv2:displayPriority 10 .
+<http://dmtry3.github.io/zynthian-eka/bloom#g_lengths> a pg:Group ; lv2:symbol "g_lengths" ; lv2:name "Lengths" ; lv2:index 3 ; lv2:displayPriority 40 .
+<http://dmtry3.github.io/zynthian-eka/bloom#g_scale> a pg:Group ; lv2:symbol "g_scale" ; lv2:name "Scale" ; lv2:index 4 ; lv2:displayPriority 30 .
+<http://dmtry3.github.io/zynthian-eka/bloom#g_mutate> a pg:Group ; lv2:symbol "g_mutate" ; lv2:name "Mutate" ; lv2:index 5 ; lv2:displayPriority 20 .
 
 <http://dmtry3.github.io/zynthian-eka/bloom>
     a lv2:Plugin , lv2:UtilityPlugin ;
     doap:name "Eka Bloom" ;
-    lv2:minorVersion 20 ;
+    lv2:minorVersion 21 ;
     lv2:microVersion 0 ;
     lv2:requiredFeature urid:map ;
     lv2:extensionData state:interface ;   # pattern steps go into presets
@@ -50,12 +51,12 @@
         atom:bufferType atom:Sequence ;
         atom:supports midi:MidiEvent , time:Position , patch:Message ;
         lv2:designation lv2:control ;
-        lv2:index 26 ; lv2:symbol "midi_in" ; lv2:name "MIDI In" ;
+        lv2:index 29 ; lv2:symbol "midi_in" ; lv2:name "MIDI In" ;
     ] , [
         a lv2:OutputPort , atom:AtomPort ;
         atom:bufferType atom:Sequence ;
         atom:supports midi:MidiEvent , patch:Message ;
-        lv2:index 27 ; lv2:symbol "midi_out" ; lv2:name "MIDI Out" ;
+        lv2:index 30 ; lv2:symbol "midi_out" ; lv2:name "MIDI Out" ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 0 ; lv2:symbol "rate" ; lv2:name "Rate" ;
@@ -171,6 +172,27 @@
         lv2:displayPriority 4 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_lengths> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 26 ; lv2:symbol "fx" ; lv2:name "FX" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 8 ;
+        lv2:portProperty lv2:integer , lv2:enumeration ;
+        lv2:scalePoint [ rdfs:label "Off" ; rdf:value 0 ] , [ rdfs:label "Roll 1/8" ; rdf:value 1 ] ,
+                       [ rdfs:label "Roll 1/16" ; rdf:value 2 ] , [ rdfs:label "Roll 1/32" ; rdf:value 3 ] ,
+                       [ rdfs:label "Fill" ; rdf:value 4 ] , [ rdfs:label "Oct+" ; rdf:value 5 ] ,
+                       [ rdfs:label "Half" ; rdf:value 6 ] , [ rdfs:label "Drop" ; rdf:value 7 ] ,
+                       [ rdfs:label "Rev" ; rdf:value 8 ] ;
+        lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_play> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 27 ; lv2:symbol "density" ; lv2:name "Density" ;
+        lv2:default 50 ; lv2:minimum 0 ; lv2:maximum 100 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_play> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 28 ; lv2:symbol "dynamics" ; lv2:name "Dynamics" ;
+        lv2:default 50 ; lv2:minimum 0 ; lv2:maximum 100 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_play> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
         lv2:index 9 ; lv2:symbol "key" ; lv2:name "Key" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 12 ;
         lv2:portProperty lv2:integer , lv2:enumeration ;
@@ -223,72 +245,72 @@
         lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/bloom#g_mutate> ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 28 ; lv2:symbol "step_count" ; lv2:name "Step count" ;
+        lv2:index 31 ; lv2:symbol "step_count" ; lv2:name "Step count" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 16777215 ; lv2:portProperty lv2:integer ;
-        # dev1..dev16 (ports 29..44): drift of each step for the widget, packed (prob+3) + 7*(shift+3) + 49*(vel+3) + 343*(gate+4)
+        # dev1..dev16 (ports 32..47): drift of each step for the widget, packed (prob+3) + 7*(shift+3) + 49*(vel+3) + 343*(gate+4)
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 29 ; lv2:symbol "dev1" ; lv2:name "Drift 1" ;
+        lv2:index 32 ; lv2:symbol "dev1" ; lv2:name "Drift 1" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 30 ; lv2:symbol "dev2" ; lv2:name "Drift 2" ;
+        lv2:index 33 ; lv2:symbol "dev2" ; lv2:name "Drift 2" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 31 ; lv2:symbol "dev3" ; lv2:name "Drift 3" ;
+        lv2:index 34 ; lv2:symbol "dev3" ; lv2:name "Drift 3" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 32 ; lv2:symbol "dev4" ; lv2:name "Drift 4" ;
+        lv2:index 35 ; lv2:symbol "dev4" ; lv2:name "Drift 4" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 33 ; lv2:symbol "dev5" ; lv2:name "Drift 5" ;
+        lv2:index 36 ; lv2:symbol "dev5" ; lv2:name "Drift 5" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 34 ; lv2:symbol "dev6" ; lv2:name "Drift 6" ;
+        lv2:index 37 ; lv2:symbol "dev6" ; lv2:name "Drift 6" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 35 ; lv2:symbol "dev7" ; lv2:name "Drift 7" ;
+        lv2:index 38 ; lv2:symbol "dev7" ; lv2:name "Drift 7" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 36 ; lv2:symbol "dev8" ; lv2:name "Drift 8" ;
+        lv2:index 39 ; lv2:symbol "dev8" ; lv2:name "Drift 8" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 37 ; lv2:symbol "dev9" ; lv2:name "Drift 9" ;
+        lv2:index 40 ; lv2:symbol "dev9" ; lv2:name "Drift 9" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 38 ; lv2:symbol "dev10" ; lv2:name "Drift 10" ;
+        lv2:index 41 ; lv2:symbol "dev10" ; lv2:name "Drift 10" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 39 ; lv2:symbol "dev11" ; lv2:name "Drift 11" ;
+        lv2:index 42 ; lv2:symbol "dev11" ; lv2:name "Drift 11" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 40 ; lv2:symbol "dev12" ; lv2:name "Drift 12" ;
+        lv2:index 43 ; lv2:symbol "dev12" ; lv2:name "Drift 12" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 41 ; lv2:symbol "dev13" ; lv2:name "Drift 13" ;
+        lv2:index 44 ; lv2:symbol "dev13" ; lv2:name "Drift 13" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 42 ; lv2:symbol "dev14" ; lv2:name "Drift 14" ;
+        lv2:index 45 ; lv2:symbol "dev14" ; lv2:name "Drift 14" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 43 ; lv2:symbol "dev15" ; lv2:name "Drift 15" ;
+        lv2:index 46 ; lv2:symbol "dev15" ; lv2:name "Drift 15" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 44 ; lv2:symbol "dev16" ; lv2:name "Drift 16" ;
+        lv2:index 47 ; lv2:symbol "dev16" ; lv2:name "Drift 16" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3086 ; lv2:portProperty lv2:integer ;
     ] .
 

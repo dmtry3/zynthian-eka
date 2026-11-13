@@ -2,7 +2,8 @@
 # Runs the Eka Bloom widget outside Zynthian with stub modules.
 #   python3 test/widget_preview.py          scripted touch tests (PASS/FAIL)
 #   python3 test/widget_preview.py --show   open a window to try it by hand (needs a display);
-#                                            keys: a = Arp page (roll), p = Pattern page (steps)
+#                                            keys: a = Arp page (roll), p = Pattern page (steps),
+#                                            l = Play page (pads)
 import importlib.util
 import math
 import os
@@ -157,6 +158,9 @@ class Processor:
                              ("mut_notes", 0, 0, 100), ("reset", 0, 0, 1)):
             self.controllers_dict[k] = Ctrl(k, v, lo, hi)
         self.controllers_dict["ratch_every"] = Ctrl("ratch_every", 1, 1, 8)
+        self.controllers_dict["fx"] = Ctrl("fx", 0, 0, 8)
+        self.controllers_dict["density"] = Ctrl("density", 50, 0, 100)
+        self.controllers_dict["dynamics"] = Ctrl("dynamics", 50, 0, 100)
         for i in range(1, 17):
             self.controllers_dict["prob%d" % i] = Ctrl("prob%d" % i, 100, 0, 100)
             self.controllers_dict["shift%d" % i] = Ctrl("shift%d" % i, 0, -24, 24)
@@ -180,7 +184,7 @@ class Control:
 
     def add_pages(self, proc):
         self.list_data = [(None, None, "> Eka Bloom", proc)]
-        for j, (g, t) in enumerate((("g_arp", "Arp"), ("g_pattern", "Pattern"), ("g_lengths", "Lengths"),
+        for j, (g, t) in enumerate((("g_play", "Play"), ("g_arp", "Arp"), ("g_pattern", "Pattern"), ("g_lengths", "Lengths"),
                                     ("g_scale", "Scale"), ("g_mutate", "Mutate"), ("g_groove", "Groove"))):
             self.list_data.append((g, j + 1, t, proc, j))
 
@@ -226,6 +230,7 @@ def main():
         # keys: a = Arp page (roll), p = Pattern page (step editor)
         root.bind("<Key-a>", lambda e: (ctl.page("g_arp"), wdg.update()))
         root.bind("<Key-p>", lambda e: (ctl.page("g_pattern"), wdg.update()))
+        root.bind("<Key-l>", lambda e: (ctl.page("g_play"), wdg.update()))
         tick()
         root.mainloop()
         proc.engine.viz.remove()
@@ -533,6 +538,50 @@ def main():
     ctl.page("g_pattern"); wdg.update()
     wdg._on_press(Ev(tab(0), tab_h // 2)); wdg.update()
 
+    # Play page: pads held = effect, XY pad = density / dynamics, released = neutral
+    ctl.page("g_play"); wdg.update()
+    pads, xy = wdg._play_geo()
+    mid = lambda r: (int((r[0] + r[2]) / 2), int((r[1] + r[3]) / 2))
+    check("Play page: 8 pads and the XY pad", wdg.view == "play" and len(wdg.widget_canvas.find_withtag("pad")) == 8
+          and len(wdg.widget_canvas.find_withtag("xy")) == 1)
+    wdg._on_press(Ev(*mid(pads[1]))); wdg.update()
+    lit = [i for i in wdg.widget_canvas.find_withtag("pad") if wdg.widget_canvas.itemcget(i, "fill") != "#161616"]
+    check("hold Roll 1/16: fx 2, its pad lit", proc.v("fx") == 2 and len(lit) == 1)
+    wdg._on_motion(Ev(*mid(pads[2]))); wdg.update()
+    check("slide to Roll 1/32: fx 3", proc.v("fx") == 3)
+    wdg._on_motion(Ev(*mid(xy))); wdg.update()
+    check("slide out onto the XY pad: the effect stays, XY untouched", proc.v("fx") == 3 and proc.v("density") == 50)
+    wdg._on_release(None); wdg.update()
+    check("release: fx Off", proc.v("fx") == 0)
+    for k, (val, _, _) in enumerate(mod.PLAY_PADS):
+        wdg._on_press(Ev(*mid(pads[k])))
+        okv = proc.v("fx") == val
+        wdg._on_release(None)
+        if not okv:
+            break
+    check("every pad sets its effect (1..8) and releases to Off", okv and proc.v("fx") == 0)
+    a_, b_, c_, d_ = xy
+    wdg._on_press(Ev(int(a_ + (c_ - a_) * 0.75), int(d_ - (d_ - b_) * 0.2))); wdg.update()
+    check("XY at 75 %% / 20 %%: density %d, dynamics %d" % (proc.v("density"), proc.v("dynamics")),
+          abs(proc.v("density") - 75) <= 1 and abs(proc.v("dynamics") - 20) <= 1)
+    wdg._on_motion(Ev(int(c_ + 50), int(b_ - 50))); wdg.update()
+    check("XY dragged beyond the corner: 100 / 100", proc.v("density") == 100 and proc.v("dynamics") == 100)
+    check("XY dot lit while held", wdg.widget_canvas.itemcget(wdg.widget_canvas.find_withtag("xydot")[0], "fill") != "")
+    wdg._on_release(None); wdg.update()
+    check("XY release: back to 50 / 50", proc.v("density") == 50 and proc.v("dynamics") == 50)
+    wdg._on_press(Ev(*mid(pads[6]))); ctl.page("g_pattern"); wdg.update()
+    check("page changed while Drop is held: fx back to Off, step editor", proc.v("fx") == 0 and wdg.view == "steps")
+    wdg._on_release(None)
+    before = {k: proc.v(k) for k in ("prob1", "ratch1", "len_prob", "rate", "latch")}
+    ctl.page("g_play"); wdg.update()
+    wdg._on_press(Ev(*mid(pads[0]))); wdg._on_release(None)
+    check("Play: no step or setting changes", before == {k: proc.v(k) for k in before})
+    proc.controllers_dict["fx"].value = 7; wdg.update()
+    lit = [i for i in wdg.widget_canvas.find_withtag("pad") if wdg.widget_canvas.itemcget(i, "fill") != "#161616"]
+    check("FX set from the encoder: Drop pad lit", len(lit) == 1)
+    proc.controllers_dict["fx"].value = 0
+    ctl.page("g_pattern"); wdg.update()
+
     # drawing does not crash with the playing step and resizes
     for cs in (0, 1, 16, 1000):
         proc.engine.step_count = cs
@@ -553,6 +602,19 @@ def main():
         hb = [cv.bbox(i) for i in cv.find_withtag("dyn") if cv.type(i) == "text" and cv.coords(i)[1] < wdg.geo[3]]
         check("%s: roll header fits (2 labels, no overlap)" % geo, len(hb) == 2 and hb[0][2] < hb[1][0] and
               hb[1][2] <= wdg.geo[0])
+        ctl.page("g_play"); wdg.update(); root.update()
+        pads, xy = wdg._play_geo()
+        bad = 0
+        for r in pads + [xy]:
+            for i in cv.find_enclosed(r[0] - 30, r[1] - 30, r[2] + 30, r[3] + 30):
+                if cv.type(i) == "text" and r[0] <= cv.coords(i)[0] <= r[2] and r[1] <= cv.coords(i)[1] <= r[3]:
+                    bx = cv.bbox(i)
+                    o = bx[0] < r[0] - 1 or bx[2] > r[2] + 1 or bx[1] < r[1] - 1 or bx[3] > r[3] + 1
+                    bad += o
+                    if o: print("   out:", repr(cv.itemcget(i, "text")), bx, r)
+        hb = [cv.bbox(i) for i in cv.find_withtag("dyn") if cv.type(i) == "text" and cv.coords(i)[1] < wdg.geo[3]]
+        check("%s: Play texts inside pads, header fits (%d out)" % (geo, bad),
+              bad == 0 and len(hb) == 2 and hb[0][2] < hb[1][0])
         ctl.page("g_pattern"); wdg.update()
 
     proc.engine.viz.remove()

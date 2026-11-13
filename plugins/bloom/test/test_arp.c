@@ -1542,6 +1542,111 @@ static void test_ratch_every(void) {
   if (ons != 2) { print_log("got", &l); failures++; }
 }
 
+static int play_ons(const Log* l, double* t, int* notes, int max) {
+  int k = 0;
+  for (int i = 0; i < l->n && k < max; i++)
+    if ((l->ev[i].st & 0xF0) == 0x90) { t[k] = l->ev[i].tick; notes[k] = l->ev[i].d1; k++; }
+  return k;
+}
+
+static void test_play(void) {
+  ArpCore a; Log l; double t[256]; int nt[256]; int k;
+  #define PCHECK(name, cond) do { int ok_ = (cond); printf("%s: %s\n", ok_ ? "PASS" : "FAIL", name); \
+                                  if (!ok_) { print_log("got", &l); failures++; } } while (0)
+
+  /* Roll 1/32: the last note repeats every 120 ticks, pattern waits; back on the grid after release */
+  arp_init(&a); chord(&a);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 300, collect, &l);          /* 60 at 0, 64 at 240 */
+  arp_set_play(&a, ARP_FX_ROLL32, 50, 50);
+  arp_process(&a, 300, 720, collect, &l);                                    /* rolls 64 at 360, 480, 600 */
+  arp_set_play(&a, ARP_FX_OFF, 50, 50);
+  arp_process(&a, 720, 1000, collect, &l);                                   /* next step at 720 */
+  k = play_ons(&l, t, nt, 256);
+  PCHECK("Roll 1/32: 64 repeats at 360/480/600, pattern goes on at 720 with the next note (67)",
+         k == 7 && t[2] == 360 && t[3] == 480 && t[4] == 600 && nt[2] == 64 && nt[4] == 64 && t[5] == 720 && nt[5] == 67);
+
+  /* Roll with no note played yet: the lowest held key */
+  arp_init(&a); chord(&a); arp_set_play(&a, ARP_FX_ROLL8, 50, 50);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 1000, collect, &l);
+  k = play_ons(&l, t, nt, 256);
+  PCHECK("Roll 1/8 before any note: lowest key 60 at 0, 480, 960", k == 3 && nt[0] == 60 && t[1] == 480 && t[2] == 960);
+
+  /* Roll released exactly on a step: that step still plays */
+  arp_init(&a); chord(&a); arp_set_play(&a, ARP_FX_ROLL16, 50, 50);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 480, collect, &l);
+  arp_set_play(&a, ARP_FX_OFF, 50, 50); arp_process(&a, 480, 500, collect, &l);
+  k = play_ons(&l, t, nt, 256);
+  PCHECK("Roll released at 480: the step at 480 plays", k == 3 && t[2] == 480);
+
+  /* Fill: 3 hits on every step */
+  arp_init(&a); chord(&a); arp_set_play(&a, ARP_FX_FILL, 50, 50);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 480, collect, &l);
+  k = play_ons(&l, t, nt, 256);
+  PCHECK("Fill: 3 hits per step (0, 80, 160, 240 ...)", k == 6 && t[1] == 80 && t[2] == 160 && t[3] == 240);
+
+  /* Oct+ */
+  arp_init(&a); chord(&a); arp_set_play(&a, ARP_FX_OCT, 50, 50);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 480, collect, &l);
+  k = play_ons(&l, t, nt, 256);
+  PCHECK("Oct+: 72, 76", k == 2 && nt[0] == 72 && nt[1] == 76);
+
+  /* Half: steps of 480 */
+  arp_init(&a); chord(&a); arp_set_play(&a, ARP_FX_HALF, 50, 50);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 1000, collect, &l);
+  k = play_ons(&l, t, nt, 256);
+  PCHECK("Half: notes at 0, 480, 960 with gate 240", k == 3 && t[1] == 480 && l.ev[1].tick == 240);
+  arp_set_play(&a, ARP_FX_OFF, 50, 50);
+  PCHECK("Half off: step back to 240", a.step_ticks == 240);
+
+  /* Drop: silent, then back on the grid with the order moved on */
+  arp_init(&a); chord(&a);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 10, collect, &l);
+  arp_set_play(&a, ARP_FX_DROP, 50, 50); arp_process(&a, 10, 480, collect, &l);
+  arp_set_play(&a, ARP_FX_OFF, 50, 50); arp_process(&a, 480, 500, collect, &l);
+  k = play_ons(&l, t, nt, 256);
+  PCHECK("Drop: step 240 silent, 480 plays the 3rd note (67)", k == 2 && t[1] == 480 && nt[1] == 67);
+
+  /* Rev: Up runs down */
+  arp_init(&a); chord(&a);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 300, collect, &l);          /* 60, 64 */
+  arp_set_play(&a, ARP_FX_REV, 50, 50); arp_process(&a, 300, 1000, collect, &l);
+  k = play_ons(&l, t, nt, 256);
+  PCHECK("Rev on Up: 60 64 | 60 67 64 (down from 64)", k == 5 && nt[2] == 60 && nt[3] == 67 && nt[4] == 64);
+  arp_init(&a); chord(&a); arp_set_params(&a, ARP_RATE_16, 50, ARP_PLAYED, 1); arp_set_play(&a, ARP_FX_REV, 50, 50);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 720, collect, &l);
+  k = play_ons(&l, t, nt, 256);
+  PCHECK("Rev on As played (64 60 67): 67 60 64", k == 3 && nt[0] == 67 && nt[1] == 60 && nt[2] == 64);
+
+  /* Density */
+  arp_init(&a); chord(&a); arp_set_play(&a, ARP_FX_OFF, 0, 50);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 1920, collect, &l);
+  PCHECK("Density 0: silence", l.n == 0);
+  arp_init(&a); chord(&a); for (int i = 0; i < 16; i++) arp_set_step(&a, i, 0, 0, 100, ARP_GATE_GLOBAL);
+  arp_set_play(&a, ARP_FX_OFF, 100, 50);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 1920, collect, &l);
+  PCHECK("Density 100: even Prob 0 steps play (8 notes)", play_ons(&l, t, nt, 256) == 8);
+  arp_init(&a); chord(&a); arp_seed(&a, 7); arp_set_play(&a, ARP_FX_OFF, 25, 50);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 240 * 400, collect, &l);
+  k = play_ons(&l, t, nt, 256);
+  PCHECK("Density 25: about half the steps (150..250 of 400)", k >= 150 && k <= 250);
+
+  /* Dynamics */
+  arp_init(&a); chord(&a); arp_set_play(&a, ARP_FX_OFF, 50, 0);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 240, collect, &l);
+  PCHECK("Dynamics 0: velocity 30 % (100 -> 30), gate 40 % (120 -> 48)",
+         l.n == 2 && l.ev[0].d2 == 30 && l.ev[1].tick == 48);
+  arp_init(&a); chord(&a); arp_set_play(&a, ARP_FX_OFF, 50, 100);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 241, collect, &l);
+  PCHECK("Dynamics 100: velocity 127, gate the whole step", l.n == 3 && l.ev[0].d2 == 127 && l.ev[1].tick == 240 && (l.ev[1].st & 0xF0) == 0x80);
+
+  /* Off / 50 / 50 = as before */
+  Log ref; memset(&ref, 0, sizeof ref); memset(&l, 0, sizeof l);
+  arp_init(&a); chord(&a); arp_process(&a, 0, 1920, collect, &ref);
+  arp_init(&a); chord(&a); arp_set_play(&a, ARP_FX_OFF, 50, 50); arp_process(&a, 0, 1920, collect, &l);
+  PCHECK("Play neutral (Off, 50, 50) plays as before", same_logs(&ref, &l));
+  #undef PCHECK
+}
+
 int main(void) {
   test_up_one_block();
   test_chunks();
@@ -1584,6 +1689,7 @@ int main(void) {
   test_sync();
   test_ratchet();
   test_ratch_every();
+  test_play();
   printf(failures ? "\n%d FAILED\n" : "\nALL PASSED\n", failures);
   return failures ? 1 : 0;
 }

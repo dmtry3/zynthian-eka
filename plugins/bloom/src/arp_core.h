@@ -45,6 +45,13 @@ enum { ARP_RPT_SAME, ARP_RPT_RUN_UP, ARP_RPT_RUN_DOWN, ARP_RPT_OCT, ARP_RPT_ECHO
 enum { ARP_PASS_NEIGHBOR, ARP_PASS_LEAP, ARP_PASS_APPROACH, ARP_PASS_MIXED, ARP_NPASS };
 #define ARP_KEY_AUTO 12       /* key = lowest held note */
 enum { ARP_FEEL_PAIRS, ARP_FEEL_FOURS, ARP_FEEL_DRAG, ARP_FEEL_THREES, ARP_NFEELS };
+/* Play effects, one at a time (held on the touch screen, back to Off on release):
+ * Roll = the last played note repeats at 1/8, 1/16 or 1/32 on the grid (the pattern waits);
+ * Fill = every step plays 3 hits; Oct+ = an octave up; Half = steps twice as long;
+ * Drop = silent steps (the pattern keeps going, so it comes back on the grid); Rev = the note order backwards. */
+enum { ARP_FX_OFF, ARP_FX_ROLL8, ARP_FX_ROLL16, ARP_FX_ROLL32, ARP_FX_FILL, ARP_FX_OCT, ARP_FX_HALF,
+       ARP_FX_DROP, ARP_FX_REV, ARP_NFX };
+#define ARP_FILL_HITS 3
 
 /* Called for every outgoing MIDI event; tick is inside the range passed to arp_process(). */
 typedef void (*arp_emit_fn)(void* user, double tick, uint8_t st, uint8_t d1, uint8_t d2);
@@ -78,6 +85,10 @@ typedef struct {
   int passing, pass_style;      /* 0..100 % chance of a passing note before a new chord note, ARP_PASS_* */
   int transpose;                /* -2..+2 octaves, added to every generated note */
   int ratch_every;              /* 1..ARP_MAX_RATCH_EVERY: ratchets only on every N-th pass of the Ratch row */
+  int fx, density, dynamics;    /* Play: ARP_FX_*, density 0..100 and dynamics 0..100 (50 = as drawn) */
+  double roll_next;             /* Roll: tick of the next hit (-INFINITY: start on the next roll tick) */
+  int roll_ticks;               /* Roll: distance between hits, 0 when not rolling */
+  uint8_t roll_ch, roll_note, roll_vel;
   int rpt, rpt_mode;            /* repeats 1..5 or ARP_RPT_RND*, ARP_RPT_* mode */
   int swing, feel, drunk, accent; /* swing 50..75 %, ARP_FEEL_*, drunk 0..100 %, accent 0..100 % (velocity and gate) */
 
@@ -119,7 +130,8 @@ typedef struct {
 
   int sounding;                 /* a generated note is on */
   int tied;                     /* the sounding note is tied into the next step */
-  uint8_t on_ch, on_note;
+  uint8_t on_ch, on_note, on_vel; /* last generated note (kept after its note-off) */
+  int has_on;                   /* a note was generated since the start */
   double off_tick;
 } ArpCore;
 
@@ -156,6 +168,10 @@ void arp_mutate_step(ArpCore* a, int i, int lane);
 void arp_set_transpose(ArpCore* a, int octaves);
 /* Repeats 1..5 / ARP_RPT_RND3 / ARP_RPT_RND5 and their mode ARP_RPT_* (takes effect on the next step). */
 void arp_set_repeats(ArpCore* a, int rpt, int mode);
+/* Play: effect ARP_FX_*, density and dynamics 0..100 (50 = as drawn). Density scales the chance of every
+ * step (0 = silence, 100 = every step plays); dynamics scales velocity and gate (down: quieter and
+ * shorter, up: louder and longer; ties stay ties). Takes effect on the next step (Roll: the next roll tick). */
+void arp_set_play(ArpCore* a, int fx, int density, int dynamics);
 /* Groove: swing 50..75 %, feel ARP_FEEL_*, drunk 0..100 %, accent 0..100 %. */
 void arp_set_groove(ArpCore* a, int swing, int feel, int drunk, int accent);
 /* Delay of grid step s in ticks (computed once per step: Drunk advances), see arp_set_groove(). */

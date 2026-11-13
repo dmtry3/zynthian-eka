@@ -38,6 +38,7 @@ enum { P_RATE = 0, P_GATE, P_ORDER, P_OCTAVES, P_LATCH,
        P_PASSING, P_PASS_STYLE,                           /* passing notes */
        P_LEN_RATCH,                                       /* length of the Ratch row */
        P_RATCH_EVERY,                                     /* ratchets on every N-th pass of the Ratch row */
+       P_FX, P_DENSITY, P_DYNAMICS,                       /* Play: effect held on the touch screen, XY pad */
        P_END, P_MIDI_IN = P_END, P_MIDI_OUT, P_STEP_COUNT,     /* step_count: output, for the widget */
        P_DEV0 };   /* dev1..dev16 outputs: drift of each step for the widget, see pack_dev() */
 
@@ -317,6 +318,7 @@ static void run(LV2_Handle h, uint32_t n) {
   for (int r = 0; r < ARP_NLANES; r++) arp_set_lane_length(&A->core, r, ctl_int(A, P_LEN0 + r, ARP_MAX_STEPS));
   arp_set_lane_length(&A->core, ARP_LANE_RATCH, ctl_int(A, P_LEN_RATCH, ARP_MAX_STEPS));
   arp_set_ratch_every(&A->core, ctl_int(A, P_RATCH_EVERY, 1));
+  arp_set_play(&A->core, ctl_int(A, P_FX, ARP_FX_OFF), ctl_int(A, P_DENSITY, 50), ctl_int(A, P_DYNAMICS, 50));
   arp_set_scale(&A->core, ctl_int(A, P_KEY, 0), ctl_int(A, P_SCALE, ARP_SCALE_CHROMATIC));
   arp_set_loop(&A->core, ctl_int(A, P_MUT_NOTES, 0), ctl_int(A, P_LOOP_LEN, 8));
   arp_set_mut_steps(&A->core, ctl_int(A, P_MUT_STEPS, 0));

@@ -5,7 +5,8 @@
 # the widget only writes them through regular Zynthian controllers, so snapshots keep them.
 # The view follows Zynthian's knob page (as in Eka Fold): the Arp page shows the roll of the notes Bloom
 # has played, read from shared memory /dev/shm/eka_bloom_<pid> (written by the plugin, see Viz in
-# eka_bloom.c); the other pages show the step editor.
+# eka_bloom.c); the Play page shows pads and an XY pad for live effects (held = on, released = off);
+# the other pages show the step editor.
 import glob
 import logging
 import math
@@ -43,7 +44,16 @@ MUT_MAX = (3, 3, 3, 4)      # drift limits per row (prob, shift, vel, gate), as 
 DOUBLE_TAP = 0.35            # seconds: second tap on the same step resets it
 
 # ---------- views by knob page ----------
-PAGE_VIEWS = {"g_arp": "roll"}   # port group -> view; the other pages of Bloom show the step editor
+PAGE_VIEWS = {"g_arp": "roll", "g_play": "play"}   # port group -> view; other pages: the step editor
+
+# ---------- Play view ----------
+# pads: (fx value, title, subtitle); held = the effect, released = Off (values as in arp_core.h ARP_FX_*)
+PLAY_PADS = [(1, "Roll", "1/8"), (2, "Roll", "1/16"), (3, "Roll", "1/32"), (4, "Fill", "x3"),
+             (5, "Oct", "+1"), (6, "Half", "time"), (7, "Drop", "mute"), (8, "Rev", "order")]
+PAD_COLS = 4
+ROLL_PAD_COLOR = "#f783ac"
+FX_PAD_COLOR = "#38d9a9"
+XY_COLOR = "#74c0fc"
 ROLL_COLOR = "#ffd43b"
 ROLL_BARS = (1, 2, 4)        # window lengths, a tap on the roll cycles them
 PPQN = 960
@@ -84,7 +94,8 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         self.mm = None               # shared memory of the plugin (Roll tab)
         self.mm_path = None
         self.font_cache = {}         # (family, size, text) -> width in pixels
-        self.view = "steps"          # "steps" (editor) or "roll", by the knob page
+        self.view = "steps"          # "steps" (editor), "roll" or "play", by the knob page
+        self.touch = None            # Play: "pad" or "xy" while a finger is down
         self.last_group = None       # knob page (port group symbol) seen on the previous redraw
         self.widget_canvas = tkinter.Canvas(
             self, highlightthickness=0, relief='flat',
@@ -237,6 +248,9 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         if not self.geo:
             self._layout()
         w, h, pad, tab_h, num_h, x0, x1, y0, y1, cw = self.geo
+        if self.view == "play":
+            self._play_press(event.x, event.y)
+            return
         if self.view == "roll":                              # tap on the roll: 1 / 2 / 4 bars
             k = ROLL_BARS.index(self.roll_bars) if self.roll_bars in ROLL_BARS else 0
             self.roll_bars = ROLL_BARS[(k + 1) % len(ROLL_BARS)]
@@ -269,6 +283,9 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         self._paint(col, event.y)
 
     def _on_motion(self, event):
+        if self.view == "play":
+            self._play_move(event.x, event.y)
+            return
         if not self.drag:
             return
         lane, last_col, last_y = self.drag
@@ -289,6 +306,7 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
 
     def _on_release(self, event):
         self.drag = None
+        self._play_release()
 
     def _paint(self, col, y, redraw=True):
         key = LANES[self.lane][0]
@@ -317,6 +335,8 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
             return
         self.last_group = group
         if group:
+            if self.view == "play":
+                self._play_release()                         # never leave an effect held
             self.view = PAGE_VIEWS.get(group, "steps")
             self.drag = None
 
@@ -344,6 +364,9 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
 
         if self.view == "roll":
             self._draw_roll()
+            return
+        if self.view == "play":
+            self._draw_play()
             return
 
         # tabs of the rows; one font size that fits the widest label
@@ -442,19 +465,19 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
                           fill=(tx if i < length else tx_off),
                           font=(fam, fs_num, "bold" if i + 1 == length else "normal"))
 
-    def _text_w(self, fam, size, text):
-        k = (fam, size, text)
+    def _text_w(self, fam, size, text, weight="normal"):
+        k = (fam, size, text, weight)
         if k not in self.font_cache:
             try:
-                self.font_cache[k] = tkinter.font.Font(family=fam, size=size).measure(text)
+                self.font_cache[k] = tkinter.font.Font(family=fam, size=size, weight=weight).measure(text)
             except Exception:
                 self.font_cache[k] = int(len(text) * size * 0.75)
         return self.font_cache[k]
 
-    def _fit_size(self, fam, text, maxw, start):
+    def _fit_size(self, fam, text, maxw, start, weight="normal"):
         """Largest font size <= start (down to 6) at which text is at most maxw pixels wide."""
         size = start
-        while size > 6 and self._text_w(fam, size, text) > maxw:
+        while size > 6 and self._text_w(fam, size, text, weight) > maxw:
             size -= 1
         return size
 
@@ -615,3 +638,112 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
             c.create_text((nx0 + nx1) // 2, (y0 + y1) // 2, text="play a chord", tags="dyn",
                           fill=tx_off, font=(fam, fs + 2))
 
+
+    # ---------- Play view: pads and XY pad, held = on ----------
+    def _play_geo(self):
+        w, h, pad, tab_h, num_h, x0, x1, y0, y1, cw = self.geo
+        gap = 4
+        bottom = h - pad
+        split = x0 + (x1 - x0) * 0.6                        # pads on the left, XY pad on the right
+        rows = (len(PLAY_PADS) + PAD_COLS - 1) // PAD_COLS
+        pw = (split - x0 - gap * PAD_COLS) / float(PAD_COLS)
+        ph = (bottom - y0 - gap * (rows - 1)) / float(rows)
+        pads = []
+        for k in range(len(PLAY_PADS)):
+            r, col = divmod(k, PAD_COLS)
+            a, b = x0 + col * (pw + gap), y0 + r * (ph + gap)
+            pads.append((a, b, a + pw, b + ph))
+        xy = (split + gap, y0, x1, bottom)
+        return pads, xy
+
+    def _pad_at(self, x, y):
+        pads, xy = self._play_geo()
+        for k, (a, b, c_, d) in enumerate(pads):
+            if a <= x <= c_ and b <= y <= d:
+                return k
+        return None
+
+    def _xy_set(self, x, y):
+        pads, (a, b, c_, d) = self._play_geo()
+        fx_ = min(max((x - a) / float(c_ - a), 0.0), 1.0)
+        fy = min(max((d - y) / float(d - b), 0.0), 1.0)
+        self._zset("density", int(round(fx_ * 100)))
+        self._zset("dynamics", int(round(fy * 100)))
+
+    def _play_press(self, x, y):
+        if not self.geo:
+            self._layout()
+        pads, (a, b, c_, d) = self._play_geo()
+        k = self._pad_at(x, y)
+        if k is not None:
+            self.touch = "pad"
+            self._zset("fx", PLAY_PADS[k][0])
+        elif a <= x <= c_ and b <= y <= d:
+            self.touch = "xy"
+            self._xy_set(x, y)
+        self._draw()
+
+    def _play_move(self, x, y):
+        if self.touch == "pad":                             # slide to another pad: its effect
+            k = self._pad_at(x, y)
+            if k is not None:
+                self._zset("fx", PLAY_PADS[k][0])
+        elif self.touch == "xy":
+            self._xy_set(x, y)
+        else:
+            return
+        self._draw()
+
+    def _play_release(self):
+        if self.touch == "pad":
+            self._zset("fx", 0)
+        elif self.touch == "xy":
+            self._zset("density", 50)
+            self._zset("dynamics", 50)
+        if self.touch:
+            self.touch = None
+            self._draw()
+
+    def _draw_play(self):
+        c = self.widget_canvas
+        w, h, pad, tab_h, num_h, x0, x1, y0, y1, cw = self.geo
+        fam = zynthian_gui_config.font_family
+        tx = zynthian_gui_config.color_tx
+        tx_off = zynthian_gui_config.color_tx_off
+        fs_head = self._fit_size(fam, "Play: hold a pad", (x1 - x0) * 0.6 - 8, max(7, int(tab_h * 0.4)))
+        c.create_text(x0 + 2, tab_h // 2, anchor="w", text="Play: hold a pad", tags="dyn", fill=FX_PAD_COLOR,
+                      font=(fam, fs_head))
+        cur = int(round(self._zval("fx", 0)))
+        dens = int(round(self._zval("density", 50)))
+        dyn = int(round(self._zval("dynamics", 50)))
+        pads, (a, b, c_, d) = self._play_geo()
+        pw, ph = pads[0][2] - pads[0][0], pads[0][3] - pads[0][1]
+        fs_t = min(self._fit_size(fam, t, pw - 8, max(8, int(ph * 0.28)), "bold") for (_, t, _) in PLAY_PADS)
+        fs_s = min(self._fit_size(fam, st, pw - 6, max(7, int(ph * 0.18))) for (_, _, st) in PLAY_PADS)
+        for k, (val, title, sub) in enumerate(PLAY_PADS):
+            pa, pb, pc, pd = pads[k]
+            col = ROLL_PAD_COLOR if val <= 3 else FX_PAD_COLOR
+            on = (val == cur)
+            c.create_rectangle(pa, pb, pc, pd, fill=(col if on else "#161616"), outline=col, width=(2 if on else 1),
+                               tags=("dyn", "pad"))
+            c.create_text((pa + pc) / 2.0, (pb + pd) / 2.0 - ph * 0.1, text=title, tags="dyn",
+                          fill=("#000000" if on else col), font=(fam, fs_t, "bold"))
+            c.create_text((pa + pc) / 2.0, (pb + pd) / 2.0 + ph * 0.2, text=sub, tags="dyn",
+                          fill=("#000000" if on else tx_off), font=(fam, fs_s))
+        # XY pad: x = density (sparse .. dense), y = dynamics (soft and short .. loud and long)
+        live = self.touch == "xy" or dens != 50 or dyn != 50
+        c.create_rectangle(a, b, c_, d, fill="#101010", outline=XY_COLOR, width=(2 if live else 1), tags=("dyn", "xy"))
+        mx, my = (a + c_) / 2.0, (b + d) / 2.0
+        c.create_line(mx, b + 1, mx, d - 1, fill="#2a2a2a", dash=(2, 4), tags="dyn")
+        c.create_line(a + 1, my, c_ - 1, my, fill="#2a2a2a", dash=(2, 4), tags="dyn")
+        fs_l = self._fit_size(fam, "sparse", (c_ - a) / 2.0 - 6, max(6, int(tab_h * 0.28)))
+        for (xx, yy, anc, t) in ((a + 3, d - 2, "sw", "sparse"), (c_ - 3, d - 2, "se", "dense"),
+                                 (a + 3, b + 2, "nw", "loud"), (a + 3, my + 2, "nw", "soft")):
+            c.create_text(xx, yy, anchor=anc, text=t, tags="dyn", fill=tx_off, font=(fam, fs_l))
+        px = a + (c_ - a) * dens / 100.0
+        py = d - (d - b) * dyn / 100.0
+        r = max(5, int(min(c_ - a, d - b) * 0.06))
+        c.create_oval(px - r, py - r, px + r, py + r, fill=(XY_COLOR if live else ""), outline=XY_COLOR, width=2,
+                      tags=("dyn", "xydot"))
+        c.create_text(c_ - 2, tab_h // 2, anchor="e", text="dens %d  dyn %d" % (dens, dyn), tags="dyn",
+                      fill=(XY_COLOR if live else tx_off), font=(fam, fs_l))

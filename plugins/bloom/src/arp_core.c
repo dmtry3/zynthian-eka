@@ -36,6 +36,8 @@ void arp_init(ArpCore* a) {
   arp_set_loop(a, 0, 8);
   arp_set_repeats(a, 1, ARP_RPT_SAME);
   arp_set_ratch_every(a, 1);
+  a->density = 50; a->dynamics = 50;
+  a->roll_next = -INFINITY;
   arp_set_groove(a, 50, ARP_FEEL_PAIRS, 0, 0);
   arp_set_passing(a, 0, ARP_PASS_NEIGHBOR);
   a->done_s = -INFINITY;
@@ -115,9 +117,30 @@ void arp_set_params(ArpCore* a, int rate, int gate_pct, int order, int octaves) 
   a->gate_pct = clampi(gate_pct, 5, 100);
   a->order = clampi(order, 0, ARP_NORDERS - 1);
   a->octaves = clampi(octaves, 1, ARP_MAX_OCTAVES);
-  a->step_ticks = rate_ticks[a->rate];
+  a->step_ticks = rate_ticks[a->rate] * (a->fx == ARP_FX_HALF ? 2 : 1);
   a->gate_ticks = a->step_ticks * a->gate_pct / 100;
   if (a->gate_ticks < 1) a->gate_ticks = 1;
+}
+
+static const int roll_ticks_of[ARP_NFX] = { 0, 480, 240, 120, 0, 0, 0, 0, 0 };
+
+void arp_set_play(ArpCore* a, int fx, int density, int dynamics) {
+  fx = clampi(fx, 0, ARP_NFX - 1);
+  a->density = clampi(density, 0, 100);
+  a->dynamics = clampi(dynamics, 0, 100);
+  if (fx == a->fx) return;
+  const int was_half = (a->fx == ARP_FX_HALF);
+  a->fx = fx;
+  const int rt = roll_ticks_of[fx];
+  if (rt && rt != a->roll_ticks) {                       /* a roll starts: repeat the last played note */
+    if (a->has_on) { a->roll_ch = a->on_ch; a->roll_note = a->on_note; a->roll_vel = a->on_vel; }
+    else if (a->nheld) { a->roll_ch = a->held[0].ch; a->roll_note = a->held[0].note; a->roll_vel = a->held[0].vel; }
+    else a->roll_vel = 0;                                /* nothing to repeat yet */
+    a->roll_next = -INFINITY;
+    a->rat_left = 0;
+  }
+  a->roll_ticks = rt;
+  if (was_half || fx == ARP_FX_HALF) arp_set_params(a, a->rate, a->gate_pct, a->order, a->octaves);
 }
 
 void arp_seed(ArpCore* a, uint32_t seed) { a->rng = seed ? seed : 0x9E3779B9u; }
@@ -272,7 +295,11 @@ static int below(const ArpCore* a, const ArpNote* p, int m) {
 
 static int pick(ArpCore* a, const ArpNote* p, int m) {
   int i;
-  switch (a->order) {
+  int order = a->order;
+  const int rev = (a->fx == ARP_FX_REV);
+  if (rev && order == ARP_UP) order = ARP_DOWN;          /* Rev: the order runs backwards */
+  else if (rev && order == ARP_DOWN) order = ARP_UP;
+  switch (order) {
   case ARP_DOWN:
     i = a->has_last ? below(a, p, m) : -1;
     return i >= 0 ? i : m - 1;
@@ -280,10 +307,13 @@ static int pick(ArpCore* a, const ArpNote* p, int m) {
   case ARP_DOWNUP:
     if (!a->has_last) { a->dir = (a->order == ARP_UPDOWN) ? 1 : -1; return a->dir > 0 ? 0 : m - 1; }
     if (a->dir == 0) a->dir = 1;
+    if (rev) { a->dir = -a->dir; }                         /* Rev: walk the other way (dir restored below) */
     i = a->dir > 0 ? above(a, p, m) : below(a, p, m);
     if (i < 0) { a->dir = -a->dir; i = a->dir > 0 ? above(a, p, m) : below(a, p, m); }
+    if (rev) a->dir = -a->dir;
     return i >= 0 ? i : 0;
   case ARP_PLAYED:
+    if (rev) { a->played_idx += (uint32_t)m - 1; return (int)(a->played_idx % (uint32_t)m); }
     return (int)(a->played_idx++ % (uint32_t)m);
   case ARP_RANDOM: {
     int k = -1;
@@ -294,7 +324,11 @@ static int pick(ArpCore* a, const ArpNote* p, int m) {
     return i >= k ? i + 1 : i;
   }
   case ARP_LOOP: {   /* the loop step may mutate when it is read, then maps onto the chord */
-    const uint32_t pos = a->loop_pos++ % (uint32_t)a->loop_len;
+    uint32_t pos;
+    if (rev) {                                             /* Rev: the loop backwards */
+      a->loop_pos = (a->loop_pos % (uint32_t)a->loop_len + (uint32_t)a->loop_len - 1) % (uint32_t)a->loop_len;
+      pos = a->loop_pos;
+    } else pos = a->loop_pos++ % (uint32_t)a->loop_len;
     if (chance(a, a->mut_notes)) a->loop[pos] = (uint16_t)(mrnd(a) >> 16);
     return (int)(((uint32_t)a->loop[pos] * (uint32_t)m) >> 16);
   }
@@ -448,7 +482,11 @@ static void do_step(ArpCore* a, long long g, double s, arp_emit_fn emit, void* u
   a->count = (uint32_t)pos + 1;
   a->step_count = a->count;
 
-  int play = prob >= 100 || (prob > 0 && (int)(rnd(a) % 100u) < prob);
+  int pr = prob;                                          /* Play: Density 50 = as drawn */
+  if (a->density < 50) pr = pr * a->density / 50;
+  else if (a->density > 50) pr = pr + (100 - pr) * (a->density - 50) / 50;
+  int play = pr >= 100 || (pr > 0 && (int)(rnd(a) % 100u) < pr);
+  if (a->fx == ARP_FX_DROP) play = 0;                     /* Drop: silent, the pattern keeps going */
   int note = n->note;
   if (a->rpt_k < 0)                                       /* passing note: from the chord note, then as usual */
     note = a->pass_approach ? note - 1 : drift_pitch(a, note, a->pass_iv);
@@ -461,6 +499,7 @@ static void do_step(ArpCore* a, long long g, double s, arp_emit_fn emit, void* u
     else if (a->rpt_mode == ARP_RPT_OCT && (k & 1)) pitch += 12;
   }
   pitch += 12 * a->transpose;
+  if (a->fx == ARP_FX_OCT) pitch += 12;
   if (pitch < 0 || pitch > 127) play = 0;
   if (!play) {
     if (a->sounding) note_off_at(a, s, emit, user);
@@ -470,6 +509,8 @@ static void do_step(ArpCore* a, long long g, double s, arp_emit_fn emit, void* u
   if (a->rpt_mode == ARP_RPT_ECHO)
     for (int j = 0; j < k; j++) vel = vel * ARP_ECHO_PCT / 100;
   vel = clampi(vel, 1, 127);
+  if (a->dynamics < 50) vel = clampi(vel * (30 + 70 * a->dynamics / 50) / 100, 1, 127);   /* Play: Dynamics */
+  else if (a->dynamics > 50) vel = clampi(vel + (127 - vel) * (a->dynamics - 50) / 50, 1, 127);
   if (a->accent) {   /* by the feel shape h: h = 0 toward 127, h = 1 down to 30 % (at Accent 100 %) */
     const int hi = vel + a->accent * (127 - vel) / 100;
     const int lo = vel * (100 - 70 * a->accent / 100) / 100;
@@ -486,16 +527,19 @@ static void do_step(ArpCore* a, long long g, double s, arp_emit_fn emit, void* u
     if (a->sounding) note_off_at(a, s, emit, user);
     emit(user, s, (uint8_t)(0x90 | n->ch), (uint8_t)pitch, (uint8_t)vel);
   }
-  a->sounding = 1; a->on_ch = n->ch; a->on_note = (uint8_t)pitch;
+  a->sounding = 1; a->on_ch = n->ch; a->on_note = (uint8_t)pitch; a->on_vel = (uint8_t)vel; a->has_on = 1;
   int gt = 0;                                           /* gate of the step in ticks (not Tie) */
   if (gate != ARP_GATE_TIE) {
     gt = (gate == ARP_GATE_GLOBAL) ? a->gate_ticks : a->step_ticks * gate / 100;
     if (a->accent) gt = gt * (1200 - a->accent * a->off_sixths) / 1200;   /* delayed steps shorter, down to 1/2 */
+    if (a->dynamics < 50) gt = gt * (40 + 60 * a->dynamics / 50) / 100;  /* Play: Dynamics, down to 40 % */
+    else if (a->dynamics > 50) gt = gt + (a->step_ticks - gt) * (a->dynamics - 50) / 50;
   }
   int hits = a->steps[idx[ARP_LANE_RATCH]].ratch;
   if (hits > 1 && a->ratch_every > 1 &&                 /* Ratch every N: only the last pass of each N */
       (pos / (uint64_t)a->lane_len[ARP_LANE_RATCH]) % (uint64_t)a->ratch_every != (uint64_t)(a->ratch_every - 1))
     hits = 1;
+  if (a->fx == ARP_FX_FILL) hits = ARP_FILL_HITS;
   if (hits > 1) {   /* ratchet: even hits from s to the next grid step, each with the step's gate share */
     const double span = (double)(g + 1) * a->step_ticks - s;
     a->rat_len = span / hits;
@@ -528,8 +572,36 @@ static void do_hit(ArpCore* a, double t, arp_emit_fn emit, void* user) {
   a->rat_next += a->rat_len;
 }
 
+/* Roll: the latched note on every roll tick, half a roll tick long; the pattern steps are skipped. */
+static void process_roll(ArpCore* a, double from, double to, arp_emit_fn emit, void* user) {
+  const double rt = a->roll_ticks;
+  if (a->roll_next < from - rt) a->roll_next = -INFINITY; /* time went back */
+  if (a->roll_next == -INFINITY) a->roll_next = ceil(from / rt) * rt;
+  for (;;) {
+    const int off_due = a->sounding && a->off_tick < to;
+    const int hit_due = a->roll_next < to;
+    if (off_due && (!hit_due || a->off_tick <= a->roll_next)) {
+      note_off_at(a, a->off_tick > from ? a->off_tick : from, emit, user);
+      continue;
+    }
+    if (!hit_due) break;
+    const double t = a->roll_next > from ? a->roll_next : from;
+    a->roll_next += rt;
+    if (a->nheld == 0 || a->roll_vel == 0) continue;    /* nothing held: the roll is silent */
+    if (a->sounding) note_off_at(a, t, emit, user);
+    emit(user, t, (uint8_t)(0x90 | a->roll_ch), a->roll_note, a->roll_vel);
+    a->sounding = 1; a->tied = 0; a->on_ch = a->roll_ch; a->on_note = a->roll_note;
+    a->off_tick = t + rt / 2;
+  }
+  /* the steps under the roll are over: after it the pattern comes back on the next step of the grid */
+  const double step = a->step_ticks;
+  const double last = ceil(to / step) * step - step;   /* last grid step before `to` */
+  if (last > a->done_s) a->done_s = last;
+}
+
 void arp_process(ArpCore* a, double from, double to, arp_emit_fn emit, void* user) {
   if (to <= from) return;
+  if (a->roll_ticks) { process_roll(a, from, to, emit, user); return; }
   const double step = a->step_ticks;
   if (from < a->done_s - step) a->done_s = -INFINITY;     /* time went back (relocation) */
   /* a grid step before `from` may still be due: its offset is always less than a step */
