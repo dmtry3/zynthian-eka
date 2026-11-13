@@ -32,7 +32,7 @@
 #define N_IN 33
 #define N_OUT 11
 #define OUT_BASE 35
-#define ZBEAT_PORT 46      /* zynseq beat written by the widget: -1 unknown, 0 / -2 zynseq stopped, 1..16 beat */
+/* zbeat (UiIn): zynseq beat written by the widget: -1 unknown, 0 / -2 zynseq stopped, 1..16 beat */
 #define ZS_STOP_FRESH 1.5  /* s: "zynseq stopped" counts only while the widget keeps alternating 0 / -2 */
 #define ZS_START_GRACE 1.0 /* s: after a JACK start, wait for the widget to see zynseq playing */
 #define ZB_UNSET (-1000)
@@ -76,6 +76,18 @@ typedef struct { uint32_t seq; uint8_t ch, cc, val, used; } VizCcEnt;
 typedef struct { uint32_t seq; VizCcEnt e[32]; } VizCc;
 #define VIZ_CC_OFF (sizeof(VizHdr) + (size_t)MAX_LAYERS * MAX_EVENTS * sizeof(Ev) + (size_t)MAX_CC * sizeof(Ev))
 
+/* Values the widget writes for the engine (after VizCc). Zynthian's jalv (asyncli) has no control for
+   notOnGUI ports, so "qmask=..." etc. never reached the plugin: the widget writes them here instead. */
+typedef struct {
+  uint32_t magic, seq;
+  int32_t qmask, zbeat;
+  uint32_t redo;            /* counter: +1 = Redo */
+  uint32_t ccm[8];          /* CC numbers bound to the looper's own controls (never recorded) */
+  uint32_t pad[3];
+} UiIn;
+#define UIIN_MAGIC 0x55494E31u
+#define UIIN_OFF (VIZ_CC_OFF + sizeof(VizCc))
+
 typedef struct {
   const LV2_Atom_Sequence* in;
   LV2_Atom_Sequence* out;
@@ -91,7 +103,6 @@ typedef struct {
   uint64_t samples;
   uint32_t nframes, cur_frame;
   int rolling, stop_pending, stop_has_pos;
-  const float* zbeat;
   int zb_prev, zs_stopped, zb_miss_n, zb_miss_cnt;
   uint64_t zs_stop_at, zs_grace_until;
   int undo_down;
@@ -119,6 +130,8 @@ typedef struct {
   Ev* cc; uint32_t ncc;
   Touch touch[MAX_TOUCH];
   VizCc* ccout;
+  volatile UiIn* uiin;
+  uint32_t ui_redo; int ui_redo_seen;
   uint64_t cc_out_t[16][128];
   uint8_t cc_out_v[16][128];
   CcIn cc_ring[16];
@@ -151,6 +164,12 @@ static const int bars_tbl[6] = { 0, 1, 2, 4, 8, 16 };
 
 /* ---------- utilities ---------- */
 static double pmod(double a, double b) { double r = fmod(a, b); return r < 0 ? r + b : r; }
+static int ui_ok(const Looper* L) { return L->uiin && L->uiin->magic == UIIN_MAGIC; }
+static int qmask_of(const Looper* L) { return ui_ok(L) ? (int)L->uiin->qmask : (int)(*L->ctl[I_QMASK] + 0.5f); }
+static int zbeat_of(const Looper* L) { return ui_ok(L) ? (int)L->uiin->zbeat : -1; }
+static int ccm_of(const Looper* L, int k) {
+  return ui_ok(L) ? (int)L->uiin->ccm[k & 7] : (int)(*L->ctl[I_CCM0 + (k & 7)] + 0.5f);
+}
 static double tps(const Looper* L) { return L->bpm * PPQN / (60.0 * L->sr); }
 static double bar_ticks(const Looper* L) { return (double)L->bpb * PPQN; }
 static int is_armed(const Looper* L) {
@@ -387,7 +406,7 @@ static void rec_note_on(Looper* L, int ch, int p, int vel) {
 
 /* ---------- CC, pitch bend, aftertouch: shared lane (not per layer) ---------- */
 static int cc_ignored(const Looper* L, uint8_t cc) {
-  int mask = (int)(*L->ctl[I_CCM0 + (cc >> 4)] + 0.5f);
+  int mask = ccm_of(L, cc >> 4);
   if ((mask >> (cc & 15)) & 1) return 1;
   return (L->learned[cc >> 3] >> (cc & 7)) & 1;
 }
@@ -627,7 +646,7 @@ static void edit_quantize(Looper* L) {
   int tg = (int)(*L->ctl[I_QTARGET] + 0.5f);
   if (g < 1 || g > 4 || str <= 0) { post_msg(L, 14); return; }
   if (!editable(L)) { post_msg(L, 6); return; }
-  int qmask = (int)(*L->ctl[I_QMASK] + 0.5f), qany = 0;
+  int qmask = qmask_of(L), qany = 0;
   for (int i = 0; i < L->nlayers; i++) if ((qmask >> i) & 1) qany = 1;
   if (!qany) { post_msg(L, 17); return; }
   backup_make(L); silence_loop(L); drop_all_open(L);
@@ -1067,8 +1086,7 @@ static void zs_pause(Looper* L) {
   else recalc_targets(L);
 }
 static void zynseq_sync(Looper* L) {
-  if (!L->zbeat) return;
-  const int zb = (int)floorf(*L->zbeat + 0.5f);
+  const int zb = zbeat_of(L);
   const int prev = L->zb_prev, changed = (zb != prev);
   L->zb_prev = zb;
   const int stop_val = (zb == 0 || zb == -2);
@@ -1294,7 +1312,7 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double rate, const char* 
 
   /* shared memory for the widget's piano roll */
   snprintf(L->viz_path, sizeof L->viz_path, "/dev/shm/eka_roll_%d", (int)getpid());
-  L->viz_size = sizeof(VizHdr) + (size_t)MAX_LAYERS * MAX_EVENTS * sizeof(Ev) + (size_t)MAX_CC * sizeof(Ev) + sizeof(VizCc);
+  L->viz_size = UIIN_OFF + sizeof(UiIn);
   L->viz_fd = open(L->viz_path, O_RDWR | O_CREAT | O_TRUNC, 0644);
   if (L->viz_fd > 0 && ftruncate(L->viz_fd, (off_t)L->viz_size) == 0) {
     void* mp = mmap(NULL, L->viz_size, PROT_READ | PROT_WRITE, MAP_SHARED, L->viz_fd, 0);
@@ -1303,6 +1321,7 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double rate, const char* 
       memset(L->viz, 0, sizeof(VizHdr));
       L->viz->magic = VIZ_MAGIC;
       L->ccout = (VizCc*)((uint8_t*)L->viz + VIZ_CC_OFF);
+      L->uiin = (volatile UiIn*)((uint8_t*)L->viz + UIIN_OFF);
     }
   }
 
@@ -1322,7 +1341,6 @@ static void connect_port(LV2_Handle h, uint32_t port, void* data) {
   else if (port == 1) L->out = (LV2_Atom_Sequence*)data;
   else if (port >= 2 && port < 2 + N_IN) L->ctl[port - 2] = (const float*)data;
   else if (port >= OUT_BASE && port < OUT_BASE + N_OUT) L->outp[port - OUT_BASE] = (float*)data;
-  else if (port == ZBEAT_PORT) L->zbeat = (const float*)data;
 }
 
 static void activate(LV2_Handle h) { (void)h; }
@@ -1337,6 +1355,11 @@ static void run(LV2_Handle h, uint32_t n) {
 
   poll_worker(L);
   process_controls(L);
+  if (ui_ok(L)) {                                        /* Redo from the widget (touch / push) */
+    const uint32_t r = L->uiin->redo;
+    if (L->ui_redo_seen && r != L->ui_redo) fire_undo_redo(L, C_REDO);
+    L->ui_redo = r; L->ui_redo_seen = 1;
+  }
   zynseq_sync(L);
 
   LV2_ATOM_SEQUENCE_FOREACH(L->in, ev) {
@@ -1364,8 +1387,8 @@ static void run(LV2_Handle h, uint32_t n) {
   reconcile_notes(L);
   update_outputs(L);
   if (L->viz) {
-    const int zb = L->zbeat ? (int)floorf(*L->zbeat + 0.5f) : -16;
-    L->viz->pad = ((uint32_t)(*L->ctl[I_QMASK] + 0.5f) & 0xFF) | ((uint32_t)(zb + 16) & 0xFF) << 8 |
+    const int zb = zbeat_of(L);
+    L->viz->pad = ((uint32_t)qmask_of(L) & 0xFF) | ((uint32_t)(zb + 16) & 0xFF) << 8 |
                   (uint32_t)(L->rolling ? 1 : 0) << 16 | (uint32_t)(L->zs_stopped ? 2 : 0) << 16 |
                   (uint32_t)(L->stop_pending ? 4 : 0) << 16;
   }

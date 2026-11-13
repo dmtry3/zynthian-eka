@@ -16,6 +16,7 @@ static LV2_URID map_uri(LV2_URID_Map_Handle h, const char* uri) {
 #define BLOCK 256
 static LV2_URID_Map map = { NULL, map_uri };
 static float ctl[N_IN], outv[N_OUT], zbeat = -1;
+static int qmask_ui = 255;           /* what the widget writes to shared memory (UiIn) */
 static uint8_t inbuf[4096], outbuf[65536];
 static LV2_Atom_Forge forge;
 static LV2_Atom_Forge_Frame seq_frame;
@@ -47,6 +48,7 @@ static void position(float speed, long bar, float bar_beat) {
 
 static void end_block_run(void) {
   lv2_atom_forge_pop(&forge, &seq_frame);
+  L->uiin->zbeat = (int)zbeat; L->uiin->qmask = qmask_ui; L->uiin->magic = UIIN_MAGIC;
   LV2_Atom_Sequence* out = (LV2_Atom_Sequence*)outbuf;
   out->atom.size = sizeof outbuf - sizeof(LV2_Atom);
   run(L, BLOCK);
@@ -70,7 +72,6 @@ static void connect_all(void) {
   connect_port(L, 1, outbuf);
   for (int i = 0; i < N_IN; i++) connect_port(L, 2 + i, &ctl[i]);
   for (int i = 0; i < N_OUT; i++) connect_port(L, OUT_BASE + i, &outv[i]);
-  connect_port(L, ZBEAT_PORT, &zbeat);
 }
 
 static double beat_in_bar(void) { return pmod(L->clk, bar_ticks(L)) / PPQN; }
@@ -124,18 +125,21 @@ int main(void) {
   check("undo set by a snapshot restore is not a gesture", L->nlayers == 2 && L->state == ST_PLAY);
   ctl[C_UNDO] = 0; ctl[C_PLAY] = 0; run_secs(0.5);
   run_secs(0.4);
-  ctl[C_REDO] = 1; run_secs(0.05);
-  check("hidden redo port (widget): Redo", L->nlayers == 2);
+  ctl[C_UNDO] = 1; run_secs(0.1); ctl[C_UNDO] = 0; run_secs(0.05);
+  check("undo before the widget redo", L->nlayers == 1);
+  run_secs(0.4);
+  L->uiin->redo++; run_secs(0.05);
+  check("redo counter in shared memory (widget): Redo", L->nlayers == 2);
 
   /* ---- Quantize: only the layers in qmask (the device log had qmask = 253: layer 1 on, layer 2 off) ---- */
   make_loop();
   L->layers[0].ev[0].tick = 37; L->layers[1].ev[0].tick = 517;          /* both off the 1/16 grid */
-  ctl[I_QGRID] = 3; ctl[I_QMASK] = 253; run_secs(0.05);
+  ctl[I_QGRID] = 3; qmask_ui = 253; run_secs(0.05);
   ctl[C_QAPPLY] = 1; run_secs(0.05);
   check("quantize qmask 253: layer 1 moved, layer 2 untouched",
         L->layers[0].ev[0].tick == 0 && L->layers[1].ev[0].tick == 517);
   ctl[C_QAPPLY] = 0; run_secs(0.05);
-  ctl[I_QMASK] = 255; ctl[I_QGRID] = 0;
+  qmask_ui = 255; ctl[I_QGRID] = 0;
   L->bk_valid = 0;
 
   /* ---- zynseq sync ---- */

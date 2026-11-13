@@ -134,7 +134,7 @@ class FakeViz:
         lay2 = [(i * 480 + 15, 200, 0x90, 60 + (i % 5), 90) for i in range(16)]
         lay3 = [(i * 1920, 1800, 0x90, 67, 80) for i in range(4)]
         layers = [lay1, lay2, lay3]
-        buf = bytearray(self.HDR.size + (8 * 4000 + 16384) * self.EV.size + 4 + 32 * 8)
+        buf = bytearray(self.HDR.size + (8 * 4000 + 16384) * self.EV.size + 4 + 32 * 8 + 64)   # + UiIn
         ns = [len(x) for x in layers] + [0] * 5
         self.HDR.pack_into(buf, 0, 0x4D4C5A31, 2, 7, L, len(layers), 4, 4, 0b100,
                            *ns, *([0] * 8), 0, 0)
@@ -333,6 +333,10 @@ def main():
                 dr.text(xy, c.itemcget(i, "text"), fill=c.itemcget(i, "fill"), font=font, anchor=anchor)
         img.save(os.path.join(shots, name + ".png"))
 
+    def ui():
+        with open(proc.engine.viz.path, "rb") as f:
+            return mod.UIIN.unpack_from(f.read(), mod.UIIN_OFF)
+
     def grid_lines():
         return [i for i in c.find_withtag("roll")
                 if c.type(i) == "line" and c.itemcget(i, "fill") in (mod.GRID_COLOR, mod.dim(mod.GRID_COLOR, 0.6))]
@@ -392,12 +396,12 @@ def main():
         w0, r0 = zu.writes, proc.v("redo")
         res = fn()
         settle()
-        return (res is not False) and zu.writes == w0 + 2 and proc.v("undo") == 0 and proc.v("redo") == r0
+        return (res is not False) and zu.writes == w0 + 2 and proc.v("undo") == 0
 
     def redo_flip(fn):
-        w0, r0 = zu.writes, proc.v("redo")
+        w0, r0 = zu.writes, ui()[4]
         res = fn()
-        return (res is not False) and proc.v("redo") != r0 and zu.writes == w0
+        return (res is not False) and ui()[4] == r0 + 1 and zu.writes == w0
 
     show("loop")
     zc = ctl.zgui_controllers[2]
@@ -464,15 +468,23 @@ def main():
     seen = set()
     for _ in range(4):
         wdg._sync_zynseq()
-        seen.add(proc.v("zbeat"))
+        wdg._ui_put()
+        seen.add(ui()[3])
         _t.sleep(0.5)
     check("zynseq stopped: zbeat alternates 0 / -2 (%r)" % sorted(seen), seen == {0, -2})
     lib.state, lib.beat = 1, 3
     wdg._sync_zynseq()
-    check("zynseq playing: zbeat = beat", proc.v("zbeat") == 3)
+    wdg._ui_put()
+    check("zynseq playing: zbeat = beat", ui()[3] == 3)
     lib.state = 2
     wdg._sync_zynseq()
-    check("zynseq starting: zbeat kept", proc.v("zbeat") == 3)
+    wdg._ui_put()
+    check("zynseq starting: zbeat kept", ui()[3] == 3)
+
+    # qmask chosen on the strip reaches the engine through shared memory
+    proc.controllers_dict["qmask"].value = 253
+    wdg._ui_put()
+    check("qmask written for the engine (253)", ui()[0] == mod.UIIN_MAGIC and ui()[2] == 253)
 
     proc.engine.viz.remove()
     print("%d failed" % fails)

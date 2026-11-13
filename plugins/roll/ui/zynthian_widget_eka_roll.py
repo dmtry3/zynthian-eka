@@ -30,6 +30,11 @@ HDR = struct.Struct("<8I8I8i2I")    # magic,seq,ver,loop_len,nlayers,bpb,state,m
 EV = struct.Struct("<IIBBBB")
 CCENT = struct.Struct("<IBBBB")                        # seq, ch, cc, val, used
 VIZ_CC_OFF = HDR.size + (8 * 4000 + 16384) * EV.size   # table of CC played by the loop
+# Values the widget writes for the engine (UiIn in eka_roll.c): magic, seq, qmask, zbeat, redo, ccm[8], pad[3].
+# Zynthian's jalv ignores commands for notOnGUI ports, so these can't go through the controllers.
+UIIN = struct.Struct("<IIiiI8I3I")
+UIIN_OFF = VIZ_CC_OFF + 4 + 32 * CCENT.size
+UIIN_MAGIC = 0x55494E31
 MAGIC = 0x4D4C5A31
 PPQN = 960
 try:
@@ -199,6 +204,10 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         self.qgrid_t = 0.0
         self.qgrid_last = None
         self._undo_since = None
+        self.mmw = None
+        self.mmw_path = None
+        self._zb = None
+        self._ccm = None
         self.after(300, self._follow_tick)
 
     def set_processor(self, processor):
@@ -227,13 +236,55 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             self._zset("undo", 0)
 
     def redo(self):
-        if _flip(self.processor, "redo"):
+        if self._ui_put(redo=True) or _flip(self.processor, "redo"):
             self._toast("Redo", 1.5)
+
+    # ---------- values for the engine (shared memory) ----------
+    def _open_mmw(self):
+        """Writable view of the shared memory (only the UiIn block is written)."""
+        if not self._open_mm():
+            return None
+        if self.mmw is not None and self.mmw_path == self.mm_path:
+            return self.mmw
+        try:
+            if self.mmw is not None:
+                self.mmw.close()
+            with open(self.mm_path, "r+b") as f:
+                mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_WRITE)
+            if len(mm) < UIIN_OFF + UIIN.size:          # an older engine without the block
+                mm.close()
+                return None
+            self.mmw, self.mmw_path = mm, self.mm_path
+            return mm
+        except Exception as e:
+            dbg("shared memory for writing: %r", e)
+            self.mmw = None
+            return None
+
+    def _ui_put(self, redo=False):
+        """Write qmask / zbeat / ccm (and +1 redo) for the engine. False if the block isn't there."""
+        mm = self._open_mmw()
+        if mm is None:
+            return False
+        try:
+            cur = UIIN.unpack_from(mm, UIIN_OFF)
+            if cur[0] != UIIN_MAGIC:
+                cur = (UIIN_MAGIC, 0, 255, -1, 0) + (0,) * 8 + (0, 0, 0)
+            qmask = int(round(self._zval("qmask", 255)))
+            zb = self._zb if self._zb is not None else -1
+            ccm = self._ccm if self._ccm is not None else list(cur[5:13])
+            rcount = (cur[4] + 1) & 0xFFFFFFFF if redo else cur[4]
+            UIIN.pack_into(mm, UIIN_OFF, UIIN_MAGIC, (cur[1] + 1) & 0xFFFFFFFF, qmask, zb, rcount, *ccm, 0, 0, 0)
+            return True
+        except Exception as e:
+            dbg("ui put: %r", e)
+            return False
 
     def _dbg_watch(self):
         """Log every change of the command ports and the roll's run flag (who pressed what, when)."""
         vals = {}
-        for sym in ("undo", "redo", "qapply", "qmask", "qgrid", "zbeat"):
+        vals["zbeat"] = self._zb
+        for sym in ("undo", "redo", "qapply", "qmask", "qgrid"):
             vals[sym] = self._zval(sym, None)
         vals["run"] = (self.monitors or {}).get("run")
         try:
@@ -810,9 +861,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         masks = [0] * 8
         for cc in self._own_bound_ccs():
             masks[(cc >> 4) & 7] |= 1 << (cc & 15)
-        for i, mval in enumerate(masks):
-            if int(self._zval("ccm%d" % i, 0)) != mval:
-                self._zset("ccm%d" % i, mval)
+        self._ccm = masks
 
     def _inject_cc(self, ch, cc, val):
         cm = self.zyngui.state_manager.chain_manager
@@ -872,7 +921,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             return
         if st != getattr(self, "_dbg_zs_st", None):
             self._dbg_zs_st = st
-            dbg("zynseq state %d beat %d, zbeat port %r, roll run %r", st, beat, self._zval("zbeat", None),
+            dbg("zynseq state %d beat %d, zbeat %r, roll run %r", st, beat, self._zb,
                 (self.monitors or {}).get("run"))
         if st == 1 and 1 <= beat <= 16:          # PLAYING
             z = beat
@@ -880,8 +929,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             z = 0 if int(time.monotonic() * 2) % 2 == 0 else -2      # 0 / -2 alternating = "still stopped"
         else:                                    # STARTING: wait for the first beat
             return
-        if int(round(self._zval("zbeat", -1))) != z:
-            self._zset("zbeat", z)
+        self._zb = z
 
     _zs_fn = None
 
@@ -909,6 +957,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             if DEBUG:
                 self._dbg_watch()
             self._sync_zynseq()
+            self._ui_put()
             self._undo_return()
             self._follow_cc()
             self._sync_n += 1
