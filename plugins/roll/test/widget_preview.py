@@ -501,16 +501,30 @@ def main():
 
     # Edit page: Shift knob -> slider; each click = one slider step; Apply hides it
     show("edit")
-    check("edit: no slider before Shift is turned", not [hh for hh in wdg.hits if hh[4] == "sh"])
+    def slider_labels():
+        return [c.itemcget(i, "text") for i in c.find_withtag("dyn")
+                if c.type(i) == "text" and c.itemcget(i, "text") in ("1/4", "1/8", "1/16", "1/32", "1/64")]
+    check("edit: no slider before Shift is turned", not slider_labels())
     zs = proc.controllers_dict["shift"]
     zs.value = 1
     show("edit")
-    shh = [hh for hh in wdg.hits if hh[4] == "sh"]
-    check("edit: Shift turned -> slider with 5 steps", len(shh) == 5)
+    check("edit: Shift turned -> slider with 5 steps", len(slider_labels()) == 5)
     check("edit: one click = 1/16 (240 ticks) sent to the engine", wdg.shift_ticks == 240 and ui()[13] == 240)
-    x0, y0, x1, y1, kind, i = shh[0]
+    xa, sp, ya, yb = wdg.shift_geo
+    ym = (ya + yb) // 2
+    n0 = ui()[17]
     wdg.last_click = 0
-    wdg._on_click(Ev((x0 + x1) // 2, (y0 + y1) // 2))
+    wdg._on_click(Ev(int(xa + 2 * sp + 3), ym))             # finger down on 1/16 ...
+    check("edit: finger down on the slider picks the step under it", wdg.shift_i == 2)
+    for k in range(2, 6):                                     # ... slides right to 1/64 ...
+        wdg._on_drag(Ev(int(xa + k * sp * 0.9), ym + 25))     # (the finger may drift off the slider)
+    check("edit: sliding right picks 1/64", wdg.shift_i == 4)
+    for k in range(4, -2, -1):                                # ... and back left past the end
+        wdg._on_drag(Ev(int(xa + k * sp), ym))
+    wdg._on_release(Ev(0, 0))
+    check("edit: sliding left picks 1/4, no note deleted on the way", wdg.shift_i == 0 and ui()[17] == n0)
+    wdg._on_drag(Ev(int(xa + 3 * sp), ym))
+    check("edit: after release moving does nothing", wdg.shift_i == 0)
     zs.value = 3
     show("edit")
     check("edit: step 1/4 picked on the slider, two more clicks = 240 + 2*960", ui()[13] == 240 + 2 * 960)
@@ -525,7 +539,7 @@ def main():
     proc.engine.msg = proc.engine.msg // 100 * 100 + 100 + 21           # engine: "Layer shifted"
     show("edit")
     check("edit: after Apply the slider is gone, knob and shift back to 0",
-          not [hh for hh in wdg.hits if hh[4] == "sh"] and zs.value == 0 and ui()[13] == 0)
+          not slider_labels() and zs.value == 0 and ui()[13] == 0)
     show("edit")
     check("edit: knob reset is not a new turn", not wdg.shift_show and wdg.shift_ticks == 0)
     check("edit: 'Layer shifted' shown first", "Layer shifted" in bottom_text())
@@ -561,9 +575,30 @@ def main():
     wdg._on_click(Ev((x0 + x1) // 2, (y0 + y1) // 2))
     show("slots")
     check("slots: tap on slot 3 selects it", proc.v("sslot") == 3)
-    green = [i for i in c.find_withtag("dyn") if c.type(i) == "rectangle" and c.itemcget(i, "outline") == mod.SLOT_SEL]
-    check("slots: selected slot drawn light green", len(green) == 1 and c.itemcget(green[0], "fill") == mod.SLOT_SEL)
+    green = [i for i in c.find_withtag("dyn") if c.type(i) == "rectangle" and c.itemcget(i, "fill") == mod.SLOT_SEL]
+    check("slots: selected slot filled light green, no thick frame",
+          len(green) == 1 and float(c.itemcget(green[0], "width")) == 1)
     snap("slots_sel")
+
+    # Empty plugin: the piano roll frame is there right away (Length bars, 1 bar for Free)
+    with open(proc.engine.viz.path, "r+b") as f:
+        hdr = list(FakeViz.HDR.unpack_from(f.read(FakeViz.HDR.size), 0))
+        hdr[1], hdr[2], hdr[3], hdr[4] = 4, 99, 0, 0             # seq, ver, loop_len 0, no layers
+        f.seek(0)
+        f.write(FakeViz.HDR.pack(*hdr))
+    mon = proc.engine.get_monitors_dict
+    proc.engine.get_monitors_dict = lambda: dict(mon(), state=0, layers=0, bars=0.0, pos=0.0, mute=0)
+    for page in ("loop", "edit"):
+        show(page)
+        frame = [i for i in c.find_withtag("roll") if c.type(i) == "rectangle"]
+        bars = [i for i in c.find_withtag("roll") if c.type(i) == "line" and c.itemcget(i, "fill") == "#6a6a6a"]
+        check("%s, empty: piano roll frame drawn (1 bar, %d bar lines)" % (page, len(bars)), frame and len(bars) == 1)
+    proc.controllers_dict["length"].value = 3
+    show("loop")
+    bars = [i for i in c.find_withtag("roll") if c.type(i) == "line" and c.itemcget(i, "fill") == "#6a6a6a"]
+    check("loop, empty, Length 4 bars: frame of 4 bars", len(bars) == 4)
+    snap("empty")
+    proc.engine.get_monitors_dict = mon
 
     proc.engine.viz.remove()
     print("%d failed" % fails)

@@ -199,6 +199,8 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             bg=zynthian_gui_config.color_bg)
         self.widget_canvas.grid(sticky='news')
         self.widget_canvas.bind("<ButtonPress-1>", self._on_click)
+        self.widget_canvas.bind("<B1-Motion>", self._on_drag)
+        self.widget_canvas.bind("<ButtonRelease-1>", self._on_release)
         self.last_msg = None
         self.toast = ""
         self.toast_until = 0.0
@@ -228,6 +230,8 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         self.shift_last = None            # last Shift knob value seen
         self.shift_show = False           # the slider is shown from the first turn until Apply
         self.ndel = None                  # note delete counter (UiIn)
+        self.shift_geo = None             # slider: (x of the first step, spacing, y top, y bottom)
+        self.shift_drag = False           # a finger is sliding on the slider
         self.after(300, self._follow_tick)
 
     def set_processor(self, processor):
@@ -427,7 +431,17 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         except Exception:
             pass
 
+    def _shift_pick(self, x):
+        xa, sp, _, _ = self.shift_geo
+        self.shift_i = max(0, min(len(SHIFT_STEPS) - 1, int(round((x - xa) / sp))))
+
     def _on_click(self, event):
+        g = self.shift_geo if self.shift_show and self.mode == "roll" else None
+        if g and g[2] <= event.y <= g[3] and g[0] - g[1] / 2 <= event.x <= g[0] + g[1] * (len(SHIFT_STEPS) - 0.5):
+            self.shift_drag = True               # the slider: the step follows the finger
+            self._shift_pick(event.x)
+            self.refresh_gui()
+            return
         now = time.monotonic()
         if now - self.last_click < 0.25:
             return
@@ -443,14 +457,22 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                     self._zset("sslot", i + 1)
                 elif kind == "l":
                     self._zset("layer", i + 1)
-                elif kind == "sh":
-                    self.shift_i = i
                 return
         if self.mode == "roll":
             note = self._note_at(event.x, event.y)
             if note is not None:
                 self.last_click = now
                 self._ui_put(ndel=note)
+
+    def _on_drag(self, event):
+        if self.shift_drag and self.shift_geo:
+            i = self.shift_i
+            self._shift_pick(event.x)
+            if i != self.shift_i:
+                self.refresh_gui()
+
+    def _on_release(self, event):
+        self.shift_drag = False
 
     def _note_at(self, x, y, tol=14):
         """Edit page: the note of the selected layer nearest to a tap (layer, tick, pitch), or None."""
@@ -512,7 +534,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         return "%s%d/%d" % ("+" if n > 0 else "-", num, den)
 
     def _draw_shift(self, w, h, fh):
-        """Slider under the layer label: the step of one Shift knob click (1/4 ... 1/64)."""
+        """Slider under the layer label: the step of one Shift knob click (1/4 ... 1/64); slide a finger on it."""
         c = self.widget_canvas
         n = len(SHIFT_STEPS)
         xa, xb = int(w * 0.24), int(w * 0.76)
@@ -531,7 +553,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                 c.create_oval(x - r, yc - r, x + r, yc + r, fill=col, outline="#ffffff", tags="dyn")
             else:
                 c.create_line(x, yc - r // 2, x, yc + r // 2, fill="#9a9a9a", tags="dyn")
-            self.hits.append((x - sp / 2, int(h * 0.11), x + sp / 2, int(h * 0.24), "sh", i))
+        self.shift_geo = (xa, sp, int(h * 0.10), int(h * 0.245))
         c.create_text(8, yc, anchor="w", text="Shift", fill="#9a9a9a", tags="dyn", font=small)
         c.create_text(w - 8, yc, anchor="e", text=self._shift_text(self.shift_ticks), fill="#ffffff",
                       tags="dyn", font=fh)
@@ -617,11 +639,9 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         c = self.widget_canvas
         c.delete("roll")
         self._geo = None
-        d = self.data
+        d = self.data or {"bpb": 4, "layers": [], "ccs": [], "transp": [0] * 8, "mute": 0, "opens": []}
         fam = zynthian_gui_config.font_family
-        if not d or L <= 0 or not d["layers"]:
-            c.create_text((x0 + x1) // 2, (y0 + y1) // 2, text="no loop", fill="#808080",
-                          tags="roll", font=(fam, 9))
+        if L <= 0:
             return
         bar = d["bpb"] * PPQN
         w = x1 - x0
@@ -1242,6 +1262,9 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                 pos = now_t / float(Ld)
             elif Ld > 0:
                 now_t = pos * Ld
+            else:
+                # nothing recorded yet: the frame of what will be recorded (Length, 1 bar for Free)
+                Ld = (1, 1, 2, 4, 8, 16)[max(0, min(5, int(self._zval("length", 0))))] * bar_t
             if mode != "quant":
                 hl, grid, grid_hot = None, 0, False
             if Ld > 0:
@@ -1267,6 +1290,8 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                 # metronome on the grid: soft band over the current beat
                 nbeats = max(1, int(round(Ld / float(PPQN))))
                 bi = min(int(pos * nbeats), nbeats - 1)
+                if nl == 0 and st not in (2, 3):                 # nothing recorded yet: the beat in the bar
+                    bi = int(beat) % max(1, min(int(bpb), nbeats))
                 bw = (x1 - x0) / float(nbeats)
                 xb = x0 + bw * bi
                 c.create_rectangle(xb, y0, xb + bw, y1, outline="", tags=("dyn", "band"),
@@ -1297,13 +1322,12 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                 yb = ya + int(h * 0.28)
                 used = (slots >> i) & 1
                 selected = (cur == i + 1)
-                if selected:                       # light green: filled when the slot has a loop
-                    fill, out, tc = (SLOT_SEL if used else ""), SLOT_SEL, ("#000000" if used else SLOT_SEL)
+                if selected:                       # light green fill (an empty slot: grey number)
+                    fill, out, tc = SLOT_SEL, SLOT_SEL, ("#000000" if used else "#5a7a5a")
                 else:
                     fill = zynthian_gui_config.color_hl if used else ""
                     out, tc = zynthian_gui_config.color_tx_off, ("#000000" if used else "#c0c0c0")
-                c.create_rectangle(x, ya, x + sw, yb, tags="dyn", outline=out, width=(4 if selected else 1),
-                                   fill=fill)
+                c.create_rectangle(x, ya, x + sw, yb, tags="dyn", outline=out, width=1, fill=fill)
                 c.create_text(x + sw // 2, (ya + yb) // 2, text=str(i + 1), tags="dyn",
                               fill=tc, font=self._font(h, 10, 8))
                 self.hits.append((x, ya, x + sw, yb, "s", i))

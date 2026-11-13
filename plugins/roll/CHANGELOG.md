@@ -4,7 +4,8 @@
 
 - Edit page: Layer, Transpose, **Shift**, Apply. Shift moves the layer in time; each knob click is the step picked on
   a slider in the widget (1/4 ... 1/64), with a preview on the piano roll. Apply does Transpose and Shift in one
-  undoable step.
+  undoable step. Slide a finger along the slider to pick the step.
+- The piano roll frame is shown right away on an empty looper (Length bars, 1 bar for Free).
 - Edit page: tap a note of the selected layer to delete it (undoable).
 - Slots page: Load, Save, Delete, Export (Export moved here from Edit). The Slot knob is gone: the slot is picked by
   touch (light green) and kept in snapshots as the LV2 parameter `sslot`. Snapshots saved before 0.9 don't remember it.

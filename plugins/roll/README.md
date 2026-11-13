@@ -92,7 +92,7 @@ All buttons are toggle-type: any change counts as a press.
 | | Apply | Quantize the layers selected on the widget |
 | **Edit** | Layer | Layer to transpose / shift (its notes can be deleted by touch) |
 | | Transpose | Semitones to add (-12...+12) |
-| | Shift | Move the layer in time: each click = the step picked on the slider that appears on the widget (1/4, 1/8, 1/16, 1/32, 1/64; tap to pick). Right = later, left = earlier; steps can be mixed. Notes that pass the loop end come in at the start |
+| | Shift | Move the layer in time: each click = the step picked on the slider that appears on the widget (1/4, 1/8, 1/16, 1/32, 1/64; slide a finger along it). Right = later, left = earlier; steps can be mixed. Notes that pass the loop end come in at the start |
 | | Apply | Applies Transpose and Shift to the layer (one Undo step); the knobs return to 0, the slider goes away. Shift is not possible during an overdub |
 | **Slots** | Load | Load the slot tapped on the widget (load happens at loop end) |
 | | Save | Save to the tapped slot |
@@ -114,13 +114,13 @@ they can be mapped to hardware buttons.
 
 - All pages: state (EMPTY, ARM REC, REC, OVERDUB, PLAY, STOP, ...), bars/BPM, loop progress, beat blocks, layers
   (each layer has its own colour), messages and confirmations.
-- Every page except Slots: piano roll with bars/beats, coloured layers and a CC lane underneath; the beat blocks and
+- Every page except Slots: piano roll (its frame is there before anything is recorded, as long as Length) with bars/beats, coloured layers and a CC lane underneath; the beat blocks and
   the layer strip on top (tap a layer to select it).
 - **Quantize:** the layer strip chooses which layers are quantized (tap to toggle); the chosen grid is drawn in blue
   over the notes (brighter for a moment after it changes).
 - **Edit:** white preview outline for the pending transposition and shift; the Shift slider under the layer name
   (with the pending amount, e.g. `+3/16`); tap a note of the selected layer to delete it (Undo brings it back).
-- **Slots:** 16-cell map of occupied slots; tap a slot to select it (light green). The selected slot is an LV2
+- **Slots:** 16-cell map of occupied slots; tap a slot to select it (filled light green). The selected slot is an LV2
   parameter, so Zynthian snapshots keep it.
 
 ## Export
