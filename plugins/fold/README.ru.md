@@ -42,6 +42,19 @@ lopass gate на модели вактрола, два функциональн�
   генераторы, EQ и шейпер петли, голоса, сетка матрицы; живые метки (ноты, фаза Mod OSC, вактрол, точки FG, уровень
   линии delay).
 
+## Скриншоты
+
+Пресет *Drone - West Coast*, зажаты три ноты.
+
+| | | |
+|---|---|---|
+| ![Osc](docs/1-osc.png) | ![Mod](docs/2-mod.png) | ![Fold](docs/3-fold.png) |
+| **Osc:** плитки источников и форма волны | **Mod:** маршруты FM / AM / Sync / Timbre | **Fold:** кривая фолдера и что он делает |
+| ![Gate](docs/4-gate.png) | ![Env](docs/5-env.png) | ![Delay](docs/6-delay.png) |
+| **Gate:** отклик lopass gate | **Env:** FG1 и FG2 | **Delay:** шейпер и эквалайзер петли |
+| ![Play](docs/7-play.png) | ![Matrix](docs/8-matrix.png) | |
+| **Play:** голоса, звучащие ноты | **Matrix:** сетка модуляции 8 × 11 | |
+
 ## Установка
 
 На Zynthian (по SSH под root):
@@ -139,5 +152,5 @@ make test       # движок офлайн (строй, алиасинг, ще�
 
 ## Лицензия
 
-GPL-3.0-or-later. Источники VA, FM2, Wave, Harm и PD, резонаторы Modal и String и три таблицы основаны на коде Эмили Жилле под лицензией MIT: текст
+GPL-3.0-or-later, см. [LICENSE](LICENSE). Источники VA, FM2, Wave, Harm и PD, резонаторы Modal и String и три таблицы основаны на коде Эмили Жилле под лицензией MIT: текст
 лицензии и что изменено — в [THIRD_PARTY.md](THIRD_PARTY.md).

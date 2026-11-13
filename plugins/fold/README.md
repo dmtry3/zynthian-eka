@@ -42,6 +42,19 @@ in every voice. Up to 8 voices. Inspired by the Buchla 259 / 292 / 281 and the M
   generators, the loop's EQ and shaper, the voices, the matrix grid; live marks (notes, Mod OSC phase, vactrol,
   FG points, the delay line's level).
 
+## Screenshots
+
+Preset *Drone - West Coast*, three notes held.
+
+| | | |
+|---|---|---|
+| ![Osc](docs/1-osc.png) | ![Mod](docs/2-mod.png) | ![Fold](docs/3-fold.png) |
+| **Osc:** source tiles and the waveform | **Mod:** the routing FM / AM / Sync / Timbre | **Fold:** the folder curve and its result |
+| ![Gate](docs/4-gate.png) | ![Env](docs/5-env.png) | ![Delay](docs/6-delay.png) |
+| **Gate:** the lopass gate response | **Env:** FG1 and FG2 | **Delay:** the loop's shaper and EQ |
+| ![Play](docs/7-play.png) | ![Matrix](docs/8-matrix.png) | |
+| **Play:** voices, the notes sounding | **Matrix:** the 8 x 11 mod grid | |
+
 ## Installation
 
 On the Zynthian (SSH as root):
@@ -139,5 +152,5 @@ The presets are generated: edit `scripts/gen_presets.py`, then run it (it writes
 
 ## License
 
-GPL-3.0-or-later. The VA, FM2, Wave, Harm and PD sources, the Modal and String resonators and three tables are derived from MIT-licensed code by
+GPL-3.0-or-later, see [LICENSE](LICENSE). The VA, FM2, Wave, Harm and PD sources, the Modal and String resonators and three tables are derived from MIT-licensed code by
 Emilie Gillet: see [THIRD_PARTY.md](THIRD_PARTY.md) for the license text and what was changed.
