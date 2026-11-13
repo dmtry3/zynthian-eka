@@ -69,7 +69,7 @@ typedef struct {
   uint32_t magic, seq, ver, loop_len, nlayers, bpb, state, mute_mask;
   uint32_t n[MAX_LAYERS];
   int32_t transp[MAX_LAYERS];
-  uint32_t ncc, pad;
+  uint32_t ncc, pad;   /* pad: what the engine sees, for the widget's debug log (qmask | zbeat+16 << 8 | flags << 16) */
 } VizHdr;
 /* table of the controller values the loop has just played (read by the widget) */
 typedef struct { uint32_t seq; uint8_t ch, cc, val, used; } VizCcEnt;
@@ -1363,6 +1363,12 @@ static void run(LV2_Handle h, uint32_t n) {
   if (L->confirm && L->samples >= L->confirm_until) L->confirm = 0;
   reconcile_notes(L);
   update_outputs(L);
+  if (L->viz) {
+    const int zb = L->zbeat ? (int)floorf(*L->zbeat + 0.5f) : -16;
+    L->viz->pad = ((uint32_t)(*L->ctl[I_QMASK] + 0.5f) & 0xFF) | ((uint32_t)(zb + 16) & 0xFF) << 8 |
+                  (uint32_t)(L->rolling ? 1 : 0) << 16 | (uint32_t)(L->zs_stopped ? 2 : 0) << 16 |
+                  (uint32_t)(L->stop_pending ? 4 : 0) << 16;
+  }
   if (L->viz_dirty && L->samples >= L->viz_next) {
     viz_export(L);
     L->viz_dirty = 0;

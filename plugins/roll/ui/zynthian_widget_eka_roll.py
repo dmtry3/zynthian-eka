@@ -236,6 +236,14 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         for sym in ("undo", "redo", "qapply", "qmask", "qgrid", "zbeat"):
             vals[sym] = self._zval(sym, None)
         vals["run"] = (self.monitors or {}).get("run")
+        try:
+            if self._open_mm():
+                pad = HDR.unpack_from(self.mm, 0)[25]
+                zb = ((pad >> 8) & 0xFF) - 16
+                vals["engine"] = "qmask=%d zbeat=%s rolling=%d zs_stopped=%d stop_pending=%d" % (
+                    pad & 0xFF, "beat" if zb > 0 else str(zb), (pad >> 16) & 1, (pad >> 17) & 1, (pad >> 18) & 1)
+        except Exception:
+            pass
         vals["state"] = (self.monitors or {}).get("state")
         old = getattr(self, "_dbg_vals", None)
         if old is not None:
