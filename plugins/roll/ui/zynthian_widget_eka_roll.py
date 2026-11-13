@@ -7,7 +7,6 @@ import logging
 import mmap
 import os
 import struct
-import threading
 import time
 import tkinter
 from datetime import datetime
@@ -42,7 +41,6 @@ EXPORT_USE_OFFSET = True           # keep exact note timing via an offset inside
 CC_LANE = 0.74                      # fraction of the height kept for notes (the rest is the CC lane)
 QGRID_TICKS = (0, 960, 480, 240, 120)  # Quantize grid: Off, 1/4, 1/8, 1/16, 1/32 (same as the engine)
 GRID_COLOR = "#3a8fd8"
-MIDI_HOLD = 0.5                       # s: a MIDI button held this long on Undo/Redo = Redo
 
 # Undo/Redo on one knob: tap = Undo, long press (touch or encoder push) = Redo.
 # Open Roll widgets by processor id: the touch hook below is shared by all instances.
@@ -225,54 +223,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         except Exception as e:
             dbg("dbg bind: %r", e)
 
-    def _hook_midi_undo(self):
-        """A MIDI button learned to Undo/Redo: Zynthian turns it into a toggle (one undo per press or per
-        change), so a hold can't be told apart. Take the raw CC: release before HOLD = Undo, hold = Redo."""
-        try:
-            z = self.processor.controllers_dict["undo"]
-        except Exception:
-            return
-        if getattr(z.__dict__.get("midi_control_change"), "_eka_roll", False):
-            return
-        orig = getattr(z, "midi_control_change", None)
-        if not callable(orig):
-            return
-        st = {"down": False, "held": False, "timer": None}
-        wdg = self
-
-        def fire_redo():
-            st["held"] = True
-            dbg("MIDI hold -> Redo")
-            wdg.redo()
-
-        def midi_control_change(val, send=True):
-            try:
-                if getattr(z, "midi_cc_mode", 0) > 0:          # relative encoder: keep Zynthian's behaviour
-                    return orig(val, send)
-                if getattr(z, "range_reversed", False):
-                    val = 127 - val
-                if val >= 64:
-                    if not st["down"]:
-                        st["down"], st["held"] = True, False
-                        st["timer"] = threading.Timer(MIDI_HOLD, fire_redo)
-                        st["timer"].start()
-                else:
-                    if st["down"]:
-                        st["down"] = False
-                        if st["timer"]:
-                            st["timer"].cancel()
-                        if not st["held"]:
-                            dbg("MIDI tap -> Undo")
-                            _flip(wdg.processor, "undo")
-            except Exception as e:
-                dbg("MIDI undo hook: %r", e)
-                return orig(val, send)
-
-        midi_control_change._eka_roll = True
-        z.midi_control_change = midi_control_change
-
     def _hook_controllers(self):
-        self._hook_midi_undo()
         if DEBUG:
             self._dbg_bind()
         try:

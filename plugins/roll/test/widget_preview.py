@@ -120,9 +120,6 @@ class Ctrl:
         self.value = v
         self.writes += 1
 
-    def midi_control_change(self, val, send=True):     # Zynthian, absolute CC on a toggle
-        self.set_value(1 if val >= 64 else 0)
-
 
 class FakeViz:
     """Shared memory as the plugin writes it (see Viz in eka_roll.c): 2 bars, 3 layers."""
@@ -422,21 +419,6 @@ def main():
     lib.state = 2
     wdg._sync_zynseq()
     check("zynseq starting: zbeat kept", proc.v("zbeat") == 3)
-
-    # MIDI button learned to Undo/Redo: tap = Undo on release, hold 0.5 s = Redo, release after hold = nothing
-    zu = proc.controllers_dict["undo"]
-    u0, r0 = proc.v("undo"), proc.v("redo")
-    zu.midi_control_change(127)
-    check("MIDI press: nothing yet", proc.v("undo") == u0 and proc.v("redo") == r0)
-    zu.midi_control_change(0)
-    check("MIDI tap: Undo on release", proc.v("undo") != u0 and proc.v("redo") == r0)
-    u0 = proc.v("undo")
-    zu.midi_control_change(127)
-    _t.sleep(0.7)
-    check("MIDI hold 0.5 s: Redo", proc.v("redo") != r0 and proc.v("undo") == u0)
-    r0 = proc.v("redo")
-    zu.midi_control_change(0)
-    check("MIDI release after hold: no Undo", proc.v("undo") == u0 and proc.v("redo") == r0)
 
     proc.engine.viz.remove()
     print("%d failed" % fails)

@@ -87,8 +87,6 @@ All buttons are toggle-type: any change counts as a press.
 | | Del Slot | Delete slot file (press twice) |
 
 A second Undo/Redo within 0.3 s is ignored (touch screens sometimes report one tap twice).
-A MIDI button learned to Undo/Redo: tap = Undo (on release), hold 0.5 s = Redo. Use a momentary button
-(127 on press, 0 on release); the widget must have been opened once since Zynthian started.
 
 Zynthian's sequencer can stop or restart a scene while the JACK transport keeps running. The widget passes
 zynseq's beat to the looper (hidden `zbeat` port), so the loop pauses when zynseq stops and its downbeat follows
