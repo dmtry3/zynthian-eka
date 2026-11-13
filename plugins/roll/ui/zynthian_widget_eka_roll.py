@@ -51,7 +51,7 @@ GRID_COLOR = "#3a8fd8"
 # Open Roll widgets by processor id: the touch hook below is shared by all instances.
 ROLL_WIDGETS = {}
 
-DEBUG = True                                  # TEMPORARY: diagnostics in the Zynthian log (grep EKA-ROLL)
+DEBUG = False                                 # True: diagnostics in the Zynthian log (grep EKA-ROLL)
 
 
 def dbg(msg, *args):
