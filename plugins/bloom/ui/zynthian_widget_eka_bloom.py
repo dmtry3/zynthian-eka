@@ -3,6 +3,7 @@
 # Touchscreen editor of the Eka Bloom pattern steps.
 # Step values live in plugin parameters (prob1..16, shift1..16, vel1..16, gate1..16, ratch1..16);
 # the widget only writes them through regular Zynthian controllers, so snapshots keep them.
+# The Play tab has big touch tiles for the main controls (live playing without the encoders).
 # The Roll tab shows the notes Bloom has played, read from shared memory /dev/shm/eka_bloom_<pid>
 # (written by the plugin, see Viz in eka_bloom.c).
 import glob
@@ -13,6 +14,7 @@ import os
 import struct
 import time
 import tkinter
+import tkinter.font
 
 from zyngui import zynthian_gui_config
 from zyngui import zynthian_widget_base
@@ -53,6 +55,27 @@ VIZ_SIZE = VIZ_HDR.size + VIZ_NOTES * VIZ_NOTE.size
 BLACK_KEYS = (1, 3, 6, 8, 10)
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
+# ---------- Play tab ----------
+PLAY = ROLL + 1
+NTABS = PLAY + 1
+PLAY_COLOR = "#38d9a9"
+FLASH = 0.4                  # s: a pressed action tile stays lit this long
+# (symbol, title, kind, values, labels): toggle = tap switches; enum / num = left half -, right half +
+# (no wrap); action = widget actions ("_freeze", "_reset"). Values are what the controllers take.
+PLAY_TILES = [
+    ("latch", "Latch", "toggle", None, None),
+    ("rate", "Rate", "enum", list(range(6)), ["1/4", "1/8", "1/8T", "1/16", "1/16T", "1/32"]),
+    ("order", "Order", "enum", list(range(7)), ["Up", "Down", "Up-Dn", "Dn-Up", "Played", "Random", "Loop"]),
+    ("octaves", "Octaves", "enum", [1, 2, 3, 4], ["1", "2", "3", "4"]),
+    ("transpose", "Transpose", "enum", [-2, -1, 0, 1, 2], ["-2 oct", "-1 oct", "0", "+1 oct", "+2 oct"]),
+    ("gate", "Gate", "num", list(range(5, 101, 5)), None),
+    ("swing", "Swing", "num", list(range(50, 76, 5)), None),
+    ("mut_steps", "Mutate", "num", list(range(0, 101, 10)), None),
+    ("_freeze", "Freeze", "action", None, None),
+    ("_reset", "New loop", "action", None, None),
+]
+PLAY_COLS = 5
+
 
 def dim(col, f):
     r, g, b = int(col[1:3], 16), int(col[3:5], 16), int(col[5:7], 16)
@@ -80,6 +103,9 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         self.roll_bars = 2           # Roll window in bars
         self.mm = None               # shared memory of the plugin (Roll tab)
         self.mm_path = None
+        self.font_cache = {}         # (family, size, text) -> width in pixels
+        self.frozen = None           # Play/Freeze: (mut_steps, mut_notes) before freezing
+        self.flash = (None, 0.0)     # Play: (tile symbol, time) of the last action tap
         self.widget_canvas = tkinter.Canvas(
             self, highlightthickness=0, relief='flat',
             bg=zynthian_gui_config.color_bg)
@@ -231,12 +257,18 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         if not self.geo:
             self._layout()
         w, h, pad, tab_h, num_h, x0, x1, y0, y1, cw = self.geo
-        if event.y < tab_h:                                  # lane tabs and Roll
+        if event.y < tab_h:                                  # lane tabs, Roll, Play
             self.last_tap = (-1, -1, 0.0)
-            tw = w / float(len(LANES) + 1)
+            tw = w / float(NTABS)
             i = int(event.x / tw)
-            if 0 <= i <= len(LANES):
+            if 0 <= i < NTABS:
                 self.lane = i
+                self._draw()
+            return
+        if self.lane == PLAY:
+            hit = self._tile_at(event.x, event.y)
+            if hit:
+                self._play_tap(*hit)
                 self._draw()
             return
         if self.lane == ROLL:                                # tap on the roll: 1 / 2 / 4 bars
@@ -316,18 +348,24 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
             count = 0
         lane = self.lane
 
-        # tabs: the rows, then Roll
-        tw = w / float(len(LANES) + 1)
-        for i in range(len(LANES) + 1):
+        # tabs: the rows, then Roll and Play; one font size that fits the widest label
+        tw = w / float(NTABS)
+        labels = ["%s %d" % (LANES[i][1], self._lane_len(i)) for i in range(len(LANES))] + ["Roll", "Play"]
+        colors = LANE_COLORS + [ROLL_COLOR, PLAY_COLOR]
+        fs_tab = min(self._fit_size(fam, t, tw - 8, fs_tab) for t in labels)
+        for i in range(NTABS):
             sel = (i == lane)
-            tcol = LANE_COLORS[i] if i < len(LANES) else ROLL_COLOR
-            text = "%s %d" % (LANES[i][1], self._lane_len(i)) if i < len(LANES) else "Roll"
+            tcol = colors[i]
+            text = labels[i]
             c.create_rectangle(int(i * tw) + 1, 1, int((i + 1) * tw) - 2, tab_h - 2, tags="dyn",
                                fill=(tcol if sel else ""), outline=tcol)
             c.create_text(int((i + 0.5) * tw), tab_h // 2, text=text, tags="dyn",
                           fill=("#000000" if sel else tcol), font=(fam, fs_tab))
         if lane == ROLL:
             self._draw_roll()
+            return
+        if lane == PLAY:
+            self._draw_play()
             return
 
         length = self._lane_len(lane)
@@ -399,6 +437,22 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
             c.create_text(cx, h - num_h // 2 - 1, text=str(i + 1), tags="dyn",
                           fill=(tx if i < length else tx_off),
                           font=(fam, fs_num, "bold" if i + 1 == length else "normal"))
+
+    def _text_w(self, fam, size, text):
+        k = (fam, size, text)
+        if k not in self.font_cache:
+            try:
+                self.font_cache[k] = tkinter.font.Font(family=fam, size=size).measure(text)
+            except Exception:
+                self.font_cache[k] = int(len(text) * size * 0.75)
+        return self.font_cache[k]
+
+    def _fit_size(self, fam, text, maxw, start):
+        """Largest font size <= start (down to 6) at which text is at most maxw pixels wide."""
+        size = start
+        while size > 6 and self._text_w(fam, size, text) > maxw:
+            size -= 1
+        return size
 
     # ---------- Roll tab: the notes Bloom has played ----------
     def _open_mm(self):
@@ -552,3 +606,107 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         if not vis:
             c.create_text((nx0 + nx1) // 2, (y0 + y1) // 2, text="play a chord", tags="dyn",
                           fill=tx_off, font=(fam, fs + 2))
+
+    # ---------- Play tab: big tiles for live playing ----------
+    def _tile_rects(self):
+        w, h, pad, tab_h, num_h, x0, x1, y0, y1, cw = self.geo
+        rows = (len(PLAY_TILES) + PLAY_COLS - 1) // PLAY_COLS
+        gap = 4
+        bottom = h - pad
+        tw_ = (x1 - x0 - gap * (PLAY_COLS - 1)) / float(PLAY_COLS)
+        th = (bottom - y0 - gap * (rows - 1)) / float(rows)
+        rects = []
+        for k in range(len(PLAY_TILES)):
+            r, col = divmod(k, PLAY_COLS)
+            tx0 = x0 + col * (tw_ + gap)
+            ty0 = y0 + r * (th + gap)
+            rects.append((tx0, ty0, tx0 + tw_, ty0 + th))
+        return rects
+
+    def _tile_at(self, x, y):
+        """(tile index, +1 for the right half / -1 for the left half) or None."""
+        for k, (a, b, c_, d) in enumerate(self._tile_rects()):
+            if a <= x <= c_ and b <= y <= d:
+                return k, (1 if x >= (a + c_) / 2.0 else -1)
+        return None
+
+    def _play_value(self, sym, values):
+        v = int(round(self._zval(sym, values[0] if values else 0)))
+        if values and v not in values:                       # e.g. Gate 52 set by an encoder
+            v = min(values, key=lambda x: abs(x - v))
+        return v
+
+    def _play_tap(self, k, side):
+        sym, title, kind, values, labels = PLAY_TILES[k]
+        if kind == "toggle":
+            self._zset(sym, 0 if self._zval(sym, 0) >= 0.5 else 1)
+        elif kind in ("enum", "num"):
+            i = values.index(self._play_value(sym, values))
+            i = min(max(i + side, 0), len(values) - 1)
+            self._zset(sym, values[i])
+        elif sym == "_reset":                                # any change of Reset = a new loop and no drift
+            self._zset("reset", 0 if self._zval("reset", 0) >= 0.5 else 1)
+            self.flash = (sym, time.monotonic())
+        elif sym == "_freeze":
+            if self.frozen is not None:
+                st, nt = self.frozen
+                self._zset("mut_steps", st)
+                self._zset("mut_notes", nt)
+                self.frozen = None
+            else:
+                st = int(round(self._zval("mut_steps", 0)))
+                nt = int(round(self._zval("mut_notes", 0)))
+                if st or nt:
+                    self.frozen = (st, nt)
+                    self._zset("mut_steps", 0)
+                    self._zset("mut_notes", 0)
+                else:
+                    self.flash = (sym, time.monotonic())     # nothing mutates: just blink
+
+    def _draw_play(self):
+        c = self.widget_canvas
+        fam = zynthian_gui_config.font_family
+        tx = zynthian_gui_config.color_tx
+        tx_off = zynthian_gui_config.color_tx_off
+        if self.frozen is not None and (self._zval("mut_steps", 0) > 0 or self._zval("mut_notes", 0) > 0):
+            self.frozen = None                               # mutation turned on again from elsewhere
+        now = time.monotonic()
+        rects = self._tile_rects()
+        tw_ = rects[0][2] - rects[0][0]
+        th = rects[0][3] - rects[0][1]
+        titles = [t[1] for t in PLAY_TILES]
+        fs_title = min(self._fit_size(fam, t, tw_ - 8, max(7, int(th * 0.16))) for t in titles)
+        for k, (sym, title, kind, values, labels) in enumerate(PLAY_TILES):
+            a, b, c_, d = rects[k]
+            lit = False
+            if kind == "toggle":
+                lit = self._zval(sym, 0) >= 0.5
+                text = "On" if lit else "Off"
+            elif kind in ("enum", "num"):
+                v = self._play_value(sym, values)
+                text = labels[values.index(v)] if labels else ("%d%%" % v)
+            elif sym == "_freeze":
+                lit = self.frozen is not None
+                text = "On" if lit else "Off"
+            else:
+                text = "Reset"
+            if self.flash[0] == sym and now - self.flash[1] < FLASH:
+                lit = True
+            c.create_rectangle(a, b, c_, d, fill=(PLAY_COLOR if lit else "#161616"), outline=PLAY_COLOR,
+                               width=1, tags=("dyn", "tile"))
+            fg = "#000000" if lit else tx
+            c.create_text((a + c_) / 2.0, b + 3, anchor="n", text=title, tags="dyn",
+                          fill=("#000000" if lit else tx_off), font=(fam, fs_title))
+            fs_v = self._fit_size(fam, text, tw_ - 24, max(8, int(th * 0.3)))
+            c.create_text((a + c_) / 2.0, (b + d) / 2.0 + th * 0.08, text=text, tags=("dyn", "tileval"),
+                          fill=fg, font=(fam, fs_v, "bold"))
+            if kind in ("enum", "num"):                      # halves: - on the left, + on the right
+                i = values.index(v)
+                fs_a = max(7, int(fs_v * 0.8))
+                for (xx, anc, ch, ok) in ((a + 3, "w", "\u2039", i > 0), (c_ - 3, "e", "\u203a", i < len(values) - 1)):
+                    c.create_text(xx, (b + d) / 2.0 + th * 0.08, anchor=anc, text=ch, tags="dyn",
+                                  fill=(PLAY_COLOR if ok else "#333333"), font=(fam, fs_a))
+            if kind == "num":                                # how far along the range
+                f = (v - values[0]) / float(values[-1] - values[0])
+                c.create_rectangle(a + 4, d - 6, a + 4 + (c_ - a - 8) * f, d - 3, fill=PLAY_COLOR, width=0,
+                                   tags="dyn")

@@ -151,6 +151,10 @@ class Processor:
         self.controllers_dict["key"] = Ctrl("key", 0, 0, 12)
         self.controllers_dict["scale"] = Ctrl("scale", 0, 0, 11)
         self.controllers_dict["gate"] = Ctrl("gate", 50, 5, 100)
+        for k, v, lo, hi in (("latch", 0, 0, 1), ("rate", 3, 0, 5), ("order", 0, 0, 6), ("octaves", 1, 1, 4),
+                             ("transpose", 0, -2, 2), ("swing", 50, 50, 75), ("mut_steps", 0, 0, 100),
+                             ("mut_notes", 0, 0, 100), ("reset", 0, 0, 1)):
+            self.controllers_dict[k] = Ctrl(k, v, lo, hi)
         for i in range(1, 17):
             self.controllers_dict["prob%d" % i] = Ctrl("prob%d" % i, 100, 0, 100)
             self.controllers_dict["shift%d" % i] = Ctrl("shift%d" % i, 0, -24, 24)
@@ -217,7 +221,7 @@ def main():
 
     w, h, pad, tab_h, num_h, x0, x1, y0, y1, cw = wdg.geo
     cx = lambda i: int(x0 + (i + 0.5) * cw)
-    tab = lambda i: int(w / 6.0 * (i + 0.5))
+    tab = lambda i: int(w / 7.0 * (i + 0.5))
 
     check("widget sized to the window", w >= 400 and h >= 250)
 
@@ -481,12 +485,73 @@ def main():
     check("Roll: no shared memory: 'no data from the plugin'", "no data from the plugin" in texts())
     wdg._on_press(Ev(tab(0), tab_h // 2)); wdg.update()
 
+    # Play tab: big tiles; left half -, right half +
+    wdg._on_press(Ev(tab(6), tab_h // 2)); wdg.update()
+    tiles = wdg._tile_rects()
+    def tap(k, side):
+        a, b, c_, d = tiles[k]
+        wdg._on_press(Ev(int(a + (c_ - a) * (0.25 if side < 0 else 0.75)), int((b + d) / 2))); wdg.update()
+    check("Play tab: 10 tiles", wdg.lane == 6 and len(wdg.widget_canvas.find_withtag("tile")) == 10)
+    tap(0, 1); check("Latch tap: on", proc.v("latch") == 1 and "On" in texts())
+    tap(0, -1); check("Latch tap again: off", proc.v("latch") == 0)
+    tap(1, 1); check("Rate +: 1/16 -> 1/16T", proc.v("rate") == 4 and "1/16T" in texts())
+    tap(1, 1); tap(1, 1); check("Rate + stops at 1/32", proc.v("rate") == 5)
+    tap(1, -1); check("Rate -: 1/16T", proc.v("rate") == 4)
+    tap(2, -1); check("Order - at Up stays Up", proc.v("order") == 0)
+    tap(2, 1); check("Order +: Down", proc.v("order") == 1 and "Down" in texts())
+    tap(3, 1); check("Octaves +: 2", proc.v("octaves") == 2)
+    tap(4, 1); check("Transpose +: +1 oct", proc.v("transpose") == 1 and "+1 oct" in texts())
+    tap(5, 1); check("Gate +: 55%", proc.v("gate") == 55 and "55%" in texts())
+    proc.controllers_dict["gate"].value = 52; wdg.update()
+    tap(5, 1); check("Gate 52 (from an encoder) +: snaps to 50 then 55", proc.v("gate") == 55)
+    tap(6, 1); check("Swing +: 55%", proc.v("swing") == 55)
+    tap(7, 1); tap(7, 1); check("Mutate +2: 20%", proc.v("mut_steps") == 20)
+    proc.controllers_dict["mut_notes"].value = 30
+    tap(8, 1); check("Freeze: mutation 0, remembered", proc.v("mut_steps") == 0 and proc.v("mut_notes") == 0
+                     and wdg.frozen == (20, 30))
+    tap(8, 1); check("Freeze again: back to 20 / 30", proc.v("mut_steps") == 20 and proc.v("mut_notes") == 30
+                     and wdg.frozen is None)
+    tap(8, 1); proc.controllers_dict["mut_steps"].value = 40; wdg.update()
+    check("Freeze is dropped when mutation is turned on elsewhere", wdg.frozen is None)
+    r0 = proc.v("reset"); tap(9, 1)
+    check("New loop: Reset toggles (plugin resets on any change)", proc.v("reset") == 1 - r0)
+    check("New loop tile flashes", any(wdg.widget_canvas.itemcget(i, "fill") == mod.PLAY_COLOR
+                                       for i in wdg.widget_canvas.find_withtag("tile")))
+    before = {k: proc.v(k) for k in ("prob1", "ratch1", "len_prob")}
+    wdg._on_press(Ev(cx(3), h - 3)); wdg.update()
+    check("Play: taps don't touch steps or lengths", before == {k: proc.v(k) for k in before})
+    for k in ("latch", "rate", "order", "octaves", "transpose", "gate", "swing", "mut_steps", "mut_notes"):
+        proc.controllers_dict[k].value = {"latch": 0, "rate": 3, "order": 0, "octaves": 1, "transpose": 0,
+                                          "gate": 50, "swing": 50}.get(k, 0)
+    wdg._on_press(Ev(tab(0), tab_h // 2)); wdg.update()
+
     # drawing does not crash with the playing step and resizes
     for cs in (0, 1, 16, 1000):
         proc.engine.step_count = cs
         wdg.update()
     root.geometry("320x180"); root.update(); wdg.update(); root.update()
     check("redraw at another size and step counts 0/1/16/1000", True)
+
+    # tab labels fit their tabs at every size
+    for geo in ("320x180", "480x300", "800x480"):
+        root.geometry(geo); root.update(); wdg.update(); root.update()
+        cv = wdg.widget_canvas
+        tw6 = wdg.geo[0] / 7.0
+        labs = [i for i in cv.find_withtag("dyn") if cv.type(i) == "text" and cv.coords(i)[1] < wdg.geo[3]]
+        widths = [cv.bbox(i)[2] - cv.bbox(i)[0] for i in labs]
+        check("%s: 7 tab labels fit their tabs (widest %d of %d px)" % (geo, max(widths), tw6),
+              len(labs) == 7 and max(widths) <= tw6 - 4)
+        wdg.lane = 6; wdg.update(); root.update()
+        bad = 0
+        for (ta, tb, tc, td) in wdg._tile_rects():
+            for i in cv.find_overlapping(ta + 1, tb + 1, tc - 1, td - 1):
+                if cv.type(i) == "text":
+                    bx = cv.bbox(i)
+                    o = bx[0] < ta or bx[2] > tc or bx[1] < tb - 1 or bx[3] > td + 1
+                    bad += o
+                    if o: print("   out:", repr(cv.itemcget(i, "text")), bx, (ta, tb, tc, td))
+        check("%s: Play tile texts stay inside their tiles" % geo, bad == 0)
+        wdg.lane = 0
 
     proc.engine.viz.remove()
     print("\n%s" % ("ALL PASSED" if fails == 0 else "%d FAILED" % fails))

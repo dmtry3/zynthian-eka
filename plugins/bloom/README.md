@@ -151,6 +151,11 @@ on a window of 2 bars of the song grid. The playhead sweeps left to right: notes
 on the left lights the held keys; lighter rows are the notes of the scale (white keys with Chromatic). The
 pitch range follows the notes in whole octaves. **Tap the roll** to switch 1 / 2 / 4 bars.
 
+**Play tab.** Big tiles for playing live without the encoders. Tap the left half of a tile for less,
+the right half for more: Rate, Order, Octaves, Transpose, Gate, Swing, Mutate (Steps %). **Latch** turns
+on and off. **Freeze** stops all mutation (Steps % and Notes % to 0) and keeps what has grown; tap again
+to bring the mutation back. **New loop** is Reset: a new note loop and no step drift.
+
 | Row | Values | Default | Meaning |
 |---|---|---|---|
 | Prob | 0–100 % | 100 | chance that the step plays |
