@@ -68,6 +68,8 @@ int arp_shift_note(const ArpCore* a, int note, int n) {
   return p;
 }
 
+void arp_set_degree(ArpCore* a, int degree) { a->degree = clampi(degree, 0, 6); }
+
 void arp_set_transpose(ArpCore* a, int octaves) { a->transpose = clampi(octaves, -2, 2); }
 
 void arp_set_repeats(ArpCore* a, int rpt, int mode) {
@@ -498,6 +500,7 @@ static void do_step(ArpCore* a, long long g, double s, arp_emit_fn emit, void* u
     else if (a->rpt_mode == ARP_RPT_RUN_DOWN) pitch = drift_pitch(a, pitch, -k);
     else if (a->rpt_mode == ARP_RPT_OCT && (k & 1)) pitch += 12;
   }
+  if (a->degree && a->scale != ARP_SCALE_CHROMATIC) pitch = drift_pitch(a, pitch, a->degree);   /* Degree */
   pitch += 12 * a->transpose;
   if (a->fx == ARP_FX_OCT) pitch += 12;
   if (pitch < 0 || pitch > 127) play = 0;

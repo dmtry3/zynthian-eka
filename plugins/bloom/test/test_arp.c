@@ -1647,6 +1647,32 @@ static void test_play(void) {
   #undef PCHECK
 }
 
+static void test_degree(void) {
+  ArpCore a; Log l; double t[64]; int nt[64];
+  arp_init(&a); chord(&a); arp_set_scale(&a, 0, ARP_SCALE_MAJOR); arp_set_degree(&a, 3);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 720, collect, &l);
+  int k = play_ons(&l, t, nt, 64);
+  int ok = k == 3 && nt[0] == 65 && nt[1] == 69 && nt[2] == 72;
+  printf("%s: Degree IV in C major: C-E-G plays F-A-C\n", ok ? "PASS" : "FAIL");
+  if (!ok) { print_log("got", &l); failures++; }
+  arp_init(&a); chord(&a); arp_set_scale(&a, 9, ARP_SCALE_MINOR); arp_set_degree(&a, 4);
+  memset(&l, 0, sizeof l); arp_process(&a, 0, 720, collect, &l);
+  k = play_ons(&l, t, nt, 64);
+  /* A minor, C-E-G moved 4 scale notes: C->G, E->B, G->D */
+  ok = k == 3 && nt[0] == 67 && nt[1] == 71 && nt[2] == 74;
+  printf("%s: Degree V in A minor: C-E-G plays G-B-D\n", ok ? "PASS" : "FAIL");
+  if (!ok) { print_log("got", &l); failures++; }
+  Log ref; memset(&ref, 0, sizeof ref); memset(&l, 0, sizeof l);
+  arp_init(&a); chord(&a); arp_process(&a, 0, 1920, collect, &ref);
+  arp_init(&a); chord(&a); arp_set_degree(&a, 4); arp_process(&a, 0, 1920, collect, &l);
+  ok = same_logs(&ref, &l);
+  printf("%s: Degree has no effect with Chromatic\n", ok ? "PASS" : "FAIL");
+  if (!ok) failures++;
+  arp_set_degree(&a, 9); ok = a.degree == 6; arp_set_degree(&a, -1); ok = ok && a.degree == 0;
+  printf("%s: Degree clamped to 0..6\n", ok ? "PASS" : "FAIL");
+  if (!ok) failures++;
+}
+
 int main(void) {
   test_up_one_block();
   test_chunks();
@@ -1690,6 +1716,7 @@ int main(void) {
   test_ratchet();
   test_ratch_every();
   test_play();
+  test_degree();
   printf(failures ? "\n%d FAILED\n" : "\nALL PASSED\n", failures);
   return failures ? 1 : 0;
 }

@@ -6,7 +6,8 @@
 # The view follows Zynthian's knob page (as in Eka Fold): the Arp page shows the roll of the notes Bloom
 # has played, read from shared memory /dev/shm/eka_bloom_<pid> (written by the plugin, see Viz in
 # eka_bloom.c); the Play page shows pads and an XY pad for live effects (held = on, released = off);
-# the other pages show the step editor.
+# the Scale page a keyboard (tap = Key), the scales and the degrees (tap = the arpeggio moves to that chord
+# of the key); the other pages show the step editor.
 import glob
 import logging
 import math
@@ -44,7 +45,7 @@ MUT_MAX = (3, 3, 3, 4)      # drift limits per row (prob, shift, vel, gate), as 
 DOUBLE_TAP = 0.35            # seconds: second tap on the same step resets it
 
 # ---------- views by knob page ----------
-PAGE_VIEWS = {"g_arp": "roll", "g_play": "play"}   # port group -> view; other pages: the step editor
+PAGE_VIEWS = {"g_arp": "roll", "g_play": "play", "g_scale": "scale"}   # port group -> view; others: editor
 
 # ---------- Play view ----------
 # pads: (fx value, title, subtitle); held = the effect, released = Off (values as in arp_core.h ARP_FX_*)
@@ -54,6 +55,30 @@ PAD_COLS = 4
 ROLL_PAD_COLOR = "#f783ac"
 FX_PAD_COLOR = "#38d9a9"
 XY_COLOR = "#74c0fc"
+
+# ---------- Scale view ----------
+SCALE_COLOR = "#b197fc"
+SCALE_SHORT = ["Chromatic", "Major", "Minor", "Dorian", "Phrygian", "Lydian", "Mixolyd.", "Harm. m",
+               "Mel. m", "Maj pent", "Min pent", "Blues"]
+WHITE_PCS = [0, 2, 4, 5, 7, 9, 11]
+BLACK_PCS = [(1, 1), (3, 2), (6, 4), (8, 5), (10, 6)]     # (pitch class, white key it sits before)
+ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII"]
+
+
+def degree_chord(steps, i):
+    """(label, chord suffix) of degree i of a 7-note scale: case and sign by its triad."""
+    r = steps[i]
+    third = (steps[(i + 2) % 7] - r) % 12
+    fifth = (steps[(i + 4) % 7] - r) % 12
+    if third == 4 and fifth == 7:
+        return ROMAN[i], ""
+    if third == 3 and fifth == 7:
+        return ROMAN[i].lower(), "m"
+    if third == 3 and fifth == 6:
+        return ROMAN[i].lower() + "\u00b0", "\u00b0"
+    if third == 4 and fifth == 8:
+        return ROMAN[i] + "+", "+"
+    return ROMAN[i], ""
 ROLL_COLOR = "#ffd43b"
 ROLL_BARS = (1, 2, 4)        # window lengths, a tap on the roll cycles them
 PPQN = 960
@@ -96,6 +121,7 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         self.font_cache = {}         # (family, size, text) -> width in pixels
         self.view = "steps"          # "steps" (editor), "roll" or "play", by the knob page
         self.touch = None            # Play: "pad" or "xy" while a finger is down
+        self.scale_boxes = []        # Scale: (x0, y0, x1, y1, kind, value) of what a tap can hit
         self.last_group = None       # knob page (port group symbol) seen on the previous redraw
         self.widget_canvas = tkinter.Canvas(
             self, highlightthickness=0, relief='flat',
@@ -251,6 +277,9 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         if self.view == "play":
             self._play_press(event.x, event.y)
             return
+        if self.view == "scale":
+            self._scale_press(event.x, event.y)
+            return
         if self.view == "roll":                              # tap on the roll: 1 / 2 / 4 bars
             k = ROLL_BARS.index(self.roll_bars) if self.roll_bars in ROLL_BARS else 0
             self.roll_bars = ROLL_BARS[(k + 1) % len(ROLL_BARS)]
@@ -367,6 +396,9 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
             return
         if self.view == "play":
             self._draw_play()
+            return
+        if self.view == "scale":
+            self._draw_scale()
             return
 
         # tabs of the rows; one font size that fits the widest label
@@ -747,3 +779,150 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
                       tags=("dyn", "xydot"))
         c.create_text(c_ - 2, tab_h // 2, anchor="e", text="dens %d  dyn %d" % (dens, dyn), tags="dyn",
                       fill=(XY_COLOR if live else tx_off), font=(fam, fs_l))
+
+    # ---------- Scale view: keyboard = Key, scales, degrees ----------
+    def _scale_press(self, x, y):
+        for (a, b, c_, d, kind, val) in self.scale_boxes:
+            if a <= x <= c_ and b <= y <= d:
+                if kind == "key":
+                    self._zset("key", val)
+                elif kind == "scale":
+                    self._zset("scale", val)
+                elif kind == "degree":
+                    self._zset("degree", val)
+                self._draw()
+                return
+
+    def _draw_scale(self):
+        c = self.widget_canvas
+        w, h, pad, tab_h, num_h, x0, x1, y0, y1, cw = self.geo
+        fam = zynthian_gui_config.font_family
+        tx = zynthian_gui_config.color_tx
+        tx_off = zynthian_gui_config.color_tx_off
+        self.scale_boxes = []
+        sc = self._scale()
+        steps = SCALE_STEPS[sc]
+        key_v = int(round(self._zval("key", 0)))
+        auto = key_v >= 12
+        viz = self._read_viz()
+        held = viz[2] if viz else []
+        sounding = None
+        if viz:
+            for (on, off, note, vel) in reversed(viz[3][-8:]):
+                if off < 0:
+                    sounding = note % 12
+                    break
+        key = (min(held) % 12 if held else None) if auto else key_v
+        deg = min(max(int(round(self._zval("degree", 0))), 0), 6)
+        in_scale = set(((key or 0) + x) % 12 for x in steps) if key is not None else set()
+
+        # header: what is chosen
+        if sc == 0:
+            head = "Scale: Chromatic"
+        else:
+            kname = ("Auto (%s)" % NOTE_NAMES[key] if key is not None else "Auto") if auto else NOTE_NAMES[key]
+            head = "Scale: %s %s" % (kname, SCALE_SHORT[sc].lower())
+            if deg and len(steps) == 7:
+                head += "  \u00b7  on %s" % degree_chord(steps, deg)[0]
+            elif deg:
+                head += "  \u00b7  degree %d" % (deg + 1)
+        fs_head = self._fit_size(fam, head, x1 - x0 - 4, max(7, int(tab_h * 0.4)))
+        c.create_text(x0 + 2, tab_h // 2, anchor="w", text=head, tags=("dyn", "scalehead"), fill=SCALE_COLOR,
+                      font=(fam, fs_head))
+
+        gap = 4
+        bottom = h - pad
+        total = bottom - y0
+        kb_h = total * 0.40
+        sc_h = (total * 0.34 - gap) / 2.0
+        dg_y = y0 + kb_h + gap + 2 * (sc_h + gap)
+        dg_h = bottom - dg_y
+
+        # keyboard: 7 white keys and the Auto button
+        auto_w = (x1 - x0) / 8.5 * 1.5
+        kx1 = x1 - auto_w - gap
+        ww = (kx1 - x0) / 7.0
+        ky0, ky1 = y0, y0 + kb_h
+        fs_k = self._fit_size(fam, "C#", ww * 0.6 - 2, max(7, int(kb_h * 0.16)))
+
+        def key_fill(pc, white):
+            if key is not None and pc == key:
+                return SCALE_COLOR
+            if pc in in_scale and sc != 0:
+                return "#d6ccff" if white else "#5f4b9a"
+            return "#9a9a9a" if white else "#2a2a2a"
+
+        def marks(pc, cx_, by):
+            if pc in set(n % 12 for n in held):              # held key: a dot
+                c.create_oval(cx_ - 4, by - 12, cx_ + 4, by - 4, fill=ROLL_COLOR, outline="", tags=("dyn", "heldpc"))
+            if sounding == pc:                               # the note sounding now: a ring
+                c.create_oval(cx_ - 7, by - 15, cx_ + 7, by - 1, outline="#ffffff", width=2, tags=("dyn", "nowpc"))
+
+        for j, pc in enumerate(WHITE_PCS):
+            a = x0 + j * ww
+            c.create_rectangle(a + 1, ky0, a + ww - 1, ky1, fill=key_fill(pc, True), outline="#000000",
+                               tags=("dyn", "key"))
+            c.create_text(a + ww / 2.0, ky1 - 3, anchor="s", text=NOTE_NAMES[pc], tags="dyn", fill="#000000",
+                          font=(fam, fs_k))
+            marks(pc, a + ww / 2.0, ky1 - fs_k * 1.6)
+            self.scale_boxes.append((a, ky0 + kb_h * 0.6, a + ww, ky1, "key", pc))
+        bw = ww * 0.6
+        for pc, before in BLACK_PCS:
+            a = x0 + before * ww - bw / 2.0
+            c.create_rectangle(a, ky0, a + bw, ky0 + kb_h * 0.6, fill=key_fill(pc, False), outline="#000000",
+                               tags=("dyn", "key"))
+            marks(pc, a + bw / 2.0, ky0 + kb_h * 0.6 - 2)
+            self.scale_boxes.insert(0, (a, ky0, a + bw, ky0 + kb_h * 0.6, "key", pc))   # black keys win
+        for j, pc in enumerate(WHITE_PCS):                   # upper part of a white key between the black ones
+            a = x0 + j * ww
+            self.scale_boxes.append((a, ky0, a + ww, ky0 + kb_h * 0.6, "key", pc))
+        aa = kx1 + gap
+        c.create_rectangle(aa, ky0, x1, ky1, fill=(SCALE_COLOR if auto else "#161616"), outline=SCALE_COLOR,
+                           tags=("dyn", "auto"))
+        fs_a = self._fit_size(fam, "Auto", auto_w - 6, max(7, int(kb_h * 0.2)))
+        c.create_text((aa + x1) / 2.0, (ky0 + ky1) / 2.0, text="Auto", tags="dyn",
+                      fill=("#000000" if auto else SCALE_COLOR), font=(fam, fs_a))
+        self.scale_boxes.insert(0, (aa, ky0, x1, ky1, "key", 12))
+
+        # scales: 2 rows of 6
+        sw = (x1 - x0 - gap * 5) / 6.0
+        fs_s = min(self._fit_size(fam, t, sw - 6, max(7, int(sc_h * 0.4))) for t in SCALE_SHORT)
+        for i, name in enumerate(SCALE_SHORT):
+            r, col = divmod(i, 6)
+            a = x0 + col * (sw + gap)
+            b = y0 + kb_h + gap + r * (sc_h + gap)
+            sel = (i == sc)
+            c.create_rectangle(a, b, a + sw, b + sc_h, fill=(SCALE_COLOR if sel else "#161616"), outline=SCALE_COLOR,
+                               tags=("dyn", "scalebtn"))
+            c.create_text(a + sw / 2.0, b + sc_h / 2.0, text=name, tags="dyn",
+                          fill=("#000000" if sel else tx), font=(fam, fs_s))
+            self.scale_boxes.append((a, b, a + sw, b + sc_h, "scale", i))
+
+        # degrees: the arpeggio moves to that chord of the key
+        if sc == 0:
+            c.create_text((x0 + x1) / 2.0, dg_y + dg_h / 2.0, text="choose a scale to move by degrees", tags="dyn",
+                          fill=tx_off, font=(fam, fs_s))
+            return
+        n = len(steps)
+        dw = (x1 - x0 - gap * (n - 1)) / float(n)
+        labels = []
+        for i in range(n):
+            if n == 7:
+                lab, suf = degree_chord(steps, i)
+                chord = (NOTE_NAMES[(key + steps[i]) % 12] + suf) if key is not None else ""
+            else:
+                lab, chord = str(i + 1), (NOTE_NAMES[(key + steps[i]) % 12] if key is not None else "")
+            labels.append((lab, chord))
+        fs_d = min(self._fit_size(fam, l_, dw - 6, max(8, int(dg_h * 0.34)), "bold") for (l_, _) in labels)
+        fs_c = min([self._fit_size(fam, ch, dw - 6, max(7, int(dg_h * 0.22))) for (_, ch) in labels if ch] or [7])
+        for i, (lab, chord) in enumerate(labels):
+            a = x0 + i * (dw + gap)
+            sel = (i == deg)
+            c.create_rectangle(a, dg_y, a + dw, bottom, fill=(SCALE_COLOR if sel else "#161616"), outline=SCALE_COLOR,
+                               tags=("dyn", "degbtn"))
+            c.create_text(a + dw / 2.0, dg_y + dg_h * 0.38, text=lab, tags="dyn",
+                          fill=("#000000" if sel else tx), font=(fam, fs_d, "bold"))
+            if chord:
+                c.create_text(a + dw / 2.0, dg_y + dg_h * 0.75, text=chord, tags="dyn",
+                              fill=("#000000" if sel else tx_off), font=(fam, fs_c))
+            self.scale_boxes.append((a, dg_y, a + dw, bottom, "degree", i))

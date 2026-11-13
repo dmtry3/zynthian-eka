@@ -137,7 +137,15 @@ Steps can only be delayed, never played early (the plugin does not look ahead).
 ## The pattern (widget)
 
 The widget follows the knob page: on **Play** it shows pads for live effects, on **Arp** the roll of the
-played notes, on the other pages a touch editor for the 16 steps of the pattern.
+played notes, on **Scale** the keyboard, scales and degrees, on the other pages a touch editor for the 16
+steps of the pattern.
+
+**Scale page.** Tap a key of the keyboard for the Key (*Auto* = the lowest held key), a button for the
+scale. Notes of the scale are lit, the key is bright, held keys have a dot and the note sounding now a
+ring. The bottom row are the **degrees** of the scale (i, ii°, III … with their chords in this key): a tap
+moves the whole arpeggio that many scale notes up, so one held chord walks through the chords of the key
+(C-E-G in C major on IV plays F-A-C). The same is the *Degree* knob on the Scale page; it does nothing
+with Chromatic.
 
 **Play page: effects while you hold.** Nothing is saved: lift the finger and Bloom is back on the grid.
 One touch at a time; slide the finger from pad to pad to change the effect.

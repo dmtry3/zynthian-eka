@@ -3,7 +3,7 @@
 #   python3 test/widget_preview.py          scripted touch tests (PASS/FAIL)
 #   python3 test/widget_preview.py --show   open a window to try it by hand (needs a display);
 #                                            keys: a = Arp page (roll), p = Pattern page (steps),
-#                                            l = Play page (pads)
+#                                            l = Play page (pads), s = Scale page
 import importlib.util
 import math
 import os
@@ -161,6 +161,7 @@ class Processor:
         self.controllers_dict["fx"] = Ctrl("fx", 0, 0, 8)
         self.controllers_dict["density"] = Ctrl("density", 50, 0, 100)
         self.controllers_dict["dynamics"] = Ctrl("dynamics", 50, 0, 100)
+        self.controllers_dict["degree"] = Ctrl("degree", 0, 0, 6)
         for i in range(1, 17):
             self.controllers_dict["prob%d" % i] = Ctrl("prob%d" % i, 100, 0, 100)
             self.controllers_dict["shift%d" % i] = Ctrl("shift%d" % i, 0, -24, 24)
@@ -231,6 +232,7 @@ def main():
         root.bind("<Key-a>", lambda e: (ctl.page("g_arp"), wdg.update()))
         root.bind("<Key-p>", lambda e: (ctl.page("g_pattern"), wdg.update()))
         root.bind("<Key-l>", lambda e: (ctl.page("g_play"), wdg.update()))
+        root.bind("<Key-s>", lambda e: (ctl.page("g_scale"), wdg.update()))
         tick()
         root.mainloop()
         proc.engine.viz.remove()
@@ -525,12 +527,12 @@ def main():
     check("Roll: wrong magic: 'no data from the plugin'", "no data from the plugin" in texts())
     viz.remove(); wdg.mm = None; wdg.mm_path = None; wdg.update()
     check("Roll: no shared memory: 'no data from the plugin'", "no data from the plugin" in texts())
-    for g in ("g_pattern", "g_lengths", "g_scale", "g_mutate", "g_groove"):
+    for g in ("g_pattern", "g_lengths", "g_mutate", "g_groove"):
         ctl.page("g_arp"); wdg.update()
         ctl.page(g); wdg.update()
         if wdg.view != "steps":
             break
-    check("Pattern, Lengths, Scale, Mutate, Groove pages: step editor", wdg.view == "steps")
+    check("Pattern, Lengths, Mutate, Groove pages: step editor", wdg.view == "steps")
     check("back to the editor: the chosen row (Vel) is kept", wdg.lane == 2 and "Ratch 16" in texts())
     ctl.page("g_arp"); wdg.update()
     ctl.screen_info = (None, None, "> Other", object(), 0); wdg.update()
@@ -582,6 +584,39 @@ def main():
     proc.controllers_dict["fx"].value = 0
     ctl.page("g_pattern"); wdg.update()
 
+    # Scale page: keyboard = Key, scale buttons, degrees
+    ctl.page("g_scale"); wdg.update()
+    boxes = lambda kind: [(b[0], b[1], b[2], b[3], b[5]) for b in wdg.scale_boxes if b[4] == kind]
+    def tap_box(kind, val):
+        for (a, b, c_, d, v) in boxes(kind):
+            if v == val:
+                wdg._on_press(Ev(int((a + c_) / 2), int(b + (d - b) * 0.8))); wdg.update()
+                return
+    head = lambda: [wdg.widget_canvas.itemcget(i, "text") for i in wdg.widget_canvas.find_withtag("scalehead")][0]
+    check("Scale page: keyboard, 12 scales, Chromatic has no degrees", wdg.view == "scale" and
+          len(boxes("scale")) == 12 and boxes("degree") == [] and "choose a scale to move by degrees" in texts())
+    tap_box("key", 2); check("tap D: Key D", proc.v("key") == 2)
+    tap_box("key", 1); check("tap the black key C#: Key C#", proc.v("key") == 1)
+    tap_box("key", 2)
+    tap_box("scale", 2); check("tap Minor: scale minor, header 'Scale: D minor'", proc.v("scale") == 2 and head() == "Scale: D minor")
+    check("D minor: 7 degrees i ii\u00b0 III iv v VI VII with chords Dm E\u00b0 F Gm Am A# C",
+          len(boxes("degree")) == 7 and {"i", "ii\u00b0", "III", "iv", "v", "VI", "VII"} <= set(texts())
+          and {"Dm", "E\u00b0", "F", "Gm", "Am", "A#", "C"} <= set(texts()))
+    tap_box("degree", 3); check("tap iv: Degree 3, header 'on iv'", proc.v("degree") == 3 and head().endswith("on iv"))
+    tap_box("scale", 9); check("Major pent: 5 degrees numbered 1..5", len(boxes("degree")) == 5 and {"1", "5"} <= set(texts()))
+    tap_box("key", 12); check("Auto: Key 12, header 'Auto'", proc.v("key") == 12 and "Auto" in head())
+    viz.held = [57, 60, 64]; viz.notes = [(viz.clk - 5, -1.0, 64, 100)]; viz.write(); wdg.mm = None; wdg.mm_path = None
+    wdg.update()
+    check("Auto with A-C-E held: 'Auto (A)'", "Auto (A)" in head())
+    check("held keys marked (3 dots), the sounding E ringed", len(wdg.widget_canvas.find_withtag("heldpc")) == 3 and
+          len(wdg.widget_canvas.find_withtag("nowpc")) == 1)
+    check("Scale: no step changes", proc.v("prob1") == 100 and proc.v("ratch1") == 1)
+    for k, v in (("key", 0), ("scale", 0), ("degree", 0)):
+        proc.controllers_dict[k].value = v
+    wdg.last_scale = 0
+    viz.remove(); wdg.mm = None; wdg.mm_path = None
+    ctl.page("g_pattern"); wdg.update()
+
     # drawing does not crash with the playing step and resizes
     for cs in (0, 1, 16, 1000):
         proc.engine.step_count = cs
@@ -615,6 +650,21 @@ def main():
         hb = [cv.bbox(i) for i in cv.find_withtag("dyn") if cv.type(i) == "text" and cv.coords(i)[1] < wdg.geo[3]]
         check("%s: Play texts inside pads, header fits (%d out)" % (geo, bad),
               bad == 0 and len(hb) == 2 and hb[0][2] < hb[1][0])
+        proc.controllers_dict["scale"].value = 7; wdg.last_scale = 7; proc.controllers_dict["degree"].value = 6
+        ctl.page("g_scale"); wdg.update(); root.update()
+        bad = 0
+        for (a, b, c_, d, kind, v) in wdg.scale_boxes:
+            if kind == "key":
+                continue
+            for i in cv.find_overlapping(a + 2, b + 2, c_ - 2, d - 2):
+                if cv.type(i) == "text":
+                    bx = cv.bbox(i)
+                    o = bx[0] < a - 1 or bx[2] > c_ + 1
+                    bad += o
+                    if o: print("   out:", repr(cv.itemcget(i, "text")), bx, (a, b, c_, d))
+        hb = cv.bbox(cv.find_withtag("scalehead")[0])
+        check("%s: Scale texts inside their buttons, header fits (%d out)" % (geo, bad), bad == 0 and hb[2] <= wdg.geo[0])
+        proc.controllers_dict["scale"].value = 0; wdg.last_scale = 0; proc.controllers_dict["degree"].value = 0
         ctl.page("g_pattern"); wdg.update()
 
     proc.engine.viz.remove()

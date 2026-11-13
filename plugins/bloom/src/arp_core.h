@@ -82,6 +82,7 @@ typedef struct {
   int lane_len[ARP_NROWS];      /* length of each row 1..16 (prob, shift, vel, gate, ratch) */
   int key, scale;               /* key 0..11 (C..B), scale ARP_SCALE_* */
   int key_auto;                 /* Key = Auto: key follows the lowest held note */
+  int degree;                   /* 0..6: every note moves this many scale notes up (not with Chromatic) */
   int passing, pass_style;      /* 0..100 % chance of a passing note before a new chord note, ARP_PASS_* */
   int transpose;                /* -2..+2 octaves, added to every generated note */
   int ratch_every;              /* 1..ARP_MAX_RATCH_EVERY: ratchets only on every N-th pass of the Ratch row */
@@ -180,6 +181,9 @@ double arp_step_offset(ArpCore* a, double s);
 void arp_set_passing(ArpCore* a, int pct, int style);
 /* Key 0..11 (C..B) or ARP_KEY_AUTO, and scale for Shift. */
 void arp_set_scale(ArpCore* a, int key, int scale);
+/* Degree 0..6: the arpeggio moves this many notes of the scale up (C-E-G in C major on degree 3 = F-A-C),
+ * so one held chord walks through the chords of the key. No effect with Chromatic. Next step. */
+void arp_set_degree(ArpCore* a, int degree);
 /* note + n semitones, pulled into the scale (n != 0); may return a value outside 0..127. */
 int  arp_shift_note(const ArpCore* a, int note, int n);
 /* Latch on: the chord stays after the keys are released; the next chord (pressed after all keys
