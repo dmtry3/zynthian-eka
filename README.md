@@ -85,3 +85,7 @@ make -C plugins/bloom test
 
 GPL-3.0-or-later, see the `LICENSE` file of each plugin. Third-party code and samples are listed in the plugins'
 `THIRD_PARTY.md` and `samples/CREDITS.md`.
+
+## Deploy from WSL over SSH
+
+Copy local changes without GitHub and build on the Pi: `make deploy-fold` (one plugin) or `make deploy` (all). Zynthian restarts after installation. [Instructions (Russian)](docs/DEPLOY.ru.md).

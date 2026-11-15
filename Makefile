@@ -17,3 +17,14 @@ uninstall-%:
 	$(MAKE) -C plugins/$* uninstall
 
 .PHONY: all install uninstall $(PLUGINS)
+
+DEPLOY_TARGET ?= root@zynthian.local
+DEPLOY_DIR ?= /root/zynthian-eka
+
+deploy:
+	bash scripts/deploy-zynthian.sh all "$(DEPLOY_TARGET)" "$(DEPLOY_DIR)"
+
+deploy-%:
+	bash scripts/deploy-zynthian.sh $* "$(DEPLOY_TARGET)" "$(DEPLOY_DIR)"
+
+.PHONY: deploy
