@@ -675,14 +675,18 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             c.create_rectangle(x0, sy1 - seg * 0.62, x1, sy1, fill=col, width=0)
 
     def _master(self, x0, y0, x1, y1):
-        if self.cv.section("master", (x0, y0, x1, y1)):
-            return
+        m = self.monitors or {}
+        levels = tuple(lin_to_frac(float(m.get(sym, 0.0))) for sym in ("o_mpk_l", "o_mpk_r"))
         lab_h = min((y1 - y0) * 0.08, 18)
+        n = max(6, int((y1 - y0 - lab_h * 1.4) / 10))
+        lits = tuple(int(round(level * n)) for level in levels)
+        if self.cv.section("master", (x0, y0, x1, y1, lits)):
+            return
         self._text((x0 + x1) / 2, y0 + lab_h / 2, "MASTER", x1 - x0, lab_h, TEXT)
         mw = (x1 - x0) * 0.28
         mid = (x0 + x1) / 2
-        self._meter(mid - mw * 1.15, y0 + lab_h * 1.4, mid - mw * 0.15, y1)
-        self._meter(mid + mw * 0.15, y0 + lab_h * 1.4, mid + mw * 1.15, y1)
+        self._meter(mid - mw * 1.15, y0 + lab_h * 1.4, mid - mw * 0.15, y1, levels[0])
+        self._meter(mid + mw * 0.15, y0 + lab_h * 1.4, mid + mw * 1.15, y1, levels[1])
 
     def _lock_icon(self, cx, cy, r):
         """Значок замка (Lock): дужка и корпус."""

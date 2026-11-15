@@ -270,6 +270,31 @@ def main():
     check("темп и счёт видны", "120" in texts(wdg) and "1.1" in texts(wdg) and "4/4" in texts(wdg))
     no_overlap("800x480, Loop")
 
+    # Loop master: monitor changes must reach the rendered canvas without a resize.
+    def master_lights():
+        c = wdg.widget_canvas
+        ids = [item[0] for item in wdg.cv.prev["master"] if c.type(item[0]) == "rectangle"]
+        xs = [c.coords(i)[0] for i in ids]
+        mid = (min(xs) + max(xs)) / 2
+        return tuple(sum(c.itemcget(i, "fill") in mod.METER_ON
+                         for i in ids if (c.coords(i)[0] < mid) == left)
+                     for left in (True, False))
+
+    check("Loop Master: без сигнала обе шкалы погашены", master_lights() == (0, 0))
+    m["o_mpk_l"], m["o_mpk_r"] = 1.0, 0.0
+    wdg.update()
+    left, right = master_lights()
+    check("Loop Master: сигнал L зажигает только левую шкалу", left > 0 and right == 0)
+    m["o_mpk_l"], m["o_mpk_r"] = 0.0, 0.25
+    wdg.update()
+    left, right = master_lights()
+    check("Loop Master: сигнал R обновляется без смены экрана", left == 0 and right > 0)
+    wdg.update()
+    check("Loop Master: неизменный уровень сохраняет индикацию", master_lights() == (left, right))
+    m["o_mpk_l"], m["o_mpk_r"] = 0.0, 0.0
+    wdg.update()
+    check("Loop Master: после сигнала шкалы гаснут", master_lights() == (0, 0))
+
     m["o_action"], m["o_act_cnt"] = 1.0, 1.0
     wdg.update()
     fills = fills_of(wdg)
