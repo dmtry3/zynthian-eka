@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: bash scripts/deploy-zynthian.sh <all|tape|roll|bloom|mist|fold> [user@host] [absolute-remote-directory]"
+    echo "Usage: bash scripts/deploy-zynthian.sh <all|tape|roll|bloom|mist|fold|grainflow> [user@host] [absolute-remote-directory]"
     echo "Defaults: all root@zynthian.local /root/zynthian-eka"
     echo "Installs local changes without GitHub; restarts Zynthian (audio stops)."
 }
@@ -13,8 +13,8 @@ PLUGIN="${1:-all}"
 TARGET="${2:-root@zynthian.local}"
 DEST="${3:-/root/zynthian-eka}"
 case "$PLUGIN" in
-    all) PLUGINS=(tape roll bloom mist fold) ;;
-    tape|roll|bloom|mist|fold) PLUGINS=("$PLUGIN") ;;
+    all) PLUGINS=(tape roll bloom mist fold grainflow) ;;
+    tape|roll|bloom|mist|fold|grainflow) PLUGINS=("$PLUGIN") ;;
     *) usage >&2; exit 1 ;;
 esac
 if [[ -z "$TARGET" || "$TARGET" == -* || "$DEST" != /* || "$DEST" == / || "$DEST" == *$'\n'* ]]; then
@@ -25,7 +25,9 @@ for tool in ssh tar; do
     command -v "$tool" >/dev/null || { echo "Missing command: $tool" >&2; exit 1; }
 done
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-FILES=(Makefile common)
+FILES=(Makefile)
+# common/ is currently empty and therefore absent in a fresh Git checkout.
+if [[ -d "$ROOT/common" ]]; then FILES+=(common); fi
 for p in "${PLUGINS[@]}"; do FILES+=("plugins/$p"); done
 # Bash quoting protects destination paths, including spaces.
 printf -v REMOTE_SCRIPT 'set -euo pipefail\nif [ "$EUID" -ne 0 ]; then echo "Connect as root to install on Zynthian." >&2; exit 1; fi\nif [ ! -f /zynthian/zynthian-ui/zyngine/zynthian_lv2.py ]; then echo "Zynthian UI not found on this host." >&2; exit 1; fi\nmkdir -p -- %q\ntar -xzf - -C %q\n' "$DEST" "$DEST"

@@ -1,8 +1,8 @@
 # Changelog
 
-## 0.1 (release preparation)
+## 0.1 — 2026-11-16
 
-First public version of **Eka Grain Flow**, prepared for `zynthian-eka/plugins/grainflow`.
+First public version of **Eka Grain Flow**, included as `zynthian-eka/plugins/grainflow`.
 LV2 metadata version: 0.1 (`minorVersion 0`, `microVersion 1`).
 
 - Live stereo granular effect with three independent streams, an 8-second source buffer and a shared pool of 48 grains.

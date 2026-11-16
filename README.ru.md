@@ -2,8 +2,8 @@
 
 [English](README.md) · **Русский**
 
-Пять LV2-плагинов для [Zynthian](https://zynthian.org), у каждого свой виджет для тачскрина: аудио-лупер,
-MIDI-лупер, генеративный арпеджиатор, гранулярный сэмплер и синтезатор West Coast. Сделаны для живой игры на
+Шесть LV2-плагинов для [Zynthian](https://zynthian.org), у каждого свой виджет для тачскрина: аудио-лупер,
+MIDI-лупер, генеративный арпеджиатор, гранулярный сэмплер, синтезатор West Coast и гранулярный эффект. Сделаны для живой игры на
 Raspberry Pi 5 и для работы вместе в одном сетапе.
 
 > Проверено на: Zynthian **Vangelis** (stable 2610), Raspberry Pi 5, набор V5, тачскрин 800x480.
@@ -46,10 +46,17 @@ Raspberry Pi 5 и для работы вместе в одном сетапе.
 
 ![Eka Fold](plugins/fold/docs/3-fold.png)
 
+### [Eka Grain Flow](plugins/grainflow): гранулярный эффект для живого входа
+
+Три потока превращают входной звук в развивающиеся облака: частичный и полный Freeze, сканирование буфера,
+стереоширина, квантование высоты, два LFO с синхронизацией и входная огибающая на матрице модуляции. 25 пресетов.
+
+![Eka Grain Flow](plugins/grainflow/docs/1-main.png)
+
 ## Сетап
 
 Типичная цепочка: **Roll** пишет аккорды, **Bloom** превращает их в живое арпеджио, его играет **Fold** или
-**Mist**, а **Tape** закольцовывает звук вместе с вашим инструментом. Каждый плагин работает и сам по себе.
+**Mist**, **Grain Flow** преобразует его звук, а **Tape** закольцовывает звук вместе с вашим инструментом. Каждый плагин работает и сам по себе.
 
 ## Установка
 
@@ -58,7 +65,7 @@ Raspberry Pi 5 и для работы вместе в одном сетапе.
 ```bash
 git clone https://github.com/dmtry3/zynthian-eka.git
 cd zynthian-eka
-sudo make install-bloom          # один плагин: tape, roll, bloom, mist или fold
+sudo make install-bloom          # один плагин: tape, roll, bloom, mist, fold или grainflow
 sudo make install                # или все
 systemctl restart zynthian
 ```
