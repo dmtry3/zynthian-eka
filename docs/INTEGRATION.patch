@@ -1,0 +1,104 @@
+--- a/README.md
++++ b/README.md
+@@ -2,8 +2,8 @@
+ 
+ **English** · [Русский](README.ru.md)
+ 
+-Five LV2 plugins for [Zynthian](https://zynthian.org), each with its own touch widget: an audio looper, a MIDI
+-looper, a generative arpeggiator, a granular sampler and a West Coast synth. They are made to play live on a
++Six LV2 plugins for [Zynthian](https://zynthian.org), each with its own touch widget: an audio looper, a MIDI
++looper, a generative arpeggiator, a granular sampler, a West Coast synth and a live granular effect. They are made to play live on a
+ Raspberry Pi 5 and to work together in one setup.
+ 
+ > Tested on: Zynthian **Vangelis** (stable 2610), Raspberry Pi 5, V5 kit, 800x480 touch screen.
+@@ -46,10 +46,17 @@
+ 
+ ![Eka Fold](plugins/fold/docs/3-fold.png)
+ 
++### [Eka Grain Flow](plugins/grainflow): live granular effect
++
++Three streams turn live audio into evolving clouds: partial or full Freeze, source scanning, wide stereo grains,
++quantized pitch, two tempo-aware LFOs and an input envelope on a modulation grid. 25 factory presets.
++
++![Eka Grain Flow](plugins/grainflow/docs/1-main.png)
++
+ ## A setup
+ 
+ A typical chain: **Roll** records the chords, **Bloom** turns them into a moving arpeggio, **Fold** or **Mist**
+-plays it, and **Tape** loops the sound together with your instrument. Each plugin also works on its own.
++plays it, **Grain Flow** reshapes its audio, and **Tape** loops the sound together with your instrument. Each plugin also works on its own.
+ 
+ ## Installation
+ 
+@@ -58,7 +65,7 @@
+ ```bash
+ git clone https://github.com/dmtry3/zynthian-eka.git
+ cd zynthian-eka
+-sudo make install-bloom          # one plugin: tape, roll, bloom, mist or fold
++sudo make install-bloom          # one plugin: tape, roll, bloom, mist, fold or grainflow
+ sudo make install                # or all of them
+ systemctl restart zynthian
+ ```
+--- a/README.ru.md
++++ b/README.ru.md
+@@ -2,8 +2,8 @@
+ 
+ [English](README.md) · **Русский**
+ 
+-Пять LV2-плагинов для [Zynthian](https://zynthian.org), у каждого свой виджет для тачскрина: аудио-лупер,
+-MIDI-лупер, генеративный арпеджиатор, гранулярный сэмплер и синтезатор West Coast. Сделаны для живой игры на
++Шесть LV2-плагинов для [Zynthian](https://zynthian.org), у каждого свой виджет для тачскрина: аудио-лупер,
++MIDI-лупер, генеративный арпеджиатор, гранулярный сэмплер, синтезатор West Coast и гранулярный эффект. Сделаны для живой игры на
+ Raspberry Pi 5 и для работы вместе в одном сетапе.
+ 
+ > Проверено на: Zynthian **Vangelis** (stable 2610), Raspberry Pi 5, набор V5, тачскрин 800x480.
+@@ -46,10 +46,17 @@
+ 
+ ![Eka Fold](plugins/fold/docs/3-fold.png)
+ 
++### [Eka Grain Flow](plugins/grainflow): гранулярный эффект для живого входа
++
++Три потока превращают входной звук в развивающиеся облака: частичный и полный Freeze, сканирование буфера,
++стереоширина, квантование высоты, два LFO с синхронизацией и входная огибающая на матрице модуляции. 25 пресетов.
++
++![Eka Grain Flow](plugins/grainflow/docs/1-main.png)
++
+ ## Сетап
+ 
+ Типичная цепочка: **Roll** пишет аккорды, **Bloom** превращает их в живое арпеджио, его играет **Fold** или
+-**Mist**, а **Tape** закольцовывает звук вместе с вашим инструментом. Каждый плагин работает и сам по себе.
++**Mist**, **Grain Flow** преобразует его звук, а **Tape** закольцовывает звук вместе с вашим инструментом. Каждый плагин работает и сам по себе.
+ 
+ ## Установка
+ 
+@@ -58,7 +65,7 @@
+ ```bash
+ git clone https://github.com/dmtry3/zynthian-eka.git
+ cd zynthian-eka
+-sudo make install-bloom          # один плагин: tape, roll, bloom, mist или fold
++sudo make install-bloom          # один плагин: tape, roll, bloom, mist, fold или grainflow
+ sudo make install                # или все
+ systemctl restart zynthian
+ ```
+--- a/scripts/deploy-zynthian.sh
++++ b/scripts/deploy-zynthian.sh
+@@ -3,7 +3,7 @@
+ set -euo pipefail
+ 
+ usage() {
+-    echo "Usage: bash scripts/deploy-zynthian.sh <all|tape|roll|bloom|mist|fold> [user@host] [absolute-remote-directory]"
++    echo "Usage: bash scripts/deploy-zynthian.sh <all|tape|roll|bloom|mist|fold|grainflow> [user@host] [absolute-remote-directory]"
+     echo "Defaults: all root@zynthian.local /root/zynthian-eka"
+     echo "Installs local changes without GitHub; restarts Zynthian (audio stops)."
+ }
+@@ -13,8 +13,8 @@
+ TARGET="${2:-root@zynthian.local}"
+ DEST="${3:-/root/zynthian-eka}"
+ case "$PLUGIN" in
+-    all) PLUGINS=(tape roll bloom mist fold) ;;
+-    tape|roll|bloom|mist|fold) PLUGINS=("$PLUGIN") ;;
++    all) PLUGINS=(tape roll bloom mist fold grainflow) ;;
++    tape|roll|bloom|mist|fold|grainflow) PLUGINS=("$PLUGIN") ;;
+     *) usage >&2; exit 1 ;;
+ esac
+ if [[ -z "$TARGET" || "$TARGET" == -* || "$DEST" != /* || "$DEST" == / || "$DEST" == *$'\n'* ]]; then
