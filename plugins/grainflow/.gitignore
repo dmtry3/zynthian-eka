@@ -4,3 +4,5 @@ build/
 dist/
 build_test/
 __pycache__/
+deploy-zynthian.sh
+DEPLOY.ru.md

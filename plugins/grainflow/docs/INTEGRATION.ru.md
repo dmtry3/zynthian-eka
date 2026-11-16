@@ -37,7 +37,7 @@
    Корневой Makefile уже обнаруживает `plugins/*`, поэтому отдельных целей добавлять не нужно.
    Обновить локальные AGENTS/CLAUDE монорепозитория, если они есть; они исключены его `.gitignore`.
 5. Собрать только Grain Flow и выполнить его тесты в новой папке. Проверить общие
-   цели `grainflow`, `install-grainflow`, `uninstall-grainflow`, `deploy-grainflow`.
+   цели `grainflow`, `install-grainflow`, `uninstall-grainflow`.
 6. На Pi установить из новой папки и перезапустить Zynthian. Проверить Factory,
    виджет, пользовательские пресеты и ранее сохранённый снапшот. Установщик
    перепривяжет существующие ссылки к новой папке, имя плагина останется прежним.
@@ -57,17 +57,6 @@ git pull
 sudo make install-grainflow
 systemctl restart zynthian
 ```
-
-Для передачи из WSL без GitHub после интеграции:
-
-```bash
-cd /home/demetry/projects/zynthian-eka
-make deploy-grainflow
-```
-
-Это общий скрипт монорепозитория. `plugins/grainflow/scripts/deploy-zynthian.sh`
-остаётся помощником для отдельной рабочей копии и по умолчанию использует прежнюю
-папку `/root/zynthian-eka-grain-flow`; не путать эти два способа.
 
 ## Что ещё проверить на устройстве
 

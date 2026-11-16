@@ -2,3 +2,5 @@ CLAUDE.md
 .claude/
 AGENTS.md
 deploy.env
+deploy-zynthian.sh
+DEPLOY.ru.md

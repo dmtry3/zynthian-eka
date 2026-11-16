@@ -18,6 +18,7 @@ uninstall-%:
 
 .PHONY: all install uninstall $(PLUGINS)
 
+ifneq ($(wildcard scripts/deploy-zynthian.sh),)
 DEPLOY_TARGET ?= root@zynthian.local
 DEPLOY_DIR ?= /root/zynthian-eka
 
@@ -28,3 +29,4 @@ deploy-%:
 	bash scripts/deploy-zynthian.sh $* "$(DEPLOY_TARGET)" "$(DEPLOY_DIR)"
 
 .PHONY: deploy
+endif
