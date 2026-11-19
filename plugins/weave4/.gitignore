@@ -1,0 +1,14 @@
+build/
+build_test/
+dist/
+*.o
+*.so
+*.a
+*.bak
+*.log
+__pycache__/
+*.pyc
+.env
+deploy.env
+audio-local/
+AGENTS.md

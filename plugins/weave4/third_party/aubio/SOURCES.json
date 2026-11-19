@@ -1,0 +1,31 @@
+{
+  "project": "aubio",
+  "version": "0.4.9",
+  "source": "https://aubio.org/pub/aubio-0.4.9.tar.bz2",
+  "archive_sha256": "d48282ae4dab83b3dc94c16cf011bcb63835c1c02b515490e1883049c3d1f3da",
+  "license": "GPL-3.0-or-later; Ooura FFT permission retained in spectral/ooura_fft8g.c",
+  "modifications": "Upstream DSP files unmodified. Project config.h selects portable Ooura FFT and C standard headers. Generic pitch API, I/O, FFmpeg, FFTW and other detectors excluded.",
+  "files": {
+    "COPYING": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+    "aubio_priv.h": "226de1b4b31c3cde01101e92d826c4ad90f4a8866ad4a34f2a7a9e8fda458ad4",
+    "config.h": "a11eee27f6213ecafd1ccaf578c4cd653335d3aeb39d3ea3e458364b94ee1aba",
+    "cvec.c": "fe6edbdef0e2b9797e76520d702cb19725883b98a176e11118cf8f6b5b0a6ef2",
+    "cvec.h": "4a67f0b759b351bf49dcbbac508917ebc86ebcdf3b15f879c81b8bf973a2b507",
+    "fvec.c": "edc83093a338f9035ec3840b129a8fdaa1e5d04329f726df17b8f6ed3fe033e5",
+    "fvec.h": "ad78d11c7ca4dde85026bbe3d1e0d2a4deedad36989bdd4486a65d200349a74f",
+    "mathutils.c": "25b49aa7bc471869bb5590ba810af1304fac09619ddc0a8519b57d61bb458b1b",
+    "mathutils.h": "412bf4b4c80a8c9050a3d08991a2ec4d0f5c56760f736bb275b674eb99187d4d",
+    "musicutils.c": "c0f0053780d539faa6d142be63306088a97c7f3e93d6637d596ae990c28e0373",
+    "musicutils.h": "b0171f855445b4fdfedce74cd2af0fa504b154e130614602c1692c76336ac2a4",
+    "pitch/pitchyinfast.c": "31f3edfdea07656b189736850faff7d97317e3ea56789fc989004837f9e77718",
+    "pitch/pitchyinfast.h": "d41f944b0f564d762aec414afa44fa9111d591330171d38f6a6975738561c584",
+    "spectral/fft.c": "adbc3ba1835c33ad49137ddb9a1bc6742001513abda5d04f7a2a9e3c3ffa293f",
+    "spectral/fft.h": "2f4d4880762aa57f682639dc3df9ba66e52dfa83fda005ebd7a6764b422f6948",
+    "spectral/ooura_fft8g.c": "da70d1cd4cc9bd1ba387cdf2c3409cdcd4cc0af7e65917896a08b9b3e128c109",
+    "types.h": "25d5d902a3ce7a2c6c400f34b7b9fd4ba26311527c66c1ff6baddec7704068bd",
+    "utils/log.c": "2088d3b7d75513ed5d75f048ecc20ce398bc0ab841c2242e35561fde7254b1ee",
+    "utils/log.h": "d14444bdeaf05fc29e0587c56b6cda5fa5324379998df4ed95b484bfec8d0c67",
+    "vecutils.c": "28ea0418517e82b2925d2bb0feca77b0223ba7f767351da0eee423b1310a0818",
+    "vecutils.h": "341823b8b9e7546ae09c88689d0069f6de084cd7102429abb5dfa2586de50ee5"
+  }
+}

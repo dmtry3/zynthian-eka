@@ -2,8 +2,8 @@
 
 **English** · [Русский](README.ru.md)
 
-Six LV2 plugins for [Zynthian](https://zynthian.org), each with its own touch widget: an audio looper, a MIDI
-looper, a generative arpeggiator, a granular sampler, a West Coast synth and a live granular effect. They are made to play live on a
+Seven LV2 plugins for [Zynthian](https://zynthian.org), each with its own touch widget: an audio looper, a MIDI
+looper, a generative arpeggiator, a granular sampler, a West Coast synth, a live granular effect and a four-voice pitch harmonizer. They are made to play live on a
 Raspberry Pi 5 and to work together in one setup.
 
 > Tested on: Zynthian **Vangelis** (stable 2610), Raspberry Pi 5, V5 kit, 800x480 touch screen.
@@ -53,10 +53,18 @@ quantized pitch, two tempo-aware LFOs and an input envelope on a modulation grid
 
 ![Eka Grain Flow](plugins/grainflow/docs/1-main.png)
 
+### [Eka Weave-4](plugins/weave4): four-voice pitch harmonizer
+
+Four harmony voices plus dry signal: independent intervals, 14 chord types with voice leading, diatonic scales, or
+MIDI-driven target notes with an embedded input pitch tracker; per-voice tempo-synced delay, fine detune / humanize,
+HPF/LPF filters, four scenes (A–D) and 9 factory presets.
+
+![Eka Weave-4](plugins/weave4/docs/1-main.png)
+
 ## A setup
 
 A typical chain: **Roll** records the chords, **Bloom** turns them into a moving arpeggio, **Fold** or **Mist**
-plays it, **Grain Flow** reshapes its audio, and **Tape** loops the sound together with your instrument. Each plugin also works on its own.
+plays it, **Weave-4** adds four-voice harmony to your live instrument (or follows the chords from **Roll**), **Grain Flow** reshapes the audio, and **Tape** loops the sound together with your instrument. Each plugin also works on its own.
 
 ## Installation
 
@@ -65,7 +73,7 @@ On the Zynthian (SSH as root):
 ```bash
 git clone https://github.com/dmtry3/zynthian-eka.git
 cd zynthian-eka
-sudo make install-bloom          # one plugin: tape, roll, bloom, mist, fold or grainflow
+sudo make install-bloom          # one plugin: tape, roll, bloom, mist, fold, grainflow or weave4
 sudo make install                # or all of them
 systemctl restart zynthian
 ```
@@ -76,9 +84,9 @@ Update later:
 cd /root/zynthian-eka && git pull && sudo make install && systemctl restart zynthian
 ```
 
-Every plugin builds on the device and is installed by symlinks (the LV2 bundle into `/usr/local/lib/lv2`, the
-widget into `zyngui/widgets_user`); nothing in Zynthian's own files is changed. `sudo make uninstall-<plugin>`
-or `sudo make uninstall` removes the links. Each plugin's README has the details.
+Every plugin builds on the device and installs its LV2 bundle into `/usr/local/lib/lv2` and its
+widget into `zyngui/widgets_user`; nothing in Zynthian's own files is changed. `sudo make uninstall-<plugin>`
+or `sudo make uninstall` removes them. Each plugin's README has the details.
 
 ## Building on any Linux
 
