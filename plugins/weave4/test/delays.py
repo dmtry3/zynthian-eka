@@ -100,8 +100,8 @@ def delay_checks():
     # Maximum time clamps safely and supports the oldest circular-buffer tap.
     delay = LIB.eka_delay_create(8000)
     LIB.eka_delay_set(delay, 10000, 0)
-    assert LIB.eka_delay_milliseconds(delay) == 8000
-    _, output = raw_process(delay, [1.] + [0.] * 64000)
+    assert LIB.eka_delay_milliseconds(delay) == 3000
+    _, output = raw_process(delay, [1.] + [0.] * 24000)
     assert output[-1] == 1 and max(map(abs, output[:-1])) == 0
     LIB.eka_delay_destroy(delay)
 
@@ -135,7 +135,7 @@ def delay_checks():
     assert host.extra[62].value == 3000
     set_extra(host, 48, 19)
     host.d.run(host.handle, 0)
-    assert host.extra[62].value == 8000
+    assert host.extra[62].value == 3000
     set_extra(host, 48, 7)
     host.d.run(host.handle, 0)
     assert abs(host.extra[62].value - 1000/3) < .001

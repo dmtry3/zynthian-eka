@@ -365,13 +365,14 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
                         (("mode", "scale_tonic", "scale_mode", "dry") if self._scale_mode() and "scale_tonic" in controllers
                          else ("mode", "midi_input_channel", "tracking_profile", "dry")
                          if self._midi_mode() and "midi_input_channel" in controllers
-                         else ("mode", "chord", "voicing", "dry"))],
+                         else ("mode", "chord", "voicing", "dry") if self._value("mode") >= .5
+                         else ("mode", PITCH[voice], LEVEL[voice], "dry"))],
             "Voice": [pitch, controllers[LEVEL[voice]], controllers["pan%d" % (voice + 1)],
                       self.virtual[("on", voice)]],
             "Time": [controllers[delay_symbol], controllers["feedback%d" % (voice + 1)],
-                     controllers["sync%d" % (voice + 1)], controllers["scene"]],
+                     controllers["sync%d" % (voice + 1)]],
             "Character": [controllers["%s%d" % (kind, voice + 1)]
-                          for kind in ("fine", "humanize", "human_speed")] + [controllers["tracking_profile" if self._scale_mode() else "scene"]],
+                          for kind in ("fine", "humanize", "human_speed")] + ([controllers["tracking_profile"]] if self._scale_mode() else []),
             "Tone": [controllers["%s%d" % (kind, voice + 1)]
                      for kind in ("hpf", "lpf", "tone_res", "tone_on")],
             "Output": [controllers[s] for s in ("master", "dry_timing", "selected_voice", "solo")],
@@ -655,7 +656,7 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
             bar = self._monitor("beats_per_bar", 4) or 4
             beats = QUARTERS[division] * unit / 4 if division < 17 else bar * 2 ** (division - 17)
             fallback = 60000 / max(20, self._monitor("bpm", 120)) * beats
-        return max(0, min(8000, self._monitor("delay_actual%d" % index, fallback)))
+        return max(0, min(3000, self._monitor("delay_actual%d" % index, fallback)))
 
     def _time_horizon(self):
         extent = 500
@@ -663,10 +664,10 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
             if self._available(voice) or self._monitor("peak%d" % (voice + 1)) > 1e-4:
                 repeats = 3 if self._value("feedback%d" % (voice + 1)) > 0 else 1
                 extent = max(extent, self._delay_ms(voice) * repeats)
-        for span in (500, 1000, 2000, 4000, 8000, 16000, 24000):
+        for span in (500, 1000, 2000, 3000, 6000, 9000):
             if span >= extent:
                 return span
-        return 24000
+        return 9000
 
     def _time_x(self, milliseconds):
         x0, _, x1, _ = self.plot
@@ -744,7 +745,7 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
             duration = self._time_label(self._delay_ms(selected))
             if self._value("sync%d" % (selected + 1)) >= .5:
                 duration = DIV_NAMES[division] + " = " + duration
-            if self._delay_ms(selected) >= 8000:
+            if self._delay_ms(selected) >= 3000:
                 duration += " MAX"
             summary = "Voice %d  |  %s" % (selected + 1, duration)
         elif page == "Tone":

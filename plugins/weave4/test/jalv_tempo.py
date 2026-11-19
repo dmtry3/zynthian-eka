@@ -47,7 +47,7 @@ def main():
               re.findall(r"([A-Za-z_][A-Za-z_0-9]*)\s*=\s*([-+0-9.eE]+)", text)}
     print({key: values.get(key) for key in ("bpm", "tempo_host", "delay_actual1", "beat_unit", "enabled_mask")})
     assert values.get("tempo_host") == 1, text
-    expected = min(8000, 60000 / values["bpm"] * values["beat_unit"] / 4)
+    expected = min(3000, 60000 / values["bpm"] * values["beat_unit"] / 4)
     assert abs(values["delay_actual1"] - expected) < .1, values
     assert values["enabled_mask"] == 9 and values["interval1"] == -8, values
     for key, expected in {"master": -6, "selected_voice": 4, "enable4": 1,

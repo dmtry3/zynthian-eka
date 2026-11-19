@@ -310,7 +310,7 @@ def main():
     assert widget._scene() == 1 and widget._selected() == selected
     assert {s: widget._value(s) for s in module.SCENE_PARAMS} == baseline
     assert parent.zcontrollers[0] is processor.controllers_dict["scene_b_division2"]
-    assert parent.zcontrollers[3] is processor.controllers_dict["scene"]
+    assert len(parent.zcontrollers) == 3
     parent.zcontrollers[1].set_value(65)
     assert processor.controllers_dict["scene_b_feedback2"].value == 65
     assert processor.controllers_dict["feedback2"].value == 50

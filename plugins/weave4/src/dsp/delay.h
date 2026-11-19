@@ -2,7 +2,7 @@
 #ifndef EKA_DELAY_H
 #define EKA_DELAY_H
 #include <stdint.h>
-#define EKA_DELAY_MAX_MS 8000.0
+#define EKA_DELAY_MAX_MS 3000.0
 typedef struct EkaDelay EkaDelay;
 EkaDelay *eka_delay_create(double rate);
 void eka_delay_destroy(EkaDelay *d);
