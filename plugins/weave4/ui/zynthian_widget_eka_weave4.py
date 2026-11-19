@@ -782,8 +782,8 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
         canvas.itemconfigure(self.items["store"], outline=COLOURS[1] if self.store_armed else DIM,
                              fill=COLOURS[1] if self.store_armed else zynthian_gui_config.color_bg)
         canvas.itemconfigure(self.items["store_label"], fill="#000000" if self.store_armed else self.fg)
-        clip = self._monitor("output_peak") >= 1
-        canvas.itemconfigure(self.items["clip"], text="CLIP" if clip else "", fill="#ff6b6b")
+        limiting = self._monitor("output_peak") > 1.001
+        canvas.itemconfigure(self.items["clip"], text="LIM" if limiting else "", fill=COLOURS[1])
         x0, _, x1, _ = self.plot
         for voice in range(4):
             available = self._available(voice)

@@ -55,7 +55,14 @@ def widget_dsp_checks():
         gain = 0 if db == -60 else 10 ** (db / 20)
         assert max(abs(sample - .2 * gain) for sample in output) < 1e-6
         host.close()
-    print("widget DSP: legacy Auto, On/Solo, octave limits, selection, meters and master passed")
+    # Master safety limiter prevents clipping on hot stereo signals and preserves pan balance.
+    hot = [1.5 * math.sin(2 * math.pi * 220 * i / 48000) for i in range(4800)]
+    host = make({10: 0, 21: 0, 31: 6}, dry=6, stereo=True)
+    left = host.process(hot); right = host.right
+    assert max(map(abs, left)) <= 1.0001 and max(map(abs, right)) <= 1.0001
+    assert host.extra[43].value > 1.0
+    host.close()
+    print("widget DSP: legacy Auto, On/Solo, octave limits, selection, meters, master and limiter passed")
 
 if __name__ == "__main__":
     widget_dsp_checks()

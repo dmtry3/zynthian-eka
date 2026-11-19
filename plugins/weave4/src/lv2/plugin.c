@@ -34,6 +34,7 @@ static const unsigned pitch_ports[VOICES] = { PITCH, PITCH2, PITCH3, PITCH4 };
 static const unsigned level_ports[VOICES] = { WET, LEVEL2, LEVEL3, LEVEL4 };
 static const unsigned pan_ports[VOICES] = { PAN1, PAN2, PAN3, PAN4 };
 static const float pitch_defaults[VOICES] = { 7, 4, 10, 12 };
+static const float LIM_CEILING = 1.0f; /* 0.0 dBFS brickwall peak limiter */
 typedef struct {
     EkaPitch *dsp[VOICES];
     EkaDelay *delay[VOICES];
@@ -54,6 +55,7 @@ typedef struct {
     EkaTimeURIDs time_ids;
     float *ports[PORT_COUNT], pan[VOICES], pan_smoothing, master;
     float peaks[VOICES], input_peak, output_peak;
+    float lim_env, lim_release;
     float level[VOICES], monitor_gain[VOICES];
     double rate;
     int started;
@@ -117,6 +119,8 @@ static LV2_Handle instantiate(const LV2_Descriptor *d, double rate, const char *
     p->rate = rate;
     p->master = 1;
     p->pan_smoothing = (float)(1 - exp(-1 / (rate * .010)));
+    p->lim_env = LIM_CEILING;
+    p->lim_release = (float)exp(-1.0 / (rate * .080));
     return p;
 }
 static void connect_port(LV2_Handle instance, uint32_t port, void *data) {
@@ -134,6 +138,7 @@ static void activate(LV2_Handle instance) {
     p->master = 1;
     p->tempo = (EkaTempo){120, 4, 4, 0};
     p->input_peak = p->output_peak = 0;
+    p->lim_env = LIM_CEILING;
     for (unsigned v = 0; v < VOICES; ++v) p->peaks[v] = 0;
     p->started = 0;
     eka_leading_reset(&p->leading);
@@ -332,9 +337,17 @@ static void run_span(Plugin *p, uint32_t base, uint32_t n) {
             p->master += p->pan_smoothing * (master_target - p->master);
             if (fabsf(master_target - p->master) < 1e-6f) p->master = master_target;
             float l = p->master * left[i], r = p->master * right[i];
-            float l_peak = fabsf(l), r_peak = fabsf(r);
-            if (l_peak > output_peak) output_peak = l_peak;
-            if (r_peak > output_peak) output_peak = r_peak;
+            float peak = fmaxf(fabsf(l), fabsf(r));
+            if (peak > output_peak) output_peak = peak;
+            if (p->lim_env > LIM_CEILING) {
+                p->lim_env = LIM_CEILING + p->lim_release * (p->lim_env - LIM_CEILING);
+                if (p->lim_env - LIM_CEILING < 1e-6f) p->lim_env = LIM_CEILING;
+            }
+            if (peak > p->lim_env) p->lim_env = peak;
+            if (p->lim_env > LIM_CEILING) {
+                float g = LIM_CEILING / p->lim_env;
+                l *= g; r *= g;
+            }
             if (p->ports[LEFT]) p->ports[LEFT][base + offset + i] = l;
             if (p->ports[RIGHT]) p->ports[RIGHT][base + offset + i] = r;
         }

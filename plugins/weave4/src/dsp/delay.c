@@ -84,6 +84,8 @@ void eka_delay_process(EkaDelay *d, uint32_t n, float *audio) {
         /* Zero-delay bypass has no recursive feedback or gain increase. */
         float feedback = !d->fading && d->current < 1e-9 ? 0 : d->feedback;
         float stored = input + feedback * delayed;
+        if (stored > 2.f) stored = 2.f + 2.f * tanhf((stored - 2.f) * .5f);
+        else if (stored < -2.f) stored = -2.f - 2.f * tanhf((-stored - 2.f) * .5f);
         if (fabsf(stored) < 1e-20f) stored = 0;
         d->ring[d->write] = stored;
         if (++d->write == d->capacity) d->write = 0;
