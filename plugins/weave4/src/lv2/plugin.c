@@ -174,8 +174,8 @@ static void tracking_update(Plugin *p) {
         float target = scale_mode ? targets[v] : p->midi.target[v];
         float sounding = target + (scale_mode ? 0 : 12 * p->midi_octave[v]);
         float shift = sounding - p->input_note;
-        /* Never fold unreachable targets. Allow 1 cent of detector roundoff at range edges. */
-        if (tracked && target >= 0 && shift >= -12.01f && shift <= 21.01f) {
+        /* Never fold unreachable targets. Allow vocal/scale intonation margin at range edges. */
+        if (tracked && target >= 0 && shift >= -12.65f && shift <= 21.65f) {
             p->tracked_pitch[v] = fminf(21, fmaxf(-12, shift)); p->tracked_valid |= 1u << v;
         }
         if (p->ports[EKA_MIDI_NOTE + v]) *p->ports[EKA_MIDI_NOTE + v] = scale_mode ? -1 : target;
@@ -387,7 +387,7 @@ static void run(LV2_Handle instance, uint32_t n) {
     if (p->ports[EKA_SCENE_ACTIVE]) *p->ports[EKA_SCENE_ACTIVE] = p->scene;
     if (p->ports[EKA_SCENE_MASK]) *p->ports[EKA_SCENE_MASK] = mask;
     unsigned mode = (unsigned)lroundf(value(p, MODE, 0, 0, 3));
-    unsigned profile = (unsigned)lroundf(value(p, EKA_TRACKING_PROFILE, 0, 0, 2));
+    unsigned profile = (unsigned)lroundf(value(p, EKA_TRACKING_PROFILE, 0, 0, 3));
     unsigned channel = (unsigned)lroundf(value(p, EKA_MIDI_CHANNEL, 0, 0, 16));
     if ((mode >= 2) != p->tracking_mode || profile != p->profile) {
         eka_tracker_reset(p->tracker); eka_scale_reset(&p->scale); p->tracking_dirty = 1;

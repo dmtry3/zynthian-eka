@@ -12,7 +12,7 @@ struct EkaTracker {
     aubio_pitchyinfast_t *pitch;
     fvec_t input, output, window_input;
     float result;
-    unsigned rate, window, hop, position, records, write;
+    unsigned rate, window, hop, position, records, write, profile;
     int64_t clock, last_good;
     float last_note, last_hz;
     struct Record history[HISTORY];
@@ -46,6 +46,10 @@ void eka_tracker_reset(EkaTracker *p) {
     memset(p->window_input.data, 0, p->window * sizeof(float));
 }
 void eka_tracker_process(EkaTracker *p, const float *input, unsigned n, unsigned profile) {
+    if (profile != p->profile) {
+        p->profile = profile;
+        aubio_pitchyinfast_set_tolerance(p->pitch, profile == 3 ? .20f : .15f);
+    }
     for (unsigned i = 0; i < n; ++i) {
         float x = input ? input[i] : 0;
         p->input.data[p->position++] = isfinite(x) ? x : 0;
@@ -60,11 +64,12 @@ void eka_tracker_process(EkaTracker *p, const float *input, unsigned n, unsigned
         float power = 0;
         for (unsigned j = 0; j < p->hop; ++j) power += p->input.data[j] * p->input.data[j];
         if (power / p->hop < 3.162278e-7f) hz = 0; /* -65 dB RMS */
-        float low = profile == 2 ? 220 : profile == 1 ? 60 : 60;
-        float high = profile == 1 ? 1600 : 2800;
+        float low = profile == 3 ? 75 : profile == 2 ? 220 : 60;
+        float high = profile == 3 ? 1100 : profile == 1 ? 1600 : 2800;
+        float min_conf = profile == 3 ? .72f : .85f;
         int64_t time = p->clock - p->window / 2;
         int good = p->clock >= p->window && isfinite(hz) && isfinite(confidence)
-                   && confidence >= .85f && hz >= low && hz <= high;
+                   && confidence >= min_conf && hz >= low && hz <= high;
         if (good) {
             p->last_note = 69 + 12 * log2f(hz / 440);
             p->last_hz = hz; p->last_good = time;
@@ -88,7 +93,8 @@ int eka_tracker_read(const EkaTracker *p, unsigned age, float *note, float *conf
     }
     if (!best) return 0;
     *confidence = best->confidence;
-    if (best->good_time < 0 || target - best->good_time > p->rate * .04) return 0;
+    double hold = p->profile == 3 ? .08 : .04;
+    if (best->good_time < 0 || target - best->good_time > p->rate * hold) return 0;
     *note = best->note; *hz = best->hz;
     return 1;
 }

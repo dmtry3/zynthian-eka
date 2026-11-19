@@ -112,5 +112,19 @@ def midi_checks():
     out+=h.process(cos_wave)
     assert max(abs(b-a) for a,b in zip(out,out[1:]))<.02
     h.close()
+    # Voice profile (3): 75-1100 Hz band and stable -12 interval with +30c sharp vocal pitch.
+    h=midi_host(m,dry=-60,wet=0,extra={305:3})
+    notes(h,m,(0x90,45,100)) # A2 = 110 Hz (-12 from A3=220 Hz)
+    h.process(source(220 * 2**(0.30/12), 12000)) # A3 + 30 cents sharp
+    assert h.extra[44].value == 1, h.extra[44].value
+    notes(h,m,(0x80,45,0),(0x90,44,100)) # G#2 (-13.3 st) remains out of range
+    h.process(source(220 * 2**(0.30/12), 6000))
+    assert h.extra[44].value == 0, h.extra[44].value
+    notes(h,m,(0x80,44,0),(0x90,60,100))
+    h.process(source(130.81, 12000)) # C3 male voice -> tracked
+    assert h.extra[44].value == 1 and abs(h.extra[306].value - 48) < .1
+    h.process(source(1800, 12000)) # above Voice 1100 Hz ceiling -> rejected
+    assert h.extra[44].value == 0
+    h.close()
     print("MIDI: absolute notes, tracking, four voices, stable slots, sustain, repeated keys, channels, panic, range, silence, reset and partitions passed")
 if __name__ == "__main__": midi_checks()
