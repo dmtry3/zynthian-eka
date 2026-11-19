@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.16.0 (2026-11-19)
+
+- **Tone filter upgrades:** independent `12 / 24 dB/oct` slopes for HPF and LPF, resonance control (`Res`, `0..100%`) with per-filter resonance toggles above the Tone plot, `+12..-36 dB` response curve display, and Tone filtering inside the delay feedback loop.
+- **MIDI & Voice tracking:** smoothed pitch-shifter input gate eliminating attack clicks on peak-phase MIDI Note-On/retrigger; added `Voice` tracking profile (`75–1100 Hz`, vocal-friendly confidence/hold) and widened `-12 / +21` range-edge margin for natural vocal vibrato.
+- **Glide, Width & Master Limiter:** added per-scene `Glide` (`0..500 ms`) on `Char`, `Voice timing` + `Width` (`0..100%` stereo spread) on `Out`, zero-latency stereo-linked brickwall master limiter with `LIM` indicator, and soft delay feedback saturation.
+- **UX & Delay:** reduced max delay to `3 s` (`3000 ms`), removed redundant `Scene` knobs from `Time`/`Char`/`Tone`, showed selected voice `Pitch`/`Level` on `Main` in `Interval` mode, auto-enabled all chord voices in `Chord` mode, kept current page when selecting voices, added tap-selected-card `On/Off` toggle and `In: Auto/Gtr/Flt/Voc` quick button in `MIDI`/`Scale` modes.
+
 ## 0.14.0 (2026-11-19)
 
 First public version.

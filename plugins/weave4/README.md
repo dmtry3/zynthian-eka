@@ -14,16 +14,17 @@ Powered by the **Bungee Basic** pitch-shifting engine (standard quality, granula
 - **Four harmony voices + dry signal.** Mono input, stereo output, per-voice level, pan, On/Off (preserving delay tails) and Solo.
 - **Four harmony modes:**
   - **Interval:** independent semitone shifts (`-12..+12 st`) per voice.
-  - **Chord:** 14 chord types (`Major`, `Minor`, `7`, `maj7`, `m7`, `maj9`, `m9`, `6/9`, `9`, `13`, `7#9`, `sus2`, `sus4`, `dim7`) and 5 voicings (`Close`, `Open`, `Low`, `Drop 2`, `Lead` smooth voice leading) with per-voice octave offsets.
-  - **MIDI:** hold notes on a MIDI keyboard or sequencer (e.g. `Eka Roll` / `zynseq`) to set absolute target pitches while the embedded pitch tracker follows your live instrument or voice (`Auto`, `Guitar`, `Flute` input profiles).
+  - **Chord:** 14 chord types (`Major`, `Minor`, `7`, `maj7`, `m7`, `maj9`, `m9`, `6/9`, `9`, `13`, `7#9`, `sus2`, `sus4`, `dim7`) and 5 voicings (`Close`, `Open`, `Low`, `Drop 2`, `Lead` smooth voice leading) with per-voice octave offsets and automatic activation of all chord notes.
+  - **MIDI:** hold notes on a MIDI keyboard or sequencer (e.g. `Eka Roll` / `zynseq`) to set absolute target pitches while the embedded pitch tracker follows your live instrument or voice (`Auto`, `Guitar`, `Flute`, `Voice` input profiles).
   - **Scale:** diatonic harmony across 12 keys and 9 seven-note scales (`Major`, `Minor`, `Dorian`, `Phrygian`, `Lydian`, `Mixolydian`, `Locrian`, `Harm Minor`, `Mel Minor`) with signed per-voice degrees (`-8ve..+8ve`); no MIDI keyboard needed.
-- **Per-voice Delay & Tempo Sync.** `0..8 s` delay, `0..90%` feedback, host tempo sync (`1/64` to `4 bars`, dotted and triplet divisions), and preserved delay tails when muting a voice.
-- **Per-voice Character.** Fine detune (`±50 cents`) and independent organic humanize (slow micro-pitch and micro-timing drift).
-- **Per-voice Tone.** Independent 12 dB/oct HPF (`20..4000 Hz`) and LPF (`200..20000 Hz`) with live logarithmic response curves; dry signal stays untouched.
-- **Scenes A–D.** Store and recall complete harmony, voice, delay, character and tone banks inside standard Zynthian snapshots and LV2 presets. Includes a dedicated **Scenes** page with `Prev` / `Next` (MIDI Learn friendly for footpedals) and `Store`.
-- **Low-latency Dry & Voice timing.** Dry defaults to **Live** (zero added dry delay inside the plugin) with optional **Aligned** mode. Voices run in **Fast** native-latency timing by default (saving up to ~43 ms on upper intervals).
+- **Per-voice Delay & Tempo Sync.** `0..3 s` delay, `0..90%` feedback with soft loop saturation, host tempo sync (`1/64` to `4 bars`, dotted and triplet divisions), and preserved delay tails when muting a voice.
+- **Per-voice Character & Glide.** Fine detune (`±50 cents`), independent organic humanize (slow micro-pitch and micro-timing drift), and portamento **Glide** (`0..500 ms`, per scene).
+- **Per-voice Tone.** Independent 12 / 24 dB/oct HPF (`20..4000 Hz`) and LPF (`200..20000 Hz`) with resonance (`0..100%`) and per-filter resonance toggles, placed inside the delay feedback loop so repeats progressively darken/thin out; live logarithmic response curves (`+12..-36 dB`); dry signal stays untouched.
+- **Master Safety Limiter & Stereo Width.** Zero-latency stereo-linked brickwall master limiter (prevents clipping while preserving stereo balance, with a `LIM` indicator on the widget) and a **Width** (`0..100%`) stereo spread control on `Output`.
+- **Scenes A–D.** Store and recall complete harmony, voice, delay, character, glide and tone banks inside standard Zynthian snapshots and LV2 presets. Includes a dedicated **Scenes** page with `Prev` / `Next` (MIDI Learn friendly for footpedals) and `Store`.
+- **Low-latency Dry & Voice timing.** Dry defaults to **Live** (zero added dry delay inside the plugin) with optional **Aligned** mode. Voices run in **Fast** native-latency timing by default (saving up to ~43 ms on upper intervals), with optional **Aligned** mode on `Output`.
 - **9 Factory Presets** (*Weave-4 Factory*) covering guitar, flute, ensemble, filtered echoes, synced rhythm and MIDI choir.
-- **Touch widget.** 7 compact shared pages (`Main`, `Voice`, `Time`, `Char`, `Tone`, `Out`, `Scene`), colour-coded voice cards with live post-gain meters, stereo pitch/pan map, delay timeline, filter response display, scene strip and On/Solo buttons.
+- **Touch widget.** 7 compact shared pages (`Main`, `Voice`, `Time`, `Char`, `Tone`, `Out`, `Scene`), colour-coded voice cards with live post-gain meters (tap to select, tap again to toggle `On/Off`), stereo pitch/pan map, delay timeline, filter response display with per-filter `12/24` and `Res` buttons, `In: Auto/Gtr/Flt/Voc` quick toggle, scene strip and On/Solo buttons.
 
 ## Screenshots
 
@@ -69,29 +70,28 @@ Controls are grouped into 7 shared pages (4 controllers per page, matching the 4
 | Page | Control | Description |
 |---|---|---|
 | **Harmony** (`Main`) | Mode | `Interval`, `Chord`, `MIDI`, `Scale` |
-| | Chord / MIDI Ch / Key | Chord type (Chord mode), MIDI input channel (MIDI mode), or Root Key `C..B` (Scale mode) |
-| | Voicing / Profile / Scale | `Close`, `Open`, `Low`, `Drop 2`, `Lead` (Chord mode); `Auto`, `Guitar`, `Flute` input profile (MIDI mode); 9 seven-note scales (Scale mode) |
-| | Dry | Dry input level (`-60..0 dB`) |
+| | Pitch / Chord / MIDI Ch / Key | Selected voice pitch (Interval), chord type (Chord), MIDI input channel (MIDI), or Root Key `C..B` (Scale) |
+| | Level / Voicing / Profile / Scale | Selected voice level (Interval), `Close`/`Open`/`Low`/`Drop 2`/`Lead` (Chord), `Auto`/`Guitar`/`Flute`/`Voice` input profile (MIDI), or 9 seven-note scales (Scale) |
+| | Dry | Dry input level (`-60..+6 dB`) |
 | **Voice** | Pitch / Octave / Degree | Semitones `-12..+12` (Interval), Octave `-1..+1` (Chord/MIDI), or signed scale degree `-8ve..+8ve` (Scale) |
-| | Level | Selected voice level (`-60..0 dB`; `-60 dB` mutes) |
+| | Level | Selected voice level (`-60..+6 dB`; `-60 dB` mutes) |
 | | Pan | Selected voice stereo balance (`-1..+1`) |
 | | On | Enable / disable selected voice without losing its level (delay tails keep ringing) |
-| **Time** | Delay / Division | Delay in milliseconds (`0..8000 ms`) when Sync is Off, or musical division (`1/64..4 bars`) when Sync is On |
+| **Time** | Delay / Division | Delay in milliseconds (`0..3000 ms`) when Sync is Off, or musical division (`1/64..4 bars`) when Sync is On |
 | | Feedback | Delay feedback (`0..90%`) |
 | | Sync | Free ms vs host tempo sync |
-| | Scene | Active scene (`A`, `B`, `C`, `D`) |
 | **Character** (`Char`) | Fine | Fine detune (`-50..+50 cents`) |
 | | Humanize | Organic pitch + micro-timing drift amount (`0..100%`) |
 | | Speed | Drift modulation rate |
-| | Scene / Profile | Active scene (`A–D`), or Input Profile (`Auto`/`Guitar`/`Flute`) in Scale mode |
-| **Tone** | HPF | 12 dB/oct high-pass cutoff (`20..4000 Hz`) |
-| | LPF | 12 dB/oct low-pass cutoff (`200..20000 Hz`) |
+| | Glide | Portamento glide time (`0..500 ms`, per scene) |
+| **Tone** | HPF | 12 / 24 dB/oct high-pass cutoff (`20..4000 Hz`) |
+| | LPF | 12 / 24 dB/oct low-pass cutoff (`200..20000 Hz`) |
+| | Res | Filter resonance (`0..100%`) applied to HPF and/or LPF based on the widget toggles |
 | | Filters | Bypass / enable selected voice's HPF + LPF pair (defaults Off) |
-| | Scene | Active scene (`A–D`) |
-| **Output** (`Out`) | Master | Combined output gain (`-24..+6 dB`) |
+| **Output** (`Out`) | Master | Combined output gain (`-60..+6 dB`) |
 | | Dry timing | `Live` (zero added dry delay) or `Aligned` (delays dry to match enabled harmony voices) |
-| | Voice | Selected voice (`1..4`) |
-| | Solo | Solo voice `1..4` or `Off` (auditions one voice, muting dry and others) |
+| | Voice timing | `Fast` (native per-voice latency) or `Aligned` (aligns all voices to the slowest voice) |
+| | Width | Stereo spread (`0..100%`, defaults to `50%`) |
 | **Scenes** (`Scene`) | Scene | Direct canonical selector (`A–D`); supports MIDI Learn / automation |
 | | Prev Scene | Steps to the previous populated scene (skips empty slots); MIDI Learn friendly for footpedals |
 | | Next Scene | Steps to the next populated scene (skips empty slots); MIDI Learn friendly for footpedals |
@@ -99,10 +99,10 @@ Controls are grouped into 7 shared pages (4 controllers per page, matching the 4
 
 ### Widget
 
-- **Top bar:** 7 page tabs (`Main`, `Voice`, `Time`, `Char`, `Tone`, `Out`, `Scene`), summary line (active chord/key/input note/delay/filter readout) and `CLIP` indicator.
-- **Voice cards (left):** 4 colour-coded cards showing interval/target note, level, status (`ON`, `OFF`, `TAIL`, `SOLO`, `ARM`, `WAIT`, `RANGE`) and live post-gain peak meter. Tap any card (or plot marker) to select that voice.
-- **Centre plot:** switches automatically between the **stereo pitch/pan map** (`Main`, `Voice`, `Char`, `Out`, `Scene`), **delay timeline** with predicted echo repeats (`Time`), and **logarithmic HPF/LPF response curves** (`Tone`).
-- **Bottom strip:** `A`, `B`, `C`, `D` scene buttons (empty slots marked with `-`), `Store` / `Cancel` button, `On` / `Solo` toggles for the selected voice, and `Dry Live/Aligned | Master` (or BPM) status.
+- **Top bar:** 7 page tabs (`Main`, `Voice`, `Time`, `Char`, `Tone`, `Out`, `Scene`), summary line (active chord/key/input note/delay/filter readout) and yellow `LIM` master limiter indicator.
+- **Voice cards (left):** 4 colour-coded cards showing interval/target note, level, status (`ON`, `OFF`, `TAIL`, `SOLO`, `ARM`, `WAIT`, `RANGE`) and live post-gain peak meter. Tap any card to select that voice (keeping the current page); tap the selected card again to toggle `On / Off`.
+- **Centre plot:** switches automatically between the **stereo pitch/pan map** (`Main`, `Voice`, `Char`, `Out`, `Scene`), **delay timeline** with predicted echo repeats (`Time`), and **logarithmic HPF/LPF response curves** (`+12..-36 dB`) with compact `HP 12/24`, `Res`, `LP 12/24`, `Res` buttons above the plot (`Tone`).
+- **Bottom strip:** `A`, `B`, `C`, `D` scene buttons (empty slots marked with `-`), `Store` / `Cancel` button, `On` / `Solo` toggles for the selected voice, `In: Auto/Gtr/Flt/Voc` quick profile toggle (in `MIDI` and `Scale` modes), and `Dry Live/Aligned | Master` (or BPM) status.
 
 ## Factory Presets
 
