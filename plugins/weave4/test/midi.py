@@ -99,5 +99,18 @@ def midi_checks():
     h.d.connect(h.handle,61,h.midi_buffer);h.d.run(h.handle,0)
     assert targets(h)==[-1]*4
     h.close()
+    # Click-free attack when MIDI Note-On arrives at a waveform peak or quick retrigger.
+    h=midi_host(m,dry=-60,wet=0)
+    cos_wave=[.2*math.cos(2*math.pi*220*i/48000) for i in range(14400)]
+    h.process(cos_wave)
+    notes(h,m,(0x90,64,100))
+    out=h.process(cos_wave)
+    assert max(abs(b-a) for a,b in zip(out,out[1:]))<.02
+    notes(h,m,(0x80,64,0))
+    out=h.process(cos_wave[:240])
+    notes(h,m,(0x90,67,100))
+    out+=h.process(cos_wave)
+    assert max(abs(b-a) for a,b in zip(out,out[1:]))<.02
+    h.close()
     print("MIDI: absolute notes, tracking, four voices, stable slots, sustain, repeated keys, channels, panic, range, silence, reset and partitions passed")
 if __name__ == "__main__": midi_checks()

@@ -10,7 +10,7 @@ struct EkaPitch {
     float *input, *output, *dry_ring, *wet_ring;
     unsigned block, position, schedule, capacity, write, native_latency, alignment, flush;
     double ratio, smoothing, dry_delay, wet_delay;
-    float dry, wet, target_dry, target_wet, dry_alignment, target_dry_alignment;
+    float dry, wet, target_dry, target_wet, input_gate, dry_alignment, target_dry_alignment;
     float voice_alignment, target_voice_alignment;
     int started;
     unsigned voice;
@@ -71,6 +71,7 @@ void eka_pitch_reset(EkaPitch *p) {
     p->wet_delay = 0;
     p->dry = p->target_dry = 1;
     p->wet = p->target_wet = 0;
+    p->input_gate = 0;
     p->dry_alignment = p->target_dry_alignment = 1;
     p->voice_alignment = p->target_voice_alignment = 0;
     p->started = 0;
@@ -122,7 +123,10 @@ void eka_pitch_set(EkaPitch *p, float pitch, float dry, float wet) {
     if (level == 0 && p->target_wet > 0) p->flush = p->capacity + p->block;
     p->target_dry = gain(control(dry, 0, -60, 6));
     p->target_wet = level;
-    if (!p->started) p->dry = p->target_dry;
+    if (!p->started) {
+        p->dry = p->target_dry;
+        p->input_gate = p->target_wet > 0 ? 1.f : 0.f;
+    }
 }
 void eka_pitch_align(EkaPitch *p, unsigned total_latency) {
     p->alignment = total_latency;
@@ -151,7 +155,7 @@ void eka_pitch_process(EkaPitch *p, uint32_t n, const float *input, float *wet, 
     double max_padding = p->alignment > p->native_latency ? p->alignment - p->native_latency : 0;
     for (uint32_t i = 0; i < n; ++i) {
         float x = input && isfinite(input[i]) ? input[i] : 0;
-        int running = p->target_wet > 0 || p->flush > 0;
+        int running = p->target_wet > 0 || p->flush > 0 || p->input_gate > 0;
         p->dry_ring[p->write] = x;
         p->wet_ring[p->write] = running ? p->output[p->position] : 0;
         p->dry_delay += p->smoothing * (p->alignment - p->dry_delay);
@@ -167,6 +171,9 @@ void eka_pitch_process(EkaPitch *p, uint32_t n, const float *input, float *wet, 
         p->wet += (float)p->smoothing * (p->target_wet - p->wet);
         if (fabsf(p->target_dry - p->dry) < 1e-6f) p->dry = p->target_dry;
         if (fabsf(p->target_wet - p->wet) < 1e-6f) p->wet = p->target_wet;
+        float target_gate = p->target_wet > 0 ? 1.f : 0.f;
+        p->input_gate += (float)p->smoothing * (target_gate - p->input_gate);
+        if (fabsf(target_gate - p->input_gate) < 1e-6f) p->input_gate = target_gate;
         p->dry_alignment += (float)p->smoothing * (p->target_dry_alignment - p->dry_alignment);
         if (fabsf(p->target_dry_alignment - p->dry_alignment) < 1e-6f)
             p->dry_alignment = p->target_dry_alignment;
@@ -174,7 +181,7 @@ void eka_pitch_process(EkaPitch *p, uint32_t n, const float *input, float *wet, 
         /* Crossfade the two dry paths without sweeping the delay tap to zero. */
         float dry_sample = p->dry * ((1 - p->dry_alignment) * x + p->dry_alignment * delayed_dry);
         float wet_sample = p->wet * read_delay(p->wet_ring, p->capacity, p->write, p->wet_delay + p->human_delay);
-        p->input[p->position] = p->target_wet > 0 ? x : 0;
+        p->input[p->position] = p->input_gate * x;
         if (wet) wet[i] = wet_sample;
         if (dry) dry[i] = dry_sample;
         if (++p->write == p->capacity) p->write = 0;
