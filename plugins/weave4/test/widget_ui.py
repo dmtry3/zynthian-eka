@@ -209,7 +209,7 @@ def main():
     assert processor.controllers_dict["degree3"].value == -2
     assert processor.controllers_dict["degree1"].value == 2
     widget._page("Character"); root.update_idletasks()
-    assert parent.zcontrollers[3] is processor.controllers_dict["tracking_profile"]
+    assert parent.zcontrollers[3] is processor.controllers_dict["glide"]
     widget._page("Voice")
     widget.monitors = {"input_note":60, "target_note3":57, "available_mask":4}
     widget._set("enable3", 1)

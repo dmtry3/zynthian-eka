@@ -18,7 +18,7 @@ def defaults():
 
 def factory():
     base=defaults()
-    base.update(dry=-3,master=-2,dry_timing=0,scene=0,solo=0,selected_voice=1,voices=1,
+    base.update(dry=-3,master=-2,dry_timing=0,width=0,scene=0,solo=0,selected_voice=1,voices=1,
                 enable1=1,enable2=0,enable3=0,enable4=0)
     def make(slug,title,values):
         data=dict(base);data.update(values)

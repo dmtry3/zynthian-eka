@@ -26,6 +26,8 @@ CHORDS = ((4, 7), (3, 7), (4, 7, 10), (4, 7, 11), (3, 7, 10),
 VOICINGS = ("Close", "Open", "Low", "Drop 2", "Lead")
 SCALE_NAMES = ("Major", "Minor", "Dorian", "Phrygian", "Lydian", "Mixolydian", "Locrian", "Harm Minor", "Mel Minor")
 KEY_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+PROFILE_SHORT = ("Auto", "Gtr", "Flt", "Voc")
+SPREAD_BASE = (-.75, .75, -.35, .35)
 PITCH = ("pitch", "pitch2", "pitch3", "pitch4")
 LEVEL = ("wet", "level2", "level3", "level4")
 SCENE_PARAMS = ('pitch', 'dry', 'wet', 'mode', 'chord', 'voicing', 'voices', 'pan1', 'pitch2', 'level2', 'pan2', 'pitch3', 'level3', 'pan3', 'pitch4', 'level4', 'pan4', 'enable1', 'enable2', 'enable3', 'enable4', 'octave1', 'octave2', 'octave3', 'octave4', 'delay_ms1', 'feedback1', 'sync1', 'division1', 'delay_ms2', 'feedback2', 'sync2', 'division2', 'delay_ms3', 'feedback3', 'sync3', 'division3', 'delay_ms4', 'feedback4', 'sync4', 'division4')
@@ -33,7 +35,7 @@ SCENE_PARAMS += tuple("%s%d" % (kind, voice) for voice in range(1, 5)
                       for kind in ("fine", "humanize", "human_speed"))
 SCENE_PARAMS += tuple("%s%d" % (kind, voice) for voice in range(1, 5)
                       for kind in ("hpf", "lpf", "tone_on", "tone_res", "hpf_slope", "lpf_slope", "hpf_res_on", "lpf_res_on"))
-SCENE_PARAMS += ("scale_tonic", "scale_mode", "degree1", "degree2", "degree3", "degree4")
+SCENE_PARAMS += ("scale_tonic", "scale_mode", "degree1", "degree2", "degree3", "degree4", "glide")
 PAGES = ("Harmony", "Voice", "Time", "Character", "Tone", "Output", "Scenes")
 DIV_NAMES = ("1/64", "1/32T", "1/64.", "1/32", "1/16T", "1/32.", "1/16",
              "1/8T", "1/16.", "1/8", "1/4T", "1/8.", "1/4", "1/2T", "1/4.",
@@ -232,7 +234,7 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
 
     def _enabled(self, voice):
         value = self._value("enable%d" % (voice + 1), -1)
-        enabled = (self._midi_mode() or voice < round(self._value("voices", 1))) if value < -.5 else value >= .5
+        enabled = ((self._value("mode") >= .5 and not self._scale_mode()) or voice < round(self._value("voices", 1))) if value < -.5 else value >= .5
         return enabled and self._available(voice)
 
     def _interval(self, voice):
@@ -252,7 +254,7 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
     def _ready(self):
         return self.processor is not None and all(
             symbol in self.processor.controllers_dict
-            for symbol in ("selected_voice", "enable1", "solo", "master", "delay_ms1", "sync1", "scene", "scene_d_division4", "scene_d_fine4", "scene_d_tone_on4", "scene_d_degree4", "scene_d_lpf_res_on4"))
+            for symbol in ("selected_voice", "enable1", "solo", "master", "delay_ms1", "sync1", "scene", "scene_d_division4", "scene_d_fine4", "scene_d_tone_on4", "scene_d_degree4", "scene_d_lpf_res_on4", "width", "scene_d_glide"))
 
     # These editor-only controllers forward actual edits to canonical LV2 ports.
     # They never replace canonical values in controllers_dict or snapshot state.
@@ -372,10 +374,10 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
             "Time": [controllers[delay_symbol], controllers["feedback%d" % (voice + 1)],
                      controllers["sync%d" % (voice + 1)]],
             "Character": [controllers["%s%d" % (kind, voice + 1)]
-                          for kind in ("fine", "humanize", "human_speed")] + ([controllers["tracking_profile"]] if self._scale_mode() else []),
+                          for kind in ("fine", "humanize", "human_speed")] + [controllers["glide"]],
             "Tone": [controllers["%s%d" % (kind, voice + 1)]
                      for kind in ("hpf", "lpf", "tone_res", "tone_on")],
-            "Output": [controllers[s] for s in ("master", "dry_timing", "selected_voice", "solo")],
+            "Output": [controllers[s] for s in ("master", "dry_timing", "voice_timing", "width")],
             "Scenes": [controllers["scene"], self.virtual["prev_scene"], self.virtual["next_scene"], self.virtual["store_scene"]],
         }
         changed = self.processor.ctrl_screens_dict != pages
@@ -559,8 +561,15 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
             button("scene%d" % scene,
                    (2 + scene * scene_width, height - 77, (scene + 1) * scene_width - 2, height - 45), letter)
         button("store", (2 + 4 * scene_width, height - 77, width - 2, height - 45), "Store")
-        button("on", (2, height - 40, 82, height - 2), "On")
-        button("solo", (88, height - 40, 168, height - 2), "Solo")
+        if width < 360:
+            button("on", (2, height - 40, 68, height - 2), "On")
+            button("solo", (72, height - 40, 138, height - 2), "Solo")
+            button("input_profile", (142, height - 40, 214, height - 2), "In: Auto")
+        else:
+            button("on", (2, height - 40, 82, height - 2), "On")
+            button("solo", (88, height - 40, 168, height - 2), "Solo")
+            button("input_profile", (174, height - 40, 254, height - 2), "In: Auto")
+        canvas.itemconfigure(self.items["input_profile_label"], font=self.small)
         text("footer", width - 4, height - 21, text="", anchor="e")
 
     def _y(self, pitch):
@@ -826,7 +835,8 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
             meter = self._meter(peak)
             canvas.coords(self.items["meter%d" % voice], box[2] - 8,
                           box[3] - 4 - (box[3] - box[1] - 8) * meter, box[2] - 4, box[3] - 4)
-            pan = max(-1, min(1, self._value("pan%d" % (voice + 1))))
+            width_spread = max(0.0, min(1.0, self._value("width", 0) / 100.0))
+            pan = max(-1, min(1, self._value("pan%d" % (voice + 1)) + width_spread * SPREAD_BASE[voice]))
             x = self._time_x(self._delay_ms(voice)) if self.view == "time" else x0 + (pan + 1) / 2 * (x1 - x0)
             y = self._time_y(voice) if self.view == "time" else self._y(interval)
             visible = self.view != "tone" and (available or (tail and self.view == "time"))
@@ -880,6 +890,14 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
         canvas.itemconfigure(self.items["solo"], outline=COLOURS[1] if solo else DIM,
                              fill=COLOURS[1] if solo else zynthian_gui_config.color_bg, width=1)
         canvas.itemconfigure(self.items["solo_label"], fill="#000000" if solo else self.fg)
+        tracking = self._tracking_mode()
+        prof_state = "normal" if tracking else "hidden"
+        prof = max(0, min(3, round(self._value("tracking_profile", 0))))
+        canvas.itemconfigure(self.items["input_profile"], state=prof_state,
+                             outline=ACCENT if tracking else DIM,
+                             fill=zynthian_gui_config.color_bg)
+        canvas.itemconfigure(self.items["input_profile_label"], state=prof_state,
+                             text="In: %s" % PROFILE_SHORT[prof], fill=self.fg)
         timing = "Live" if self._value("dry_timing") < .5 else "Aligned"
         if self.view == "time":
             clock = "%g BPM" % self._monitor("bpm", 120)
@@ -893,6 +911,8 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
 
     def _hit(self, x, y):
         for key, (x0, y0, x1, y1) in self.boxes.items():
+            if key == "input_profile" and not self._tracking_mode():
+                continue
             if x0 <= x <= x1 and y0 <= y <= y1:
                 return key
         # Stable side buttons remain available when marks overlap.
@@ -915,7 +935,11 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
         if key is None or key != self._hit(event.x, event.y) or not self._ready():
             return
         if key.startswith("card"):
-            self.select_voice(int(key[4:]))
+            voice = int(key[4:])
+            if voice == self._selected():
+                self.toggle_on()
+            else:
+                self.select_voice(voice)
         elif key.startswith("scene"):
             self.select_scene(int(key[5:]))
         elif key == "store":
@@ -926,6 +950,9 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
             self.toggle_on()
         elif key == "solo":
             self.toggle_solo()
+        elif key == "input_profile" and self._tracking_mode():
+            self._set("tracking_profile", (round(self._value("tracking_profile", 0)) + 1) % 4)
+            self.refresh_gui()
         elif key == "hpf_slope":
             self.toggle_tone_flag("hpf_slope")
         elif key == "lpf_slope":

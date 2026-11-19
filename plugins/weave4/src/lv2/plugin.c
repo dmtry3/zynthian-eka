@@ -34,6 +34,7 @@ static const unsigned pitch_ports[VOICES] = { PITCH, PITCH2, PITCH3, PITCH4 };
 static const unsigned level_ports[VOICES] = { WET, LEVEL2, LEVEL3, LEVEL4 };
 static const unsigned pan_ports[VOICES] = { PAN1, PAN2, PAN3, PAN4 };
 static const float pitch_defaults[VOICES] = { 7, 4, 10, 12 };
+static const float spread_base[VOICES] = { -.75f, .75f, -.35f, .35f };
 static const float LIM_CEILING = 1.0f; /* 0.0 dBFS brickwall peak limiter */
 typedef struct {
     EkaPitch *dsp[VOICES];
@@ -70,6 +71,8 @@ static float value(const Plugin *p, unsigned port, float fallback, float low, fl
         port = EKA_TONE_BANK + (p->scene - 1) * EKA_TONE_SIZE + port - EKA_TONE_BASE;
     } else if (p->scene && port >= EKA_TONE_EXT_BASE && port < EKA_TONE_EXT_BASE + EKA_TONE_EXT_SIZE) {
         port = EKA_TONE_EXT_BANK + (p->scene - 1) * EKA_TONE_EXT_SIZE + port - EKA_TONE_EXT_BASE;
+    } else if (p->scene && port == EKA_GLIDE) {
+        port = EKA_GLIDE_BANK + (p->scene - 1);
     } else if (p->scene) {
         for (unsigned i = 0; i < EKA_SCENE_SIZE; ++i)
             if (eka_scene_ports[i] == port) {
@@ -232,10 +235,12 @@ static void run_span(Plugin *p, uint32_t base, uint32_t n) {
     if (!p->started) p->master = master_target;
     float block_peaks[VOICES] = {0}, input_peak = 0, output_peak = 0;
     float dry_db = value(p, DRY, 0, -60, 6);
+    float glide_ms = value(p, EKA_GLIDE, 0, 0, 500);
+    float width = value(p, EKA_WIDTH, 0, 0, 100) * .01f;
     for (unsigned v = 0; v < VOICES; ++v) {
         float enable = value(p, ENABLE1 + v, -1, -1, 1);
         int has_note = mode == 2 ? p->midi.target[v] >= 0 : v < note_count;
-        int on = enable < -.5f ? (mode == 2 ? has_note : v < count) : enable >= .5f;
+        int on = enable < -.5f ? ((mode == 1 || mode == 2) ? has_note : v < count) : enable >= .5f;
         if (!has_note) on = 0;
         if (on) enabled_mask |= 1u << v;
         int audible = solo ? v + 1 == solo && has_note : on;
@@ -253,6 +258,7 @@ static void run_span(Plugin *p, uint32_t base, uint32_t n) {
         eka_pitch_character(p->dsp[v], value(p, character_port, 0, -50, 50),
                             value(p, character_port + 1, 0, 0, 100),
                             value(p, character_port + 2, .2f, .05f, 1));
+        eka_pitch_glide(p->dsp[v], glide_ms);
         eka_pitch_set(p->dsp[v], pitch[v], v == 0 && !solo ? dry_db : -60, source ? 0 : -60);
         unsigned tone_port = EKA_TONE_BASE + v * 3;
         eka_tone_set(&p->tone[v], value(p, tone_port, 20, 20, 4000),
@@ -277,7 +283,8 @@ static void run_span(Plugin *p, uint32_t base, uint32_t n) {
         unsigned delay = eka_pitch_latency(p->dsp[v]);
         /* On/Solo controls do not erase canonical voice settings. */
         if ((on || audible) && delay > latency) latency = delay;
-        target_pan[v] = value(p, pan_ports[v], 0, -1, 1);
+        float raw_pan = value(p, pan_ports[v], 0, -1, 1);
+        target_pan[v] = fminf(1, fmaxf(-1, raw_pan + width * spread_base[v]));
         if (!p->started) p->pan[v] = target_pan[v];
     }
     /* Preserve legacy aligned-dry timing when all voices are off. */
@@ -312,8 +319,7 @@ static void run_span(Plugin *p, uint32_t base, uint32_t n) {
                  * Gate before musical delay so existing repeats can finish. */
                 voice[i] *= p->tracking_gain[v];
             }
-            eka_delay_process(p->delay[v], frames, voice);
-            eka_tone_process(&p->tone[v], frames, voice);
+            eka_delay_process_tone(p->delay[v], &p->tone[v], frames, voice);
             for (unsigned i = 0; i < frames; ++i) {
                 p->level[v] += p->pan_smoothing * (level_target[v] - p->level[v]);
                 if (fabsf(level_target[v] - p->level[v]) < 1e-6f) p->level[v] = level_target[v];

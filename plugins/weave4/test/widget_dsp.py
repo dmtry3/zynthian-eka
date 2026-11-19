@@ -62,7 +62,36 @@ def widget_dsp_checks():
     assert max(map(abs, left)) <= 1.0001 and max(map(abs, right)) <= 1.0001
     assert host.extra[43].value > 1.0
     host.close()
-    print("widget DSP: legacy Auto, On/Solo, octave limits, selection, meters, master and limiter passed")
+
+    # Chord mode auto-enables all available chord voices even when voices=1.
+    host = make({7: 1, 8: 5, 10: 1}) # maj9 (4 notes), voices=1, enable=Auto
+    host.process(source[:2048])
+    assert host.extra[41].value == 15, host.extra[41].value
+    host.close()
+
+    # Width spreads centered voices across stereo field.
+    host = make({10: 2, 11: 0, 14: 0, 423: 100}, dry=-60, wet=0, stereo=True)
+    l = host.process(source[:12000]); r = host.right
+    assert max(abs(a - b) for a, b in zip(l, r)) > .05
+    host.close()
+
+    # Glide smoothly ramps pitch changes over glide_ms.
+    host = make({10: 1, 424: 200}, pitch=0, dry=-60, wet=0)
+    host.process(source[:12000])
+    host.controls[0].value = 12
+    mid = host.process(source[:6000])
+    assert all(math.isfinite(x) for x in mid)
+    host.close()
+
+    # Tone inside delay feedback loop progressively darkens repeats.
+    hi = [.2 * math.sin(2 * math.pi * 6000 * i / 48000) for i in range(2400)] + [0.0] * 18000
+    host = make({10: 1, 45: 100, 46: 80, 255: 20, 256: 1500, 257: 1}, pitch=0, dry=-60, wet=0)
+    out = host.process(hi)
+    r1 = max(abs(x) for x in out[7000:11500])
+    r2 = max(abs(x) for x in out[12000:16500])
+    assert r1 > 0 and r2 < r1 * 0.4, (r1, r2)
+    host.close()
+    print("widget DSP: legacy Auto, On/Solo, octave limits, selection, meters, master, limiter, chord-auto, width, glide and feedback-tone passed")
 
 if __name__ == "__main__":
     widget_dsp_checks()

@@ -14,6 +14,7 @@ void eka_pitch_voice_alignment(EkaPitch *p, int aligned);
 /* Separate wet/dry outputs let the caller pan only the harmony voice. */
 void eka_pitch_process(EkaPitch *p, uint32_t n, const float *input, float *wet, float *dry);
 void eka_pitch_character(EkaPitch *p, float fine, float amount, float speed);
+void eka_pitch_glide(EkaPitch *p, float glide_ms);
 float eka_pitch_fine_actual(const EkaPitch *p);
 float eka_pitch_time_actual(const EkaPitch *p);
 unsigned eka_pitch_tracking_age(const EkaPitch *p);

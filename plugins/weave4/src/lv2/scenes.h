@@ -31,6 +31,9 @@
 #define EKA_TONE_EXT_BASE 343
 #define EKA_TONE_EXT_SIZE 20
 #define EKA_TONE_EXT_BANK 363
-#define EKA_PORT_COUNT 423
+#define EKA_WIDTH 423
+#define EKA_GLIDE 424
+#define EKA_GLIDE_BANK 425
+#define EKA_PORT_COUNT 428
 static const unsigned eka_scene_ports[EKA_SCENE_SIZE] = {0,1,2,7,8,9,10,11,12,13,14,15,16,17,18,19,20,22,23,24,25,27,28,29,30,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60};
 #endif

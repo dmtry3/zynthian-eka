@@ -61,7 +61,7 @@ static float tap(const EkaDelay *d, double samples, float input) {
     unsigned second = first + 1 == d->capacity ? 0 : first + 1;
     return d->ring[first] + (float)(position - first) * (d->ring[second] - d->ring[first]);
 }
-void eka_delay_process(EkaDelay *d, uint32_t n, float *audio) {
+void eka_delay_process_tone(EkaDelay *d, EkaTone *t, uint32_t n, float *audio) {
     for (uint32_t i = 0; i < n; ++i) {
         float input = isfinite(audio[i]) ? audio[i] : 0;
         if (!d->fading && fabs(d->requested - d->current) > 1e-6) {
@@ -83,15 +83,20 @@ void eka_delay_process(EkaDelay *d, uint32_t n, float *audio) {
             d->feedback = d->target_feedback;
         /* Zero-delay bypass has no recursive feedback or gain increase. */
         float feedback = !d->fading && d->current < 1e-9 ? 0 : d->feedback;
-        float stored = input + feedback * delayed;
-        if (stored > 2.f) stored = 2.f + 2.f * tanhf((stored - 2.f) * .5f);
-        else if (stored < -2.f) stored = -2.f - 2.f * tanhf((-stored - 2.f) * .5f);
+        float out = delayed;
+        if (t) eka_tone_process(t, 1, &out);
+        float stored = input + feedback * out;
+        if (stored > 1.5f) stored = 1.5f + 1.5f * tanhf((stored - 1.5f) / 1.5f);
+        else if (stored < -1.5f) stored = -1.5f - 1.5f * tanhf((-stored - 1.5f) / 1.5f);
         if (fabsf(stored) < 1e-20f) stored = 0;
         d->ring[d->write] = stored;
         if (++d->write == d->capacity) d->write = 0;
-        audio[i] = delayed;
+        audio[i] = out;
         d->started = 1;
     }
+}
+void eka_delay_process(EkaDelay *d, uint32_t n, float *audio) {
+    eka_delay_process_tone(d, NULL, n, audio);
 }
 double eka_delay_milliseconds(const EkaDelay *d) {
     return d->requested * 1000 / d->rate;

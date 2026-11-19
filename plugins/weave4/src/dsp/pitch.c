@@ -14,7 +14,7 @@ struct EkaPitch {
     float voice_alignment, target_voice_alignment;
     int started;
     unsigned voice;
-    float base_pitch;
+    float base_pitch, target_pitch, glide_ms;
     double rate, human_delay, latency_pitch;
     EkaCharacter character;
 };
@@ -63,7 +63,7 @@ void eka_pitch_reset(EkaPitch *p) {
     p->position = p->schedule;
     p->write = p->flush = 0;
     p->ratio = 1;
-    p->base_pitch = 0; p->human_delay = 0; p->latency_pitch = 0;
+    p->base_pitch = p->target_pitch = 0; p->glide_ms = 0; p->human_delay = 0; p->latency_pitch = 0;
     eka_character_reset(&p->character, p->rate, p->voice);
     p->native_latency = p->block + eka_backend_delay(p->shifter);
     p->alignment = p->native_latency;
@@ -89,6 +89,9 @@ static void update_pitch(EkaPitch *p) {
 void eka_pitch_character(EkaPitch *p, float fine, float amount, float speed) {
     eka_character_set(&p->character, fine, amount, speed);
 }
+void eka_pitch_glide(EkaPitch *p, float glide_ms) {
+    p->glide_ms = control(glide_ms, 0, 0, 500);
+}
 float eka_pitch_fine_actual(const EkaPitch *p) {
     /* While asleep the library ratio may deliberately remain unchanged. Report
      * the bounded current setting that will be applied before the next shift. */
@@ -101,10 +104,13 @@ float eka_pitch_time_actual(const EkaPitch *p) {
     return (float)(p->human_delay * 1000 / p->rate);
 }
 void eka_pitch_set(EkaPitch *p, float pitch, float dry, float wet) {
-    p->base_pitch = control(pitch, 0, -12, 21);
+    p->target_pitch = control(pitch, 0, -12, 21);
+    float level = gain(control(wet, -60, -60, 6));
+    if (!p->started || p->glide_ms < .5f || (p->target_wet == 0 && level > 0))
+        p->base_pitch = p->target_pitch;
     /* Alignment follows the steady fine-tuned note, not every random pitch
      * excursion. Otherwise host block boundaries modulate the alignment itself. */
-    double reference = p->base_pitch + p->character.target_fine / 100.0;
+    double reference = p->target_pitch + p->character.target_fine / 100.0;
     if (reference < -12) reference = -12;
     if (reference > 21) reference = 21;
     if (reference != p->latency_pitch) {
@@ -114,7 +120,6 @@ void eka_pitch_set(EkaPitch *p, float pitch, float dry, float wet) {
         if (scale != p->ratio) eka_backend_pitch(p->shifter, p->ratio);
         p->latency_pitch = reference;
     }
-    float level = gain(control(wet, -60, -60, 6));
     /* LiveShifter can do substantial lazy setup on pitch edits before its first
      * shift. Do not continually retune a sleeping voice for silent Humanize. */
     if (level > 0 || p->target_wet > 0 || p->flush > 0) update_pitch(p);
@@ -187,6 +192,13 @@ void eka_pitch_process(EkaPitch *p, uint32_t n, const float *input, float *wet, 
         if (++p->write == p->capacity) p->write = 0;
         if (++p->position == p->block) {
             eka_character_advance(&p->character, p->block);
+            if (p->glide_ms >= .5f) {
+                double alpha = 1.0 - exp(-(double)p->block / (p->rate * (p->glide_ms * .001)));
+                p->base_pitch += (float)(alpha * (p->target_pitch - p->base_pitch));
+                if (fabsf(p->target_pitch - p->base_pitch) < 1e-4f) p->base_pitch = p->target_pitch;
+            } else {
+                p->base_pitch = p->target_pitch;
+            }
             if (running) {
                 update_pitch(p);
                 eka_backend_process(p->shifter, p->input, p->output);
