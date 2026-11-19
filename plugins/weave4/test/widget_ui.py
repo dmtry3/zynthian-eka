@@ -138,11 +138,13 @@ def main():
 
     processor.engine.writes.clear()
     widget.select_voice(2)
-    # Encoder destinations must already be correct before deferred Tk events run.
-    assert parent.screen_title == "Voice"
-    assert parent.zcontrollers[1] is processor.controllers_dict["level3"]
+    # Selecting a voice keeps the current page (Harmony) and updates its bindings.
+    assert parent.screen_title == "Harmony"
+    assert parent.zcontrollers[1] is processor.controllers_dict["pitch3"]
+    assert parent.zcontrollers[2] is processor.controllers_dict["level3"]
     root.update_idletasks()
     assert processor.engine.writes == [("selected_voice", 3)]
+    widget._page("Voice")
     assert parent.screen_title == "Voice"
     assert parent.zcontrollers[0] is processor.controllers_dict["pitch3"]
     assert parent.zcontrollers[1] is processor.controllers_dict["level3"]
@@ -184,7 +186,7 @@ def main():
     widget.refresh_gui(); root.update_idletasks()
     assert parent.zcontrollers[1] is processor.controllers_dict["midi_input_channel"]
     assert parent.zcontrollers[2] is processor.controllers_dict["tracking_profile"]
-    widget.select_voice(3); root.update_idletasks()
+    widget.select_voice(3); widget._page("Voice"); root.update_idletasks()
     assert parent.zcontrollers[0] is widget.virtual[("octave", 3)]
     assert parent.zcontrollers[0].value_min == -1 and parent.zcontrollers[0].value_max == 1
     assert not parent.zcontrollers[3].readonly
@@ -201,7 +203,7 @@ def main():
     widget.refresh_gui(); root.update_idletasks()
     assert parent.zcontrollers[1] is processor.controllers_dict["scale_tonic"]
     assert parent.zcontrollers[2] is processor.controllers_dict["scale_mode"]
-    widget.select_voice(2); root.update_idletasks()
+    widget.select_voice(2); widget._page("Voice"); root.update_idletasks()
     assert parent.zcontrollers[0] is processor.controllers_dict["degree3"]
     parent.zcontrollers[0].set_value(-2)
     assert processor.controllers_dict["degree3"].value == -2

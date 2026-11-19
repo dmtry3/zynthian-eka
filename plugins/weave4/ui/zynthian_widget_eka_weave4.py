@@ -416,8 +416,7 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
 
     def select_voice(self, voice):
         if self._set("selected_voice", voice + 1):
-            page = self._current_page()
-            self._bind_pages(page if page in ("Voice", "Time", "Character", "Tone") else "Voice")
+            self._bind_pages(self._current_page())
             self._flush_pages()
             self.refresh_gui()
 
