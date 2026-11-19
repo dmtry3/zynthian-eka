@@ -32,7 +32,7 @@ SCENE_PARAMS = ('pitch', 'dry', 'wet', 'mode', 'chord', 'voicing', 'voices', 'pa
 SCENE_PARAMS += tuple("%s%d" % (kind, voice) for voice in range(1, 5)
                       for kind in ("fine", "humanize", "human_speed"))
 SCENE_PARAMS += tuple("%s%d" % (kind, voice) for voice in range(1, 5)
-                      for kind in ("hpf", "lpf", "tone_on"))
+                      for kind in ("hpf", "lpf", "tone_on", "tone_res", "hpf_slope", "lpf_slope", "hpf_res_on", "lpf_res_on"))
 SCENE_PARAMS += ("scale_tonic", "scale_mode", "degree1", "degree2", "degree3", "degree4")
 PAGES = ("Harmony", "Voice", "Time", "Character", "Tone", "Output", "Scenes")
 DIV_NAMES = ("1/64", "1/32T", "1/64.", "1/32", "1/16T", "1/32.", "1/16",
@@ -252,7 +252,7 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
     def _ready(self):
         return self.processor is not None and all(
             symbol in self.processor.controllers_dict
-            for symbol in ("selected_voice", "enable1", "solo", "master", "delay_ms1", "sync1", "scene", "scene_d_division4", "scene_d_fine4", "scene_d_tone_on4", "scene_d_degree4"))
+            for symbol in ("selected_voice", "enable1", "solo", "master", "delay_ms1", "sync1", "scene", "scene_d_division4", "scene_d_fine4", "scene_d_tone_on4", "scene_d_degree4", "scene_d_lpf_res_on4"))
 
     # These editor-only controllers forward actual edits to canonical LV2 ports.
     # They never replace canonical values in controllers_dict or snapshot state.
@@ -373,7 +373,7 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
             "Character": [controllers["%s%d" % (kind, voice + 1)]
                           for kind in ("fine", "humanize", "human_speed")] + [controllers["tracking_profile" if self._scale_mode() else "scene"]],
             "Tone": [controllers["%s%d" % (kind, voice + 1)]
-                     for kind in ("hpf", "lpf", "tone_on")] + [controllers["scene"]],
+                     for kind in ("hpf", "lpf", "tone_res", "tone_on")],
             "Output": [controllers[s] for s in ("master", "dry_timing", "selected_voice", "solo")],
             "Scenes": [controllers["scene"], self.virtual["prev_scene"], self.virtual["next_scene"], self.virtual["store_scene"]],
         }
@@ -432,6 +432,11 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
             self._set("solo", 0 if round(self._value("solo")) == voice else voice)
             self.refresh_gui()
 
+    def toggle_tone_flag(self, prefix):
+        symbol = "%s%d" % (prefix, self._selected() + 1)
+        self._set(symbol, int(self._value(symbol) < .5))
+        self.refresh_gui()
+
     def _page(self, title):
         self._bind_pages(title)
         self._flush_pages()
@@ -480,7 +485,23 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
             self.items["meter%d" % voice] = canvas.create_rectangle(
                 card_width - 8, y + card_height - 4, card_width - 4, y + card_height - 4,
                 fill=COLOURS[voice], outline="")
-        self.plot = (card_width + 30, top + 20, width - 24, bottom - 20)
+        plot_top = top
+        if self.view == "tone":
+            btn_h = 18 if height < 320 else 21
+            btn_gap = 3
+            frame_x0 = card_width + 12
+            frame_x1 = width - 6
+            btn_w = min(74, max(54, int((frame_x1 - frame_x0) * 0.25)))
+            for key, box, label in (
+                ("hpf_slope", (frame_x0, top, frame_x0 + btn_w, top + btn_h), "HP 12"),
+                ("hpf_res", (frame_x0, top + btn_h + btn_gap, frame_x0 + btn_w, top + 2 * btn_h + btn_gap), "Res"),
+                ("lpf_slope", (frame_x1 - btn_w, top, frame_x1, top + btn_h), "LP 12"),
+                ("lpf_res", (frame_x1 - btn_w, top + btn_h + btn_gap, frame_x1, top + 2 * btn_h + btn_gap), "Res"),
+            ):
+                button(key, box, label)
+                canvas.itemconfigure(self.items[key + "_label"], font=self.small)
+            plot_top = top + 2 * btn_h + btn_gap + 4
+        self.plot = (card_width + 30, plot_top + 20, width - 24, bottom - 20)
         x0, y0, x1, y1 = self.plot
         canvas.create_rectangle(x0 - 18, y0 - 18, x1 + 18, y1 + 18, outline=DIM)
         if self.view == "stereo":
@@ -513,11 +534,12 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
                 if width >= 430 or hz in (20, 1000, 20000):
                     canvas.create_text(x, bottom - 5, text=self._hz_label(hz),
                                        font=self.small, fill=self.dim)
-            for db in (0, -12, -24, -36):
+            for db in (12, 0, -12, -24, -36):
                 y = self._response_y(db)
-                canvas.create_line(x0, y, x1, y, fill=GRID, dash=(2, 4))
-                canvas.create_text(x0 - 6, y, text=str(db), anchor="e",
-                                   font=self.small, fill=self.dim)
+                canvas.create_line(x0, y, x1, y, fill=GRID, dash=() if db == 0 else (2, 4))
+                if height >= 320 or db in (12, 0, -36):
+                    canvas.create_text(x0 - 6, y, text="+12" if db > 0 else str(db), anchor="e",
+                                       font=self.small, fill=self.dim)
         for voice in range(4):
             self.items["curve%d" % voice] = canvas.create_line(
                 0, 0, 1, 1, fill=COLOURS[voice], state="hidden", tags="tone%d" % voice)
@@ -547,7 +569,9 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
 
     @staticmethod
     def _hz_label(hz):
-        return "%gk" % (hz / 1000) if hz >= 1000 else "%g" % hz
+        if hz >= 1000:
+            return "%.2gk" % (hz / 1000) if hz < 10000 else "%.0fk" % (hz / 1000)
+        return "%d" % round(hz)
 
     def _frequency_x(self, hz):
         x0, _, x1, _ = self.plot
@@ -555,13 +579,27 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
 
     def _response_y(self, db):
         _, y0, _, y1 = self.plot
-        return y0 + max(0, min(36, -db)) / 36 * (y1 - y0)
+        return y0 + max(0, min(48, 12 - db)) / 48 * (y1 - y0)
+
+    @staticmethod
+    def _tone_damping(slope_24, res_norm):
+        if slope_24:
+            return (0.7653668647301795 * (0.30 / 0.7653668647301795) ** res_norm,
+                    1.8477590650225735 * (0.95 / 1.8477590650225735) ** res_norm)
+        return (1.4142135623730951 * (0.30 / 1.4142135623730951) ** res_norm, None)
 
     def _tone_values(self, voice):
+        i = voice + 1
         limit = (self._monitor("sample_rate", 48000) or 48000) * .45
-        high = min(limit, max(20, min(4000, self._value("hpf%d" % (voice + 1), 20))))
-        low = min(limit, max(200, min(20000, self._value("lpf%d" % (voice + 1), 20000))))
-        return high, low, self._value("tone_on%d" % (voice + 1)) >= .5
+        high = min(limit, max(20, min(4000, self._value("hpf%d" % i, 20))))
+        low = min(limit, max(200, min(20000, self._value("lpf%d" % i, 20000))))
+        on = self._value("tone_on%d" % i) >= .5
+        res = max(0.0, min(100.0, self._value("tone_res%d" % i, 0)))
+        hp24 = self._value("hpf_slope%d" % i) >= .5
+        lp24 = self._value("lpf_slope%d" % i) >= .5
+        hp_res = self._value("hpf_res_on%d" % i) >= .5
+        lp_res = self._value("lpf_res_on%d" % i, 1) >= .5
+        return high, low, on, res, hp24, lp24, hp_res, lp_res
 
     def _draw_tone(self):
         values = tuple(self._tone_values(v) for v in range(4))
@@ -572,7 +610,7 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
         if key == self.tone_drawn:
             return
         self.tone_drawn = key
-        for voice, (high, low, on) in enumerate(values):
+        for voice, (high, low, on, res, hp24, lp24, hp_res, lp_res) in enumerate(values):
             item = self.items["curve%d" % voice]
             shown = self.view == "tone" and available[voice]
             self.widget_canvas.itemconfigure(item, state="normal" if shown else "hidden")
@@ -581,6 +619,8 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
             coordinates = []
             gh = math.tan(math.pi * high / rate)
             gl = math.tan(math.pi * low / rate)
+            hk1, hk2 = self._tone_damping(hp24, (res / 100.0) if hp_res else 0.0)
+            lk1, lk2 = self._tone_damping(lp24, (res / 100.0) if lp_res else 0.0)
             for point in range(73):
                 hz = 20 * 1000 ** (point / 72)
                 db = 0
@@ -590,8 +630,14 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
                     else:
                         warp = math.tan(math.pi * hz / rate)
                         rh, rl = warp / gh, warp / gl
-                        power = rh ** 4 / (1 + rh ** 4) / (1 + rl ** 4)
-                        db = 10 * math.log10(max(1e-12, power))
+                        rh2, rl2 = rh * rh, rl * rl
+                        hp_pow = (rh2 * rh2) / ((1 - rh2) ** 2 + (hk1 * rh) ** 2)
+                        if hk2 is not None:
+                            hp_pow *= (rh2 * rh2) / ((1 - rh2) ** 2 + (hk2 * rh) ** 2)
+                        lp_pow = 1.0 / ((1 - rl2) ** 2 + (lk1 * rl) ** 2)
+                        if lk2 is not None:
+                            lp_pow *= 1.0 / ((1 - rl2) ** 2 + (lk2 * rl) ** 2)
+                        db = 10 * math.log10(max(1e-12, hp_pow * lp_pow))
                 coordinates.extend((self._frequency_x(hz), self._response_y(db)))
             focused = voice == self._selected()
             colour = COLOURS[voice] if enabled[voice] else DIM
@@ -702,8 +748,8 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
                 duration += " MAX"
             summary = "Voice %d  |  %s" % (selected + 1, duration)
         elif page == "Tone":
-            high, low, on = self._tone_values(selected)
-            summary = ("V%d | HP %s | LP %s" % (selected + 1, self._hz_label(high), self._hz_label(low))
+            high, low, on, res, _, _, _, _ = self._tone_values(selected)
+            summary = ("V%d | HP %s | LP %s | R %g%%" % (selected + 1, self._hz_label(high), self._hz_label(low), round(res))
                        if on else "V%d | Filters Off" % (selected + 1))
         elif page == "Character":
             fine = self._monitor("fine_actual%d" % (selected + 1), self._value("fine%d" % (selected + 1)))
@@ -810,6 +856,20 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
                 else:
                     canvas.itemconfigure(ghost, state="hidden")
         self._draw_tone()
+        if self.view == "tone":
+            _, _, _, _, hp24, lp24, hp_res, lp_res = self._tone_values(selected)
+            vc = COLOURS[selected]
+            bg = zynthian_gui_config.color_bg
+            for key, active, text_label in (
+                ("hpf_slope", hp24, "HP 24" if hp24 else "HP 12"),
+                ("hpf_res", hp_res, "Res"),
+                ("lpf_slope", lp24, "LP 24" if lp24 else "LP 12"),
+                ("lpf_res", lp_res, "Res"),
+            ):
+                canvas.itemconfigure(self.items[key], outline=vc if active else DIM,
+                                     fill=vc if active else bg)
+                canvas.itemconfigure(self.items[key + "_label"], text=text_label,
+                                     fill="#000000" if active else (self.fg if key.endswith("slope") else self.dim))
         canvas.tag_raise("voice%d" % selected)
         canvas.itemconfigure(self.items["on_label"], text="On" if self._enabled(selected) else "Off")
         on = self._enabled(selected)
@@ -866,6 +926,14 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
             self.toggle_on()
         elif key == "solo":
             self.toggle_solo()
+        elif key == "hpf_slope":
+            self.toggle_tone_flag("hpf_slope")
+        elif key == "lpf_slope":
+            self.toggle_tone_flag("lpf_slope")
+        elif key == "hpf_res":
+            self.toggle_tone_flag("hpf_res_on")
+        elif key == "lpf_res":
+            self.toggle_tone_flag("lpf_res_on")
         elif key in PAGES:
             self._page(key)
 

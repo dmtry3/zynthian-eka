@@ -279,10 +279,22 @@ def main():
 
     widget._page("Tone")
     assert parent.zcontrollers[0] is processor.controllers_dict["hpf2"]
+    assert parent.zcontrollers[1] is processor.controllers_dict["lpf2"]
+    assert parent.zcontrollers[2] is processor.controllers_dict["tone_res2"]
+    assert parent.zcontrollers[3] is processor.controllers_dict["tone_on2"]
     parent.zcontrollers[0].set_value(200)
     parent.zcontrollers[1].set_value(6000)
-    parent.zcontrollers[2].set_value(1)
+    parent.zcontrollers[2].set_value(45)
+    parent.zcontrollers[3].set_value(1)
     assert processor.controllers_dict["hpf1"].value == 20
+    widget.toggle_tone_flag("hpf_slope")
+    widget.toggle_tone_flag("lpf_slope")
+    widget.toggle_tone_flag("hpf_res_on")
+    assert processor.controllers_dict["hpf_slope2"].value == 1
+    assert processor.controllers_dict["lpf_slope2"].value == 1
+    assert processor.controllers_dict["hpf_res_on2"].value == 1
+    assert processor.controllers_dict["lpf_res_on2"].value == 1
+    assert processor.controllers_dict["hpf_slope1"].value == 0
     widget.select_voice(0)
     assert parent.screen_title == "Tone"
     assert parent.zcontrollers[0] is processor.controllers_dict["hpf1"]

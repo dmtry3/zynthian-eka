@@ -66,6 +66,8 @@ static float value(const Plugin *p, unsigned port, float fallback, float low, fl
         port = EKA_CHARACTER_BANK + (p->scene - 1) * EKA_CHARACTER_SIZE + port - EKA_CHARACTER_BASE;
     } else if (p->scene && port >= EKA_TONE_BASE && port < EKA_TONE_BASE + EKA_TONE_SIZE) {
         port = EKA_TONE_BANK + (p->scene - 1) * EKA_TONE_SIZE + port - EKA_TONE_BASE;
+    } else if (p->scene && port >= EKA_TONE_EXT_BASE && port < EKA_TONE_EXT_BASE + EKA_TONE_EXT_SIZE) {
+        port = EKA_TONE_EXT_BANK + (p->scene - 1) * EKA_TONE_EXT_SIZE + port - EKA_TONE_EXT_BASE;
     } else if (p->scene) {
         for (unsigned i = 0; i < EKA_SCENE_SIZE; ++i)
             if (eka_scene_ports[i] == port) {
@@ -251,6 +253,12 @@ static void run_span(Plugin *p, uint32_t base, uint32_t n) {
         eka_tone_set(&p->tone[v], value(p, tone_port, 20, 20, 4000),
                      value(p, tone_port + 1, 20000, 200, 20000),
                      value(p, tone_port + 2, 0, 0, 1) >= .5f);
+        unsigned tone_ext = EKA_TONE_EXT_BASE + v * 5;
+        eka_tone_shape(&p->tone[v], value(p, tone_ext, 0, 0, 100),
+                       value(p, tone_ext + 1, 0, 0, 1) >= .5f,
+                       value(p, tone_ext + 2, 0, 0, 1) >= .5f,
+                       value(p, tone_ext + 3, 0, 0, 1) >= .5f,
+                       value(p, tone_ext + 4, 1, 0, 1) >= .5f);
         unsigned time_port = TIME1 + v * 4;
         double milliseconds = value(p, time_port, 0, 0, EKA_DELAY_MAX_MS);
         if (value(p, time_port + 2, 0, 0, 1) >= .5f) {
