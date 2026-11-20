@@ -12,7 +12,7 @@ PORTS = [
     "mode", "param1", "param2", "depth",
     "pattern", "step_rate", "steps", "warp",
     "trig", "threshold", "env_depth", "smooth",
-    "live_pad", "prev_scene", "next_scene", "output_db",
+    "live_pad", "prev_scene", "next_scene", "low_duck_ctl",
 ]
 
 FACE_KEYS = [
@@ -196,7 +196,7 @@ def write_presets_ttl():
         cur = slots[sel_slot - 1]
         ports = {
             "slot": sel_slot, "mix": mix, "low_split": low_split, "scene": 0,
-            "live_pad": 0, "prev_scene": 0, "next_scene": 0, "output_db": 0,
+            "live_pad": 0, "prev_scene": 0, "next_scene": 0, "low_duck_ctl": low_duck,
         }
         for k in FACE_KEYS:
             ports[k] = cur[k]

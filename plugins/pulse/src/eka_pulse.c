@@ -33,11 +33,11 @@
 enum {
   P_SLOT = 0, P_MIX, P_LOW_SPLIT, P_SCENE,           /* Main */
   P_FACE0,                                           /* FX (4), Curve (4), Trigger (4) */
-  P_LIVE_PAD = P_FACE0 + 12, P_PREV_SCENE, P_NEXT_SCENE, P_OUTPUT_DB, /* Perform */
+  P_LIVE_PAD = P_FACE0 + 12, P_PREV_SCENE, P_NEXT_SCENE, P_LOW_DUCK_CTL, /* Perform + Main Low Duck */
   P_CTL_END,
   P_IN_L = P_CTL_END, P_IN_R, P_OUT_L, P_OUT_R,
   P_CONTROL, P_NOTIFY,
-  P_PEAK, P_OUT_PEAK, P_LIM_GR, P_LOADS, P_BPM, P_SEL, P_ON_MASK, P_CUR_SCENE,
+  P_PEAK, P_OUT_PEAK, P_LIM_GR, P_LOADS, P_BPM, P_SEL, P_ON_MASK, P_CUR_SCENE, P_SCENE_MASK,
   P_PHASE0,
   P_VAL0 = P_PHASE0 + PX_SLOTS,
   P_STEPS0 = P_VAL0 + PX_SLOTS,
@@ -106,14 +106,16 @@ typedef struct {
   LV2_URID midi_Event;
   LV2_URID patch_Set, patch_Get, patch_property, patch_value;
   LV2_URID time_Position, time_bpm, time_speed, time_bar, time_barBeat, time_bpb;
-  LV2_URID urid_scenes_blob, urid_cur_scene;
+  LV2_URID urid_scenes_blob, urid_cur_scene, urid_scene_mask;
   int bpb;
   int rolling;
   LV2_URID q_urid[NQ];
   float q[NQ];
   float scenes[NSCENES][NQ_SCENE];
   int cur_scene;
+  int scene_mask;              /* bitmask of saved scenes: bit 0=A..3=D (default 1 = A only) */
   int scene_seen;
+  int last_scene_port;
   int prev_pedal_hi;
   int next_pedal_hi;
   unsigned char dirty[NQ];
@@ -216,12 +218,15 @@ static void q_defaults(Plugin* P) {
     memcpy(P->scenes[sc], P->q, sizeof(float) * NQ_SCENE);
   }
   P->cur_scene = 0;
+  P->scene_mask = 1; /* Only Scene A is populated by default; B/C/D are empty until Store */
   P->scene_seen = 0;
+  P->last_scene_port = 0;
 }
 
 static void switch_scene(Plugin* P, int target) {
   if (target < 0) target = 0;
   if (target >= NSCENES) target = NSCENES - 1;
+  if (!(P->scene_mask & (1 << target))) return; /* refuse switching to empty scene */
   if (target == P->cur_scene) return;
   /* Save current scene state, load target scene state */
   memcpy(P->scenes[P->cur_scene], P->q, sizeof(float) * NQ_SCENE);
@@ -230,6 +235,14 @@ static void switch_scene(Plugin* P, int target) {
   P->face_seen = 0;
   P->loads += 1.0f;
   P->report_next = 0;
+}
+
+static int next_saved_scene(const Plugin* P, int dir) {
+  for (int step = 1; step <= NSCENES; step++) {
+    int cand = (P->cur_scene + dir * step + NSCENES * 4) % NSCENES;
+    if (P->scene_mask & (1 << cand)) return cand;
+  }
+  return P->cur_scene;
 }
 
 static void apply_params(Plugin* P) {
@@ -257,9 +270,9 @@ static void apply_params(Plugin* P) {
   }
   p->mix          = P->port[P_MIX] ? clampf(*P->port[P_MIX], 0.0f, 100.0f) * 0.01f : 1.0f;
   p->low_split_hz = P->port[P_LOW_SPLIT] ? clampf(*P->port[P_LOW_SPLIT], 0.0f, 500.0f) : 0.0f;
-  p->low_duck     = P->q[Q_LOW_DUCK] >= 0.5f;
+  p->low_duck     = (P->q[Q_LOW_DUCK] >= 0.5f) || (P->port[P_LOW_DUCK_CTL] && *P->port[P_LOW_DUCK_CTL] >= 0.5f);
   p->free_hz      = P->q[Q_FREE_HZ];
-  p->output_db    = P->port[P_OUTPUT_DB] ? clampf(*P->port[P_OUTPUT_DB], -24.0f, 6.0f) : 0.0f;
+  p->output_db    = 0.0f;
   p->live_pad     = P->port[P_LIVE_PAD] ? (int)lrintf(clampf(*P->port[P_LIVE_PAD], 0.0f, 8.0f)) : 0;
   p->xy_x         = P->q[Q_XY_X] * 0.01f;
   p->xy_y         = P->q[Q_XY_Y] * 0.01f;
@@ -298,6 +311,7 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double rate, const char* 
   P->time_bpb       = m->map(m->handle, LV2_TIME__beatsPerBar);
   P->urid_scenes_blob = m->map(m->handle, PULSE_URI "#scenes_blob");
   P->urid_cur_scene   = m->map(m->handle, PULSE_URI "#cur_scene");
+  P->urid_scene_mask  = m->map(m->handle, PULSE_URI "#scene_mask");
   P->bpb            = 4;
 
   for (int i = 0; i < NQ; i++) {
@@ -380,6 +394,7 @@ static void read_events(Plugin* P) {
         int dst = (int)nv;
         if (dst >= 1 && dst <= NSCENES) {
           memcpy(P->scenes[dst - 1], P->q, sizeof(float) * NQ_SCENE);
+          P->scene_mask |= (1 << (dst - 1));
           P->cur_scene = dst - 1;
           P->scene_seen = 0;
           P->loads += 1.0f;
@@ -474,10 +489,10 @@ static void read_scenes(Plugin* P) {
   int prev_hi = P->port[P_PREV_SCENE] ? (*P->port[P_PREV_SCENE] >= 0.5f) : 0;
   int next_hi = P->port[P_NEXT_SCENE] ? (*P->port[P_NEXT_SCENE] >= 0.5f) : 0;
   if (prev_hi && !P->prev_pedal_hi) {
-    switch_scene(P, (P->cur_scene + NSCENES - 1) % NSCENES);
-    P->scene_seen = 0; /* wait for host/widget to update P_SCENE */
+    switch_scene(P, next_saved_scene(P, -1));
+    P->scene_seen = 0;
   } else if (next_hi && !P->next_pedal_hi) {
-    switch_scene(P, (P->cur_scene + 1) % NSCENES);
+    switch_scene(P, next_saved_scene(P, +1));
     P->scene_seen = 0;
   }
   P->prev_pedal_hi = prev_hi;
@@ -486,9 +501,13 @@ static void read_scenes(Plugin* P) {
   if (P->port[P_SCENE]) {
     int req = (int)lrintf(clampf(*P->port[P_SCENE], 0.0f, (float)(NSCENES - 1)));
     if (!P->scene_seen) {
-      if (req == P->cur_scene) P->scene_seen = 1;
-    } else if (req != P->cur_scene) {
-      switch_scene(P, req);
+      P->last_scene_port = req;
+      P->scene_seen = 1;
+    } else if (req != P->last_scene_port) {
+      P->last_scene_port = req;
+      if (P->scene_mask & (1 << req)) {
+        switch_scene(P, req);
+      }
     }
   }
 }
@@ -507,8 +526,9 @@ static void run(LV2_Handle h, uint32_t n) {
   if (P->port[P_LIM_GR])    *P->port[P_LIM_GR]    = P->fx.lim_gr;
   if (P->port[P_LOADS])     *P->port[P_LOADS]     = P->loads;
   if (P->port[P_BPM])       *P->port[P_BPM]       = P->fx.bpm;
-  if (P->port[P_SEL])       *P->port[P_SEL]       = (float)(P->sel + 1);
-  if (P->port[P_CUR_SCENE]) *P->port[P_CUR_SCENE] = (float)P->cur_scene;
+  if (P->port[P_SEL])        *P->port[P_SEL]        = (float)(P->sel + 1);
+  if (P->port[P_CUR_SCENE])  *P->port[P_CUR_SCENE]  = (float)P->cur_scene;
+  if (P->port[P_SCENE_MASK]) *P->port[P_SCENE_MASK] = (float)P->scene_mask;
 
   int mask = 0;
   for (int s = 0; s < PX_SLOTS; s++) {
@@ -550,7 +570,9 @@ static LV2_State_Status save(LV2_Handle h, LV2_State_Store_Function store, LV2_S
     }
   }
   int32_t cs = (int32_t)P->cur_scene;
+  int32_t sm = (int32_t)P->scene_mask;
   store(sh, P->urid_cur_scene, &cs, sizeof cs, P->atom_Int, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+  store(sh, P->urid_scene_mask, &sm, sizeof sm, P->atom_Int, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
   store(sh, P->urid_scenes_blob, P->scenes, sizeof P->scenes, P->atom_Chunk,
         LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
   return LV2_STATE_SUCCESS;
@@ -588,12 +610,21 @@ static LV2_State_Status restore(LV2_Handle h, LV2_State_Retrieve_Function retrie
   if (blob && bsize == sizeof P->scenes) {
     memcpy(P->scenes, blob, sizeof P->scenes);
   }
+  const void* smd = retrieve(sh, P->urid_scene_mask, &bsize, &btype, &bfl);
+  if (smd) {
+    int sm = 1;
+    if (btype == P->atom_Int && bsize == sizeof(int32_t)) sm = *(const int32_t*)smd;
+    else if (btype == P->atom_Long && bsize == sizeof(int64_t)) sm = (int)*(const int64_t*)smd;
+    P->scene_mask = (sm & 0x0F) ? (sm & 0x0F) : 1;
+  } else {
+    P->scene_mask = 1;
+  }
   const void* csd = retrieve(sh, P->urid_cur_scene, &bsize, &btype, &bfl);
   if (csd) {
     int sc = 0;
     if (btype == P->atom_Int && bsize == sizeof(int32_t)) sc = *(const int32_t*)csd;
     else if (btype == P->atom_Long && bsize == sizeof(int64_t)) sc = (int)*(const int64_t*)csd;
-    if (sc >= 0 && sc < NSCENES) P->cur_scene = sc;
+    if (sc >= 0 && sc < NSCENES && (P->scene_mask & (1 << sc))) P->cur_scene = sc;
   }
   P->scene_seen = 0;
   P->face_seen = 0;

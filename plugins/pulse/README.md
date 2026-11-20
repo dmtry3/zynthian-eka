@@ -21,11 +21,11 @@ Rhythmic multi-effect shaper LV2 plugin with a touch widget for [Zynthian](https
 
 | Page | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|---|
-| **1. Main** | Slot (`1:Time..4:Gate`) | Mix % | Low Split (`Off, 60..500 Hz`) | Scene (`A–D`) |
+| **1. Main** | Slot (`1:Time..4:Gate`) | Mix % | Low Split (`Off, 60..500 Hz`) | Low Duck (`Off / On`) |
 | **2. FX** *(slot)* | Mode *(dynamic name)* | Param 1 *(Range / Drive / Cutoff / Floor)* | Param 2 *(Window / Tone-Crush / Res / Width)* | Depth (`-100..+100%`) |
 | **3. Curve** *(slot)* | Pattern (`Custom` + 24) | Step Rate (`1/32..1 bar`, `Free`) | Steps (`1..16`) | Warp (`-100..+100%`) |
 | **4. Trigger** *(slot)* | Trig (`Sync/Free/Audio/MIDI`) | Threshold dB | Env→Depth (`-100..+100%`) | Smooth / Punch |
-| **5. Perform** | Live Pad (`Off` + 8 FX) | Prev Scene *(pedal)* | Next Scene *(pedal)* | Output dB (`-24..+6 dB`) |
+| **5. Perform** | Live Pad (`Off` + 8 FX) | Prev Scene *(pedal)* | Next Scene *(pedal)* | Scene (`A–D`) |
 
 ## Build & Install
 

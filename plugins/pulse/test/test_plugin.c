@@ -40,10 +40,10 @@ enum {
   MODE, PARAM1, PARAM2, DEPTH,
   PATTERN, STEP_RATE, STEPS, WARP,
   TRIG, THRESHOLD, ENV_DEPTH, SMOOTH,
-  LIVE_PAD, PREV_SCENE, NEXT_SCENE, OUTPUT_DB,
+  LIVE_PAD, PREV_SCENE, NEXT_SCENE, LOW_DUCK_CTL,
   NCTL,
   IN_L = NCTL, IN_R, OUT_L, OUT_R, CONTROL, NOTIFY,
-  PEAK, OUT_PEAK, LIM_GR, LOADS, BPM, SEL, ON_MASK, CUR_SCENE,
+  PEAK, OUT_PEAK, LIM_GR, LOADS, BPM, SEL, ON_MASK, CUR_SCENE, SCENE_MASK,
   PHASE0, VAL0 = PHASE0 + 4, STEPS0 = VAL0 + 4, MODE0 = STEPS0 + 4,
   CUR0 = MODE0 + 4, CUR_LVL0 = CUR0 + 12, CUR_SHP0 = CUR_LVL0 + 16,
   NPORTS = CUR_SHP0 + 16
@@ -304,34 +304,42 @@ int main(int argc, char** argv) {
   CHECK(mons[LOADS - PEAK] == loads + 1);
   CHECK(mons[STEPS0 + 2 - PEAK] == 11);
 
-  /* M3: Scenes A-D Store, Pedal Next/Prev Scene, and State save/restore of scenes */
+  /* M3: Scenes A-D empty-scene guard, Store, Pedal Next/Prev Scene, and State save/restore */
+  CHECK(mons[SCENE_MASK - PEAK] == 1); /* only Scene A populated by default */
+  ctl[SCENE] = 2; run_blocks(2);       /* try switching to empty Scene C -> refused */
+  CHECK(mons[CUR_SCENE - PEAK] == 0);
   ctl[SCENE] = 0; run_blocks(2);
   ctl_set(P("s4_steps"), 5);
   ctl_set(P("s4_lvl1"), 33.0f);
   run_blocks(2);
-  /* Store into B (2): plugin copies state into B and switches cur_scene -> 1 without overwriting A */
+  /* Store into B (2): plugin copies state into B, marks B saved, and switches cur_scene -> 1 */
   ctl_set(P("store_scene"), 2);
   run_blocks(2);
-  CHECK(mons[CUR_SCENE - PEAK] == 1 && mons[STEPS0 + 3 - PEAK] == 5);
+  CHECK(mons[CUR_SCENE - PEAK] == 1 && mons[SCENE_MASK - PEAK] == 3 && mons[STEPS0 + 3 - PEAK] == 5);
   ctl[SCENE] = 1; run_blocks(1); /* widget syncs scene port to cur_scene */
   /* Switch back to A (0) and edit A to 16 steps */
   ctl[SCENE] = 0; run_blocks(2);
   ctl_set(P("s4_steps"), 16);
   ctl_set(P("s4_lvl1"), 88.0f);
   run_blocks(2);
-  /* Pedal Next Scene: A (0) -> B (1) should load 5 steps & cur_lvl1 = 33 */
+  /* Pedal Next Scene: A (0) -> B (1) (skips empty C/D!) should load 5 steps & cur_lvl1 = 33 */
   ctl[NEXT_SCENE] = 1; run_blocks(2); ctl[NEXT_SCENE] = 0; run_blocks(1);
   CHECK(mons[CUR_SCENE - PEAK] == 1);
   CHECK(mons[STEPS0 + 3 - PEAK] == 5);
   ctl[SLOT] = 4; run_blocks(2);
   CHECK(mons[CUR_LVL0 - PEAK] == 33.0f);
-  /* Save State (including scenes_blob), mutate, restore, and verify B still has 5 and A has 16 */
+  /* Pedal Next Scene again: B (1) -> wraps to A (0), skipping empty C and D */
+  ctl[NEXT_SCENE] = 1; run_blocks(2); ctl[NEXT_SCENE] = 0; run_blocks(1);
+  CHECK(mons[CUR_SCENE - PEAK] == 0);
+  ctl[NEXT_SCENE] = 1; run_blocks(2); ctl[NEXT_SCENE] = 0; run_blocks(1);
+  CHECK(mons[CUR_SCENE - PEAK] == 1);
+  /* Save State (including scenes_blob & scene_mask), mutate, restore, and verify B still has 5 and A has 16 */
   clear_items();
   si->save(inst, store, NULL, 0, NULL);
   ctl_set(P("s4_steps"), 3); run_blocks(2);
   si->restore(inst, retrieve, NULL, 0, NULL);
   run_blocks(2);
-  CHECK(mons[CUR_SCENE - PEAK] == 1 && mons[STEPS0 + 3 - PEAK] == 5);
+  CHECK(mons[CUR_SCENE - PEAK] == 1 && mons[SCENE_MASK - PEAK] == 3 && mons[STEPS0 + 3 - PEAK] == 5);
   /* Pedal Prev Scene: B (1) -> A (0) should load 16 steps & cur_lvl1 = 88 */
   ctl[PREV_SCENE] = 1; run_blocks(2); ctl[PREV_SCENE] = 0; run_blocks(1);
   CHECK(mons[CUR_SCENE - PEAK] == 0 && mons[STEPS0 + 3 - PEAK] == 16 && mons[CUR_LVL0 - PEAK] == 88.0f);
@@ -341,7 +349,7 @@ int main(int argc, char** argv) {
     static const char* pnames[] = {
       "slot", "mix", "low_split", "scene", "mode", "param1", "param2", "depth",
       "pattern", "step_rate", "steps", "warp", "trig", "threshold", "env_depth", "smooth",
-      "live_pad", "prev_scene", "next_scene", "output_db"
+      "live_pad", "prev_scene", "next_scene", "low_duck_ctl"
     };
     FILE* pf = fopen(argv[2], "r");
     CHECK(pf != NULL);

@@ -231,6 +231,7 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         self.sync_pending = True
         self.last_slot = None
         self.last_loads = None
+        self.last_mon_scene = None
         self.meta_slot = None
         self.help_slot = None
 
@@ -286,6 +287,10 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
 
     def _on_mask(self):
         return int(round(self._mon("on_mask", 8)))
+
+    def _scene_mask(self):
+        m = int(round(self._mon("scene_mask", 1)))
+        return m if (m & 0x0F) else 1
 
     def _slot_on(self, s):
         return bool((self._on_mask() >> (s - 1)) & 1)
@@ -374,10 +379,19 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
     def _sync_faces(self):
         slot = self._slot()
         self._update_slot_labels(slot)
-        # Sync scene controller when pedal (Prev/Next Scene) changes cur_scene in plugin
+        # Sync scene controller when plugin changes cur_scene (pedal / Store / restore),
+        # or snap knob back if turned onto an empty scene. Never clobber a valid user selection.
         if self.monitors and "cur_scene" in self.monitors:
             cs = min(max(int(round(self._mon("cur_scene", 0))), 0), 3)
-            if int(round(self._zval("scene", 0))) != cs:
+            smask = self._scene_mask()
+            knob_sc = min(max(int(round(self._zval("scene", 0))), 0), 3)
+            if self.last_mon_scene is None or cs != self.last_mon_scene:
+                self.last_mon_scene = cs
+                if knob_sc != cs:
+                    self._zset("scene", cs)
+                self.bottom_view = None
+            elif not (smask & (1 << knob_sc)):
+                # Knob was turned to an empty scene: snap back to active scene
                 self._zset("scene", cs)
                 self.bottom_view = None
         # Auto-open Perform tab when user switches encoders to Perform page
@@ -420,7 +434,7 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         return max(26, self._font_size() * 2 + 8)
 
     def _bot_h(self):
-        return max(26, self._font_size() * 2 + 8)
+        return max(38, min(52, int(self.height * 0.145)))
 
     def _left_w(self):
         return max(84, min(int(self.width * 0.17), 130))
@@ -726,8 +740,9 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
 
     def _draw_bottom_bar(self):
         c = self.widget_canvas
-        scene = min(max(int(round(self._zval("scene", 0))), 0), 3)
-        sig = (self.view, scene, self.store_armed)
+        scene = min(max(int(round(self._mon("cur_scene", self._zval("scene", 0)))), 0), 3)
+        smask = self._scene_mask()
+        sig = (self.view, scene, smask, self.store_armed)
         if self.bottom_view == sig:
             return
         self.bottom_view = sig
@@ -740,48 +755,63 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         x1 = max(self.width, 160) - 4
         y1 = max(self.height, 120) - 2
         y0 = y1 - self._bot_h() + 4
+        avail = max(x1 - x0, 200)
         fs = self._font_size()
-        f_btn = (zynthian_gui_config.font_family, max(8, fs - 1), "bold")
+        f_btn = (zynthian_gui_config.font_family, min(14, fs + 1), "bold")
 
-        # Left side: Steps editing actions (Rnd, <, >, Inv)
+        # Left side: Steps editing actions (Rnd, <, >, Inv) — sized for easy finger tap
         cur_x = x0
         if self.view == 0:
-            for key, label, bw in (("rnd", "Rnd", 44), ("shl", "<", 30), ("shr", ">", 30), ("inv", "Inv", 40)):
-                bx0, bx1 = cur_x, cur_x + bw
+            scale = min(1.0, avail / 460.0)
+            for key, label, bw in (("rnd", "Rnd", 52), ("shl", "<", 38), ("shr", ">", 38), ("inv", "Inv", 48)):
+                w_btn = max(26, int(bw * scale))
+                bx0, bx1 = cur_x, cur_x + w_btn
                 self.action_boxes[key] = (bx0, y0, bx1, y1)
-                c.create_rectangle(bx0, y0, bx1, y1, fill=BG_CARD, outline=DIM, tags="bottom")
+                c.create_rectangle(bx0, y0, bx1, y1, fill=BG_CARD, outline=DIM, width=1, tags="bottom")
                 c.create_text((bx0 + bx1) / 2, (y0 + y1) / 2, text=label, fill="#e0e6ef", font=f_btn, tags="bottom")
                 cur_x = bx1 + 4
 
-        # Right side: Scene strip A | B | C | D + Store
-        sw = 34
-        store_w = 50
-        total_sw = len(SCENES) * sw + (len(SCENES) - 1) * 3 + 6 + store_w
-        sx = max(cur_x + 6, x1 - total_sw)
+        # Right side: Scene strip A | B | C | D + Store (large touch targets)
+        rem = max(x1 - cur_x - 6, 180)
+        if self.view == 0:
+            sw = max(34, min(48, int((rem - 64) / 4.4)))
+            store_w = max(50, min(68, rem - 4 * sw - 18))
+        else:
+            sw = max(44, min(68, int((rem - 86) / 4.4)))
+            store_w = max(62, min(86, rem - 4 * sw - 20))
+        gap = 4
+        total_sw = len(SCENES) * sw + (len(SCENES) - 1) * gap + gap + store_w
+        sx = max(cur_x + 4, x1 - total_sw)
         for i, name in enumerate(SCENES):
-            bx0, bx1 = sx + i * (sw + 3), sx + i * (sw + 3) + sw
+            bx0 = sx + i * (sw + gap)
+            bx1 = bx0 + sw
             self.scene_boxes.append((bx0, y0, bx1, y1))
-            active = (i == scene)
-            c.create_rectangle(
-                bx0, y0, bx1, y1,
-                fill="#5c3d1e" if self.store_armed else ("#3a4a62" if active else BG_CARD),
-                outline="#ffa94d" if self.store_armed else ("#ffffff" if active else DIM),
-                tags="bottom",
-            )
-            c.create_text((bx0 + bx1) / 2, (y0 + y1) / 2, text=name, fill="#ffffff" if (active or self.store_armed) else "#9aa4b2", font=f_btn, tags="bottom")
+            saved = bool((smask >> i) & 1)
+            active = (i == scene) and saved
+            if self.store_armed:
+                fill, outline, fg, bw = "#5c3d1e", "#ffa94d", "#ffffff", 2
+            elif active:
+                fill, outline, fg, bw = "#4dabf7", "#ffffff", "#000000", 2
+            elif saved:
+                fill, outline, fg, bw = "#2a394f", "#74c0fc", "#e6ecf5", 2
+            else:
+                fill, outline, fg, bw = "#16181c", "#2f343c", "#505660", 1
+            c.create_rectangle(bx0, y0, bx1, y1, fill=fill, outline=outline, width=bw, tags="bottom")
+            c.create_text((bx0 + bx1) / 2, (y0 + y1) / 2, text=name, fill=fg, font=f_btn, tags="bottom")
 
-        stx0 = sx + len(SCENES) * (sw + 3) + 3
+        stx0 = sx + len(SCENES) * (sw + gap)
         stx1 = stx0 + store_w
         self.store_box = (stx0, y0, stx1, y1)
         c.create_rectangle(
             stx0, y0, stx1, y1,
             fill="#ffa94d" if self.store_armed else BG_CARD,
-            outline="#ffa94d" if self.store_armed else DIM,
+            outline="#ffa94d" if self.store_armed else "#7a828e",
+            width=2 if self.store_armed else 1,
             tags="bottom",
         )
         c.create_text(
             (stx0 + stx1) / 2, (y0 + y1) / 2, text="Store",
-            fill="#000000" if self.store_armed else "#cfd6e0", font=f_btn, tags="bottom",
+            fill="#000000" if self.store_armed else "#e0e6ef", font=f_btn, tags="bottom",
         )
 
     def _draw_steps_view(self):
@@ -1251,9 +1281,12 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         elif kind == "scene":
             if self.store_armed:
                 self.store_armed = False
-                # Send store_scene ONLY; plugin copies current state to target scene and updates cur_scene
+                # Send store_scene ONLY; plugin copies current state to target scene and updates cur_scene/scene_mask
                 self._zset("store_scene", arg + 1, force=True)
             else:
+                # Only switch to saved scenes; ignore taps on empty (gray) scenes
+                if not (self._scene_mask() & (1 << arg)):
+                    return
                 self._zset("scene", arg)
             self.bottom_view = None
             self.steps_view = None

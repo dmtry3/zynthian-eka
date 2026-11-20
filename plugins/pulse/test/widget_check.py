@@ -110,6 +110,9 @@ class Plugin:
         self.sel = None
         self.face = None
         self.loads = 0
+        self.cur_scene = 0
+        self.scene_mask = 1
+        self.last_scene_port = 0
 
     def run(self):
         sel = int(self.ctl["slot"].value) - 1
@@ -124,12 +127,25 @@ class Plugin:
             self.face = face
         for s in range(4):
             self.on[s] = int(self.ctl["s%d_on" % (s + 1)].value)
+        st_req = int(self.ctl["store_scene"].value)
+        if 1 <= st_req <= 4:
+            self.scene_mask |= (1 << (st_req - 1))
+            self.cur_scene = st_req - 1
+            self.ctl["store_scene"].value = 0
+            self.last_scene_port = int(self.ctl["scene"].value)
+            return
+        req_sc = int(self.ctl["scene"].value)
+        if req_sc != self.last_scene_port:
+            self.last_scene_port = req_sc
+            if self.scene_mask & (1 << req_sc):
+                self.cur_scene = req_sc
 
     def monitors(self):
         self.run()
         m = {
             "peak": 0.6, "out_peak": 0.5, "lim_gr": 0.0, "loads": self.loads,
-            "bpm": 120, "sel": self.sel + 1,
+            "bpm": 120, "sel": self.sel + 1, "cur_scene": self.cur_scene,
+            "scene_mask": self.scene_mask,
             "on_mask": sum(1 << i for i in range(4) if self.on[i]),
         }
         for s in range(4):
@@ -287,13 +303,24 @@ check(ctl["xy_on"].value == 1, "XY press sets xy_on=1")
 w._on_release(Ev((xb[0] + xb[2]) / 2, (xb[1] + xb[3]) / 2))
 check(ctl["xy_on"].value == 0, "XY release sets xy_on=0")
 
-# Store + Scene B arms and sends store_scene = 2 (without racing scene port)
+# Tap on empty scene B does nothing
+scb = w.scene_boxes[1]
+tap((scb[0] + scb[2]) / 2, (scb[1] + scb[3]) / 2)
+check(ctl["scene"].value == 0, "tap on empty scene B does not switch")
+
+# Store + Scene B arms and stores scene B (2), then finger tap switches A <-> B
 stb = w.store_box
 tap((stb[0] + stb[2]) / 2, (stb[1] + stb[3]) / 2)
 check(w.store_armed, "Store arms")
-scb = w.scene_boxes[1]
 tap((scb[0] + scb[2]) / 2, (scb[1] + scb[3]) / 2)
 check(not w.store_armed and ctl["store_scene"].value == 2, "Store + B sends store_scene=2")
+tick(2)
+check(proc.plugin.cur_scene == 1 and ctl["scene"].value == 1, "cur_scene moved to B after Store")
+sca = w.scene_boxes[0]
+tap((sca[0] + sca[2]) / 2, (sca[1] + sca[3]) / 2)
+check(ctl["scene"].value == 0, "finger tap switches back to saved scene A without clobbering")
+tick(2)
+check(proc.plugin.cur_scene == 0, "plugin switched to A")
 
 tb = w.tab_boxes[2]
 tap((tb[0] + tb[2]) / 2, (tb[1] + tb[3]) / 2)

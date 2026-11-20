@@ -1924,7 +1924,7 @@
         [ rdfs:label "B" ; rdf:value 1 ] ,
         [ rdfs:label "C" ; rdf:value 2 ] ,
         [ rdfs:label "D" ; rdf:value 3 ] ;
-        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/pulse#g_main> ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/pulse#g_perform> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
@@ -2077,9 +2077,10 @@
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 19 ; lv2:symbol "output_db" ; lv2:name "Output dB" ;
-        lv2:default 0 ; lv2:minimum -24 ; lv2:maximum 6 ;
-        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/pulse#g_perform> ;
+        lv2:index 19 ; lv2:symbol "low_duck_ctl" ; lv2:name "Low Duck" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
+        lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/pulse#g_main> ;
     ] ,
     [
         a lv2:InputPort , lv2:AudioPort ;
@@ -2153,301 +2154,306 @@
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 34 ; lv2:symbol "phase1" ; lv2:name "Slot 1 phase" ;
+        lv2:index 34 ; lv2:symbol "scene_mask" ; lv2:name "Saved scenes mask" ;
+        lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 15 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 35 ; lv2:symbol "phase1" ; lv2:name "Slot 1 phase" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 35 ; lv2:symbol "phase2" ; lv2:name "Slot 2 phase" ;
+        lv2:index 36 ; lv2:symbol "phase2" ; lv2:name "Slot 2 phase" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 36 ; lv2:symbol "phase3" ; lv2:name "Slot 3 phase" ;
+        lv2:index 37 ; lv2:symbol "phase3" ; lv2:name "Slot 3 phase" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 37 ; lv2:symbol "phase4" ; lv2:name "Slot 4 phase" ;
+        lv2:index 38 ; lv2:symbol "phase4" ; lv2:name "Slot 4 phase" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 38 ; lv2:symbol "val1" ; lv2:name "Slot 1 value" ;
+        lv2:index 39 ; lv2:symbol "val1" ; lv2:name "Slot 1 value" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 39 ; lv2:symbol "val2" ; lv2:name "Slot 2 value" ;
+        lv2:index 40 ; lv2:symbol "val2" ; lv2:name "Slot 2 value" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 40 ; lv2:symbol "val3" ; lv2:name "Slot 3 value" ;
+        lv2:index 41 ; lv2:symbol "val3" ; lv2:name "Slot 3 value" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 41 ; lv2:symbol "val4" ; lv2:name "Slot 4 value" ;
+        lv2:index 42 ; lv2:symbol "val4" ; lv2:name "Slot 4 value" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 42 ; lv2:symbol "steps1" ; lv2:name "Slot 1 steps" ;
+        lv2:index 43 ; lv2:symbol "steps1" ; lv2:name "Slot 1 steps" ;
         lv2:default 16 ; lv2:minimum 1 ; lv2:maximum 16 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 43 ; lv2:symbol "steps2" ; lv2:name "Slot 2 steps" ;
+        lv2:index 44 ; lv2:symbol "steps2" ; lv2:name "Slot 2 steps" ;
         lv2:default 5 ; lv2:minimum 1 ; lv2:maximum 16 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 44 ; lv2:symbol "steps3" ; lv2:name "Slot 3 steps" ;
+        lv2:index 45 ; lv2:symbol "steps3" ; lv2:name "Slot 3 steps" ;
         lv2:default 7 ; lv2:minimum 1 ; lv2:maximum 16 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 45 ; lv2:symbol "steps4" ; lv2:name "Slot 4 steps" ;
+        lv2:index 46 ; lv2:symbol "steps4" ; lv2:name "Slot 4 steps" ;
         lv2:default 8 ; lv2:minimum 1 ; lv2:maximum 16 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 46 ; lv2:symbol "mode1" ; lv2:name "Slot 1 mode" ;
+        lv2:index 47 ; lv2:symbol "mode1" ; lv2:name "Slot 1 mode" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 47 ; lv2:symbol "mode2" ; lv2:name "Slot 2 mode" ;
+        lv2:index 48 ; lv2:symbol "mode2" ; lv2:name "Slot 2 mode" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 48 ; lv2:symbol "mode3" ; lv2:name "Slot 3 mode" ;
+        lv2:index 49 ; lv2:symbol "mode3" ; lv2:name "Slot 3 mode" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 49 ; lv2:symbol "mode4" ; lv2:name "Slot 4 mode" ;
+        lv2:index 50 ; lv2:symbol "mode4" ; lv2:name "Slot 4 mode" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 50 ; lv2:symbol "cur_mode" ; lv2:name "Selected Mode" ;
+        lv2:index 51 ; lv2:symbol "cur_mode" ; lv2:name "Selected Mode" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 51 ; lv2:symbol "cur_param1" ; lv2:name "Selected Param 1" ;
+        lv2:index 52 ; lv2:symbol "cur_param1" ; lv2:name "Selected Param 1" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 52 ; lv2:symbol "cur_param2" ; lv2:name "Selected Param 2" ;
+        lv2:index 53 ; lv2:symbol "cur_param2" ; lv2:name "Selected Param 2" ;
         lv2:default 50 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 53 ; lv2:symbol "cur_depth" ; lv2:name "Selected Depth %" ;
+        lv2:index 54 ; lv2:symbol "cur_depth" ; lv2:name "Selected Depth %" ;
         lv2:default 100 ; lv2:minimum -100 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 54 ; lv2:symbol "cur_pattern" ; lv2:name "Selected Pattern" ;
+        lv2:index 55 ; lv2:symbol "cur_pattern" ; lv2:name "Selected Pattern" ;
         lv2:default 2 ; lv2:minimum 0 ; lv2:maximum 24 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 55 ; lv2:symbol "cur_step_rate" ; lv2:name "Selected Step Rate" ;
+        lv2:index 56 ; lv2:symbol "cur_step_rate" ; lv2:name "Selected Step Rate" ;
         lv2:default 2 ; lv2:minimum 0 ; lv2:maximum 8 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 56 ; lv2:symbol "cur_steps" ; lv2:name "Selected Steps" ;
+        lv2:index 57 ; lv2:symbol "cur_steps" ; lv2:name "Selected Steps" ;
         lv2:default 8 ; lv2:minimum 1 ; lv2:maximum 16 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 57 ; lv2:symbol "cur_warp" ; lv2:name "Selected Warp %" ;
+        lv2:index 58 ; lv2:symbol "cur_warp" ; lv2:name "Selected Warp %" ;
         lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 58 ; lv2:symbol "cur_trig" ; lv2:name "Selected Trig" ;
+        lv2:index 59 ; lv2:symbol "cur_trig" ; lv2:name "Selected Trig" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 59 ; lv2:symbol "cur_threshold" ; lv2:name "Selected Threshold dB" ;
+        lv2:index 60 ; lv2:symbol "cur_threshold" ; lv2:name "Selected Threshold dB" ;
         lv2:default -24 ; lv2:minimum -60 ; lv2:maximum 0 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 60 ; lv2:symbol "cur_env_depth" ; lv2:name "Selected Env->Depth %" ;
+        lv2:index 61 ; lv2:symbol "cur_env_depth" ; lv2:name "Selected Env->Depth %" ;
         lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 61 ; lv2:symbol "cur_smooth" ; lv2:name "Selected Smooth/Punch" ;
+        lv2:index 62 ; lv2:symbol "cur_smooth" ; lv2:name "Selected Smooth/Punch" ;
         lv2:default 10 ; lv2:minimum -100 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 62 ; lv2:symbol "cur_lvl1" ; lv2:name "Selected step 1 level" ;
+        lv2:index 63 ; lv2:symbol "cur_lvl1" ; lv2:name "Selected step 1 level" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 63 ; lv2:symbol "cur_lvl2" ; lv2:name "Selected step 2 level" ;
+        lv2:index 64 ; lv2:symbol "cur_lvl2" ; lv2:name "Selected step 2 level" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 64 ; lv2:symbol "cur_lvl3" ; lv2:name "Selected step 3 level" ;
+        lv2:index 65 ; lv2:symbol "cur_lvl3" ; lv2:name "Selected step 3 level" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 65 ; lv2:symbol "cur_lvl4" ; lv2:name "Selected step 4 level" ;
+        lv2:index 66 ; lv2:symbol "cur_lvl4" ; lv2:name "Selected step 4 level" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 66 ; lv2:symbol "cur_lvl5" ; lv2:name "Selected step 5 level" ;
+        lv2:index 67 ; lv2:symbol "cur_lvl5" ; lv2:name "Selected step 5 level" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 67 ; lv2:symbol "cur_lvl6" ; lv2:name "Selected step 6 level" ;
+        lv2:index 68 ; lv2:symbol "cur_lvl6" ; lv2:name "Selected step 6 level" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 68 ; lv2:symbol "cur_lvl7" ; lv2:name "Selected step 7 level" ;
+        lv2:index 69 ; lv2:symbol "cur_lvl7" ; lv2:name "Selected step 7 level" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 69 ; lv2:symbol "cur_lvl8" ; lv2:name "Selected step 8 level" ;
+        lv2:index 70 ; lv2:symbol "cur_lvl8" ; lv2:name "Selected step 8 level" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 70 ; lv2:symbol "cur_lvl9" ; lv2:name "Selected step 9 level" ;
+        lv2:index 71 ; lv2:symbol "cur_lvl9" ; lv2:name "Selected step 9 level" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 71 ; lv2:symbol "cur_lvl10" ; lv2:name "Selected step 10 level" ;
+        lv2:index 72 ; lv2:symbol "cur_lvl10" ; lv2:name "Selected step 10 level" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 72 ; lv2:symbol "cur_lvl11" ; lv2:name "Selected step 11 level" ;
+        lv2:index 73 ; lv2:symbol "cur_lvl11" ; lv2:name "Selected step 11 level" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 73 ; lv2:symbol "cur_lvl12" ; lv2:name "Selected step 12 level" ;
+        lv2:index 74 ; lv2:symbol "cur_lvl12" ; lv2:name "Selected step 12 level" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 74 ; lv2:symbol "cur_lvl13" ; lv2:name "Selected step 13 level" ;
+        lv2:index 75 ; lv2:symbol "cur_lvl13" ; lv2:name "Selected step 13 level" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 75 ; lv2:symbol "cur_lvl14" ; lv2:name "Selected step 14 level" ;
+        lv2:index 76 ; lv2:symbol "cur_lvl14" ; lv2:name "Selected step 14 level" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 76 ; lv2:symbol "cur_lvl15" ; lv2:name "Selected step 15 level" ;
+        lv2:index 77 ; lv2:symbol "cur_lvl15" ; lv2:name "Selected step 15 level" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 77 ; lv2:symbol "cur_lvl16" ; lv2:name "Selected step 16 level" ;
+        lv2:index 78 ; lv2:symbol "cur_lvl16" ; lv2:name "Selected step 16 level" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 78 ; lv2:symbol "cur_shp1" ; lv2:name "Selected step 1 shape" ;
+        lv2:index 79 ; lv2:symbol "cur_shp1" ; lv2:name "Selected step 1 shape" ;
         lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 5 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 79 ; lv2:symbol "cur_shp2" ; lv2:name "Selected step 2 shape" ;
+        lv2:index 80 ; lv2:symbol "cur_shp2" ; lv2:name "Selected step 2 shape" ;
         lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 5 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 80 ; lv2:symbol "cur_shp3" ; lv2:name "Selected step 3 shape" ;
+        lv2:index 81 ; lv2:symbol "cur_shp3" ; lv2:name "Selected step 3 shape" ;
         lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 5 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 81 ; lv2:symbol "cur_shp4" ; lv2:name "Selected step 4 shape" ;
+        lv2:index 82 ; lv2:symbol "cur_shp4" ; lv2:name "Selected step 4 shape" ;
         lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 5 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 82 ; lv2:symbol "cur_shp5" ; lv2:name "Selected step 5 shape" ;
+        lv2:index 83 ; lv2:symbol "cur_shp5" ; lv2:name "Selected step 5 shape" ;
         lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 5 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 83 ; lv2:symbol "cur_shp6" ; lv2:name "Selected step 6 shape" ;
+        lv2:index 84 ; lv2:symbol "cur_shp6" ; lv2:name "Selected step 6 shape" ;
         lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 5 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 84 ; lv2:symbol "cur_shp7" ; lv2:name "Selected step 7 shape" ;
+        lv2:index 85 ; lv2:symbol "cur_shp7" ; lv2:name "Selected step 7 shape" ;
         lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 5 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 85 ; lv2:symbol "cur_shp8" ; lv2:name "Selected step 8 shape" ;
+        lv2:index 86 ; lv2:symbol "cur_shp8" ; lv2:name "Selected step 8 shape" ;
         lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 5 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 86 ; lv2:symbol "cur_shp9" ; lv2:name "Selected step 9 shape" ;
+        lv2:index 87 ; lv2:symbol "cur_shp9" ; lv2:name "Selected step 9 shape" ;
         lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 5 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 87 ; lv2:symbol "cur_shp10" ; lv2:name "Selected step 10 shape" ;
+        lv2:index 88 ; lv2:symbol "cur_shp10" ; lv2:name "Selected step 10 shape" ;
         lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 5 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 88 ; lv2:symbol "cur_shp11" ; lv2:name "Selected step 11 shape" ;
+        lv2:index 89 ; lv2:symbol "cur_shp11" ; lv2:name "Selected step 11 shape" ;
         lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 5 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 89 ; lv2:symbol "cur_shp12" ; lv2:name "Selected step 12 shape" ;
+        lv2:index 90 ; lv2:symbol "cur_shp12" ; lv2:name "Selected step 12 shape" ;
         lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 5 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 90 ; lv2:symbol "cur_shp13" ; lv2:name "Selected step 13 shape" ;
+        lv2:index 91 ; lv2:symbol "cur_shp13" ; lv2:name "Selected step 13 shape" ;
         lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 5 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 91 ; lv2:symbol "cur_shp14" ; lv2:name "Selected step 14 shape" ;
+        lv2:index 92 ; lv2:symbol "cur_shp14" ; lv2:name "Selected step 14 shape" ;
         lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 5 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 92 ; lv2:symbol "cur_shp15" ; lv2:name "Selected step 15 shape" ;
+        lv2:index 93 ; lv2:symbol "cur_shp15" ; lv2:name "Selected step 15 shape" ;
         lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 5 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 93 ; lv2:symbol "cur_shp16" ; lv2:name "Selected step 16 shape" ;
+        lv2:index 94 ; lv2:symbol "cur_shp16" ; lv2:name "Selected step 16 shape" ;
         lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 5 ;
     ] .

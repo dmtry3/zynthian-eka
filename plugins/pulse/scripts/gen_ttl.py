@@ -80,7 +80,7 @@ CONTROLS = [
     ("slot", "Slot", 4, 1, 4, enum_props(SLOT_NAMES, start=1), "g_main"),
     ("mix", "Mix %", 100, 0, 100, "", "g_main"),
     ("low_split", "Low Split", 0, 0, 500, 'lv2:scalePoint [ rdfs:label "Off" ; rdf:value 0 ] ;', "g_main"),
-    ("scene", "Scene", 0, 0, 3, enum_props(SCENE_NAMES), "g_main"),
+    ("scene", "Scene", 0, 0, 3, enum_props(SCENE_NAMES), "g_perform"),
     # 2. FX (selected slot)
     ("mode", "Mode", 0, 0, 6,
      'lv2:portProperty lv2:integer ;\n        rdfs:comment "Slot algorithm (Time: Curve/Chop/Stut/Stop; Drive: Tube/Fold/Hard/Crush/Combo; Filter: LP24/LP12/BP/HP/Morph/Notch/Phaser; Gate: Gate/Pan/Width/Gate+Pan)" ;', "g_fx"),
@@ -100,11 +100,11 @@ CONTROLS = [
     ("threshold", "Threshold dB", -24, -60, 0, "", "g_trigger"),
     ("env_depth", "Env->Depth %", 0, -100, 100, "", "g_trigger"),
     ("smooth", "Smooth/Punch", 10, -100, 100, "", "g_trigger"),
-    # 5. Perform
+    # 5. Perform (Scene is knob 4 via displayPriority; Low Duck sits on Main knob 4)
     ("live_pad", "Live Pad", 0, 0, len(LIVE_PADS) - 1, enum_props(LIVE_PADS), "g_perform"),
     ("prev_scene", "Prev Scene", 0, 0, 1, "lv2:portProperty lv2:toggled ;", "g_perform"),
     ("next_scene", "Next Scene", 0, 0, 1, "lv2:portProperty lv2:toggled ;", "g_perform"),
-    ("output_db", "Output dB", 0, -24, 6, "", "g_perform"),
+    ("low_duck_ctl", "Low Duck", 0, 0, 1, "lv2:portProperty lv2:toggled ;", "g_main"),
 ]
 
 # Per-slot face values (order matches FX, Curve, Trigger pages).
@@ -140,6 +140,7 @@ OUT_MONITORS = [
     ("sel", "Selected slot", 4, 1, 4),
     ("on_mask", "Slots on", 8, 0, 15),
     ("cur_scene", "Active scene", 0, 0, 3),
+    ("scene_mask", "Saved scenes mask", 1, 0, 15),
 ]
 for s in range(SLOTS):
     OUT_MONITORS.append(("phase%d" % (s + 1), "Slot %d phase" % (s + 1), 0, 0, 1))
@@ -229,13 +230,17 @@ def main():
     ports = []
     prio = {}
     for i, (sym, name, d, lo, hi, extra, grp) in enumerate(CONTROLS):
-        prio[grp] = prio.get(grp, 50) - 10
+        if sym == "scene":
+            dp = 10  # Knob 4 on Perform page (after Live Pad, Prev Scene, Next Scene)
+        else:
+            prio[grp] = prio.get(grp, 50) - 10
+            dp = prio[grp]
         ports.append("""    [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index %d ; lv2:symbol "%s" ; lv2:name "%s" ;
         lv2:default %s ; lv2:minimum %s ; lv2:maximum %s ;%s
         lv2:displayPriority %d ; pg:group <%s#%s> ;
-    ]""" % (i, sym, name, d, lo, hi, ("\n        " + extra) if extra else "", prio[grp], URI, grp))
+    ]""" % (i, sym, name, d, lo, hi, ("\n        " + extra) if extra else "", dp, URI, grp))
 
     i = len(CONTROLS)
     for io, sym, name in (
