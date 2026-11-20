@@ -674,6 +674,11 @@ void px_process(PulseFx* x, const PxParams* p,
         st->curve_smooth = 0.0f;
         st->prev_raw = 0.0f;
         st->punch_env = 0.0f;
+        if (s == PX_SLOT_TIME) {
+          x->time_prev_step = -1;
+          x->time_prev_act = -1;
+          x->time_tape_delay = 0.0;
+        }
         if (st->bypass_gain > 0.0f) {
           st->bypass_gain -= bypass_step;
           if (st->bypass_gain < 0.0f) st->bypass_gain = 0.0f;
@@ -690,7 +695,15 @@ void px_process(PulseFx* x, const PxParams* p,
       } else {
         pos = st->free_pos;
         st->free_pos += slot_free_inc[s];
-        if (st->free_pos >= (double)nst) st->free_pos = fmod(st->free_pos, (double)nst);
+        if (st->free_pos >= (double)nst) {
+          if (cmode == PX_TRIG_AUDIO || cmode == PX_TRIG_MIDI) {
+            /* Audio & MIDI triggers run one full pattern cycle per trigger, then park */
+            st->free_pos = 0.0;
+            st->trig_active = 0;
+          } else {
+            st->free_pos = fmod(st->free_pos, (double)nst);
+          }
+        }
         if (st->free_pos < 0.0) st->free_pos = 0.0;
       }
 

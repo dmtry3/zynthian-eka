@@ -116,6 +116,8 @@ typedef struct {
   int scene_mask;              /* bitmask of saved scenes: bit 0=A..3=D (default 1 = A only) */
   int scene_seen;
   int last_scene_port;
+  int low_duck_seen;
+  int last_low_duck_ctl;
   int prev_pedal_hi;
   int next_pedal_hi;
   unsigned char dirty[NQ];
@@ -172,11 +174,17 @@ static float q_clamp(int i, float v) {
   if (i == Q_FREE_HZ)     return clampf(v, 0.25f, 32.0f);
   if (i == Q_XY_X || i == Q_XY_Y) return clampf(v, 0.0f, 100.0f);
   if (i == Q_STORE_SCENE) return clampf(roundf(v), 0.0f, (float)NSCENES);
+  int s = i / Q_PER_SLOT;
   int k = i % Q_PER_SLOT;
   if (k == Q_SLOT_ON) return v >= 0.5f ? 1.0f : 0.0f;
   if (k < Q_SLOT_LVL) {
     int f = k - Q_SLOT_FACE;
-    float c = clampf(v, face_min[f], face_max[f]);
+    float hi = face_max[f];
+    if (f == F_MODE) {
+      static const float slot_mode_max[PX_SLOTS] = { 3.0f, 4.0f, 6.0f, 3.0f };
+      hi = slot_mode_max[s];
+    }
+    float c = clampf(v, face_min[f], hi);
     return face_is_int[f] ? roundf(c) : c;
   }
   if (k < Q_SLOT_SHP) return clampf(v, 0.0f, 100.0f);
@@ -221,6 +229,8 @@ static void q_defaults(Plugin* P) {
   P->scene_mask = 1; /* Only Scene A is populated by default; B/C/D are empty until Store */
   P->scene_seen = 0;
   P->last_scene_port = 0;
+  P->low_duck_seen = 0;
+  P->last_low_duck_ctl = 0;
 }
 
 static void switch_scene(Plugin* P, int target) {
@@ -268,9 +278,21 @@ static void apply_params(Plugin* P) {
       sp->shapes[k] = (int)base[Q_SLOT_SHP + k];
     }
   }
+  if (P->port[P_LOW_DUCK_CTL]) {
+    int ld = (*P->port[P_LOW_DUCK_CTL] >= 0.5f) ? 1 : 0;
+    if (!P->low_duck_seen) {
+      P->last_low_duck_ctl = ld;
+      P->low_duck_seen = 1;
+      if (ld) P->q[Q_LOW_DUCK] = 1.0f;
+    } else if (ld != P->last_low_duck_ctl) {
+      P->last_low_duck_ctl = ld;
+      P->q[Q_LOW_DUCK] = (float)ld;
+      P->dirty[Q_LOW_DUCK] = 1;
+    }
+  }
   p->mix          = P->port[P_MIX] ? clampf(*P->port[P_MIX], 0.0f, 100.0f) * 0.01f : 1.0f;
   p->low_split_hz = P->port[P_LOW_SPLIT] ? clampf(*P->port[P_LOW_SPLIT], 0.0f, 500.0f) : 0.0f;
-  p->low_duck     = (P->q[Q_LOW_DUCK] >= 0.5f) || (P->port[P_LOW_DUCK_CTL] && *P->port[P_LOW_DUCK_CTL] >= 0.5f);
+  p->low_duck     = (P->q[Q_LOW_DUCK] >= 0.5f) ? 1 : 0;
   p->free_hz      = P->q[Q_FREE_HZ];
   p->output_db    = 0.0f;
   p->live_pad     = P->port[P_LIVE_PAD] ? (int)lrintf(clampf(*P->port[P_LIVE_PAD], 0.0f, 8.0f)) : 0;
@@ -627,6 +649,7 @@ static LV2_State_Status restore(LV2_Handle h, LV2_State_Retrieve_Function retrie
     if (sc >= 0 && sc < NSCENES && (P->scene_mask & (1 << sc))) P->cur_scene = sc;
   }
   P->scene_seen = 0;
+  P->low_duck_seen = 0;
   P->face_seen = 0;
   P->loads += 1.0f;
   P->report_next = 0;

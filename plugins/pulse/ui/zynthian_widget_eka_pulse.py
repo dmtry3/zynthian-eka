@@ -232,6 +232,8 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         self.last_slot = None
         self.last_loads = None
         self.last_mon_scene = None
+        self.last_mon_pat = None
+        self.local_steps_until = 0.0
         self.meta_slot = None
         self.help_slot = None
 
@@ -402,13 +404,24 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
                 self.view = 1
                 self.drawn = None
         loads = self._mon("loads", 0)
+        cur_pat = int(round(self._mon("cur_pattern", -1))) if self.monitors and "cur_pattern" in self.monitors else -1
         if slot != self.last_slot or loads != self.last_loads:
             self.last_slot, self.last_loads = slot, loads
             self.sync_pending = True
+        elif cur_pat >= 1 and cur_pat != self.last_mon_pat:
+            # Pattern knob changed to a built-in pattern: sync step levels/shapes from plugin monitors
+            self.last_mon_pat = cur_pat
+            if self.monitors and int(round(self._mon("sel", 0))) == slot and "cur_lvl1" in self.monitors:
+                for k in range(MAX_STEPS):
+                    self._zset("s%d_lvl%d" % (slot, k + 1), self._mon("cur_lvl%d" % (k + 1), 100.0))
+                    self._zset("s%d_shp%d" % (slot, k + 1), int(round(self._mon("cur_shp%d" % (k + 1), 1))))
+                self.steps_view = None
+                self.curve_sig = None
         if not self.sync_pending or not self.monitors:
             return
         if int(round(self._mon("sel", 0))) != slot:
             return
+        self.last_mon_pat = cur_pat
         for sym in FACES:
             key = "cur_" + sym
             if key in self.monitors:
@@ -843,8 +856,10 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             lh = pk * (h - 4)
             c.coords(self.hist_items[i], lx, y1 - 1, lx, y1 - 1 - lh)
 
-        # 2. Step bars + shape/chop row (prefer live monitors when plugin matches selected slot)
-        mon_ok = bool(self.monitors) and int(round(self._mon("sel", 0))) == sel and ("cur_lvl1" in self.monitors) and not self.dragging_steps
+        # 2. Step bars + shape/chop row (prefer live monitors unless user just edited steps locally)
+        now = time.monotonic()
+        use_local = self.dragging_steps or (now < self.local_steps_until)
+        mon_ok = bool(self.monitors) and int(round(self._mon("sel", 0))) == sel and ("cur_lvl1" in self.monitors) and not use_local
         if mon_ok:
             lvls = [min(max(self._mon("cur_lvl%d" % (k + 1), 100.0), 0.0), 100.0) for k in range(nst)]
             shps = [min(max(int(round(self._mon("cur_shp%d" % (k + 1), 1))), 0), 5) for k in range(nst)]
@@ -937,7 +952,8 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         mx0, my0, mx1, my1 = self.flow_meter_box
 
         split_hz = min(max(self._zval("low_split", 0.0), 0.0), 500.0)
-        duck_on = self._zval("low_duck", 0.0) >= 0.5
+        duck_sym = "low_duck_ctl" if (self.processor and "low_duck_ctl" in getattr(self.processor, "controllers_dict", {})) else "low_duck"
+        duck_on = self._zval(duck_sym, self._zval("low_duck", 0.0)) >= 0.5
         thr_db = min(max(self._zval("threshold", -24.0), -60.0), 0.0)
         sig = (round(split_hz, 1), duck_on, round(thr_db, 1))
 
@@ -1109,6 +1125,12 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
                 return i
         return -1
 
+    def _snapshot_monitors_to_local(self, sel, nst):
+        if time.monotonic() >= self.local_steps_until and self.monitors and int(round(self._mon("sel", 0))) == sel and "cur_lvl1" in self.monitors:
+            for k in range(nst):
+                self._zset("s%d_lvl%d" % (sel, k + 1), self._mon("cur_lvl%d" % (k + 1), 100.0))
+                self._zset("s%d_shp%d" % (sel, k + 1), int(round(self._mon("cur_shp%d" % (k + 1), 1))))
+
     def _apply_step_touch(self, x, y):
         if self.view != 0:
             return
@@ -1117,12 +1139,14 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             return
         sel = self._slot()
         nst = self._slot_steps(sel)
+        self._snapshot_monitors_to_local(sel, nst)
         w = max(x1 - x0, 1.0)
         h = max(y1 - y0, 1.0)
         k = int((x - x0) / w * nst)
         k = min(max(k, 0), nst - 1)
         lvl = round(min(max((y1 - y) / h, 0.0), 1.0) * 100.0)
-        self._zset("s%d_lvl%d" % (sel, k + 1), float(lvl))
+        self.local_steps_until = time.monotonic() + 0.25
+        self._zset("s%d_lvl%d" % (sel, k + 1), float(lvl), force=True)
         self.steps_view = None
         self.next_curve = 0.0
         self._draw_steps_view()
@@ -1130,6 +1154,7 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
     def _run_action(self, key):
         sel = self._slot()
         nst = self._slot_steps(sel)
+        self._snapshot_monitors_to_local(sel, nst)
         lvls = [self._zval("s%d_lvl%d" % (sel, k + 1), 100.0) for k in range(nst)]
         shps = [int(round(self._zval("s%d_shp%d" % (sel, k + 1), 1))) for k in range(nst)]
         if key == "rnd":
@@ -1144,9 +1169,10 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             shps = shps[-1:] + shps[:-1]
         elif key == "inv":
             lvls = [round(100.0 - v) for v in lvls]
+        self.local_steps_until = time.monotonic() + 0.25
         for k in range(nst):
-            self._zset("s%d_lvl%d" % (sel, k + 1), float(lvls[k]))
-            self._zset("s%d_shp%d" % (sel, k + 1), int(shps[k]))
+            self._zset("s%d_lvl%d" % (sel, k + 1), float(lvls[k]), force=True)
+            self._zset("s%d_shp%d" % (sel, k + 1), int(shps[k]), force=True)
         self.steps_view = None
         self.next_curve = 0.0
         self._draw_steps_view()
@@ -1307,21 +1333,26 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         elif kind == "action":
             self._run_action(arg)
         elif kind == "duck":
-            new_v = 0 if self._zval("low_duck", 0.0) >= 0.5 else 1
+            duck_sym = "low_duck_ctl" if (self.processor and "low_duck_ctl" in getattr(self.processor, "controllers_dict", {})) else "low_duck"
+            new_v = 0 if self._zval(duck_sym, self._zval("low_duck", 0.0)) >= 0.5 else 1
             self._zset("low_duck", new_v)
+            self._zset("low_duck_ctl", new_v)
             self.flow_sig = None
             self._draw_flow_view()
         elif kind == "shape":
             sel = self._slot()
+            nst = self._slot_steps(sel)
+            self._snapshot_monitors_to_local(sel, nst)
+            self.local_steps_until = time.monotonic() + 0.25
             if sel == 1 and self._slot_mode(1) == 1:
                 lsym = "s1_lvl%d" % (arg + 1)
                 act = chop_action_idx(self._zval(lsym, 0.0))
                 nxt = (act + 1) % len(CHOP_ACTIONS)
-                self._zset(lsym, CHOP_ACTIONS[nxt][2])
+                self._zset(lsym, CHOP_ACTIONS[nxt][2], force=True)
             else:
                 sym = "s%d_shp%d" % (sel, arg + 1)
                 cur = int(round(self._zval(sym, 1)))
-                self._zset(sym, (cur + 1) % 6)
+                self._zset(sym, (cur + 1) % 6, force=True)
             self.steps_view = None
             self.next_curve = 0.0
             self._draw_steps_view()
