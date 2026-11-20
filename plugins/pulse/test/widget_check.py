@@ -364,6 +364,15 @@ tap((shb0[0] + shb0[2]) / 2, (shb0[1] + shb0[3]) / 2)
 check(ctl["s1_lvl1"].value == 15.0, "tap on THRU cycles to 1/8 (level 15): got %s" % ctl["s1_lvl1"].value)
 check(any(it.get("text") == "1/8" for it in w.widget_canvas.items.values()), "TIME: Chop shows 1/8 badge after tap")
 
+# Multi-resolution layout check (Zynthian 800x480, embedded 560x380, compact 480x240)
+for width, height in ((800, 480), (560, 380), (480, 240), (800, 300)):
+    w.width, w.height = width, height
+    w.drawn = None
+    w.refresh_gui()
+    x0, y0, x1, y1, sy0, sy1 = w._steps_rect()
+    check(sy1 - sy0 <= 30, "shape row stays compact (<=30px) at %dx%d: got %d" % (width, height, sy1 - sy0))
+    check(all(b[2] <= width and b[3] <= height for b in w.scene_boxes), "scene buttons fit %dx%d" % (width, height))
+
 # Performance check
 t0 = time.monotonic()
 tick(50)

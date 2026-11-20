@@ -428,16 +428,24 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
 
     # ---------- layout ----------
     def _font_size(self):
-        return max(8, min(max(self.height, 20) // 18, 12))
+        return max(8, min(max(self.height, 20) // 22, 11))
+
+    def _fit_font(self, text, max_w, max_h, max_pt=12, min_pt=7, bold=False):
+        """Return a Tk font tuple guaranteed to fit inside (max_w, max_h)."""
+        ch_w = 0.68 if bold else 0.60
+        pt_w = int(max(max_w - 6, 8) / max(len(text), 1) / ch_w)
+        pt_h = int(max(max_h - 4, 8) * 0.60)
+        pt = max(min_pt, min(max_pt, pt_w, pt_h))
+        return (zynthian_gui_config.font_family, pt, "bold" if bold else "normal")
 
     def _top_h(self):
-        return max(26, self._font_size() * 2 + 8)
+        return max(28, min(36, int(self.height * 0.095)))
 
     def _bot_h(self):
-        return max(38, min(52, int(self.height * 0.145)))
+        return max(38, min(48, int(self.height * 0.135)))
 
     def _left_w(self):
-        return max(84, min(int(self.width * 0.17), 130))
+        return max(90, min(int(self.width * 0.18), 126))
 
     def _main_area(self):
         x0 = self._left_w() + 4
@@ -448,7 +456,7 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
 
     def _steps_rect(self):
         x0, y0, x1, y1 = self._main_area()
-        shape_h = max(20, int((y1 - y0) * 0.17))
+        shape_h = max(20, min(28, int((y1 - y0) * 0.105)))
         return x0, y0, x1, y1 - shape_h - 3, y1 - shape_h, y1
 
     def _flow_rects(self):
@@ -563,18 +571,20 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
 
             # Low Duck toggle + routing readout
             dx0, dy0, dx1, dy1 = duck
+            f_duck = self._fit_font("Low Duck: OFF", dx1 - dx0, dy1 - dy0, max_pt=11, bold=True)
             self.flow_duck_rect = c.create_rectangle(dx0, dy0, dx1, dy1, fill=BG_CARD, outline=DIM, tags="flow")
-            self.flow_duck_txt = c.create_text((dx0 + dx1) / 2, (dy0 + dy1) / 2, text="Low Duck: OFF", fill="#cfd6e0", font=f_md, tags="flow")
+            self.flow_duck_txt = c.create_text((dx0 + dx1) / 2, (dy0 + dy1) / 2, text="Low Duck: OFF", fill="#cfd6e0", font=f_duck, tags="flow")
             rx0, ry0, rx1, ry1 = route
+            f_rt = self._fit_font("Low: Gate Duck | High", rx1 - rx0, ry1 - ry0, max_pt=10)
             c.create_rectangle(rx0, ry0, rx1, ry1, fill=BG_CARD, outline=DIM, tags="flow_bg")
-            self.flow_route_txt = c.create_text((rx0 + rx1) / 2, (ry0 + ry1) / 2, text="Full Band", fill="#9aa4b2", font=f_sm, tags="flow")
+            self.flow_route_txt = c.create_text((rx0 + rx1) / 2, (ry0 + ry1) / 2, text="Full Band", fill="#9aa4b2", font=f_rt, tags="flow")
 
             # Input Level + Audio Trig Threshold meter
             mx0, my0, mx1, my1 = meter
             c.create_rectangle(mx0, my0, mx1, my1, fill=BG_AREA, outline=DIM, tags="flow_bg")
-            c.create_text(mx0 + 6, my0 + 10, anchor="w", text="IN / TRIG", fill="#cfd6e0", font=f_sm, tags="flow_bg")
-            self.flow_trig_bg = c.create_rectangle(mx1 - 44, my0 + 3, mx1 - 4, my0 + 19, fill=BG_CARD, outline=DIM, tags="flow")
-            self.flow_trig_txt = c.create_text(mx1 - 24, my0 + 11, text="TRIG", fill="#68707c", font=f_sm, tags="flow")
+            c.create_text(mx0 + 6, my0 + 10, anchor="w", text="IN", fill="#cfd6e0", font=f_sm, tags="flow_bg")
+            self.flow_trig_bg = c.create_rectangle(mx1 - 42, my0 + 3, mx1 - 4, my0 + 19, fill=BG_CARD, outline=DIM, tags="flow")
+            self.flow_trig_txt = c.create_text(mx1 - 23, my0 + 11, text="TRIG", fill="#68707c", font=f_sm, tags="flow")
             bar_x0 = mx0 + 14
             bar_x1 = mx1 - 14
             c.create_rectangle(bar_x0, my0 + 24, bar_x1, my1 - 16, fill="#181c22", outline=GRID_COLOR, tags="flow_bg")
@@ -586,8 +596,7 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             px0, py0, px1, py1 = pads_r
             pw = (px1 - px0 - 8) / 3.0
             ph = (py1 - py0 - 8) / 3.0
-            fs = self._font_size()
-            f_pad = (zynthian_gui_config.font_family, fs, "bold")
+            f_pad = self._fit_font("TapeStop", pw, ph, max_pt=12, min_pt=7, bold=True)
             self.pad_boxes = []
             self.pad_rect_items = []
             for idx, (lbl, pid, col) in enumerate(PERF_PADS):
@@ -604,17 +613,19 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             # XY Pad
             xx0, xy0, xx1, xy1 = xy_r
             self.xy_box = xy_r
+            xy_w = xx1 - xx0
             c.create_rectangle(xx0, xy0, xx1, xy1, fill=BG_AREA, outline="#4dabf7", width=2, tags="perf")
             c.create_line((xx0 + xx1) / 2, xy0 + 2, (xx0 + xx1) / 2, xy1 - 2, fill=GRID_COLOR, tags="perf")
             c.create_line(xx0 + 2, (xy0 + xy1) / 2, xx1 - 2, (xy0 + xy1) / 2, fill=GRID_COLOR, tags="perf")
-            f_sm = (zynthian_gui_config.font_family, max(7, fs - 2))
-            c.create_text((xx0 + xx1) / 2, xy0 + 10, text="XY PAD", fill="#74c0fc", font=(zynthian_gui_config.font_family, max(8, fs - 1), "bold"), tags="perf")
-            c.create_text((xx0 + xx1) / 2, xy1 - 9, text="X: Cutoff   Y: Depth", fill="#7a828e", font=f_sm, tags="perf")
+            f_xy_t = self._fit_font("XY PAD", xy_w, 18, max_pt=10, bold=True)
+            f_xy_s = self._fit_font("X:Cut  Y:Depth", xy_w, 16, max_pt=9)
+            c.create_text((xx0 + xx1) / 2, xy0 + 10, text="XY PAD", fill="#74c0fc", font=f_xy_t, tags="perf")
+            c.create_text((xx0 + xx1) / 2, xy1 - 9, text="X:Cut  Y:Depth", fill="#7a828e", font=f_xy_s, tags="perf")
             self.xy_hline = c.create_line(xx0 + 2, (xy0 + xy1) / 2, xx1 - 2, (xy0 + xy1) / 2, fill="#4dabf7", dash=(2, 2), tags="perf")
             self.xy_vline = c.create_line((xx0 + xx1) / 2, xy0 + 2, (xx0 + xx1) / 2, xy1 - 2, fill="#4dabf7", dash=(2, 2), tags="perf")
             cx, cy = (xx0 + xx1) / 2, (xy0 + xy1) / 2
             self.xy_dot_item = c.create_oval(cx - 8, cy - 8, cx + 8, cy + 8, fill="#4dabf7", outline="#ffffff", width=2, tags="perf")
-            self.xy_txt_item = c.create_text(xx0 + 6, xy0 + 22, anchor="nw", text="", fill="#cfd6e0", font=f_sm, tags="perf")
+            self.xy_txt_item = c.create_text(xx0 + 6, xy0 + 22, anchor="nw", text="", fill="#cfd6e0", font=f_xy_s, tags="perf")
         elif self.view == 3:
             self.help_slot = None
 
@@ -645,9 +656,9 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             c.delete("slots")
             self.slot_boxes = []
             self.slot_bar_items = []
-            fs = self._font_size()
-            f_title = (zynthian_gui_config.font_family, fs, "bold")
-            f_sub = (zynthian_gui_config.font_family, max(7, fs - 2))
+            card_w = lw - 2 * pad - 12
+            f_title = self._fit_font("3 FILTER", card_w, card_h * 0.42, max_pt=11, min_pt=7, bold=True)
+            f_sub = self._fit_font("Morph 16/16", card_w, card_h * 0.34, max_pt=9, min_pt=7)
 
             for s in range(SLOTS):
                 y0 = pad + s * (card_h + pad)
@@ -665,12 +676,12 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
                 c.create_rectangle(x0, y0, x1, y1, fill=fill, outline=outline, width=width, tags="slots")
                 # Left accent bar
                 c.create_rectangle(x0 + 1, y0 + 1, x0 + 5, y1 - 1, fill=col if is_on else DIM, outline="", tags="slots")
-                c.create_text(x0 + 9, y0 + 4, anchor="nw", text=title, fill=col if is_on else "#7a828e", font=f_title, tags="slots")
+                c.create_text(x0 + 8, y0 + 4, anchor="nw", text=title, fill=col if is_on else "#7a828e", font=f_title, tags="slots")
 
                 m_idx = modes_tuple[s]
                 m_lbl = mode_names[m_idx] if m_idx < len(mode_names) else str(m_idx)
-                sub = "%s  %d/16" % (m_lbl, steps_tuple[s])
-                c.create_text(x0 + 9, y0 + card_h * 0.48, anchor="nw", text=sub, fill="#cfd6e0" if is_on else "#666c75", font=f_sub, tags="slots")
+                sub = "%s %d/16" % (m_lbl, steps_tuple[s])
+                c.create_text(x0 + 8, y0 + card_h * 0.47, anchor="nw", text=sub, fill="#cfd6e0" if is_on else "#666c75", font=f_sub, tags="slots")
 
                 # Mini live curve level bar at bottom of card
                 by0 = y1 - 7
@@ -696,11 +707,15 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             self.top_view = self.view
             c.delete("top")
             self.tab_boxes = []
-            fs = self._font_size()
-            tab_w = min(80, max(44, int((x1 - x0 - 140) / len(TABS))))
+            lim_w = 34
+            bpm_w = 56
+            tabs_avail = max(x1 - x0 - lim_w - bpm_w - 16, 140)
+            tab_w = min(76, max(36, int((tabs_avail - 12) / len(TABS))))
+            f_tab_b = self._fit_font("Perform", tab_w, th - 4, max_pt=10, min_pt=7, bold=True)
+            f_tab_n = (f_tab_b[0], f_tab_b[1], "normal")
             cur_tx = x0
             for i, name in enumerate(TABS):
-                tw = max(46, int(tab_w * 0.78)) if name == "Help" else tab_w
+                tw = max(36, int(tab_w * 0.82)) if name == "Help" else tab_w
                 tx0 = cur_tx
                 tx1 = tx0 + tw
                 cur_tx = tx1 + 4
@@ -716,21 +731,17 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
                 c.create_text(
                     (tx0 + tx1) / 2, (ty0 + ty1) / 2, text=name,
                     fill="#ffffff" if active else "#9aa4b2",
-                    font=(zynthian_gui_config.font_family, fs, "bold" if active else "normal"),
+                    font=f_tab_b if active else f_tab_n,
                     tags="top",
                 )
             # BPM + LIM badge on right
             lx1 = x1
-            lx0 = lx1 - 42
+            lx0 = lx1 - lim_w
+            f_lim = self._fit_font("LIM", lim_w, th - 6, max_pt=9, min_pt=7, bold=True)
+            f_bpm = self._fit_font("120 BPM", bpm_w, th - 4, max_pt=10, min_pt=7)
             self.top_lim_bg = c.create_rectangle(lx0, 3, lx1, th - 3, fill=BG_CARD, outline=DIM, tags="top")
-            self.top_lim_item = c.create_text(
-                (lx0 + lx1) / 2, th / 2, text="LIM", fill="#68707c",
-                font=(zynthian_gui_config.font_family, max(8, fs - 1), "bold"), tags="top",
-            )
-            self.top_bpm_item = c.create_text(
-                lx0 - 8, th / 2, anchor="e", text="%d BPM" % bpm, fill="#cfd6e0",
-                font=(zynthian_gui_config.font_family, fs), tags="top",
-            )
+            self.top_lim_item = c.create_text((lx0 + lx1) / 2, th / 2, text="LIM", fill="#68707c", font=f_lim, tags="top")
+            self.top_bpm_item = c.create_text(lx0 - 5, th / 2, anchor="e", text="%d BPM" % bpm, fill="#cfd6e0", font=f_bpm, tags="top")
 
         if self.top_bpm_item:
             c.itemconfig(self.top_bpm_item, text="%d BPM" % bpm)
@@ -756,32 +767,34 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         y1 = max(self.height, 120) - 2
         y0 = y1 - self._bot_h() + 4
         avail = max(x1 - x0, 200)
-        fs = self._font_size()
-        f_btn = (zynthian_gui_config.font_family, min(14, fs + 1), "bold")
+        bh = max(y1 - y0, 24)
 
         # Left side: Steps editing actions (Rnd, <, >, Inv) — sized for easy finger tap
         cur_x = x0
         if self.view == 0:
-            scale = min(1.0, avail / 460.0)
-            for key, label, bw in (("rnd", "Rnd", 52), ("shl", "<", 38), ("shr", ">", 38), ("inv", "Inv", 48)):
+            scale = min(1.0, avail / 470.0)
+            for key, label, bw in (("rnd", "Rnd", 48), ("shl", "<", 34), ("shr", ">", 34), ("inv", "Inv", 44)):
                 w_btn = max(26, int(bw * scale))
                 bx0, bx1 = cur_x, cur_x + w_btn
                 self.action_boxes[key] = (bx0, y0, bx1, y1)
+                f_act = self._fit_font(label, w_btn, bh, max_pt=12, min_pt=7, bold=True)
                 c.create_rectangle(bx0, y0, bx1, y1, fill=BG_CARD, outline=DIM, width=1, tags="bottom")
-                c.create_text((bx0 + bx1) / 2, (y0 + y1) / 2, text=label, fill="#e0e6ef", font=f_btn, tags="bottom")
+                c.create_text((bx0 + bx1) / 2, (y0 + y1) / 2, text=label, fill="#e0e6ef", font=f_act, tags="bottom")
                 cur_x = bx1 + 4
 
         # Right side: Scene strip A | B | C | D + Store (large touch targets)
         rem = max(x1 - cur_x - 6, 180)
         if self.view == 0:
-            sw = max(34, min(48, int((rem - 64) / 4.4)))
-            store_w = max(50, min(68, rem - 4 * sw - 18))
+            sw = max(34, min(48, int((rem - 62) / 4.4)))
+            store_w = max(48, min(66, rem - 4 * sw - 18))
         else:
-            sw = max(44, min(68, int((rem - 86) / 4.4)))
-            store_w = max(62, min(86, rem - 4 * sw - 20))
+            sw = max(44, min(68, int((rem - 84) / 4.4)))
+            store_w = max(58, min(84, rem - 4 * sw - 20))
         gap = 4
         total_sw = len(SCENES) * sw + (len(SCENES) - 1) * gap + gap + store_w
         sx = max(cur_x + 4, x1 - total_sw)
+        f_sc = self._fit_font("A", sw, bh, max_pt=13, min_pt=8, bold=True)
+        f_st = self._fit_font("Store", store_w, bh, max_pt=12, min_pt=7, bold=True)
         for i, name in enumerate(SCENES):
             bx0 = sx + i * (sw + gap)
             bx1 = bx0 + sw
@@ -797,7 +810,7 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             else:
                 fill, outline, fg, bw = "#16181c", "#2f343c", "#505660", 1
             c.create_rectangle(bx0, y0, bx1, y1, fill=fill, outline=outline, width=bw, tags="bottom")
-            c.create_text((bx0 + bx1) / 2, (y0 + y1) / 2, text=name, fill=fg, font=f_btn, tags="bottom")
+            c.create_text((bx0 + bx1) / 2, (y0 + y1) / 2, text=name, fill=fg, font=f_sc, tags="bottom")
 
         stx0 = sx + len(SCENES) * (sw + gap)
         stx1 = stx0 + store_w
@@ -811,7 +824,7 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         )
         c.create_text(
             (stx0 + stx1) / 2, (y0 + y1) / 2, text="Store",
-            fill="#000000" if self.store_armed else "#e0e6ef", font=f_btn, tags="bottom",
+            fill="#000000" if self.store_armed else "#e0e6ef", font=f_st, tags="bottom",
         )
 
     def _draw_steps_view(self):
@@ -848,9 +861,9 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             self.step_boxes = []
             self.shape_boxes = []
             sw = w / float(nst)
-            pad = 2 if sw > 12 else 1
-            fs = max(7, min(self._font_size(), int(sw * (0.30 if is_chop else 0.45))))
-            f_shp = (zynthian_gui_config.font_family, fs, "bold")
+            pad = 2 if sw > 14 else 1
+            sh_h = max(sy1 - sy0, 16)
+            f_shp = self._fit_font("1/16" if is_chop else "2x", sw - 2 * pad, sh_h, max_pt=10, min_pt=6, bold=True)
             for k in range(MAX_STEPS):
                 if k < nst:
                     bx0 = x0 + k * sw + pad
