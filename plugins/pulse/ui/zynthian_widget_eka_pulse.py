@@ -28,8 +28,61 @@ SLOT_INFO = [
     ("3 FILTER", "#63e6be", ["LP24", "LP12", "BP", "HP", "Morph", "Notch", "Phase"]),
     ("4 GATE",   "#b197fc", ["Gate", "Pan", "Width", "GtPan"]),
 ]
+
+# Dynamic encoder labels & per-slot help reference
+SLOT_META = [
+    {
+        "mode_name": "Time Mode",
+        "modes": ["Curve", "Chop", "Stutter", "TapeStop"],
+        "p1": "Range",
+        "p2": "Window",
+        "help": [
+            "Mode: Curve | Chop | Stutter | TapeStop (этап M2)",
+            "Param 1 (Range): глубина буфера 1/8 .. 1 bar",
+            "Param 2 (Window): окно / кроссфейд скачков",
+            "Depth: сила временной модуляции",
+        ],
+    },
+    {
+        "mode_name": "Drive Mode",
+        "modes": ["Tube", "Fold", "Hard", "Crush", "Combo"],
+        "p1": "Drive %",
+        "p2": "Tone/Crush",
+        "help": [
+            "Mode: Tube (лампа) | Fold (ADAA) | Hard (фузз) | Crush | Combo",
+            "Param 1 (Drive): уровень перегруза / деградации",
+            "Param 2 (Tone/Crush): яркость (Tube/Fold/Hard) или биты/SR (Crush)",
+            "Depth: модуляция перегруза шаговой кривой",
+        ],
+    },
+    {
+        "mode_name": "Filter Mode",
+        "modes": ["LP 24", "LP 12", "BP", "HP", "Morph", "Notch", "Phaser"],
+        "p1": "Cutoff",
+        "p2": "Res / FB",
+        "help": [
+            "Mode: LP24 | LP12 | BP | HP | Morph (LP-BP-HP) | Notch | Phaser",
+            "Param 1 (Cutoff): базовая частота среза (40 Hz .. 18 kHz)",
+            "Param 2 (Res / FB): резонанс SVF или обратная связь Phaser",
+            "Depth: сдвиг частоты кривой (+ вверх / - вниз, до ±3.5 окт)",
+        ],
+    },
+    {
+        "mode_name": "Gate Mode",
+        "modes": ["Gate", "Pan", "Width", "Gate+Pan"],
+        "p1": "Floor %",
+        "p2": "Width %",
+        "help": [
+            "Mode: Gate (чоппер) | Pan (автопан) | Width (M/S) | Gate+Pan",
+            "Param 1 (Floor): минимальная громкость закрытого гейта",
+            "Param 2 (Width): ширина панорамы / M/S стерео",
+            "Depth: + открывает по кривой, - дакинг (сайдчейн); Smooth<0 = Punch",
+        ],
+    },
+]
+
 SHAPE_LABELS = ["_", "\\", "/", "/\\", "2x", "3x"]
-TABS = ["Steps", "Perform", "Flow"]
+TABS = ["Steps", "Perform", "Flow", "?"]
 SCENES = ["A", "B", "C", "D"]
 
 FACES = [
@@ -132,6 +185,8 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         self.sync_pending = True
         self.last_slot = None
         self.last_loads = None
+        self.meta_slot = None
+        self.help_slot = None
 
         self.widget_canvas = tkinter.Canvas(
             self, highlightthickness=0, relief="flat", bg=zynthian_gui_config.color_bg
@@ -223,8 +278,54 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
                     logging.debug("Eka Pulse widget: can't select FX page => %s", e)
                 return
 
+    def _update_slot_labels(self, slot):
+        """Update Zynthian encoder names and Mode labels to match the selected slot."""
+        if self.meta_slot == slot or not self.processor:
+            return
+        self.meta_slot = slot
+        meta = SLOT_META[slot - 1]
+        ctrls = getattr(self.processor, "controllers_dict", None) or {}
+        changed = []
+        z_mode = ctrls.get("mode")
+        if z_mode is not None and hasattr(z_mode, "set_options"):
+            try:
+                n = len(meta["modes"])
+                z_mode.set_options({
+                    "name": meta["mode_name"],
+                    "short_name": meta["mode_name"],
+                    "labels": list(meta["modes"]),
+                    "ticks": list(range(n)),
+                    "value_min": 0,
+                    "value_max": n - 1,
+                    "is_integer": True,
+                })
+                changed.append(z_mode)
+            except Exception as e:
+                logging.debug("Eka Pulse widget: set_options(mode) failed => %s", e)
+        for sym, key in (("param1", "p1"), ("param2", "p2")):
+            zc = ctrls.get(sym)
+            if zc is not None and hasattr(zc, "set_options"):
+                try:
+                    zc.set_options({"name": meta[key], "short_name": meta[key]})
+                    changed.append(zc)
+                except Exception as e:
+                    logging.debug("Eka Pulse widget: set_options(%s) failed => %s", sym, e)
+        if changed:
+            for zgui in getattr(self.zyngui_control, "zgui_controllers", []) or []:
+                if getattr(zgui, "zctrl", None) in changed:
+                    try:
+                        if hasattr(zgui, "config"):
+                            zgui.config(zgui.zctrl)
+                        if hasattr(zgui, "calculate_plot_values"):
+                            zgui.calculate_plot_values()
+                        if hasattr(zgui, "plot_value"):
+                            zgui.plot_value()
+                    except Exception:
+                        pass
+
     def _sync_faces(self):
         slot = self._slot()
+        self._update_slot_labels(slot)
         loads = self._mon("loads", 0)
         if slot != self.last_slot or loads != self.last_loads:
             self.last_slot, self.last_loads = slot, loads
@@ -317,6 +418,8 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             self._draw_steps_view()
         elif self.view == 2:
             self._draw_flow_view()
+        elif self.view == 3:
+            self._draw_help_view()
 
     def _build_static_view(self):
         c = self.widget_canvas
@@ -380,6 +483,8 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             self.flow_meter_bar = c.create_rectangle(bar_x0 + 2, my1 - 16, bar_x1 - 2, my1 - 16, fill="#4dabf7", outline="", tags="flow")
             self.flow_thresh_line = c.create_line(mx0 + 6, my0 + 40, mx1 - 6, my0 + 40, fill="#ffd43b", width=2, tags="flow")
             self.flow_thresh_txt = c.create_text((mx0 + mx1) / 2, my1 - 8, text="Thr -24 dB", fill="#ffd43b", font=f_sm, tags="flow")
+        elif self.view == 3:
+            self.help_slot = None
         else:
             x0, y0, x1, y1 = self._main_area()
             c.create_rectangle(x0, y0, x1, y1, fill=BG_AREA, outline=DIM, tags="placeholder")
@@ -468,10 +573,13 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             c.delete("top")
             self.tab_boxes = []
             fs = self._font_size()
-            tab_w = min(96, max(54, int((x1 - x0 - 120) / len(TABS))))
+            tab_w = min(84, max(42, int((x1 - x0 - 140) / len(TABS))))
+            cur_tx = x0
             for i, name in enumerate(TABS):
-                tx0 = x0 + i * (tab_w + 4)
-                tx1 = tx0 + tab_w
+                tw = 30 if name == "?" else tab_w
+                tx0 = cur_tx
+                tx1 = tx0 + tw
+                cur_tx = tx1 + 4
                 ty0, ty1 = 2, th - 2
                 self.tab_boxes.append((tx0, ty0, tx1, ty1))
                 active = (i == self.view)
@@ -730,6 +838,50 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             self._zset("threshold", float(db))
             self.flow_sig = None
             self._draw_flow_view()
+
+    def _draw_help_view(self):
+        sel = self._slot()
+        if self.help_slot == sel:
+            return
+        self.help_slot = sel
+        c = self.widget_canvas
+        c.delete("help")
+        x0, y0, x1, y1 = self._main_area()
+        c.create_rectangle(x0, y0, x1, y1, fill=BG_AREA, outline=DIM, tags="help")
+
+        title, col, _ = SLOT_INFO[sel - 1]
+        meta = SLOT_META[sel - 1]
+        fs = self._font_size()
+        f_hdr = (zynthian_gui_config.font_family, fs, "bold")
+        f_body = (zynthian_gui_config.font_family, max(8, fs - 1))
+        f_dim = (zynthian_gui_config.font_family, max(7, fs - 2))
+
+        lh = max(16, int((y1 - y0 - 16) / 9.2))
+        y = y0 + 10
+        c.create_text(
+            x0 + 10, y, anchor="nw",
+            text="%s — %s / %s / %s" % (title, meta["mode_name"], meta["p1"], meta["p2"]),
+            fill=col, font=f_hdr, tags="help",
+        )
+        y += lh + 2
+        for line in meta["help"]:
+            c.create_text(x0 + 12, y, anchor="nw", text="• " + line, fill="#e6ecf5", font=f_body, tags="help")
+            y += lh
+
+        y += 4
+        c.create_line(x0 + 8, y, x1 - 8, y, fill=GRID_COLOR, tags="help")
+        y += 6
+        tips = [
+            "Карточки слева: тап = выбрать слот, повторный/долгий тап = ON/OFF",
+            "Steps: свайп по столбикам = уровень, тап под ними = форма (_ \\ / /\\ 2x 3x)",
+            "Flow: свайп по графику = Low Split (чистый бас), Low Duck = гейт на бас",
+            "Sync: стоит без транспорта, стартует с 1-й доли; Free = свой ход",
+        ]
+        for line in tips:
+            if y + lh > y1 - 2:
+                break
+            c.create_text(x0 + 10, y, anchor="nw", text=line, fill="#9aa4b2", font=f_dim, tags="help")
+            y += lh - 1
 
     # ---------- touch / mouse interaction ----------
     def _hit(self, boxes, x, y):

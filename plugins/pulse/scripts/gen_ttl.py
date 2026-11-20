@@ -78,10 +78,14 @@ CONTROLS = [
     ("low_split", "Low Split", 0, 0, 500, 'lv2:scalePoint [ rdfs:label "Off" ; rdf:value 0 ] ;', "g_main"),
     ("scene", "Scene", 0, 0, 3, enum_props(SCENE_NAMES), "g_main"),
     # 2. FX (selected slot)
-    ("mode", "Mode", 0, 0, 6, "lv2:portProperty lv2:integer ;", "g_fx"),
-    ("param1", "Param 1", 0, 0, 100, "", "g_fx"),
-    ("param2", "Param 2", 50, 0, 100, "", "g_fx"),
-    ("depth", "Depth %", 100, -100, 100, "", "g_fx"),
+    ("mode", "Mode", 0, 0, 6,
+     'lv2:portProperty lv2:integer ;\n        rdfs:comment "Slot algorithm (Time: Curve/Chop/Stut/Stop; Drive: Tube/Fold/Hard/Crush/Combo; Filter: LP24/LP12/BP/HP/Morph/Notch/Phaser; Gate: Gate/Pan/Width/Gate+Pan)" ;', "g_fx"),
+    ("param1", "Param 1", 0, 0, 100,
+     'rdfs:comment "Slot main parameter (Time: Range; Drive: Drive %; Filter: Cutoff; Gate: Floor %)" ;', "g_fx"),
+    ("param2", "Param 2", 50, 0, 100,
+     'rdfs:comment "Slot secondary parameter (Time: Window; Drive: Tone/Crush; Filter: Res/FB; Gate: Width %)" ;', "g_fx"),
+    ("depth", "Depth %", 100, -100, 100,
+     'rdfs:comment "Step Shaper curve depth (-100..+100%)" ;', "g_fx"),
     # 3. Curve (selected slot)
     ("pattern", "Pattern", 2, 0, len(PATTERN_NAMES) - 1, enum_props(PATTERN_NAMES), "g_curve"),
     ("step_rate", "Step Rate", 2, 0, len(STEP_RATES) - 1, enum_props(STEP_RATES), "g_curve"),

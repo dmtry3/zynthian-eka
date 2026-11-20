@@ -145,9 +145,13 @@ class Plugin:
 class Zctrl:
     def __init__(self, v):
         self.value = v
+        self.options = {}
 
     def set_value(self, v):
         self.value = v
+
+    def set_options(self, opts):
+        self.options.update(opts)
 
 
 class Processor:
@@ -214,7 +218,9 @@ def tap(x, y, hold=0.0):
 tick(2)
 check(len(w.slot_boxes) == 4, "4 slot cards drawn")
 check(len(w.step_boxes) == 8, "slot 4 shows 8 steps: got %d" % len(w.step_boxes))
-check(len(w.tab_boxes) == 3, "3 top tabs drawn")
+check(len(w.tab_boxes) == 4, "4 top tabs drawn (Steps, Perform, Flow, ?)")
+check(ctl["mode"].options.get("name") == "Gate Mode" and ctl["param1"].options.get("name") == "Floor %",
+      "slot 4 sets dynamic encoder names: %s / %s" % (ctl["mode"].options.get("name"), ctl["param1"].options.get("name")))
 
 # Tap on slot 3 selects slot 3 and switches page to FX, syncing steps to 7
 x0, y0, x1, y1 = w.slot_boxes[2]
@@ -224,6 +230,8 @@ check(control.selected == 1, "switches to FX page")
 tick(2)
 check(ctl["steps"].value == 7, "steps knob synced to slot 3 (7)")
 check(len(w.step_boxes) == 7, "7 step bars drawn for slot 3")
+check(ctl["mode"].options.get("name") == "Filter Mode" and ctl["param1"].options.get("name") == "Cutoff",
+      "slot 3 sets Filter encoder names: %s / %s" % (ctl["mode"].options.get("name"), ctl["param1"].options.get("name")))
 
 # Long press on slot 3 toggles s3_on
 tap((x0 + x1) / 2, (y0 + y1) / 2, hold=0.8)
@@ -274,6 +282,11 @@ mb = w.flow_meter_box
 w._on_press(Ev((mb[0] + mb[2]) / 2, (mb[1] + mb[3]) / 2))
 w._on_release(Ev((mb[0] + mb[2]) / 2, (mb[1] + mb[3]) / 2))
 check(-45.0 <= ctl["threshold"].value <= -15.0, "Flow meter drag sets threshold: %s" % ctl["threshold"].value)
+
+tb = w.tab_boxes[3]
+tap((tb[0] + tb[2]) / 2, (tb[1] + tb[3]) / 2)
+check(w.view == 3 and w.help_slot == 3, "opened ? Help tab for slot 3")
+check(any("Filter Mode" in str(it.get("text", "")) for it in w.widget_canvas.items.values()), "Help shows Filter Mode info")
 
 tb = w.tab_boxes[0]
 tap((tb[0] + tb[2]) / 2, (tb[1] + tb[3]) / 2)
