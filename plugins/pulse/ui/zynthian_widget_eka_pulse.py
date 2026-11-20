@@ -200,6 +200,7 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         self.curve_item = None
         self.playhead_item = None
         self.other_head_items = []
+        self.steps_info_bg = None
         self.steps_info_item = None
         self.steps_info_sig = None
         self.slot_bar_items = []
@@ -511,6 +512,7 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         self.curve_item = None
         self.playhead_item = None
         self.other_head_items = []
+        self.steps_info_bg = None
         self.steps_info_item = None
         self.steps_info_sig = None
         self.slot_bar_items = []
@@ -565,9 +567,13 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
                     c.create_line(0, 0, 0, 0, fill=SLOT_INFO[s][1], width=2, state="hidden", tags="heads")
                 )
             self.playhead_item = c.create_line(x0, y0, x0, y1, fill=HEAD_COLOR, width=2, tags="heads")
+            self.steps_info_bg = c.create_rectangle(
+                x1 - 4, y0 + 2, x1 - 4, y0 + 18,
+                fill="#0b0d10", stipple="gray75", outline="#2c323c", width=1, tags="steps_info",
+            )
             self.steps_info_item = c.create_text(
-                x1 - 6, y0 + 4, anchor="ne", text="", fill="#a8b3c2",
-                font=self._fit_font("Cutoff 100% · Res/FB 100% · Depth +100%", x1 - x0 - 12, 18, max_pt=9, min_pt=7),
+                x1 - 8, y0 + 5, anchor="ne", text="", fill="#dce4ef",
+                font=self._fit_font("Cutoff 100% · Res 100% · Depth +100%", x1 - x0 - 16, 18, max_pt=9, min_pt=7),
                 tags="steps_info",
             )
         elif self.view == 2:
@@ -967,6 +973,13 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
                 n2 = meta["p2"].replace(" %", "")
                 txt = "%s %d%% · %s %d%% · Depth %+d%%" % (n1, p1, n2, p2, dp)
                 c.itemconfig(self.steps_info_item, text=txt)
+                if self.steps_info_bg:
+                    bb = c.bbox(self.steps_info_item) if hasattr(c, "bbox") else None
+                    if bb and len(bb) == 4:
+                        c.coords(self.steps_info_bg, bb[0] - 5, bb[1] - 2, bb[2] + 5, bb[3] + 2)
+                    else:
+                        est_w = min(w - 8, len(txt) * 6 + 12)
+                        c.coords(self.steps_info_bg, x1 - 4 - est_w, y0 + 2, x1 - 3, y0 + 19)
 
     def _draw_flow_view(self):
         c = self.widget_canvas
