@@ -38,8 +38,8 @@ SLOT_META = [
         "p2": "Window",
         "help": [
             "Mode: Curve (TimeShaper) | Chop | Stutter | TapeStop",
-            "Param 1 (Range): буфер 1/8..1 bar (в TapeStop — время торможения)",
-            "Param 2 (Window): кроссфейд на скачках (2..10 мс)",
+            "Param 1 (Range): buffer depth 1/8..1 bar (TapeStop brake time)",
+            "Param 2 (Window): jump de-click crossfade (2..10 ms)",
             "Chop: 0%=THRU, 1-25=1/8, 26-50=1/16, 51-75=1/2x, 76-90=REV, 91+=STOP",
         ],
     },
@@ -49,10 +49,10 @@ SLOT_META = [
         "p1": "Drive %",
         "p2": "Tone/Crush",
         "help": [
-            "Mode: Tube (лампа) | Fold (ADAA) | Hard (фузз) | Crush | Combo",
-            "Param 1 (Drive): уровень перегруза / деградации",
-            "Param 2 (Tone/Crush): яркость (Tube/Fold/Hard) или биты/SR (Crush)",
-            "Depth: модуляция перегруза шаговой кривой",
+            "Mode: Tube (warm) | Fold (ADAA) | Hard (fuzz) | Crush | Combo",
+            "Param 1 (Drive): saturation / degradation intensity",
+            "Param 2 (Tone/Crush): tone brightness (Tube/Fold/Hard) or bit/SR (Crush)",
+            "Depth: step curve modulation of drive amount",
         ],
     },
     {
@@ -62,9 +62,9 @@ SLOT_META = [
         "p2": "Res / FB",
         "help": [
             "Mode: LP24 | LP12 | BP | HP | Morph (LP-BP-HP) | Notch | Phaser",
-            "Param 1 (Cutoff): базовая частота среза (40 Hz .. 18 kHz)",
-            "Param 2 (Res / FB): резонанс SVF или обратная связь Phaser",
-            "Depth: сдвиг частоты кривой (+ вверх / - вниз, до ±3.5 окт)",
+            "Param 1 (Cutoff): base cutoff frequency (40 Hz .. 18 kHz)",
+            "Param 2 (Res / FB): SVF resonance or Phaser feedback",
+            "Depth: cutoff sweep from step curve (+ up / - down, +-3.5 oct)",
         ],
     },
     {
@@ -73,10 +73,10 @@ SLOT_META = [
         "p1": "Floor %",
         "p2": "Width %",
         "help": [
-            "Mode: Gate (чоппер) | Pan (автопан) | Width (M/S) | Gate+Pan",
-            "Param 1 (Floor): минимальная громкость закрытого гейта",
-            "Param 2 (Width): ширина панорамы / M/S стерео",
-            "Depth: + открывает по кривой, - дакинг (сайдчейн); Smooth<0 = Punch",
+            "Mode: Gate (chopper) | Pan (auto-pan) | Width (M/S) | Gate+Pan",
+            "Param 1 (Floor): minimum level when gate is closed",
+            "Param 2 (Width): stereo pan / M/S width",
+            "Depth: + opens on curve, - ducks (sidechain); Smooth<0 = Punch",
         ],
     },
 ]
@@ -995,10 +995,10 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         c.create_line(x0 + 8, y, x1 - 8, y, fill=GRID_COLOR, tags="help")
         y += 6
         tips = [
-            "Карточки слева: тап = выбрать, повторный/долгий тап = ON/OFF",
-            "Steps: свайп по столбикам = уровень, тап под ними = форма",
-            "Trigger: Audio/MIDI = старт с 1 шага без транспорта; Env->Depth",
-            "Perform: держи пэды/XY; Store + A-D = сохранить сцену",
+            "Slot cards (left): tap = select, re-tap / hold = ON/OFF",
+            "Steps: swipe bars = level, tap row below = shape (_ \\ / /\\ 2x 3x)",
+            "Trigger: Audio/MIDI = restart step 1 without transport; Env->Depth",
+            "Perform: hold pads/XY = live FX; Store + A-D = save scene",
         ]
         for line in tips:
             if y + lh > y1 - 2:
