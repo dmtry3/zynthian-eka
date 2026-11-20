@@ -78,8 +78,8 @@ def enum_props(names, start=0):
 CONTROLS = [
     # 1. Main
     ("slot", "Slot", 4, 1, 4, enum_props(SLOT_NAMES, start=1), "g_main"),
-    ("mix", "Mix %", 100, 0, 100, "", "g_main"),
-    ("low_split", "Low Split", 0, 0, 500, 'lv2:scalePoint [ rdfs:label "Off" ; rdf:value 0 ] ;', "g_main"),
+    ("mix", "Mix", 100, 0, 100, "", "g_main"),
+    ("low_split", "LowSplit", 0, 0, 500, 'lv2:scalePoint [ rdfs:label "Off" ; rdf:value 0 ] ;', "g_main"),
     ("scene", "Scene", 0, 0, 3, enum_props(SCENE_NAMES), "g_perform"),
     # 2. FX (selected slot)
     ("mode", "Mode", 0, 0, 6,
@@ -88,23 +88,23 @@ CONTROLS = [
      'rdfs:comment "Slot main parameter (Time: Range; Drive: Drive %; Filter: Cutoff; Gate: Floor %)" ;', "g_fx"),
     ("param2", "Param 2", 50, 0, 100,
      'rdfs:comment "Slot secondary parameter (Time: Window; Drive: Tone/Crush; Filter: Res/FB; Gate: Width %)" ;', "g_fx"),
-    ("depth", "Depth %", 100, -100, 100,
+    ("depth", "Depth", 100, -100, 100,
      'rdfs:comment "Step Shaper curve depth (-100..+100%)" ;', "g_fx"),
     # 3. Curve (selected slot)
     ("pattern", "Pattern", 2, 0, len(PATTERN_NAMES) - 1, enum_props(PATTERN_NAMES), "g_curve"),
-    ("step_rate", "Step Rate", 2, 0, len(STEP_RATES) - 1, enum_props(STEP_RATES), "g_curve"),
+    ("step_rate", "Rate", 2, 0, len(STEP_RATES) - 1, enum_props(STEP_RATES), "g_curve"),
     ("steps", "Steps", 8, 1, MAX_STEPS, "lv2:portProperty lv2:integer ;", "g_curve"),
-    ("warp", "Warp %", 0, -100, 100, "", "g_curve"),
+    ("warp", "Warp", 0, -100, 100, "", "g_curve"),
     # 4. Trigger (selected slot)
     ("trig", "Trig", 0, 0, len(TRIG_MODES) - 1, enum_props(TRIG_MODES), "g_trigger"),
-    ("threshold", "Threshold dB", -24, -60, 0, "", "g_trigger"),
-    ("env_depth", "Env->Depth %", 0, -100, 100, "", "g_trigger"),
-    ("smooth", "Smooth/Punch", 10, -100, 100, "", "g_trigger"),
+    ("threshold", "Thresh", -24, -60, 0, "", "g_trigger"),
+    ("env_depth", "EnvMod", 0, -100, 100, "", "g_trigger"),
+    ("smooth", "Smooth", 10, -100, 100, "", "g_trigger"),
     # 5. Perform (Scene is knob 4 via displayPriority; Low Duck sits on Main knob 4)
-    ("live_pad", "Live Pad", 0, 0, len(LIVE_PADS) - 1, enum_props(LIVE_PADS), "g_perform"),
-    ("prev_scene", "Prev Scene", 0, 0, 1, "lv2:portProperty lv2:toggled ;", "g_perform"),
-    ("next_scene", "Next Scene", 0, 0, 1, "lv2:portProperty lv2:toggled ;", "g_perform"),
-    ("low_duck_ctl", "Low Duck", 0, 0, 1, "lv2:portProperty lv2:toggled ;", "g_main"),
+    ("live_pad", "LivePad", 0, 0, len(LIVE_PADS) - 1, enum_props(LIVE_PADS), "g_perform"),
+    ("prev_scene", "PrevScn", 0, 0, 1, "lv2:portProperty lv2:toggled ;", "g_perform"),
+    ("next_scene", "NextScn", 0, 0, 1, "lv2:portProperty lv2:toggled ;", "g_perform"),
+    ("low_duck_ctl", "LowDuck", 0, 0, 1, "lv2:portProperty lv2:toggled ;", "g_main"),
 ]
 
 # Per-slot face values (order matches FX, Curve, Trigger pages).

@@ -247,7 +247,7 @@ tick(2)
 check(len(w.slot_boxes) == 4, "4 slot cards drawn")
 check(len(w.step_boxes) == 8, "slot 4 shows 8 steps: got %d" % len(w.step_boxes))
 check(len(w.tab_boxes) == 4, "4 top tabs drawn (Steps, Perform, Flow, ?)")
-check(ctl["mode"].options.get("name") == "Gate Mode" and ctl["param1"].options.get("name") == "Floor %",
+check(ctl["mode"].options.get("name") == "Mode" and ctl["param1"].options.get("name") == "Floor",
       "slot 4 sets dynamic encoder names: %s / %s" % (ctl["mode"].options.get("name"), ctl["param1"].options.get("name")))
 
 # Tap on slot 3 selects slot 3 and switches page to FX, syncing steps to 7
@@ -258,7 +258,7 @@ check(control.selected == 1, "switches to FX page")
 tick(2)
 check(ctl["steps"].value == 7, "steps knob synced to slot 3 (7)")
 check(len(w.step_boxes) == 7, "7 step bars drawn for slot 3")
-check(ctl["mode"].options.get("name") == "Filter Mode" and ctl["param1"].options.get("name") == "Cutoff",
+check(ctl["mode"].options.get("name") == "Mode" and ctl["param1"].options.get("name") == "Cutoff",
       "slot 3 sets Filter encoder names: %s / %s" % (ctl["mode"].options.get("name"), ctl["param1"].options.get("name")))
 
 # Long press on slot 3 toggles s3_on
@@ -360,7 +360,7 @@ check(-45.0 <= ctl["threshold"].value <= -15.0, "Flow meter drag sets threshold:
 tb = w.tab_boxes[3]
 tap((tb[0] + tb[2]) / 2, (tb[1] + tb[3]) / 2)
 check(w.view == 3 and w.help_slot == 3, "opened ? Help tab for slot 3")
-check(any("Filter Mode" in str(it.get("text", "")) for it in w.widget_canvas.items.values()), "Help shows Filter Mode info")
+check(any("Cutoff" in str(it.get("text", "")) for it in w.widget_canvas.items.values()), "Help shows Filter Cutoff info")
 
 tb = w.tab_boxes[0]
 tap((tb[0] + tb[2]) / 2, (tb[1] + tb[3]) / 2)

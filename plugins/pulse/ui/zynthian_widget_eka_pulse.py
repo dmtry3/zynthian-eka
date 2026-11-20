@@ -29,10 +29,10 @@ SLOT_INFO = [
     ("4 GATE",   "#b197fc", ["Gate", "Pan", "Width", "GtPan"]),
 ]
 
-# Dynamic encoder labels & per-slot help reference
+# Dynamic encoder labels (kept short <=8 chars so Zynthian renders all knob titles at the same font size)
 SLOT_META = [
     {
-        "mode_name": "Time Mode",
+        "mode_name": "Mode",
         "modes": ["Curve", "Chop", "Stutter", "TapeStop"],
         "p1": "Range",
         "p2": "Window",
@@ -44,34 +44,34 @@ SLOT_META = [
         ],
     },
     {
-        "mode_name": "Drive Mode",
+        "mode_name": "Mode",
         "modes": ["Tube", "Fold", "Hard", "Crush", "Combo"],
-        "p1": "Drive %",
-        "p2": "Tone/Crush",
+        "p1": "Drive",
+        "p2": "Tone",
         "help": [
             "Mode: Tube (warm) | Fold (ADAA) | Hard (fuzz) | Crush | Combo",
             "Param 1 (Drive): saturation / degradation intensity",
-            "Param 2 (Tone/Crush): tone brightness (Tube/Fold/Hard) or bit/SR (Crush)",
+            "Param 2 (Tone): brightness (Tube/Fold/Hard) or bit/SR (Crush)",
             "Depth: step curve modulation of drive amount",
         ],
     },
     {
-        "mode_name": "Filter Mode",
+        "mode_name": "Mode",
         "modes": ["LP 24", "LP 12", "BP", "HP", "Morph", "Notch", "Phaser"],
         "p1": "Cutoff",
-        "p2": "Res / FB",
+        "p2": "Res",
         "help": [
             "Mode: LP24 | LP12 | BP | HP | Morph (LP-BP-HP) | Notch | Phaser",
             "Param 1 (Cutoff): base cutoff frequency (40 Hz .. 18 kHz)",
-            "Param 2 (Res / FB): SVF resonance or Phaser feedback",
+            "Param 2 (Res): SVF resonance or Phaser feedback",
             "Depth: cutoff sweep from step curve (+ up / - down, +-3.5 oct)",
         ],
     },
     {
-        "mode_name": "Gate Mode",
+        "mode_name": "Mode",
         "modes": ["Gate", "Pan", "Width", "Gate+Pan"],
-        "p1": "Floor %",
-        "p2": "Width %",
+        "p1": "Floor",
+        "p2": "Width",
         "help": [
             "Mode: Gate (chopper) | Pan (auto-pan) | Width (M/S) | Gate+Pan",
             "Param 1 (Floor): minimum level when gate is closed",

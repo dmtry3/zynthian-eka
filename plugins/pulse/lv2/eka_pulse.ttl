@@ -1904,13 +1904,13 @@
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 1 ; lv2:symbol "mix" ; lv2:name "Mix %" ;
+        lv2:index 1 ; lv2:symbol "mix" ; lv2:name "Mix" ;
         lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ;
         lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/pulse#g_main> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 2 ; lv2:symbol "low_split" ; lv2:name "Low Split" ;
+        lv2:index 2 ; lv2:symbol "low_split" ; lv2:name "LowSplit" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 500 ;
         lv2:scalePoint [ rdfs:label "Off" ; rdf:value 0 ] ;
         lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/pulse#g_main> ;
@@ -1950,7 +1950,7 @@
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 7 ; lv2:symbol "depth" ; lv2:name "Depth %" ;
+        lv2:index 7 ; lv2:symbol "depth" ; lv2:name "Depth" ;
         lv2:default 100 ; lv2:minimum -100 ; lv2:maximum 100 ;
         rdfs:comment "Step Shaper curve depth (-100..+100%)" ;
         lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/pulse#g_fx> ;
@@ -1989,7 +1989,7 @@
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 9 ; lv2:symbol "step_rate" ; lv2:name "Step Rate" ;
+        lv2:index 9 ; lv2:symbol "step_rate" ; lv2:name "Rate" ;
         lv2:default 2 ; lv2:minimum 0 ; lv2:maximum 8 ;
         lv2:portProperty lv2:integer , lv2:enumeration ;
         lv2:scalePoint [ rdfs:label "1/32" ; rdf:value 0 ] ,
@@ -2012,7 +2012,7 @@
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 11 ; lv2:symbol "warp" ; lv2:name "Warp %" ;
+        lv2:index 11 ; lv2:symbol "warp" ; lv2:name "Warp" ;
         lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
         lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/pulse#g_curve> ;
     ] ,
@@ -2029,25 +2029,25 @@
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 13 ; lv2:symbol "threshold" ; lv2:name "Threshold dB" ;
+        lv2:index 13 ; lv2:symbol "threshold" ; lv2:name "Thresh" ;
         lv2:default -24 ; lv2:minimum -60 ; lv2:maximum 0 ;
         lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/pulse#g_trigger> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 14 ; lv2:symbol "env_depth" ; lv2:name "Env->Depth %" ;
+        lv2:index 14 ; lv2:symbol "env_depth" ; lv2:name "EnvMod" ;
         lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
         lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/pulse#g_trigger> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 15 ; lv2:symbol "smooth" ; lv2:name "Smooth/Punch" ;
+        lv2:index 15 ; lv2:symbol "smooth" ; lv2:name "Smooth" ;
         lv2:default 10 ; lv2:minimum -100 ; lv2:maximum 100 ;
         lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/pulse#g_trigger> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 16 ; lv2:symbol "live_pad" ; lv2:name "Live Pad" ;
+        lv2:index 16 ; lv2:symbol "live_pad" ; lv2:name "LivePad" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 8 ;
         lv2:portProperty lv2:integer , lv2:enumeration ;
         lv2:scalePoint [ rdfs:label "Off" ; rdf:value 0 ] ,
@@ -2063,21 +2063,21 @@
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 17 ; lv2:symbol "prev_scene" ; lv2:name "Prev Scene" ;
+        lv2:index 17 ; lv2:symbol "prev_scene" ; lv2:name "PrevScn" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
         lv2:portProperty lv2:toggled ;
         lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/pulse#g_perform> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 18 ; lv2:symbol "next_scene" ; lv2:name "Next Scene" ;
+        lv2:index 18 ; lv2:symbol "next_scene" ; lv2:name "NextScn" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
         lv2:portProperty lv2:toggled ;
         lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/pulse#g_perform> ;
     ] ,
     [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 19 ; lv2:symbol "low_duck_ctl" ; lv2:name "Low Duck" ;
+        lv2:index 19 ; lv2:symbol "low_duck_ctl" ; lv2:name "LowDuck" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
         lv2:portProperty lv2:toggled ;
         lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/pulse#g_main> ;
