@@ -89,6 +89,9 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         self.shape_boxes = []             # [(x0, y0, x1, y1, idx)]
         self.action_boxes = {}            # name -> (x0, y0, x1, y1)
         self.scene_boxes = []             # [(x0, y0, x1, y1)] * 4
+        self.flow_xover_box = None
+        self.flow_duck_box = None
+        self.flow_meter_box = None
 
         self.hist_items = []
         self.bar_items = []
@@ -102,15 +105,29 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         self.top_bpm_item = None
         self.top_lim_item = None
         self.top_lim_bg = None
+        self.flow_low_item = None
+        self.flow_high_item = None
+        self.flow_handle_item = None
+        self.flow_split_txt = None
+        self.flow_duck_rect = None
+        self.flow_duck_txt = None
+        self.flow_route_txt = None
+        self.flow_meter_bar = None
+        self.flow_thresh_line = None
+        self.flow_thresh_txt = None
+        self.flow_trig_bg = None
+        self.flow_trig_txt = None
 
         self.slot_view = None
         self.top_view = None
         self.steps_view = None
         self.curve_sig = None
         self.bottom_view = None
+        self.flow_sig = None
 
         self.press = None                 # (kind, arg, t0, x0, y0)
         self.dragging_steps = False
+        self.dragging_flow = None         # "xover" | "thresh" | None
 
         self.sync_pending = True
         self.last_slot = None
@@ -247,12 +264,25 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         shape_h = max(20, int((y1 - y0) * 0.17))
         return x0, y0, x1, y1 - shape_h - 3, y1 - shape_h, y1
 
+    def _flow_rects(self):
+        x0, y0, x1, y1 = self._main_area()
+        w = max(x1 - x0, 120)
+        h = max(y1 - y0, 80)
+        split_x = x0 + int(w * 0.68)
+        ctrl_h = max(26, int(h * 0.20))
+        xover = (x0, y0, split_x - 4, y1 - ctrl_h - 4)
+        duck = (x0, y1 - ctrl_h, x0 + min(130, int((split_x - x0) * 0.48)), y1)
+        route = (duck[2] + 6, y1 - ctrl_h, split_x - 4, y1)
+        meter = (split_x + 2, y0, x1, y1)
+        return xover, duck, route, meter
+
     # ---------- drawing ----------
     def _reset_canvas(self):
         c = self.widget_canvas
         c.delete("all")
         self.slot_view = self.top_view = self.steps_view = self.bottom_view = None
         self.curve_sig = None
+        self.flow_sig = None
         self.hist_items = []
         self.bar_items = []
         self.bar_bg_items = []
@@ -263,6 +293,10 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         self.other_head_items = []
         self.slot_bar_items = []
         self.top_bpm_item = self.top_lim_item = self.top_lim_bg = None
+        self.flow_low_item = self.flow_high_item = self.flow_handle_item = None
+        self.flow_split_txt = self.flow_duck_rect = self.flow_duck_txt = self.flow_route_txt = None
+        self.flow_meter_bar = self.flow_thresh_line = self.flow_thresh_txt = None
+        self.flow_trig_bg = self.flow_trig_txt = None
 
     def refresh_gui(self):
         if not self.processor:
@@ -281,6 +315,8 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         self._draw_bottom_bar()
         if self.view == 0:
             self._draw_steps_view()
+        elif self.view == 2:
+            self._draw_flow_view()
 
     def _build_static_view(self):
         c = self.widget_canvas
@@ -303,12 +339,52 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
                     c.create_line(0, 0, 0, 0, fill=SLOT_INFO[s][1], width=2, state="hidden", tags="heads")
                 )
             self.playhead_item = c.create_line(x0, y0, x0, y1, fill=HEAD_COLOR, width=2, tags="heads")
+        elif self.view == 2:
+            xover, duck, route, meter = self._flow_rects()
+            self.flow_xover_box = xover
+            self.flow_duck_box = duck
+            self.flow_meter_box = meter
+            fs = self._font_size()
+            f_sm = (zynthian_gui_config.font_family, max(7, fs - 2))
+            f_md = (zynthian_gui_config.font_family, fs, "bold")
+
+            # Low Split Crossover box
+            xx0, xy0, xx1, xy1 = xover
+            c.create_rectangle(xx0, xy0, xx1, xy1, fill=BG_AREA, outline=DIM, tags="flow_bg")
+            for frac, lbl in ((0.06, "Off"), (0.20, "60"), (0.45, "120"), (0.72, "250"), (0.94, "500Hz")):
+                gx = xx0 + (xx1 - xx0) * frac
+                c.create_line(gx, xy0 + 18, gx, xy1 - 14, fill=GRID_COLOR, tags="flow_bg")
+                c.create_text(gx, xy1 - 7, text=lbl, fill="#7a828e", font=f_sm, tags="flow_bg")
+            self.flow_low_item = c.create_line(xx0, xy1 - 16, xx1, xy1 - 16, fill="#ffa94d", width=2, tags="flow")
+            self.flow_high_item = c.create_line(xx0, xy0 + 22, xx1, xy0 + 22, fill="#63e6be", width=2, tags="flow")
+            self.flow_handle_item = c.create_line(xx0, xy0 + 18, xx0, xy1 - 14, fill="#ffffff", width=2, tags="flow")
+            self.flow_split_txt = c.create_text(xx0 + 8, xy0 + 9, anchor="w", text="Low Split: Off", fill="#ffffff", font=f_md, tags="flow")
+
+            # Low Duck toggle + routing readout
+            dx0, dy0, dx1, dy1 = duck
+            self.flow_duck_rect = c.create_rectangle(dx0, dy0, dx1, dy1, fill=BG_CARD, outline=DIM, tags="flow")
+            self.flow_duck_txt = c.create_text((dx0 + dx1) / 2, (dy0 + dy1) / 2, text="Low Duck: OFF", fill="#cfd6e0", font=f_md, tags="flow")
+            rx0, ry0, rx1, ry1 = route
+            c.create_rectangle(rx0, ry0, rx1, ry1, fill=BG_CARD, outline=DIM, tags="flow_bg")
+            self.flow_route_txt = c.create_text((rx0 + rx1) / 2, (ry0 + ry1) / 2, text="Full Band", fill="#9aa4b2", font=f_sm, tags="flow")
+
+            # Input Level + Audio Trig Threshold meter
+            mx0, my0, mx1, my1 = meter
+            c.create_rectangle(mx0, my0, mx1, my1, fill=BG_AREA, outline=DIM, tags="flow_bg")
+            c.create_text(mx0 + 6, my0 + 10, anchor="w", text="IN / TRIG", fill="#cfd6e0", font=f_sm, tags="flow_bg")
+            self.flow_trig_bg = c.create_rectangle(mx1 - 44, my0 + 3, mx1 - 4, my0 + 19, fill=BG_CARD, outline=DIM, tags="flow")
+            self.flow_trig_txt = c.create_text(mx1 - 24, my0 + 11, text="TRIG", fill="#68707c", font=f_sm, tags="flow")
+            bar_x0 = mx0 + 14
+            bar_x1 = mx1 - 14
+            c.create_rectangle(bar_x0, my0 + 24, bar_x1, my1 - 16, fill="#181c22", outline=GRID_COLOR, tags="flow_bg")
+            self.flow_meter_bar = c.create_rectangle(bar_x0 + 2, my1 - 16, bar_x1 - 2, my1 - 16, fill="#4dabf7", outline="", tags="flow")
+            self.flow_thresh_line = c.create_line(mx0 + 6, my0 + 40, mx1 - 6, my0 + 40, fill="#ffd43b", width=2, tags="flow")
+            self.flow_thresh_txt = c.create_text((mx0 + mx1) / 2, my1 - 8, text="Thr -24 dB", fill="#ffd43b", font=f_sm, tags="flow")
         else:
             x0, y0, x1, y1 = self._main_area()
             c.create_rectangle(x0, y0, x1, y1, fill=BG_AREA, outline=DIM, tags="placeholder")
-            msg = "Perform (Pads + XY + Scenes) — stage M3" if self.view == 1 else "Flow (Low Split + Audio Trig) — stage M1"
             c.create_text(
-                (x0 + x1) / 2, (y0 + y1) / 2, text=msg,
+                (x0 + x1) / 2, (y0 + y1) / 2, text="Perform (Pads + XY + Scenes) — stage M3",
                 fill="#9aa4b2", font=(zynthian_gui_config.font_family, self._font_size() + 1),
                 tags="placeholder",
             )
@@ -562,6 +638,99 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             else:
                 c.itemconfig(self.other_head_items[s], state="hidden")
 
+    def _draw_flow_view(self):
+        c = self.widget_canvas
+        if not self.flow_xover_box or not self.flow_meter_box:
+            return
+        xx0, xy0, xx1, xy1 = self.flow_xover_box
+        mx0, my0, mx1, my1 = self.flow_meter_box
+
+        split_hz = min(max(self._zval("low_split", 0.0), 0.0), 500.0)
+        duck_on = self._zval("low_duck", 0.0) >= 0.5
+        thr_db = min(max(self._zval("threshold", -24.0), -60.0), 0.0)
+        sig = (round(split_hz, 1), duck_on, round(thr_db, 1))
+
+        if self.flow_sig != sig:
+            self.flow_sig = sig
+            top_y = xy0 + 22
+            bot_y = xy1 - 16
+            span_y = max(bot_y - top_y, 12)
+            w = max(xx1 - xx0, 40)
+
+            if split_hz < 60.0:
+                hx = xx0 + w * 0.06
+                c.coords(self.flow_low_item, xx0 + 2, bot_y, xx1 - 2, bot_y)
+                c.coords(self.flow_high_item, xx0 + 2, top_y, xx1 - 2, top_y)
+                c.coords(self.flow_handle_item, hx, xy0 + 18, hx, xy1 - 14)
+                c.itemconfig(self.flow_split_txt, text="Low Split: Off")
+                c.itemconfig(self.flow_route_txt, text="Full Band -> Slots")
+            else:
+                # Map 60..500 Hz logarithmically onto x fraction 0.20..0.94
+                t_fc = math.log(split_hz / 60.0) / math.log(500.0 / 60.0)
+                hx = xx0 + w * (0.20 + 0.74 * t_fc)
+                low_pts, high_pts = [], []
+                npts = 48
+                for i in range(npts + 1):
+                    u = i / float(npts)
+                    px = xx0 + 2 + u * (w - 4)
+                    # Frequency at u (log scale 30..800 Hz)
+                    f = 30.0 * ((800.0 / 30.0) ** u)
+                    r = f / split_hz
+                    # LR4 magnitude: LP = 1 / (1 + r^4), HP = r^4 / (1 + r^4)
+                    r4 = r ** 4
+                    m_lp = 1.0 / (1.0 + r4)
+                    m_hp = r4 / (1.0 + r4)
+                    low_pts.extend((px, bot_y - m_lp * span_y))
+                    high_pts.extend((px, bot_y - m_hp * span_y))
+                c.coords(self.flow_low_item, *low_pts)
+                c.coords(self.flow_high_item, *high_pts)
+                c.coords(self.flow_handle_item, hx, xy0 + 18, hx, xy1 - 14)
+                c.itemconfig(self.flow_split_txt, text="Low Split: %d Hz" % int(round(split_hz)))
+                c.itemconfig(self.flow_route_txt, text="Low: %s | High: FX" % ("Gate Duck" if duck_on else "Clean"))
+
+            c.itemconfig(self.flow_duck_rect, fill="#3a4a62" if duck_on else BG_CARD, outline="#ffa94d" if duck_on else DIM)
+            c.itemconfig(self.flow_duck_txt, text="Low Duck: %s" % ("ON" if duck_on else "OFF"),
+                         fill="#ffffff" if duck_on else "#9aa4b2")
+
+            # Threshold line on meter (-60..0 dB)
+            mt_y0, mt_y1 = my0 + 24, my1 - 16
+            t_norm = (thr_db + 60.0) / 60.0
+            ty = mt_y1 - t_norm * max(mt_y1 - mt_y0, 10)
+            c.coords(self.flow_thresh_line, mx0 + 6, ty, mx1 - 6, ty)
+            c.itemconfig(self.flow_thresh_txt, text="Thr %d dB" % int(round(thr_db)))
+
+        # Live input level meter + TRIG LED
+        pk = max(self._mon("peak", 0.0), 1e-6)
+        pk_db = max(-60.0, min(0.0, 20.0 * math.log10(pk)))
+        mt_y0, mt_y1 = my0 + 24, my1 - 16
+        p_norm = (pk_db + 60.0) / 60.0
+        py = mt_y1 - p_norm * max(mt_y1 - mt_y0, 10)
+        c.coords(self.flow_meter_bar, mx0 + 16, py, mx1 - 16, mt_y1)
+        trig_hot = pk_db >= thr_db and pk > 1e-4
+        c.itemconfig(self.flow_trig_bg, fill="#ffd43b" if trig_hot else BG_CARD, outline="#ffd43b" if trig_hot else DIM)
+        c.itemconfig(self.flow_trig_txt, fill="#000000" if trig_hot else "#68707c")
+
+    def _apply_flow_drag(self, x, y):
+        if self.dragging_flow == "xover" and self.flow_xover_box:
+            xx0, _xy0, xx1, _xy1 = self.flow_xover_box
+            frac = min(max((x - xx0) / max(xx1 - xx0, 1.0), 0.0), 1.0)
+            if frac < 0.14:
+                hz = 0.0
+            else:
+                t = min(max((frac - 0.20) / 0.74, 0.0), 1.0)
+                hz = round(60.0 * ((500.0 / 60.0) ** t))
+            self._zset("low_split", float(hz))
+            self.flow_sig = None
+            self._draw_flow_view()
+        elif self.dragging_flow == "thresh" and self.flow_meter_box:
+            _mx0, my0, _mx1, my1 = self.flow_meter_box
+            mt_y0, mt_y1 = my0 + 24, my1 - 16
+            t = min(max((mt_y1 - y) / max(mt_y1 - mt_y0, 1.0), 0.0), 1.0)
+            db = round(-60.0 + t * 60.0)
+            self._zset("threshold", float(db))
+            self.flow_sig = None
+            self._draw_flow_view()
+
     # ---------- touch / mouse interaction ----------
     def _hit(self, boxes, x, y):
         for i, b in enumerate(boxes):
@@ -616,6 +785,7 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         now = time.monotonic()
         self.press = None
         self.dragging_steps = False
+        self.dragging_flow = None
 
         idx = self._hit(self.slot_boxes, x, y)
         if idx >= 0:
@@ -647,14 +817,37 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
                 self.dragging_steps = True
                 self._apply_step_touch(x, y)
                 return
+        elif self.view == 2:
+            if self.flow_duck_box:
+                b = self.flow_duck_box
+                if b[0] <= x <= b[2] and b[1] <= y <= b[3]:
+                    self.press = ("duck", 0, now, x, y)
+                    return
+            if self.flow_xover_box:
+                b = self.flow_xover_box
+                if b[0] <= x <= b[2] and b[1] <= y <= b[3]:
+                    self.dragging_flow = "xover"
+                    self._apply_flow_drag(x, y)
+                    return
+            if self.flow_meter_box:
+                b = self.flow_meter_box
+                if b[0] <= x <= b[2] and b[1] <= y <= b[3]:
+                    self.dragging_flow = "thresh"
+                    self._apply_flow_drag(x, y)
+                    return
 
     def _on_motion(self, event):
         if self.dragging_steps:
             self._apply_step_touch(event.x, event.y)
+        elif self.dragging_flow:
+            self._apply_flow_drag(event.x, event.y)
 
     def _on_release(self, event):
         if self.dragging_steps:
             self.dragging_steps = False
+            return
+        if self.dragging_flow:
+            self.dragging_flow = None
             return
         if not self.press:
             return
@@ -686,6 +879,11 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             self.refresh_gui()
         elif kind == "action":
             self._run_action(arg)
+        elif kind == "duck":
+            new_v = 0 if self._zval("low_duck", 0.0) >= 0.5 else 1
+            self._zset("low_duck", new_v)
+            self.flow_sig = None
+            self._draw_flow_view()
         elif kind == "shape":
             sel = self._slot()
             sym = "s%d_shp%d" % (sel, arg + 1)

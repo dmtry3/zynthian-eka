@@ -164,7 +164,7 @@ class Control:
         self.selected = i
 
 
-ctl = {"slot": Zctrl(4), "mix": Zctrl(100), "low_split": Zctrl(0), "scene": Zctrl(0)}
+ctl = {"slot": Zctrl(4), "mix": Zctrl(100), "low_split": Zctrl(0), "scene": Zctrl(0), "low_duck": Zctrl(0)}
 for v, sym in enumerate(W.FACES):
     ctl[sym] = Zctrl(DEFAULTS[3][v])
 for s in range(4):
@@ -249,11 +249,35 @@ ib = w.action_boxes["inv"]
 tap((ib[0] + ib[2]) / 2, (ib[1] + ib[3]) / 2)
 check(ctl["s3_lvl1"].value == 100.0 - before, "Inv button inverted step 1")
 
-# Switch tabs Perform / Flow / Steps
-for t_idx in (1, 2, 0):
-    tb = w.tab_boxes[t_idx]
-    tap((tb[0] + tb[2]) / 2, (tb[1] + tb[3]) / 2)
-    check(w.view == t_idx, "switched to tab %d" % t_idx)
+# Switch tabs Perform / Flow / Steps and test Flow controls
+tb = w.tab_boxes[1]
+tap((tb[0] + tb[2]) / 2, (tb[1] + tb[3]) / 2)
+check(w.view == 1, "switched to Perform tab")
+
+tb = w.tab_boxes[2]
+tap((tb[0] + tb[2]) / 2, (tb[1] + tb[3]) / 2)
+check(w.view == 2 and w.flow_xover_box is not None, "switched to Flow tab")
+
+# Drag Low Split frequency on crossover box
+xb = w.flow_xover_box
+w._on_press(Ev(xb[0] + (xb[2] - xb[0]) * 0.5, (xb[1] + xb[3]) / 2))
+w._on_release(Ev(xb[0] + (xb[2] - xb[0]) * 0.5, (xb[1] + xb[3]) / 2))
+check(60.0 <= ctl["low_split"].value <= 500.0, "Flow drag sets Low Split Hz: %s" % ctl["low_split"].value)
+
+# Toggle Low Duck button
+db = w.flow_duck_box
+tap((db[0] + db[2]) / 2, (db[1] + db[3]) / 2)
+check(ctl["low_duck"].value == 1, "Flow Low Duck toggled ON")
+
+# Drag Threshold on meter box
+mb = w.flow_meter_box
+w._on_press(Ev((mb[0] + mb[2]) / 2, (mb[1] + mb[3]) / 2))
+w._on_release(Ev((mb[0] + mb[2]) / 2, (mb[1] + mb[3]) / 2))
+check(-45.0 <= ctl["threshold"].value <= -15.0, "Flow meter drag sets threshold: %s" % ctl["threshold"].value)
+
+tb = w.tab_boxes[0]
+tap((tb[0] + tb[2]) / 2, (tb[1] + tb[3]) / 2)
+check(w.view == 0, "returned to Steps tab")
 
 # Performance check
 t0 = time.monotonic()

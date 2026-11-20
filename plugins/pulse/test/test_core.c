@@ -155,6 +155,120 @@ int main(void) {
   for (int i = 0; i < 256; i++) worst = fmaxf(worst, fabsf(out_l[i] - in_l[i]));
   CHECK(worst < 1e-4f);
 
+  /* 7. M1: Low Split LR4 crossover preserves clean bass when Gate closes high band */
+  px_reset(&fx);
+  px_default_params(&p);
+  p.low_split_hz = 250.0f;
+  p.low_duck = 0;
+  p.slot[PX_SLOT_GATE].on = 1;
+  p.slot[PX_SLOT_GATE].steps = 1;
+  p.slot[PX_SLOT_GATE].levels[0] = 0.0f; /* Gate fully closed on High band */
+  p.slot[PX_SLOT_GATE].shapes[0] = PX_SHP_HOLD;
+  p.slot[PX_SLOT_GATE].param1 = 0.0f;
+  px_set_transport(&fx, 120.0f, 1, 1, 0.0, 4);
+  {
+    /* 60 Hz sub-bass should pass cleanly; 2000 Hz treble should be muted by closed Gate */
+    float bass_e = 0.0f, hi_e = 0.0f;
+    for (int b = 0; b < 40; b++) {
+      for (int i = 0; i < 256; i++) {
+        double t = (double)(b * 256 + i) / sr;
+        in_l[i] = in_r[i] = 0.5f * sinf((float)(2.0 * M_PI * 60.0 * t));
+      }
+      px_process(&fx, &p, in_l, in_r, out_l, out_r, 256);
+      if (b >= 30) for (int i = 0; i < 256; i++) bass_e += out_l[i] * out_l[i];
+    }
+    px_reset(&fx);
+    px_set_transport(&fx, 120.0f, 1, 1, 0.0, 4);
+    for (int b = 0; b < 40; b++) {
+      for (int i = 0; i < 256; i++) {
+        double t = (double)(b * 256 + i) / sr;
+        in_l[i] = in_r[i] = 0.5f * sinf((float)(2.0 * M_PI * 2000.0 * t));
+      }
+      px_process(&fx, &p, in_l, in_r, out_l, out_r, 256);
+      if (b >= 30) for (int i = 0; i < 256; i++) hi_e += out_l[i] * out_l[i];
+    }
+    CHECK(bass_e > 200.0f);
+    CHECK(hi_e < 0.05f);
+  }
+
+  /* 8. M1: Low Duck applies Gate envelope to Low Band */
+  px_reset(&fx);
+  p.low_duck = 1;
+  px_set_transport(&fx, 120.0f, 1, 1, 0.0, 4);
+  {
+    float ducked_e = 0.0f;
+    for (int b = 0; b < 40; b++) {
+      for (int i = 0; i < 256; i++) {
+        double t = (double)(b * 256 + i) / sr;
+        in_l[i] = in_r[i] = 0.5f * sinf((float)(2.0 * M_PI * 60.0 * t));
+      }
+      px_process(&fx, &p, in_l, in_r, out_l, out_r, 256);
+      if (b >= 30) for (int i = 0; i < 256; i++) ducked_e += out_l[i] * out_l[i];
+    }
+    CHECK(ducked_e < 1e-3f);
+  }
+
+  /* 9. M1: All 5 Drive & Crush modes + all 7 Filter/Phaser modes stay finite, bounded, and active */
+  for (int m = 0; m < 5; m++) {
+    px_reset(&fx);
+    px_default_params(&p);
+    p.slot[PX_SLOT_GATE].on = 0;
+    p.slot[PX_SLOT_DRIVE].on = 1;
+    p.slot[PX_SLOT_DRIVE].mode = m;
+    p.slot[PX_SLOT_DRIVE].param1 = 75.0f;
+    p.slot[PX_SLOT_DRIVE].param2 = 60.0f;
+    px_set_transport(&fx, 120.0f, 1, 1, 0.0, 4);
+    int ok = 1; float e = 0.0f;
+    for (int b = 0; b < 20; b++) {
+      for (int i = 0; i < 256; i++) in_l[i] = in_r[i] = 0.4f * sinf(0.05f * (b * 256 + i));
+      px_process(&fx, &p, in_l, in_r, out_l, out_r, 256);
+      for (int i = 0; i < 256; i++) {
+        if (!isfinite(out_l[i]) || !isfinite(out_r[i]) || fabsf(out_l[i]) > 1.001f) ok = 0;
+        e += out_l[i] * out_l[i];
+      }
+    }
+    CHECK(ok && e > 1.0f);
+  }
+
+  for (int m = 0; m < 7; m++) {
+    px_reset(&fx);
+    px_default_params(&p);
+    p.slot[PX_SLOT_GATE].on = 0;
+    p.slot[PX_SLOT_FILTER].on = 1;
+    p.slot[PX_SLOT_FILTER].mode = m;
+    p.slot[PX_SLOT_FILTER].param1 = 45.0f;
+    p.slot[PX_SLOT_FILTER].param2 = 65.0f;
+    px_set_transport(&fx, 120.0f, 1, 1, 0.0, 4);
+    int ok = 1; float e = 0.0f;
+    for (int b = 0; b < 20; b++) {
+      for (int i = 0; i < 256; i++) {
+        float t = (float)(b * 256 + i) / (float)sr;
+        in_l[i] = in_r[i] = 0.25f * sinf(2.0f * (float)M_PI * 220.0f * t)
+                          + 0.25f * sinf(2.0f * (float)M_PI * 2200.0f * t);
+      }
+      px_process(&fx, &p, in_l, in_r, out_l, out_r, 256);
+      for (int i = 0; i < 256; i++) {
+        if (!isfinite(out_l[i]) || !isfinite(out_r[i]) || fabsf(out_l[i]) > 1.001f) ok = 0;
+        e += out_l[i] * out_l[i];
+      }
+    }
+    CHECK(ok && e > 0.5f);
+  }
+
+  /* 10. Render 2s polyrhythmic 3-slot (Drive 5 + Filter 7 + Gate 8) with Low Split WAV */
+  px_reset(&fx);
+  px_default_params(&p);
+  p.low_split_hz = 140.0f;
+  p.slot[PX_SLOT_DRIVE].on = 1; p.slot[PX_SLOT_DRIVE].mode = PX_DRV_FOLD;
+  p.slot[PX_SLOT_FILTER].on = 1; p.slot[PX_SLOT_FILTER].mode = PX_FLT_LP24;
+  p.slot[PX_SLOT_GATE].on = 1;
+  px_set_transport(&fx, 120.0f, 1, 1, 0.0, 4);
+  for (uint32_t off = 0; off < n2; off += 256) {
+    uint32_t n = (n2 - off < 256) ? (n2 - off) : 256;
+    px_process(&fx, &p, il2 + off, ir2 + off, wl2 + off, wr2 + off, n);
+  }
+  write_wav("pulse_m1_poly3.wav", wl2, wr2, n2, (uint32_t)sr);
+
   free(wl); free(wr); free(il); free(ir);
   free(wl2); free(wr2); free(il2); free(ir2);
   px_free(&fx);

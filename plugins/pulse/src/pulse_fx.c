@@ -219,6 +219,17 @@ void px_reset(PulseFx* x) {
   x->lim_gr = 0.0f;
   x->mix_cur = 1.0f;
   x->out_gain_cur = 1.0f;
+  memset(x->xover_lp, 0, sizeof x->xover_lp);
+  memset(x->xover_hp, 0, sizeof x->xover_hp);
+  memset(x->drv_dc_x, 0, sizeof x->drv_dc_x);
+  memset(x->drv_dc_y, 0, sizeof x->drv_dc_y);
+  memset(x->drv_tone, 0, sizeof x->drv_tone);
+  memset(x->drv_fold_x1, 0, sizeof x->drv_fold_x1);
+  memset(x->crush_phase, 0, sizeof x->crush_phase);
+  memset(x->crush_hold, 0, sizeof x->crush_hold);
+  memset(x->flt_svf, 0, sizeof x->flt_svf);
+  memset(x->phaser_ap, 0, sizeof x->phaser_ap);
+  memset(x->phaser_fb, 0, sizeof x->phaser_fb);
   for (int s = 0; s < PX_SLOTS; s++) {
     memset(&x->st[s], 0, sizeof x->st[s]);
     x->st[s].bypass_gain = 0.0f;
@@ -269,6 +280,135 @@ static inline float soft_clip(float v) {
   if (v > 1.5f) return 1.0f;
   if (v < -1.5f) return -1.0f;
   return v - (v * v * v) * (4.0f / 27.0f);
+}
+
+/* TPT State-Variable Filter (Andrew Simper / Zavalishin): unconditionally stable under modulation. */
+static inline void svf_tick(PxSvf* s, float v0, float g, float k,
+                            float* lp, float* bp, float* hp) {
+  float a1 = 1.0f / (1.0f + g * (g + k));
+  float a2 = g * a1;
+  float a3 = g * a2;
+  float v3 = v0 - s->ic2;
+  float v1 = a1 * s->ic1 + a2 * v3;
+  float v2 = s->ic2 + a2 * s->ic1 + a3 * v3;
+  s->ic1 = 2.0f * v1 - s->ic1;
+  s->ic2 = 2.0f * v2 - s->ic2;
+  *lp = v2;
+  *bp = v1;
+  *hp = v0 - k * v1 - v2;
+}
+
+/* 1st-order ADAA wavefolder on f(x) = sin(x), antiderivative F(x) = -cos(x). */
+static inline float adaa_fold(float x, float* x1) {
+  float prev = *x1;
+  *x1 = x;
+  float dx = x - prev;
+  if (fabsf(dx) > 1e-4f) {
+    return (cosf(prev) - cosf(x)) / dx;
+  }
+  return sinf(0.5f * (x + prev));
+}
+
+/* Single-channel Drive & Crush sample processing. */
+static inline float process_drive_ch(PulseFx* x, int ch, float in, int mode,
+                                     float drv_amt, float crush_amt, float tone_coeff,
+                                     float dc_coeff) {
+  float y = in;
+  if (mode == PX_DRV_TUBE || mode == PX_DRV_COMBO) {
+    float g = 1.0f + 14.0f * drv_amt * drv_amt;
+    float u = in * g;
+    /* Asymmetric soft tube saturation + DC blocker */
+    float s = tanhf(u + 0.14f * u * u) / tanhf(1.0f + 0.35f * (g - 1.0f));
+    float dc_out = s - x->drv_dc_x[ch] + dc_coeff * x->drv_dc_y[ch];
+    x->drv_dc_x[ch] = s;
+    x->drv_dc_y[ch] = dc_out;
+    y = dc_out;
+  } else if (mode == PX_DRV_FOLD) {
+    float g = 1.0f + 9.0f * drv_amt;
+    y = adaa_fold(in * g, &x->drv_fold_x1[ch]);
+  } else if (mode == PX_DRV_HARD) {
+    float g = 1.0f + 18.0f * drv_amt * drv_amt;
+    float u = in * g;
+    if (u > 0.92f) u = 0.92f + 0.08f * tanhf((u - 0.92f) * 2.0f);
+    else if (u < -0.92f) u = -0.92f + 0.08f * tanhf((u + 0.92f) * 2.0f);
+    y = u * (1.0f / (1.0f + 0.25f * drv_amt));
+  }
+
+  if (mode == PX_DRV_CRUSH || mode == PX_DRV_COMBO) {
+    float amt = (mode == PX_DRV_CRUSH) ? fmaxf(drv_amt, crush_amt) : crush_amt;
+    /* Sample rate reduction: hold divider 1..28 */
+    float step = 1.0f / (1.0f + 27.0f * amt * amt);
+    x->crush_phase[ch] += step;
+    if (x->crush_phase[ch] >= 1.0f) {
+      x->crush_phase[ch] -= floorf(x->crush_phase[ch]);
+      /* Bit crush: 16 bits down to 3 bits */
+      float bits = 16.0f - 13.0f * amt;
+      float levels = powf(2.0f, bits - 1.0f);
+      float q = floorf(y * levels + 0.5f) / levels;
+      x->crush_hold[ch] = q;
+    }
+    y = x->crush_hold[ch];
+  } else {
+    /* Post-drive tone LP for Tube / Fold / Hard */
+    x->drv_tone[ch] += tone_coeff * (y - x->drv_tone[ch]);
+    y = x->drv_tone[ch];
+  }
+  return y;
+}
+
+/* Single-channel Filter / Phaser processing. */
+static inline float process_filter_ch(PulseFx* x, int ch, float in, int mode,
+                                      float freq_hz, float res_norm, float curve_val,
+                                      float sr_f) {
+  float fc = clampf(freq_hz, 30.0f, 0.44f * sr_f);
+  if (mode == PX_FLT_PHASER) {
+    /* Stereo-offset 4-stage 1st-order allpass phaser */
+    float fc_ch = ch == 0 ? fc : clampf(fc * 1.08f, 30.0f, 0.44f * sr_f);
+    float w = tanf((float)M_PI * fc_ch / sr_f);
+    float a = (1.0f - w) / (1.0f + w);
+    float fb = (res_norm * 2.0f - 1.0f) * 0.80f; /* -0.80..+0.80 */
+    float u = in + fb * x->phaser_fb[ch];
+    u = clampf(u, -4.0f, 4.0f);
+    for (int st = 0; st < 4; st++) {
+      float ap_out = -a * u + x->phaser_ap[ch][st];
+      x->phaser_ap[ch][st] = u + a * ap_out;
+      u = ap_out;
+    }
+    x->phaser_fb[ch] = u;
+    return 0.5f * (in + u);
+  }
+
+  float g = tanf((float)M_PI * fc / sr_f);
+  float q = 0.6f * powf(16.0f, res_norm); /* 0.6 .. 9.6 */
+  float k = 1.0f / q;
+  float lp = 0.0f, bp = 0.0f, hp = 0.0f;
+
+  if (mode == PX_FLT_LP24) {
+    float k2 = 1.0f / (0.6f * powf(8.0f, res_norm));
+    float lp1 = 0.0f, bp1 = 0.0f, hp1 = 0.0f;
+    svf_tick(&x->flt_svf[ch][0], in, g, k2, &lp1, &bp1, &hp1);
+    svf_tick(&x->flt_svf[ch][1], lp1, g, k2, &lp, &bp, &hp);
+    return lp;
+  }
+
+  svf_tick(&x->flt_svf[ch][0], in, g, k, &lp, &bp, &hp);
+  switch (mode) {
+    case PX_FLT_LP12:  return lp;
+    case PX_FLT_BP:    return bp;
+    case PX_FLT_HP:    return hp;
+    case PX_FLT_NOTCH: return lp + hp;
+    case PX_FLT_MORPH: {
+      float m = clampf(curve_val, 0.0f, 1.0f);
+      if (m < 0.5f) {
+        float t = m * 2.0f;
+        return lp + t * (bp - lp);
+      } else {
+        float t = (m - 0.5f) * 2.0f;
+        return bp + t * (hp - bp);
+      }
+    }
+    default: return lp;
+  }
 }
 
 void px_process(PulseFx* x, const PxParams* p,
@@ -326,12 +466,36 @@ void px_process(PulseFx* x, const PxParams* p,
   double base_rel_beats = rolling ? (x->transport_beats - x->origin_beats) : 0.0;
   if (base_rel_beats < 0.0) base_rel_beats = 0.0;
 
+  /* Low Split LR4 crossover setup (bypassed completely when < 60 Hz) */
+  const int   xover_on = (p->low_split_hz >= 60.0f);
+  const float xover_fc = clampf(p->low_split_hz, 60.0f, 500.0f);
+  const float xover_g  = xover_on ? tanf((float)M_PI * xover_fc / (float)sr) : 0.0f;
+  const float xover_k  = 1.41421356f; /* Butterworth Q = 1/sqrt(2) -> cascaded = LR4 */
+
+  /* Drive & Crush parameters */
+  const PxSlotParams* dp = &p->slot[PX_SLOT_DRIVE];
+  const int   drv_mode  = dp->mode;
+  const float drv_base  = clampf(dp->param1 * 0.01f, 0.0f, 1.0f);
+  const float drv_p2    = clampf(dp->param2 * 0.01f, 0.0f, 1.0f);
+  const float drv_depth = clampf(dp->depth, -1.0f, 1.0f);
+  const float drv_tone_hz = 800.0f * powf(22.5f, drv_p2); /* 800 Hz .. 18 kHz */
+  const float drv_tone_coeff = 1.0f - expf(-2.0f * (float)M_PI * drv_tone_hz / (float)sr);
+  const float drv_dc_coeff = expf(-2.0f * (float)M_PI * 15.0f / (float)sr);
+
+  /* Filter parameters */
+  const PxSlotParams* fp = &p->slot[PX_SLOT_FILTER];
+  const int   flt_mode   = fp->mode;
+  const float flt_cut_hz = 40.0f * powf(450.0f, clampf(fp->param1 * 0.01f, 0.0f, 1.0f));
+  const float flt_res    = clampf(fp->param2 * 0.01f, 0.0f, 1.0f);
+  const float flt_depth  = clampf(fp->depth, -1.0f, 1.0f);
+
   /* Gate slot parameters */
   const PxSlotParams* gp = &p->slot[PX_SLOT_GATE];
   const float gate_floor = clampf(gp->param1 * 0.01f, 0.0f, 1.0f);
   const float gate_width = clampf(gp->param2 * 0.01f, 0.0f, 1.0f);
   const float gate_depth = clampf(gp->depth, -1.0f, 1.0f);
-  const int   gate_mode = gp->mode;
+  const int   gate_mode  = gp->mode;
+  const int   low_duck   = p->low_duck ? 1 : 0;
 
   float in_pk = x->in_peak;
   float out_pk = x->out_peak;
@@ -422,21 +586,66 @@ void px_process(PulseFx* x, const PxParams* p,
       }
     }
 
-    float wl = dl;
-    float wr = dr;
+    /* Low Split LR4 Crossover */
+    float low_l = 0.0f, low_r = 0.0f;
+    float wl = dl, wr = dr;
+    if (xover_on) {
+      float lp1, bp1, hp1, lp2, bp2, hp2;
+      /* Left */
+      svf_tick(&x->xover_lp[0][0], dl, xover_g, xover_k, &lp1, &bp1, &hp1);
+      svf_tick(&x->xover_lp[0][1], lp1, xover_g, xover_k, &low_l, &bp2, &hp2);
+      svf_tick(&x->xover_hp[0][0], dl, xover_g, xover_k, &lp1, &bp1, &hp1);
+      svf_tick(&x->xover_hp[0][1], hp1, xover_g, xover_k, &lp2, &bp2, &wl);
+      /* Right */
+      svf_tick(&x->xover_lp[1][0], dr, xover_g, xover_k, &lp1, &bp1, &hp1);
+      svf_tick(&x->xover_lp[1][1], lp1, xover_g, xover_k, &low_r, &bp2, &hp2);
+      svf_tick(&x->xover_hp[1][0], dr, xover_g, xover_k, &lp1, &bp1, &hp1);
+      svf_tick(&x->xover_hp[1][1], hp1, xover_g, xover_k, &lp2, &bp2, &wr);
+    }
 
-    /* Slot 4: GATE & SPACE (M0 active audio slot; slots 1..3 added in M1/M2) */
+    /* Slot 2: DRIVE & CRUSH */
+    PxSlotState* dst = &x->st[PX_SLOT_DRIVE];
+    if (dst->bypass_gain > 1e-6f) {
+      float c = clampf(dst->curve_smooth, 0.0f, 1.0f);
+      float shaped = (drv_depth >= 0.0f) ? c : (1.0f - c);
+      float ad = fabsf(drv_depth);
+      float mod_drv = clampf(drv_base * (1.0f - ad) + drv_base * shaped * ad + (1.0f - drv_base) * 0.5f * shaped * ad, 0.0f, 1.0f);
+      float mod_crush = clampf(drv_p2 * (1.0f - ad + ad * shaped), 0.0f, 1.0f);
+      float dl_out = process_drive_ch(x, 0, wl, drv_mode, mod_drv, mod_crush, drv_tone_coeff, drv_dc_coeff);
+      float dr_out = process_drive_ch(x, 1, wr, drv_mode, mod_drv, mod_crush, drv_tone_coeff, drv_dc_coeff);
+      float bg = dst->bypass_gain;
+      wl = wl + bg * (dl_out - wl);
+      wr = wr + bg * (dr_out - wr);
+    }
+
+    /* Slot 3: FILTER (SVF + Phaser) */
+    PxSlotState* fst = &x->st[PX_SLOT_FILTER];
+    if (fst->bypass_gain > 1e-6f) {
+      float c = clampf(fst->curve_smooth, 0.0f, 1.0f);
+      float oct_shift = (c * 2.0f - 1.0f) * flt_depth * 3.5f; /* +-3.5 octaves */
+      float fc = flt_cut_hz * powf(2.0f, oct_shift);
+      float morph_pos = clampf(0.5f + (c - 0.5f) * flt_depth, 0.0f, 1.0f);
+      float fl_out = process_filter_ch(x, 0, wl, flt_mode, fc, flt_res, morph_pos, (float)sr);
+      float fr_out = process_filter_ch(x, 1, wr, flt_mode, fc, flt_res, morph_pos, (float)sr);
+      float bg = fst->bypass_gain;
+      wl = wl + bg * (fl_out - wl);
+      wr = wr + bg * (fr_out - wr);
+    }
+
+    /* Slot 4: GATE & SPACE */
     PxSlotState* gst = &x->st[PX_SLOT_GATE];
     if (gst->bypass_gain > 1e-6f) {
       float gl = wl;
       float gr = wr;
       float c = clampf(gst->curve_smooth, 0.0f, 1.0f);
       float ad = fabsf(gate_depth);
+      float gate_env_for_low = 1.0f;
 
       if (gate_mode == PX_GATE_GATE) {
         float shaped = (gate_depth >= 0.0f) ? c : (1.0f - c);
         float target_g = gate_floor + (1.0f - gate_floor) * shaped;
         float gain = 1.0f + ad * (target_g - 1.0f);
+        gate_env_for_low = gain;
         if (slot_punch_amt[PX_SLOT_GATE] > 0.0f && gst->punch_env > 1e-4f) {
           float boost = 1.0f + slot_punch_amt[PX_SLOT_GATE] * gst->punch_env * 1.0f;
           gl = soft_clip(gl * gain * boost);
@@ -460,6 +669,7 @@ void px_process(PulseFx* x, const PxParams* p,
         float shaped = (gate_depth >= 0.0f) ? c : (1.0f - c);
         float target_g = gate_floor + (1.0f - gate_floor) * shaped;
         float gain = 1.0f + ad * (target_g - 1.0f);
+        gate_env_for_low = gain;
         float side_sign = (gst->last_step & 1) ? 1.0f : -1.0f;
         float pan = side_sign * gate_width * ad;
         float angle = (pan * 0.5f + 0.5f) * (float)(M_PI * 0.5);
@@ -470,6 +680,18 @@ void px_process(PulseFx* x, const PxParams* p,
       float bg = gst->bypass_gain;
       wl = wl + bg * (gl - wl);
       wr = wr + bg * (gr - wr);
+
+      if (xover_on && low_duck) {
+        float lg = 1.0f + bg * (gate_env_for_low - 1.0f);
+        low_l *= lg;
+        low_r *= lg;
+      }
+    }
+
+    /* Recombine Low Band + Main/High Band */
+    if (xover_on) {
+      wl += low_l;
+      wr += low_r;
     }
 
     /* Dry/Wet mix + Output Gain */

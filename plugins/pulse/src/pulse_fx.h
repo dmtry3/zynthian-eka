@@ -38,11 +38,33 @@ enum {
 };
 
 enum {
+  PX_DRV_TUBE = 0,
+  PX_DRV_FOLD = 1,
+  PX_DRV_HARD = 2,
+  PX_DRV_CRUSH = 3,
+  PX_DRV_COMBO = 4
+};
+
+enum {
+  PX_FLT_LP24 = 0,
+  PX_FLT_LP12 = 1,
+  PX_FLT_BP = 2,
+  PX_FLT_HP = 3,
+  PX_FLT_MORPH = 4,
+  PX_FLT_NOTCH = 5,
+  PX_FLT_PHASER = 6
+};
+
+enum {
   PX_GATE_GATE = 0,
   PX_GATE_PAN = 1,
   PX_GATE_WIDTH = 2,
   PX_GATE_GATEPAN = 3
 };
+
+typedef struct {
+  float ic1, ic2;
+} PxSvf;
 
 /* Beats per single step for step_rate 0..7 (8 = Free Hz). */
 extern const float px_rate_beats[PX_NRATES - 1];
@@ -94,6 +116,19 @@ typedef struct {
   double      transport_beats;   /* current song position in beats while rolling */
   double      origin_beats;      /* bar downbeat where transport started */
   PxSlotState st[PX_SLOTS];
+  /* Low Split LR4 crossover (2 channels x 2 cascaded Butterworth stages) */
+  PxSvf       xover_lp[2][2];
+  PxSvf       xover_hp[2][2];
+  /* Slot 2: Drive & Crush state */
+  float       drv_dc_x[2], drv_dc_y[2];
+  float       drv_tone[2];
+  float       drv_fold_x1[2];
+  float       crush_phase[2], crush_hold[2];
+  /* Slot 3: Filter & Phaser state */
+  PxSvf       flt_svf[2][2];
+  float       phaser_ap[2][4];
+  float       phaser_fb[2];
+  /* Master meters & limiter */
   float       in_peak;
   float       out_peak;
   float       lim_env;
