@@ -199,7 +199,10 @@ int px_init(PulseFx* x, double sr) {
   memset(x, 0, sizeof *x);
   x->sr = sr;
   x->bpm = 120.0f;
-  x->transport_beats = -1.0;
+  x->bpb = 4;
+  x->rolling = 0;
+  x->transport_beats = 0.0;
+  x->origin_beats = 0.0;
   x->lim_release = expf(-1.0f / (0.060f * (float)sr));
   px_reset(x);
   return 0;
@@ -207,7 +210,9 @@ int px_init(PulseFx* x, double sr) {
 
 void px_reset(PulseFx* x) {
   if (!x) return;
-  x->internal_beats = 0.0;
+  x->rolling = 0;
+  x->transport_beats = 0.0;
+  x->origin_beats = 0.0;
   x->in_peak = 0.0f;
   x->out_peak = 0.0f;
   x->lim_env = PX_LIM_CEILING;
@@ -216,8 +221,8 @@ void px_reset(PulseFx* x) {
   x->out_gain_cur = 1.0f;
   for (int s = 0; s < PX_SLOTS; s++) {
     memset(&x->st[s], 0, sizeof x->st[s]);
-    x->st[s].bypass_gain = (s == PX_SLOT_GATE) ? 1.0f : 0.0f;
-    x->st[s].last_step = -1;
+    x->st[s].bypass_gain = 0.0f;
+    x->st[s].last_step = 0;
   }
 }
 
@@ -225,10 +230,38 @@ void px_free(PulseFx* x) {
   (void)x;
 }
 
-void px_set_tempo(PulseFx* x, float bpm, double transport_beats) {
+void px_set_transport(PulseFx* x, float bpm, int rolling, int has_pos, double beats, int bpb) {
   if (!x) return;
   if (isfinite(bpm) && bpm >= 20.0f && bpm <= 400.0f) x->bpm = bpm;
-  x->transport_beats = (isfinite(transport_beats) && transport_beats >= 0.0) ? transport_beats : -1.0;
+  if (bpb >= 1 && bpb <= 16) x->bpb = bpb;
+
+  int was_rolling = x->rolling;
+  x->rolling = rolling ? 1 : 0;
+
+  if (!x->rolling) {
+    if (was_rolling) {
+      x->transport_beats = 0.0;
+      x->origin_beats = 0.0;
+    }
+    return;
+  }
+
+  double bt = (double)(x->bpb > 0 ? x->bpb : 4);
+  if (!was_rolling) {
+    /* Transport just started: anchor origin at bar downbeat so all slots start on beat 1. */
+    if (has_pos && isfinite(beats) && beats >= 0.0) {
+      x->transport_beats = beats;
+      x->origin_beats = floor(beats / bt) * bt;
+    } else {
+      x->transport_beats = 0.0;
+      x->origin_beats = 0.0;
+    }
+  } else if (has_pos && isfinite(beats) && beats >= 0.0) {
+    x->transport_beats = beats;
+    if (beats < x->origin_beats) {
+      x->origin_beats = floor(beats / bt) * bt;
+    }
+  }
 }
 
 static inline float soft_clip(float v) {
@@ -289,8 +322,9 @@ void px_process(PulseFx* x, const PxParams* p,
     slot_punch_amt[s] = (s == PX_SLOT_GATE && sm < 0.0f) ? -sm : 0.0f;
   }
 
-  const int use_transport = (x->transport_beats >= 0.0);
-  double base_beats = use_transport ? x->transport_beats : x->internal_beats;
+  const int rolling = x->rolling;
+  double base_rel_beats = rolling ? (x->transport_beats - x->origin_beats) : 0.0;
+  if (base_rel_beats < 0.0) base_rel_beats = 0.0;
 
   /* Gate slot parameters */
   const PxSlotParams* gp = &p->slot[PX_SLOT_GATE];
@@ -313,13 +347,30 @@ void px_process(PulseFx* x, const PxParams* p,
     float a_in = fmaxf(fabsf(dl), fabsf(dr));
     in_pk = (a_in > in_pk) ? a_in : in_pk * peak_decay;
 
-    double cur_beats = base_beats + (double)i * beats_per_sample;
+    double cur_beats = base_rel_beats + (double)i * beats_per_sample;
 
     /* Advance all 4 polyrhythmic Step Shapers */
     for (int s = 0; s < PX_SLOTS; s++) {
       const PxSlotParams* sp = &p->slot[s];
       PxSlotState* st = &x->st[s];
       int nst = slot_steps[s];
+
+      int slot_running = slot_use_free[s] || rolling;
+      if (!slot_running) {
+        /* Sync mode with transport stopped: stand still at beat 1 (phase 0), pass audio cleanly. */
+        st->phase = 0.0f;
+        st->last_step = 0;
+        st->free_pos = 0.0;
+        st->curve_raw = 0.0f;
+        st->curve_smooth = 0.0f;
+        st->prev_raw = 0.0f;
+        st->punch_env = 0.0f;
+        if (st->bypass_gain > 0.0f) {
+          st->bypass_gain -= bypass_step;
+          if (st->bypass_gain < 0.0f) st->bypass_gain = 0.0f;
+        }
+        continue;
+      }
 
       double pos;
       if (!slot_use_free[s]) {
@@ -450,10 +501,8 @@ void px_process(PulseFx* x, const PxParams* p,
     out_r[i] = or_;
   }
 
-  if (use_transport) {
+  if (rolling) {
     x->transport_beats += (double)nframes * beats_per_sample;
-  } else {
-    x->internal_beats += (double)nframes * beats_per_sample;
   }
 
   x->in_peak = in_pk;

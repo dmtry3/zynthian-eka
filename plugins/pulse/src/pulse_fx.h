@@ -89,8 +89,10 @@ typedef struct {
 typedef struct {
   double      sr;
   float       bpm;
-  double      transport_beats;   /* >= 0 while host transport rolls, < 0 when stopped */
-  double      internal_beats;    /* free-running beat counter when transport is stopped */
+  int         bpb;               /* beats per bar (default 4) */
+  int         rolling;           /* 1 while host transport is running, 0 when stopped */
+  double      transport_beats;   /* current song position in beats while rolling */
+  double      origin_beats;      /* bar downbeat where transport started */
   PxSlotState st[PX_SLOTS];
   float       in_peak;
   float       out_peak;
@@ -109,7 +111,7 @@ void  px_default_params(PxParams* p);
 int   px_init(PulseFx* x, double sr);
 void  px_reset(PulseFx* x);
 void  px_free(PulseFx* x);
-void  px_set_tempo(PulseFx* x, float bpm, double transport_beats);
+void  px_set_transport(PulseFx* x, float bpm, int rolling, int has_pos, double beats, int bpb);
 void  px_process(PulseFx* x, const PxParams* p,
                  const float* in_l, const float* in_r,
                  float* out_l, float* out_r, uint32_t nframes);

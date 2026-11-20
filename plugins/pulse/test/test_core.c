@@ -50,16 +50,32 @@ int main(void) {
   CHECK(px_eval_shape(PX_SHP_2X, 0.51f, 0.0f) > 0.9f);
   CHECK(px_eval_shape(PX_SHP_3X, 0.68f, 0.0f) > 0.9f);
 
-  /* 2. Deterministic polyrhythmic Sync: 4 slots with 16, 5, 7, 8 steps at 120 BPM, 1/16 step = 0.25 beats */
+  /* 2. Transport stopped -> plugin stands still at phase 0, audio passes cleanly */
   px_reset(&fx);
-  px_set_tempo(&fx, 120.0f, 3.0); /* 3.0 beats = 12 steps of 1/16 */
   float in_l[256], in_r[256], out_l[256], out_r[256];
   for (int i = 0; i < 256; i++) in_l[i] = in_r[i] = 0.5f;
+  px_process(&fx, &p, in_l, in_r, out_l, out_r, 256);
+  CHECK(fx.st[3].phase == 0.0f && fx.st[3].last_step == 0);
+  CHECK(fabsf(out_l[255] - 0.5f) < 1e-4f);
+
+  /* 2b. Transport start at bar 3, beat 0 -> starts synchronously on beat 1 (step 0) */
+  px_set_transport(&fx, 120.0f, 1, 1, 12.0, 4); /* bar 3, barBeat 0 */
+  px_process(&fx, &p, in_l, in_r, out_l, out_r, 1);
+  CHECK(fx.st[0].last_step == 0 && fx.st[1].last_step == 0 &&
+        fx.st[2].last_step == 0 && fx.st[3].last_step == 0);
+
+  /* 2c. Deterministic polyrhythmic Sync: 3.0 beats later = 12 steps of 1/16 */
+  px_set_transport(&fx, 120.0f, 1, 1, 15.0, 4); /* +3.0 beats from origin 12.0 */
   px_process(&fx, &p, in_l, in_r, out_l, out_r, 1);
   CHECK(fx.st[0].last_step == 12 % 16);
   CHECK(fx.st[1].last_step == 12 % 5);
   CHECK(fx.st[2].last_step == 12 % 7);
   CHECK(fx.st[3].last_step == 12 % 8);
+
+  /* 2d. Transport stop -> stands still again at phase 0 */
+  px_set_transport(&fx, 120.0f, 0, 0, 0.0, 4);
+  px_process(&fx, &p, in_l, in_r, out_l, out_r, 256);
+  CHECK(fx.st[3].phase == 0.0f && fx.st[3].last_step == 0);
 
   /* 3. Gate cuts audio according to step levels (step 0 = 100%, step 1 = 0% Hold) */
   px_reset(&fx);
@@ -70,7 +86,7 @@ int main(void) {
   p.slot[PX_SLOT_GATE].levels[1] = 0.0f; p.slot[PX_SLOT_GATE].shapes[1] = PX_SHP_HOLD;
   p.slot[PX_SLOT_GATE].smooth = 0.0f;
   p.slot[PX_SLOT_GATE].param1 = 0.0f; /* Floor = 0% */
-  px_set_tempo(&fx, 120.0f, 0.0);
+  px_set_transport(&fx, 120.0f, 1, 1, 0.0, 4);
 
   uint32_t total = (uint32_t)sr; /* 1.0 s = 2 quarter-note steps */
   float* wl = (float*)calloc(total, sizeof(float));
@@ -94,7 +110,7 @@ int main(void) {
   /* 4. Render 2 seconds of Trance Gate pattern to WAV for listening */
   px_reset(&fx);
   px_default_params(&p);
-  px_set_tempo(&fx, 120.0f, 0.0);
+  px_set_transport(&fx, 120.0f, 1, 1, 0.0, 4);
   uint32_t n2 = (uint32_t)(sr * 2.0);
   float* wl2 = (float*)calloc(n2, sizeof(float));
   float* wr2 = (float*)calloc(n2, sizeof(float));

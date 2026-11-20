@@ -94,10 +94,11 @@ typedef struct {
   float* port[P_END];
   LV2_URID_Map* map;
   LV2_Atom_Forge forge;
-  LV2_URID atom_Float, atom_Int, atom_Double, atom_Long, atom_Object, atom_URID;
+  LV2_URID atom_Float, atom_Int, atom_Double, atom_Long, atom_Object, atom_Blank, atom_URID;
   LV2_URID patch_Set, patch_Get, patch_property, patch_value;
   LV2_URID time_Position, time_bpm, time_speed, time_bar, time_barBeat, time_bpb;
   int bpb;
+  int rolling;
   LV2_URID q_urid[NQ];
   float q[NQ];
   unsigned char dirty[NQ];
@@ -235,6 +236,7 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double rate, const char* 
   P->atom_Double    = m->map(m->handle, LV2_ATOM__Double);
   P->atom_Long      = m->map(m->handle, LV2_ATOM__Long);
   P->atom_Object    = m->map(m->handle, LV2_ATOM__Object);
+  P->atom_Blank     = m->map(m->handle, LV2_ATOM__Blank);
   P->atom_URID      = m->map(m->handle, LV2_ATOM__URID);
   P->patch_Set      = m->map(m->handle, LV2_PATCH__Set);
   P->patch_Get      = m->map(m->handle, LV2_PATCH__Get);
@@ -269,6 +271,7 @@ static void connect_port(LV2_Handle h, uint32_t port, void* data) {
 static void activate(LV2_Handle h) {
   Plugin* P = (Plugin*)h;
   px_reset(&P->fx);
+  P->rolling = 0;
   P->face_seen = 0;
 }
 
@@ -289,7 +292,7 @@ static void read_events(Plugin* P) {
   const LV2_Atom_Sequence* seq = (const LV2_Atom_Sequence*)P->port[P_CONTROL];
   if (!seq) return;
   LV2_ATOM_SEQUENCE_FOREACH(seq, ev) {
-    if (ev->body.type != P->atom_Object) continue;
+    if (ev->body.type != P->atom_Object && ev->body.type != P->atom_Blank) continue;
     const LV2_Atom_Object* obj = (const LV2_Atom_Object*)&ev->body;
     if (obj->body.otype == P->patch_Get) { P->report_next = 0; continue; }
     if (obj->body.otype == P->time_Position) {
@@ -298,11 +301,13 @@ static void read_events(Plugin* P) {
                           P->time_barBeat, &bb, P->time_bpb, &bpb, 0);
       float v;
       if (bpb && atom_number(P, bpb, &v) && v >= 1.0f && v <= 16.0f) P->bpb = (int)lrintf(v);
-      float tempo = 0.0f, sp = 0.0f, br = 0.0f, beat = 0.0f;
-      if (bpm) atom_number(P, bpm, &tempo);
-      if (speed) atom_number(P, speed, &sp);
-      int rolling = (sp != 0.0f) && bar && bb && atom_number(P, bar, &br) && atom_number(P, bb, &beat);
-      px_set_tempo(&P->fx, tempo, rolling ? (double)br * P->bpb + (double)beat : -1.0);
+      float tempo = 0.0f;
+      if (bpm && atom_number(P, bpm, &v) && v >= 20.0f && v <= 400.0f) tempo = v;
+      if (speed && atom_number(P, speed, &v)) P->rolling = (v != 0.0f);
+      float br = 0.0f, beat = 0.0f;
+      int has_pos = bar && bb && atom_number(P, bar, &br) && atom_number(P, bb, &beat);
+      double beats = has_pos ? (double)br * (double)P->bpb + (double)beat : 0.0;
+      px_set_transport(&P->fx, tempo, P->rolling, has_pos, beats, P->bpb);
       continue;
     }
     if (obj->body.otype != P->patch_Set) continue;

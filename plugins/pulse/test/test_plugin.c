@@ -206,7 +206,10 @@ int main(int argc, char** argv) {
   CHECK(was_reported[P("s4_lvl2")] && reported[P("s4_lvl2")] == 100.0f);
   CHECK(was_reported[P("s4_shp1")] && reported[P("s4_shp1")] == 2.0f);
 
-  /* Host tempo via time:Position */
+  /* Transport stopped initially: phase stays at 0 */
+  CHECK(mons[PHASE0 + 3 - PEAK] == 0.0f);
+
+  /* Host tempo & transport start via time:Position */
   {
     LV2_Atom_Forge_Frame f;
     ctl_begin();
@@ -221,9 +224,38 @@ int main(int argc, char** argv) {
     lv2_atom_forge_key(&forge, U(LV2_TIME__barBeat));
     lv2_atom_forge_float(&forge, 0.0f);
     lv2_atom_forge_pop(&forge, &f);
-    run_blocks(1);
+    run_blocks(10);
   }
   CHECK(mons[BPM - PEAK] == 135.0f);
+  CHECK(mons[PHASE0 + 3 - PEAK] > 0.0f);
+
+  /* Tempo-only time:Position (without speed) keeps transport rolling */
+  float ph_before = mons[PHASE0 + 3 - PEAK];
+  {
+    LV2_Atom_Forge_Frame f;
+    ctl_begin();
+    lv2_atom_forge_frame_time(&forge, 0);
+    lv2_atom_forge_object(&forge, &f, 0, U(LV2_TIME__Position));
+    lv2_atom_forge_key(&forge, U(LV2_TIME__beatsPerMinute));
+    lv2_atom_forge_float(&forge, 140.0f);
+    lv2_atom_forge_pop(&forge, &f);
+    run_blocks(5);
+  }
+  CHECK(mons[BPM - PEAK] == 140.0f);
+  CHECK(mons[PHASE0 + 3 - PEAK] > ph_before);
+
+  /* Transport stop (speed = 0): phase parks at 0 */
+  {
+    LV2_Atom_Forge_Frame f;
+    ctl_begin();
+    lv2_atom_forge_frame_time(&forge, 0);
+    lv2_atom_forge_object(&forge, &f, 0, U(LV2_TIME__Position));
+    lv2_atom_forge_key(&forge, U(LV2_TIME__speed));
+    lv2_atom_forge_float(&forge, 0.0f);
+    lv2_atom_forge_pop(&forge, &f);
+    run_blocks(2);
+  }
+  CHECK(mons[PHASE0 + 3 - PEAK] == 0.0f);
 
   /* patch:Get reports all parameters over several runs */
   memset(was_reported, 0, sizeof was_reported);
