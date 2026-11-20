@@ -31,6 +31,15 @@ Made for four encoders and a footswitch: five knob pages, three of them edit the
 - **24 Factory Presets** (*Factory* bank) covering sidechain, trance gates, polyrhythms, acid filters, phaser, wavefolding, lo-fi crush, glitch chopping, tape stop, clean-bass splits, and Audio/MIDI triggered FX.
 - **Zero-latency stereo-linked brickwall limiter** (0 dBFS ceiling, `LIM` badge), 0 RT allocations, flush-to-zero enabled.
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Steps / Gate](docs/1-gate.png) | ![Perform](docs/2-perform.png) |
+| **Steps:** four slot cards on the left, polyrhythmic step bars, smooth curve overlay, playhead, step shapes, live `Param 1 · Param 2 · Depth` pill and Scenes `A–D` | **Perform:** 3×3 momentary live pads, interactive XY pad (`Cutoff` / `Depth`), Scenes `A–D` + `Store` |
+| ![Flow](docs/3-flow.png) | |
+| **Flow:** Linkwitz-Riley `Low Split` crossover curve, `Low Duck` toggle and input level meter with draggable `Thr` line and `TRIG` LED | |
+
 ## Installation
 
 On Zynthian (SSH as root):

@@ -65,6 +65,8 @@ HPF/LPF filters, four scenes (A–D) and 9 factory presets.
 
 Four polyrhythmic shaper slots (`TIME`, `DRIVE & CRUSH`, `FILTER`, `GATE & SPACE`) with independent `1..16` step lengths, Linkwitz-Riley `Low Split` crossover with `Low Duck`, Audio/MIDI triggers, `Env → Depth`, a live `Perform` tab (3×3 momentary pads + XY pad + four scenes A–D) and 24 factory presets.
 
+![Eka Pulse](plugins/pulse/docs/1-gate.png)
+
 ## A setup
 
 A typical chain: **Roll** records the chords, **Bloom** turns them into a moving arpeggio, **Fold** or **Mist**
