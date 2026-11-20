@@ -343,6 +343,11 @@ int main(int argc, char** argv) {
   /* Pedal Prev Scene: B (1) -> A (0) should load 16 steps & cur_lvl1 = 88 */
   ctl[PREV_SCENE] = 1; run_blocks(2); ctl[PREV_SCENE] = 0; run_blocks(1);
   CHECK(mons[CUR_SCENE - PEAK] == 0 && mons[STEPS0 + 3 - PEAK] == 16 && mons[CUR_LVL0 - PEAK] == 88.0f);
+  /* Clear Scene B (store_scene = 6) while on B -> clears bit 1 and falls back to A */
+  ctl[SCENE] = 1; run_blocks(2);
+  CHECK(mons[CUR_SCENE - PEAK] == 1);
+  ctl_set(P("store_scene"), 6); run_blocks(2);
+  CHECK(mons[SCENE_MASK - PEAK] == 1 && mons[CUR_SCENE - PEAK] == 0);
 
   /* M4: Load and process every factory preset from lv2/presets.ttl */
   if (argc > 2) {

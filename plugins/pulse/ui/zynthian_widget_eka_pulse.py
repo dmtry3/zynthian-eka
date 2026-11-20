@@ -200,6 +200,8 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         self.curve_item = None
         self.playhead_item = None
         self.other_head_items = []
+        self.steps_info_item = None
+        self.steps_info_sig = None
         self.slot_bar_items = []
         self.top_bpm_item = None
         self.top_lim_item = None
@@ -509,6 +511,8 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         self.curve_item = None
         self.playhead_item = None
         self.other_head_items = []
+        self.steps_info_item = None
+        self.steps_info_sig = None
         self.slot_bar_items = []
         self.top_bpm_item = self.top_lim_item = self.top_lim_bg = None
         self.flow_low_item = self.flow_high_item = self.flow_handle_item = None
@@ -561,6 +565,11 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
                     c.create_line(0, 0, 0, 0, fill=SLOT_INFO[s][1], width=2, state="hidden", tags="heads")
                 )
             self.playhead_item = c.create_line(x0, y0, x0, y1, fill=HEAD_COLOR, width=2, tags="heads")
+            self.steps_info_item = c.create_text(
+                x1 - 6, y0 + 4, anchor="ne", text="", fill="#a8b3c2",
+                font=self._fit_font("Cutoff 100% · Res/FB 100% · Depth +100%", x1 - x0 - 12, 18, max_pt=9, min_pt=7),
+                tags="steps_info",
+            )
         elif self.view == 2:
             xover, duck, route, meter = self._flow_rects()
             self.flow_xover_box = xover
@@ -944,6 +953,21 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             else:
                 c.itemconfig(self.other_head_items[s], state="hidden")
 
+        # 5. Live slot parameter readout in top-right of Steps area
+        if self.steps_info_item:
+            use_m = bool(self.monitors) and int(round(self._mon("sel", 0))) == sel and "cur_param1" in self.monitors
+            p1 = int(round(self._mon("cur_param1", 0.0) if use_m else self._zval("param1", 0.0)))
+            p2 = int(round(self._mon("cur_param2", 50.0) if use_m else self._zval("param2", 50.0)))
+            dp = int(round(self._mon("cur_depth", 100.0) if use_m else self._zval("depth", 100.0)))
+            isig = (sel, p1, p2, dp)
+            if self.steps_info_sig != isig:
+                self.steps_info_sig = isig
+                meta = SLOT_META[sel - 1]
+                n1 = meta["p1"].replace(" %", "")
+                n2 = meta["p2"].replace(" %", "")
+                txt = "%s %d%% · %s %d%% · Depth %+d%%" % (n1, p1, n2, p2, dp)
+                c.itemconfig(self.steps_info_item, text=txt)
+
     def _draw_flow_view(self):
         c = self.widget_canvas
         if not self.flow_xover_box or not self.flow_meter_box:
@@ -1322,6 +1346,9 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
                 self.store_armed = False
                 # Send store_scene ONLY; plugin copies current state to target scene and updates cur_scene/scene_mask
                 self._zset("store_scene", arg + 1, force=True)
+            elif dt >= LONG_PRESS and arg >= 1 and (self._scene_mask() & (1 << arg)):
+                # Long press on saved scene B/C/D clears it back to empty
+                self._zset("store_scene", 5 + arg, force=True)
             else:
                 # Only switch to saved scenes; ignore taps on empty (gray) scenes
                 if not (self._scene_mask() & (1 << arg)):

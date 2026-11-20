@@ -134,6 +134,14 @@ class Plugin:
             self.ctl["store_scene"].value = 0
             self.last_scene_port = int(self.ctl["scene"].value)
             return
+        if 6 <= st_req <= 8:
+            clr = st_req - 5
+            self.scene_mask = (self.scene_mask & ~(1 << clr)) | 1
+            if self.cur_scene == clr:
+                self.cur_scene = 0
+            self.ctl["store_scene"].value = 0
+            self.last_scene_port = int(self.ctl["scene"].value)
+            return
         req_sc = int(self.ctl["scene"].value)
         if req_sc != self.last_scene_port:
             self.last_scene_port = req_sc
@@ -321,6 +329,12 @@ tap((sca[0] + sca[2]) / 2, (sca[1] + sca[3]) / 2)
 check(ctl["scene"].value == 0, "finger tap switches back to saved scene A without clobbering")
 tick(2)
 check(proc.plugin.cur_scene == 0, "plugin switched to A")
+
+# Long press on saved scene B clears it back to empty
+tap((scb[0] + scb[2]) / 2, (scb[1] + scb[3]) / 2, hold=0.8)
+check(ctl["store_scene"].value == 6, "long press on saved B sends clear (6)")
+tick(2)
+check(proc.plugin.scene_mask == 1, "scene B cleared back to empty")
 
 tb = w.tab_boxes[2]
 tap((tb[0] + tb[2]) / 2, (tb[1] + tb[3]) / 2)

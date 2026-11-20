@@ -173,7 +173,7 @@ static float q_clamp(int i, float v) {
   if (i == Q_LOW_DUCK || i == Q_XY_ON) return v >= 0.5f ? 1.0f : 0.0f;
   if (i == Q_FREE_HZ)     return clampf(v, 0.25f, 32.0f);
   if (i == Q_XY_X || i == Q_XY_Y) return clampf(v, 0.0f, 100.0f);
-  if (i == Q_STORE_SCENE) return clampf(roundf(v), 0.0f, (float)NSCENES);
+  if (i == Q_STORE_SCENE) return clampf(roundf(v), 0.0f, (float)(NSCENES * 2));
   int s = i / Q_PER_SLOT;
   int k = i % Q_PER_SLOT;
   if (k == Q_SLOT_ON) return v >= 0.5f ? 1.0f : 0.0f;
@@ -421,6 +421,18 @@ static void read_events(Plugin* P) {
           P->scene_seen = 0;
           P->loads += 1.0f;
           P->report_next = 0;
+        } else if (dst >= NSCENES + 2 && dst <= NSCENES * 2) {
+          /* 6..8 clears Scene B..D (Scene A is always kept) */
+          int clr = dst - (NSCENES + 1);
+          P->scene_mask = (P->scene_mask & ~(1 << clr)) | 1;
+          if (P->cur_scene == clr) {
+            P->cur_scene = 0;
+            memcpy(P->q, P->scenes[0], sizeof(float) * NQ_SCENE);
+            P->scene_seen = 0;
+            P->face_seen = 0;
+            P->loads += 1.0f;
+            P->report_next = 0;
+          }
         }
         P->q[Q_STORE_SCENE] = 0.0f;
         P->dirty[Q_STORE_SCENE] = 1;

@@ -174,7 +174,7 @@ def params():
     out.append(("xy_x", "XY Cutoff", "atom:Float", 50.0, 0.0, 100.0))
     out.append(("xy_y", "XY Depth", "atom:Float", 50.0, 0.0, 100.0))
     out.append(("xy_on", "XY Active", "atom:Int", 0, 0, 1))
-    out.append(("store_scene", "Store Scene", "atom:Int", 0, 0, 4))
+    out.append(("store_scene", "Store Scene", "atom:Int", 0, 0, 8))
     return out
 
 
