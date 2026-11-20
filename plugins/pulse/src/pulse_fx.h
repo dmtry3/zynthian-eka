@@ -158,6 +158,7 @@ typedef struct {
   int         time_prev_step;    /* previous step index for Chop/Stutter */
   int         time_prev_act;     /* previous Chop/Stutter action */
   double      time_tape_delay;   /* accumulated delay in TapeStop mode */
+  float       time_motor_speed;  /* smoothed motor speed (0..1) in TapeStop mode */
   /* Low Split LR4 crossover (2 channels x 2 cascaded Butterworth stages) */
   PxSvf       xover_lp[2][2];
   PxSvf       xover_hp[2][2];

@@ -37,8 +37,8 @@ SLOT_META = [
         "p1": "Range",
         "p2": "Window",
         "help": [
-            "Mode: Curve (TimeShaper) | Chop (Step-Chopper) | Stutter | TapeStop",
-            "Param 1 (Range): глубина буфера 1/8 .. 1 bar (в Curve)",
+            "Mode: Curve (TimeShaper) | Chop | Stutter | TapeStop",
+            "Param 1 (Range): буфер 1/8..1 bar (в TapeStop — время торможения)",
             "Param 2 (Window): кроссфейд на скачках (2..10 мс)",
             "Chop: 0%=THRU, 1-25=1/8, 26-50=1/16, 51-75=1/2x, 76-90=REV, 91+=STOP",
         ],
@@ -90,7 +90,7 @@ CHOP_ACTIONS = [
     ("REV",  "#b197fc", 82.0),
     ("STOP", "#ff6b6b", 96.0),
 ]
-TABS = ["Steps", "Perform", "Flow", "?"]
+TABS = ["Steps", "Perform", "Flow", "Help"]
 
 
 def chop_action_idx(lvl_pct):
@@ -670,10 +670,10 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             c.delete("top")
             self.tab_boxes = []
             fs = self._font_size()
-            tab_w = min(84, max(42, int((x1 - x0 - 140) / len(TABS))))
+            tab_w = min(80, max(44, int((x1 - x0 - 140) / len(TABS))))
             cur_tx = x0
             for i, name in enumerate(TABS):
-                tw = 30 if name == "?" else tab_w
+                tw = max(46, int(tab_w * 0.78)) if name == "Help" else tab_w
                 tx0 = cur_tx
                 tx1 = tx0 + tw
                 cur_tx = tx1 + 4
@@ -978,31 +978,32 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         f_body = (zynthian_gui_config.font_family, max(8, fs - 1))
         f_dim = (zynthian_gui_config.font_family, max(7, fs - 2))
 
-        lh = max(16, int((y1 - y0 - 16) / 9.2))
-        y = y0 + 10
+        lh = max(16, int((y1 - y0 - 16) / 9.5))
+        wrap_w = max(x1 - x0 - 20, 140)
+        y = y0 + 8
         c.create_text(
-            x0 + 10, y, anchor="nw",
+            x0 + 10, y, anchor="nw", width=wrap_w,
             text="%s — %s / %s / %s" % (title, meta["mode_name"], meta["p1"], meta["p2"]),
             fill=col, font=f_hdr, tags="help",
         )
-        y += lh + 2
+        y += lh + 3
         for line in meta["help"]:
-            c.create_text(x0 + 12, y, anchor="nw", text="• " + line, fill="#e6ecf5", font=f_body, tags="help")
+            c.create_text(x0 + 12, y, anchor="nw", width=wrap_w, text="• " + line, fill="#e6ecf5", font=f_body, tags="help")
             y += lh
 
         y += 4
         c.create_line(x0 + 8, y, x1 - 8, y, fill=GRID_COLOR, tags="help")
         y += 6
         tips = [
-            "Карточки слева: тап = выбрать слот, повторный/долгий тап = ON/OFF",
-            "Steps: свайп по столбикам = уровень, тап под ними = форма (_ \\ / /\\ 2x 3x)",
-            "Trigger: Audio/MIDI = рестарт с шага 1 без транспорта; Env->Depth = от громкости",
-            "Perform: удержание пэдов/XY = живой эффект; Store + A-D = сохранить сцену",
+            "Карточки слева: тап = выбрать, повторный/долгий тап = ON/OFF",
+            "Steps: свайп по столбикам = уровень, тап под ними = форма",
+            "Trigger: Audio/MIDI = старт с 1 шага без транспорта; Env->Depth",
+            "Perform: держи пэды/XY; Store + A-D = сохранить сцену",
         ]
         for line in tips:
             if y + lh > y1 - 2:
                 break
-            c.create_text(x0 + 10, y, anchor="nw", text=line, fill="#9aa4b2", font=f_dim, tags="help")
+            c.create_text(x0 + 10, y, anchor="nw", width=wrap_w, text=line, fill="#9aa4b2", font=f_dim, tags="help")
             y += lh - 1
 
     def _draw_perform_view(self):

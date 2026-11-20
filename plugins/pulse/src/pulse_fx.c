@@ -244,6 +244,7 @@ void px_reset(PulseFx* x) {
   x->time_prev_step = -1;
   x->time_prev_act = -1;
   x->time_tape_delay = 0.0;
+  x->time_motor_speed = 1.0f;
   memset(x->xover_lp, 0, sizeof x->xover_lp);
   memset(x->xover_hp, 0, sizeof x->xover_hp);
   memset(x->drv_dc_x, 0, sizeof x->drv_dc_x);
@@ -826,12 +827,16 @@ void px_process(PulseFx* x, const PxParams* p,
           }
         } else { /* PX_TIME_TAPESTOP */
           float shaped = (t_depth >= 0.0f) ? c : (1.0f - c);
-          float speed = clampf(1.0f - shaped * ad, 0.0f, 1.0f);
-          if (speed < 0.995f) {
-            x->time_tape_delay += (1.0 - (double)speed);
+          float target_spd = clampf(1.0f - shaped * ad, 0.0f, 1.0f);
+          /* Param 1 (Range 0..100%) controls motor inertia: 20 ms .. 800 ms */
+          float inertia_s = 0.020f * powf(40.0f, time_p1 * 0.01f);
+          float m_coeff = 1.0f - expf(-1.0f / (inertia_s * (float)sr));
+          x->time_motor_speed += m_coeff * (target_spd - x->time_motor_speed);
+          if (x->time_motor_speed < 0.995f) {
+            x->time_tape_delay += (1.0 - (double)x->time_motor_speed);
             if (x->time_tape_delay > time_max_del) x->time_tape_delay = time_max_del;
           } else if (x->time_tape_delay > 0.0) {
-            x->time_tape_delay *= 0.997;
+            x->time_tape_delay *= 0.996;
             if (x->time_tape_delay < 0.5) x->time_tape_delay = 0.0;
           }
           x->time_rpos = now_pos - x->time_tape_delay;
@@ -980,7 +985,9 @@ void px_process(PulseFx* x, const PxParams* p,
         float pl = wl, pr = wr;
         double now_pos = (double)(x->time_w - 1);
         if (pad == PX_PAD_TAPESTOP) {
-          x->pad_phase += 1.0 / fmax(samples_per_beat * 2.0, 2000.0); /* decelerate over 2 beats */
+          /* Brake time controlled by Slot 1 Param 1 (Range): 0.25 beat .. 4.0 beats (default 50% = 1 beat) */
+          double stop_beats = 0.25 * pow(16.0, (double)time_p1 * 0.01);
+          x->pad_phase += 1.0 / fmax(samples_per_beat * stop_beats, 1000.0);
           float spd = clampf(1.0f - (float)x->pad_phase, 0.0f, 1.0f);
           x->pad_tape_delay += (1.0 - (double)spd);
           if (x->pad_tape_delay > time_max_del) x->pad_tape_delay = time_max_del;
