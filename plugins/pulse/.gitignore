@@ -3,4 +3,10 @@ build_test/
 dist/
 *.o
 *.so
+*.pyc
+*.wav
 __pycache__/
+AGENTS.md
+CLAUDE.md
+deploy-zynthian.sh
+DEPLOY.ru.md

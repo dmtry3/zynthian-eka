@@ -1,48 +1,90 @@
-# Eka Pulse
+# Eka Pulse для Zynthian
 
 [English](README.md) · **Русский**
 
-Ритмический мультиэффект-шейпер в формате LV2 с сенсорным виджетом для [Zynthian](https://zynthian.org) (Raspberry Pi 5, комплект V5, тачскрин 800×480), восьмой плагин набора `zynthian-eka`.
+**Ритмический мультиэффект-шейпер** для [Zynthian](https://zynthian.org): **LV2-плагин** (стерео вход / стерео выход) и **сенсорный виджет** (полиритмический шаговый редактор, живые пэды, XY-пэд, кроссовер `Low Split` и сцены `A–D`) для тачскрина Zynthian.
+
+Сделан под 4 энкодера и педаль: пять страниц ручек, три из которых управляют **выбранным** слотом.
+
+> Проверено на: Zynthian **Vangelis**, Raspberry Pi 5, комплект V5, тачскрин 800×480.
+> Другие версии и железо не проверялись.
 
 ## Возможности
 
-- **4 независимых полиритмических слота** подряд, у каждого своя длина цикла `1..16` шагов, форма каждого шага (`_`, `\`, `/`, `/\`, `2x`, `3x`), `Warp`, `Smooth / Punch` и 24 встроенных паттерна:
-  1. **1: TIME** — стерео кольцевой буфер с 4-точечной интерполяцией Эрмита и кроссфейдом на скачках: `Curve` (TimeShaper), `Chop` (`THRU`, `1/8`, `1/16`, `1/2x`, `REV`, `STOP`), `Stutter`, `TapeStop` (время торможения регулируется через `Range`).
-  2. **2: DRIVE & CRUSH** — `Tube`, `Fold` (вейвфолдер с ADAA), `Hard`, `Crush` (Sample Rate + Bit Crush), `Combo`.
-  3. **3: FILTER** — стабильный TPT SVF (`LP 24`, `LP 12`, `BP`, `HP`, `Morph`, `Notch`) и стерео 4-ступенчатый allpass-`Phaser`.
-  4. **4: GATE & SPACE** — `Gate` (с `Floor` и `Punch`), `Pan`, `Width` (M/S), `Gate+Pan`.
-- **Кроссовер `Low Split` (Linkwitz-Riley 24 дБ/окт, `Off / 60..500 Hz`)** — оставляет бас чистым или давит его огибающей гейта через `Low Duck`.
-- **Триггеры и огибающая** — `Sync` (стоит при остановленном транспорте, стартует синхронно с 1-й доли), `Free`, `Audio` (перезапуск по атаке входа), `MIDI` (перезапуск по Note On) и `Env → Depth` (`-100..+100%`).
-- **Живая игра (вкладка `Perform`)** — сетка 3×3 моментальных пэдов (`TapeStop`, `1/16 Rpt`, `1/8 Rpt`, `Reverse`, `Half 1/2`, `GateChop`, `FiltDrop`, `BitCrush`, `Bypass`), **XY-пэд** (`X: Cutoff`, `Y: Depth`) и **4 сцены `A–D`** с `Store`, переключением педалью (`Prev Scene` / `Next Scene`) и сохранением в LV2 State.
-- **24 заводских пресета** + встроенная вкладка **Help** и динамические подписи энкодеров под каждый слот.
-- **Стерео-линкованный brickwall-лимитер** с нулевой задержкой (`LIM` на виджете), 0 аллокаций в аудиопотоке, flush-to-zero.
+- **4 полиритмических слота подряд**, у каждого своя длина петли `1..16` шагов, форма каждого шага (`_` Hold, `\` Decay, `/` Ramp, `/\` Pulse, `2x`, `3x`), `Warp`, `Smooth / Punch`, независимый `ON/OFF` без щелчков и 24 встроенных паттерна:
+  1. **1: TIME** — стерео кольцевой буфер (~4+ с) с 4-точечной интерполяцией Эрмита и кроссфейдом на скачках:
+     - `Curve` (TimeShaper — кривая задержки в пределах `1/8..1 bar`),
+     - `Chop` (Step-Chopper: `THRU`, `1/8`, `1/16`, `1/2x`, `REV`, `STOP` по высоте шага),
+     - `Stutter` (бит-повторы по кривой),
+     - `TapeStop` (торможение/разгон ленты, время торможения регулируется через `Range`).
+  2. **2: DRIVE & CRUSH** — `Tube` (асимметричное насыщение + DC-блокер), `Fold` (вейвфолдер с ADAA), `Hard` (клиппер/фузз), `Crush` (Sample Rate + Bit Crush), `Combo` (Tube + Crush).
+  3. **3: FILTER** — стабильный TPT SVF (`LP 24`, `LP 12`, `BP`, `HP`, `Morph` LP→BP→HP, `Notch`) и 4-ступенчатый стерео allpass-`Phaser`.
+  4. **4: GATE & SPACE** — `Gate` (с `Floor` и атакой `Punch` при `Smooth < 0`), `Pan` (автопанорама), `Width` (M/S расширение), `Gate+Pan` (пинг-понг чоппер).
+- **Кроссовер `Low Split` (Linkwitz-Riley 24 дБ/окт, `Off / 60..500 Hz`).** Оставляет саб-бас чистым, пока верхняя полоса обрабатывается слотами, или давит бас огибающей гейта при включённом **Low Duck**. При `Off` полностью обходится с нулевой задержкой.
+- **Триггеры и огибающая:**
+  - `Sync` — синхронизация с транспортом Zynthian (стоит при остановленном транспорте, стартует строго с 1-й доли).
+  - `Free` — свободный внутренний клок (работает без транспорта).
+  - `Audio` — запускает один цикл `1..Steps` с шага 1 по атаке входа выше `Thresh` (работает без транспорта).
+  - `MIDI` — запускает один цикл `1..Steps` с шага 1 по MIDI Note On (работает без транспорта).
+  - `EnvMod` (`-100..+100%`) — огибающая громкости входа динамически модулирует глубину слота.
+- **Живая игра (вкладка `Perform`):** сетка 3×3 моментальных пэдов (`TapeStop`, `1/16 Rpt`, `1/8 Rpt`, `Reverse`, `Half 1/2`, `GateChop`, `FiltDrop`, `BitCrush`, `Bypass`), **XY-пэд** (`X: Cutoff`, `Y: Depth`) и **4 сцены `A–D`** с `Store`, очисткой `B–D` долгим тапом, переключением педалью (`PrevScn` / `NextScn`) и сохранением в LV2 State.
+- **24 заводских пресета** (банк *Factory*): сайдчейн, транс-гейты, полиритмия, фильтры, фейзер, вейвфолдер, биткрашер, глитч-чоппер, остановка ленты, чистый бас и Audio/MIDI-триггеры.
+- **Стерео-линкованный brickwall-лимитер** с нулевой задержкой (потолок 0 dBFS, индикатор `LIM`), 0 аллокаций в аудиопотоке, flush-to-zero.
 
-## Страницы энкодеров (5 × 4)
-
-| Страница | Ручка 1 | Ручка 2 | Ручка 3 | Ручка 4 |
-|---|---|---|---|---|
-| **1. Main** | Slot (`1:Time..4:Gate`) | Mix % | Low Split (`Off, 60..500 Hz`) | Low Duck (`Off / On`) |
-| **2. FX** *(слот)* | Mode *(имя слота)* | Param 1 *(Range / Drive / Cutoff / Floor)* | Param 2 *(Window / Tone-Crush / Res / Width)* | Depth (`-100..+100%`) |
-| **3. Curve** *(слот)* | Pattern (`Custom` + 24) | Step Rate (`1/32..1 bar`, `Free`) | Steps (`1..16`) | Warp (`-100..+100%`) |
-| **4. Trigger** *(слот)* | Trig (`Sync/Free/Audio/MIDI`) | Threshold dB | Env→Depth (`-100..+100%`) | Smooth / Punch |
-| **5. Perform** | Live Pad (`Off` + 8 FX) | Prev Scene *(педаль)* | Next Scene *(педаль)* | Scene (`A–D`) |
-
-## Сборка и установка
+## Установка
 
 На Zynthian (SSH под root):
 
 ```bash
-cd /root/zynthian-eka
-sudo make install-pulse
+git clone https://github.com/dmtry3/zynthian-eka.git
+cd zynthian-eka/plugins/pulse
+sudo make install
 systemctl restart zynthian
 ```
 
-В WSL / Linux:
+Обновление одной строкой:
 
 ```bash
-make -C plugins/pulse
-make -C plugins/pulse test
-SAN=1 make -C plugins/pulse test
+cd /root/zynthian-eka && git pull && sudo make install-pulse && systemctl restart zynthian
+```
+
+| Ссылка или папка | Содержимое |
+|---|---|
+| `/usr/local/lib/lv2/eka-pulse.lv2` | бандл LV2 (`eka_pulse.so`, `manifest.ttl`, `eka_pulse.ttl`, `presets.ttl`) |
+| `zyngui/widgets_user/zynthian_widget_eka_pulse.py` | сенсорный виджет (`ui/`) |
+| `zynthian-my-data/presets/lv2/Eka_Pulse.presets.lv2` | папка пользовательских пресетов |
+
+`install.sh` автоматически обновляет кэш пресетов Zynthian. Файлы самого Zynthian не меняются. Удаление: `sudo make uninstall`.
+
+При первом запуске включи **Eka Pulse** в webconf (*Software → LV2 Plugins*) и добавь его в цепочку как *Audio Effect*.
+
+## Управление
+
+Пять страниц по 4 энкодера. Страницы `FX`, `Curve` и `Trigger` управляют **выбранным** слотом; подписи `Mode`, `Param 1` и `Param 2` автоматически подстраиваются под текущий слот.
+
+| Страница | Ручка 1 | Ручка 2 | Ручка 3 | Ручка 4 |
+|---|---|---|---|---|
+| **1. Main** | `Slot` (`1:Time..4:Gate`) | `Mix` (`0..100%`) | `LowSplit` (`Off, 60..500 Hz`) | `LowDuck` (`Off / On`) |
+| **2. FX** *(слот)* | `Mode` *(алгоритм слота)* | `Range / Drive / Cutoff / Floor` | `Window / Tone / Res / Width` | `Depth` (`-100..+100%`) |
+| **3. Curve** *(слот)* | `Pattern` (`Custom` + 24) | `Rate` (`1/32..1 bar`, `Free`) | `Steps` (`1..16`) | `Warp` (`-100..+100%`) |
+| **4. Trigger** *(слот)* | `Trig` (`Sync/Free/Audio/MIDI`) | `Thresh` (`-60..0 dB`) | `EnvMod` (`-100..+100%`) | `Smooth` (`-100..+100`, `<0` = Punch) |
+| **5. Perform** | `LivePad` (`Off` + 8 FX) | `PrevScn` *(педаль)* | `NextScn` *(педаль)* | `Scene` (`A–D`) |
+
+## Виджет и жесты
+
+- **Левая колонка слотов (`1 TIME`, `2 DRIVE`, `3 FILTER`, `4 GATE`):** тап выбирает слот; повторный тап по выбранному или долгий тап (`0.6 с`) — `ON / OFF`.
+- **Вкладка `Steps`:** свайп по столбикам задаёт уровень шагов; тап по ряду под ними переключает форму (`_ \ / /\ 2x 3x`) или действие `TIME: Chop` (`THRU 1/8 1/16 1/2x REV STOP`); `Rnd`, `<`, `>`, `Inv` меняют паттерн; в правом верхнем углу — строка `Param 1 · Param 2 · Depth` на тёмной подложке.
+- **Вкладка `Perform`:** удержание любого из 9 пэдов или XY-пэда включает живой эффект и возвращает ровно в сетку при отпускании.
+- **Вкладка `Flow`:** перетаскивание частоты `Low Split`, тумблер `Low Duck` и жёлтая линия порога `Thr` на индикаторе входа.
+- **Вкладка `Help`:** краткая справка по текущему слоту и жестам.
+- **Сцены `A–D` + `Store`:** тап `Store` → `A–D` сохраняет сцену; тап по записанной (синей) сцене переключает её; долгий тап (`0.6 с`) по сцене `B–D` очищает её обратно в пустую (серую). На пустые сцены переключиться нельзя.
+
+## Сборка и тесты в Linux / WSL
+
+```bash
+make -C plugins/pulse                 # сборка LV2-бандла
+make -C plugins/pulse test            # тесты DSP, LV2-хоста, всех 24 пресетов и виджета
+SAN=1 make -C plugins/pulse test      # с AddressSanitizer и UBSan
 ```
 
 ## Лицензия
