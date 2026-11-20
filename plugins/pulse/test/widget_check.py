@@ -292,6 +292,18 @@ tb = w.tab_boxes[0]
 tap((tb[0] + tb[2]) / 2, (tb[1] + tb[3]) / 2)
 check(w.view == 0, "returned to Steps tab")
 
+# TIME: Chop mode displays action labels (THRU/1/8/1/16/1/2x/REV/STOP) and cycles on tap
+ctl["slot"].value = 1
+ctl["s1_mode"].value = 1
+proc.plugin.q[0][0] = 1
+ctl["s1_lvl1"].value = 0.0
+tick(2)
+check(any(it.get("text") == "THRU" for it in w.widget_canvas.items.values()), "TIME: Chop shows THRU badge")
+shb0 = w.shape_boxes[0]
+tap((shb0[0] + shb0[2]) / 2, (shb0[1] + shb0[3]) / 2)
+check(ctl["s1_lvl1"].value == 15.0, "tap on THRU cycles to 1/8 (level 15): got %s" % ctl["s1_lvl1"].value)
+check(any(it.get("text") == "1/8" for it in w.widget_canvas.items.values()), "TIME: Chop shows 1/8 badge after tap")
+
 # Performance check
 t0 = time.monotonic()
 tick(50)

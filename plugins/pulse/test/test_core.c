@@ -269,6 +269,92 @@ int main(void) {
   }
   write_wav("pulse_m1_poly3.wav", wl2, wr2, n2, (uint32_t)sr);
 
+  /* 11. M2: All 4 TIME modes (Curve, Chop, Stutter, TapeStop) stay finite, bounded, and produce audio */
+  for (int m = 0; m < 4; m++) {
+    px_reset(&fx);
+    px_default_params(&p);
+    p.slot[PX_SLOT_GATE].on = 0;
+    p.slot[PX_SLOT_TIME].on = 1;
+    p.slot[PX_SLOT_TIME].mode = m;
+    p.slot[PX_SLOT_TIME].param1 = 50.0f;
+    p.slot[PX_SLOT_TIME].param2 = 40.0f;
+    if (m == PX_TIME_CHOP) {
+      /* Exercise all 6 Chop actions: THRU, 1/8, 1/16, 1/2x, REV, STOP */
+      float lvls[6] = { 0.0f, 0.15f, 0.40f, 0.65f, 0.82f, 0.96f };
+      p.slot[PX_SLOT_TIME].steps = 6;
+      for (int k = 0; k < 6; k++) p.slot[PX_SLOT_TIME].levels[k] = lvls[k];
+    }
+    px_set_transport(&fx, 120.0f, 1, 1, 0.0, 4);
+    int ok = 1; float e = 0.0f;
+    for (int b = 0; b < 80; b++) {
+      for (int i = 0; i < 256; i++) {
+        float t = (float)(b * 256 + i) / (float)sr;
+        in_l[i] = in_r[i] = 0.4f * sinf(2.0f * (float)M_PI * 330.0f * t);
+      }
+      px_process(&fx, &p, in_l, in_r, out_l, out_r, 256);
+      for (int i = 0; i < 256; i++) {
+        if (!isfinite(out_l[i]) || !isfinite(out_r[i]) || fabsf(out_l[i]) > 1.001f) ok = 0;
+        e += out_l[i] * out_l[i];
+      }
+    }
+    CHECK(ok && e > 5.0f);
+  }
+
+  /* 12. M2: Audio Trigger restarts slot on transient even when transport is stopped */
+  px_reset(&fx);
+  px_default_params(&p);
+  p.slot[PX_SLOT_GATE].trig = PX_TRIG_AUDIO;
+  p.slot[PX_SLOT_GATE].threshold_db = -18.0f;
+  for (int i = 0; i < 256; i++) in_l[i] = in_r[i] = 0.0f;
+  px_process(&fx, &p, in_l, in_r, out_l, out_r, 256);
+  CHECK(fx.st[PX_SLOT_GATE].trig_active == 0 && fx.st[PX_SLOT_GATE].phase == 0.0f);
+  for (int i = 0; i < 256; i++) in_l[i] = in_r[i] = 0.6f;
+  px_process(&fx, &p, in_l, in_r, out_l, out_r, 256);
+  CHECK(fx.st[PX_SLOT_GATE].trig_active == 1 && fx.st[PX_SLOT_GATE].phase > 0.0f);
+
+  /* 13. M2: MIDI Trigger starts slot when transport is stopped */
+  px_reset(&fx);
+  px_default_params(&p);
+  p.slot[PX_SLOT_GATE].trig = PX_TRIG_MIDI;
+  for (int i = 0; i < 256; i++) in_l[i] = in_r[i] = 0.3f;
+  px_process(&fx, &p, in_l, in_r, out_l, out_r, 256);
+  CHECK(fx.st[PX_SLOT_GATE].trig_active == 0);
+  px_midi_trigger(&fx);
+  px_process(&fx, &p, in_l, in_r, out_l, out_r, 256);
+  CHECK(fx.st[PX_SLOT_GATE].trig_active == 1 && fx.st[PX_SLOT_GATE].phase > 0.0f);
+
+  /* 14. M2: Env -> Depth modulates Gate depth from input loudness */
+  px_reset(&fx);
+  px_default_params(&p);
+  p.slot[PX_SLOT_GATE].steps = 1;
+  p.slot[PX_SLOT_GATE].levels[0] = 0.0f; /* closed gate curve = 0 */
+  p.slot[PX_SLOT_GATE].shapes[0] = PX_SHP_HOLD;
+  p.slot[PX_SLOT_GATE].depth = 0.0f;     /* base depth 0 -> audio passes */
+  p.slot[PX_SLOT_GATE].env_depth = 1.0f; /* loud signal pushes depth -> +1 (closes gate) */
+  p.slot[PX_SLOT_GATE].threshold_db = -24.0f;
+  p.slot[PX_SLOT_GATE].param1 = 0.0f;
+  px_set_transport(&fx, 120.0f, 1, 1, 0.0, 4);
+  for (int i = 0; i < 256; i++) in_l[i] = in_r[i] = 0.8f;
+  for (int b = 0; b < 15; b++) px_process(&fx, &p, in_l, in_r, out_l, out_r, 256);
+  CHECK(fabsf(out_l[255]) < 0.25f); /* strongly attenuated by Env -> Depth */
+
+  /* 15. Render 2s WAV of M2 TIME (Chop) + FILTER + GATE */
+  px_reset(&fx);
+  px_default_params(&p);
+  p.slot[PX_SLOT_TIME].on = 1; p.slot[PX_SLOT_TIME].mode = PX_TIME_CHOP;
+  p.slot[PX_SLOT_TIME].steps = 6;
+  p.slot[PX_SLOT_TIME].levels[0] = 0.0f;  p.slot[PX_SLOT_TIME].levels[1] = 0.40f;
+  p.slot[PX_SLOT_TIME].levels[2] = 0.0f;  p.slot[PX_SLOT_TIME].levels[3] = 0.65f;
+  p.slot[PX_SLOT_TIME].levels[4] = 0.82f; p.slot[PX_SLOT_TIME].levels[5] = 0.96f;
+  p.slot[PX_SLOT_FILTER].on = 1;
+  p.slot[PX_SLOT_GATE].on = 1;
+  px_set_transport(&fx, 120.0f, 1, 1, 0.0, 4);
+  for (uint32_t off = 0; off < n2; off += 256) {
+    uint32_t n = (n2 - off < 256) ? (n2 - off) : 256;
+    px_process(&fx, &p, il2 + off, ir2 + off, wl2 + off, wr2 + off, n);
+  }
+  write_wav("pulse_m2_time.wav", wl2, wr2, n2, (uint32_t)sr);
+
   free(wl); free(wr); free(il); free(ir);
   free(wl2); free(wr2); free(il2); free(ir2);
   px_free(&fx);

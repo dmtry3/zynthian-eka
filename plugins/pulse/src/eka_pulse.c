@@ -95,6 +95,7 @@ typedef struct {
   LV2_URID_Map* map;
   LV2_Atom_Forge forge;
   LV2_URID atom_Float, atom_Int, atom_Double, atom_Long, atom_Object, atom_Blank, atom_URID;
+  LV2_URID midi_Event;
   LV2_URID patch_Set, patch_Get, patch_property, patch_value;
   LV2_URID time_Position, time_bpm, time_speed, time_bar, time_barBeat, time_bpb;
   int bpb;
@@ -238,6 +239,7 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double rate, const char* 
   P->atom_Object    = m->map(m->handle, LV2_ATOM__Object);
   P->atom_Blank     = m->map(m->handle, LV2_ATOM__Blank);
   P->atom_URID      = m->map(m->handle, LV2_ATOM__URID);
+  P->midi_Event     = m->map(m->handle, LV2_MIDI__MidiEvent);
   P->patch_Set      = m->map(m->handle, LV2_PATCH__Set);
   P->patch_Get      = m->map(m->handle, LV2_PATCH__Get);
   P->patch_property = m->map(m->handle, LV2_PATCH__property);
@@ -292,6 +294,13 @@ static void read_events(Plugin* P) {
   const LV2_Atom_Sequence* seq = (const LV2_Atom_Sequence*)P->port[P_CONTROL];
   if (!seq) return;
   LV2_ATOM_SEQUENCE_FOREACH(seq, ev) {
+    if (ev->body.type == P->midi_Event) {
+      if (ev->body.size >= 3) {
+        const uint8_t* msg = (const uint8_t*)LV2_ATOM_BODY_CONST(&ev->body);
+        if ((msg[0] & 0xF0) == 0x90 && msg[2] > 0) px_midi_trigger(&P->fx);
+      }
+      continue;
+    }
     if (ev->body.type != P->atom_Object && ev->body.type != P->atom_Blank) continue;
     const LV2_Atom_Object* obj = (const LV2_Atom_Object*)&ev->body;
     if (obj->body.otype == P->patch_Get) { P->report_next = 0; continue; }

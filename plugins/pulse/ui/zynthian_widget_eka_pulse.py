@@ -37,10 +37,10 @@ SLOT_META = [
         "p1": "Range",
         "p2": "Window",
         "help": [
-            "Mode: Curve | Chop | Stutter | TapeStop (этап M2)",
-            "Param 1 (Range): глубина буфера 1/8 .. 1 bar",
-            "Param 2 (Window): окно / кроссфейд скачков",
-            "Depth: сила временной модуляции",
+            "Mode: Curve (TimeShaper) | Chop (Step-Chopper) | Stutter | TapeStop",
+            "Param 1 (Range): глубина буфера 1/8 .. 1 bar (в Curve)",
+            "Param 2 (Window): кроссфейд на скачках (2..10 мс)",
+            "Chop: 0%=THRU, 1-25=1/8, 26-50=1/16, 51-75=1/2x, 76-90=REV, 91+=STOP",
         ],
     },
     {
@@ -82,7 +82,29 @@ SLOT_META = [
 ]
 
 SHAPE_LABELS = ["_", "\\", "/", "/\\", "2x", "3x"]
+CHOP_ACTIONS = [
+    ("THRU", "#7a828e", 0.0),
+    ("1/8",  "#4dabf7", 15.0),
+    ("1/16", "#63e6be", 40.0),
+    ("1/2x", "#ffa94d", 65.0),
+    ("REV",  "#b197fc", 82.0),
+    ("STOP", "#ff6b6b", 96.0),
+]
 TABS = ["Steps", "Perform", "Flow", "?"]
+
+
+def chop_action_idx(lvl_pct):
+    if lvl_pct < 0.5:
+        return 0
+    if lvl_pct <= 25.0:
+        return 1
+    if lvl_pct <= 50.0:
+        return 2
+    if lvl_pct <= 75.0:
+        return 3
+    if lvl_pct <= 90.0:
+        return 4
+    return 5
 SCENES = ["A", "B", "C", "D"]
 
 FACES = [
@@ -674,20 +696,21 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             lh = pk * (h - 4)
             c.coords(self.hist_items[i], lx, y1 - 1, lx, y1 - 1 - lh)
 
-        # 2. Step bars + shape row
+        # 2. Step bars + shape/chop row
         lvls = [min(max(self._zval("s%d_lvl%d" % (sel, k + 1), 100.0), 0.0), 100.0) for k in range(nst)]
         shps = [min(max(int(round(self._zval("s%d_shp%d" % (sel, k + 1), 1))), 0), 5) for k in range(nst)]
         warp = min(max(self._zval("warp", 0.0), -100.0), 100.0) * 0.01
         smooth = min(max(self._zval("smooth", 10.0), -100.0), 100.0) * 0.01
+        is_chop = (sel == 1 and self._slot_mode(1) == 1)
 
-        sig = (sel, nst, tuple(round(v, 1) for v in lvls), tuple(shps))
+        sig = (sel, nst, is_chop, tuple(round(v, 1) for v in lvls), tuple(shps))
         if self.steps_view != sig:
             self.steps_view = sig
             self.step_boxes = []
             self.shape_boxes = []
             sw = w / float(nst)
             pad = 2 if sw > 12 else 1
-            fs = max(7, min(self._font_size(), int(sw * 0.45)))
+            fs = max(7, min(self._font_size(), int(sw * (0.30 if is_chop else 0.45))))
             f_shp = (zynthian_gui_config.font_family, fs, "bold")
             for k in range(MAX_STEPS):
                 if k < nst:
@@ -698,12 +721,20 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
                     self.shape_boxes.append((bx0, sy0, bx1, sy1, k))
                     c.coords(self.bar_bg_items[k], bx0, y0 + 2, bx1, y1 - 2)
                     c.itemconfig(self.bar_bg_items[k], state="normal")
+                    bar_col = CHOP_ACTIONS[chop_action_idx(lvls[k])][1] if is_chop else col
                     c.coords(self.bar_items[k], bx0 + 1, y1 - 2 - bh, bx1 - 1, y1 - 2)
-                    c.itemconfig(self.bar_items[k], fill=col, state="normal")
+                    c.itemconfig(self.bar_items[k], fill=bar_col, state="normal")
                     c.coords(self.shape_rect_items[k], bx0, sy0, bx1, sy1)
-                    c.itemconfig(self.shape_rect_items[k], state="normal")
-                    c.coords(self.shape_txt_items[k], (bx0 + bx1) / 2, (sy0 + sy1) / 2)
-                    c.itemconfig(self.shape_txt_items[k], text=SHAPE_LABELS[shps[k]], font=f_shp, state="normal")
+                    if is_chop:
+                        act = chop_action_idx(lvls[k])
+                        lbl, acol, _ = CHOP_ACTIONS[act]
+                        c.itemconfig(self.shape_rect_items[k], outline=acol, state="normal")
+                        c.coords(self.shape_txt_items[k], (bx0 + bx1) / 2, (sy0 + sy1) / 2)
+                        c.itemconfig(self.shape_txt_items[k], text=lbl, fill=acol, font=f_shp, state="normal")
+                    else:
+                        c.itemconfig(self.shape_rect_items[k], outline=DIM, state="normal")
+                        c.coords(self.shape_txt_items[k], (bx0 + bx1) / 2, (sy0 + sy1) / 2)
+                        c.itemconfig(self.shape_txt_items[k], text=SHAPE_LABELS[shps[k]], fill="#dddddd", font=f_shp, state="normal")
                 else:
                     c.itemconfig(self.bar_bg_items[k], state="hidden")
                     c.itemconfig(self.bar_items[k], state="hidden")
@@ -1038,9 +1069,15 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             self._draw_flow_view()
         elif kind == "shape":
             sel = self._slot()
-            sym = "s%d_shp%d" % (sel, arg + 1)
-            cur = int(round(self._zval(sym, 1)))
-            self._zset(sym, (cur + 1) % 6)
+            if sel == 1 and self._slot_mode(1) == 1:
+                lsym = "s1_lvl%d" % (arg + 1)
+                act = chop_action_idx(self._zval(lsym, 0.0))
+                nxt = (act + 1) % len(CHOP_ACTIONS)
+                self._zset(lsym, CHOP_ACTIONS[nxt][2])
+            else:
+                sym = "s%d_shp%d" % (sel, arg + 1)
+                cur = int(round(self._zval(sym, 1)))
+                self._zset(sym, (cur + 1) % 6)
             self.steps_view = None
             self.next_curve = 0.0
             self._draw_steps_view()

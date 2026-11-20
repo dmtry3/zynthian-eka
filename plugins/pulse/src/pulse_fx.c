@@ -2,6 +2,7 @@
 /* Eka Pulse DSP core implementation (M0: polyrhythmic Step Shaper + Gate & Space + Master Limiter). */
 #include "pulse_fx.h"
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 #if defined(__SSE__) || defined(__x86_64__)
@@ -204,6 +205,16 @@ int px_init(PulseFx* x, double sr) {
   x->transport_beats = 0.0;
   x->origin_beats = 0.0;
   x->lim_release = expf(-1.0f / (0.060f * (float)sr));
+
+  /* Allocate stereo ring buffer for TIME slot (~4+ seconds, power of 2). */
+  uint32_t need = (uint32_t)(sr * 4.0) + 2048u;
+  uint32_t frames = 4096u;
+  while (frames < need && frames < (1u << 22)) frames <<= 1;
+  x->time_buf = (float*)calloc((size_t)frames * 2u, sizeof(float));
+  if (!x->time_buf) return -1;
+  x->time_frames = frames;
+  x->time_mask = frames - 1u;
+
   px_reset(x);
   return 0;
 }
@@ -213,12 +224,26 @@ void px_reset(PulseFx* x) {
   x->rolling = 0;
   x->transport_beats = 0.0;
   x->origin_beats = 0.0;
+  x->midi_trig_pending = 0;
+  x->env_val = 0.0f;
   x->in_peak = 0.0f;
   x->out_peak = 0.0f;
   x->lim_env = PX_LIM_CEILING;
   x->lim_gr = 0.0f;
   x->mix_cur = 1.0f;
   x->out_gain_cur = 1.0f;
+  if (x->time_buf && x->time_frames) {
+    memset(x->time_buf, 0, (size_t)x->time_frames * 2u * sizeof(float));
+  }
+  x->time_w = 0;
+  x->time_rpos = 0.0;
+  x->time_xfade_pos = 0.0;
+  x->time_xfade_rem = 0;
+  x->time_xfade_len = 128;
+  x->time_anchor = 0.0;
+  x->time_prev_step = -1;
+  x->time_prev_act = -1;
+  x->time_tape_delay = 0.0;
   memset(x->xover_lp, 0, sizeof x->xover_lp);
   memset(x->xover_hp, 0, sizeof x->xover_hp);
   memset(x->drv_dc_x, 0, sizeof x->drv_dc_x);
@@ -234,11 +259,21 @@ void px_reset(PulseFx* x) {
     memset(&x->st[s], 0, sizeof x->st[s]);
     x->st[s].bypass_gain = 0.0f;
     x->st[s].last_step = 0;
+    x->st[s].audio_armed = 1;
   }
 }
 
 void px_free(PulseFx* x) {
-  (void)x;
+  if (!x) return;
+  free(x->time_buf);
+  x->time_buf = NULL;
+  x->time_frames = 0;
+  x->time_mask = 0;
+}
+
+void px_midi_trigger(PulseFx* x) {
+  if (!x) return;
+  x->midi_trig_pending = 1;
 }
 
 void px_set_transport(PulseFx* x, float bpm, int rolling, int has_pos, double beats, int bpb) {
@@ -307,6 +342,54 @@ static inline float adaa_fold(float x, float* x1) {
     return (cosf(prev) - cosf(x)) / dx;
   }
   return sinf(0.5f * (x + prev));
+}
+
+/* 4-point Hermite cubic interpolation from interleaved stereo ring buffer. */
+static inline void time_read_hermite(const PulseFx* x, double pos, float* ol, float* or_) {
+  double max_pos = (x->time_w > 2) ? (double)(x->time_w - 2) : 0.0;
+  double min_pos = (x->time_w > (uint64_t)(x->time_frames - 4))
+                     ? (double)(x->time_w - (uint64_t)(x->time_frames - 4))
+                     : 0.0;
+  if (pos > max_pos) pos = max_pos;
+  if (pos < min_pos) pos = min_pos;
+
+  int64_t ipos = (int64_t)floor(pos);
+  float t = (float)(pos - (double)ipos);
+  uint32_t m = x->time_mask;
+  uint32_t i0 = (uint32_t)((ipos - 1) & m) * 2u;
+  uint32_t i1 = (uint32_t)((ipos)     & m) * 2u;
+  uint32_t i2 = (uint32_t)((ipos + 1) & m) * 2u;
+  uint32_t i3 = (uint32_t)((ipos + 2) & m) * 2u;
+  const float* b = x->time_buf;
+
+  for (int ch = 0; ch < 2; ch++) {
+    float y0 = b[i0 + ch], y1 = b[i1 + ch], y2 = b[i2 + ch], y3 = b[i3 + ch];
+    float c0 = y1;
+    float c1 = 0.5f * (y2 - y0);
+    float c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
+    float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
+    float v = ((c3 * t + c2) * t + c1) * t + c0;
+    if (ch == 0) *ol = v; else *or_ = v;
+  }
+}
+
+static inline void time_jump(PulseFx* x, double new_pos, int xfade_len) {
+  if (fabs(new_pos - x->time_rpos) > 4.0) {
+    x->time_xfade_pos = x->time_rpos;
+    x->time_xfade_len = xfade_len > 8 ? xfade_len : 8;
+    x->time_xfade_rem = x->time_xfade_len;
+  }
+  x->time_rpos = new_pos;
+}
+
+static inline int chop_action_from_level(float lvl_01) {
+  float pct = lvl_01 * 100.0f;
+  if (pct < 0.5f)  return 0; /* THRU */
+  if (pct <= 25.0f) return 1; /* 1/8 */
+  if (pct <= 50.0f) return 2; /* 1/16 */
+  if (pct <= 75.0f) return 3; /* 1/2x */
+  if (pct <= 90.0f) return 4; /* REV */
+  return 5;                   /* STOP */
 }
 
 /* Single-channel Drive & Crush sample processing. */
@@ -423,18 +506,26 @@ void px_process(PulseFx* x, const PxParams* p,
   const float  peak_decay = expf(-1.0f / (PX_PEAK_FALL_S * (float)sr));
   const float  punch_decay = expf(-1.0f / (0.015f * (float)sr)); /* 15 ms punch decay */
   const float  param_coeff = 1.0f - expf(-1.0f / (0.005f * (float)sr));
+  const float  env_att = 1.0f - expf(-1.0f / (0.002f * (float)sr)); /* 2 ms attack */
+  const float  env_rel = 1.0f - expf(-1.0f / (0.080f * (float)sr)); /* 80 ms release */
+  const int    audio_holdoff_n = (int)(0.050 * sr);                  /* 50 ms holdoff */
 
   const float  mix_target = clampf(p->mix, 0.0f, 1.0f);
   const float  out_gain_target = px_db(clampf(p->output_db, -24.0f, 6.0f));
   const float  free_hz = clampf(p->free_hz, 0.25f, 32.0f);
 
+  /* Consume pending MIDI trigger for slots in MIDI mode */
+  const int midi_trig = x->midi_trig_pending;
+  x->midi_trig_pending = 0;
+
   /* Precompute per-slot stepping and smoothing coefficients for this block */
-  int   slot_steps[PX_SLOTS];
-  float slot_step_beats[PX_SLOTS];
-  int   slot_use_free[PX_SLOTS];
+  int    slot_steps[PX_SLOTS];
+  float  slot_step_beats[PX_SLOTS];
+  int    slot_clock_mode[PX_SLOTS]; /* 0=Sync, 1=Free, 2=Audio, 3=MIDI */
   double slot_free_inc[PX_SLOTS];
-  float slot_smooth_coeff[PX_SLOTS];
-  float slot_punch_amt[PX_SLOTS];
+  float  slot_smooth_coeff[PX_SLOTS];
+  float  slot_punch_amt[PX_SLOTS];
+  float  slot_thr_lin[PX_SLOTS];
 
   for (int s = 0; s < PX_SLOTS; s++) {
     const PxSlotParams* sp = &p->slot[s];
@@ -447,8 +538,9 @@ void px_process(PulseFx* x, const PxParams* p,
     if (sr_idx < 0) sr_idx = 0;
     if (sr_idx >= PX_NRATES) sr_idx = PX_NRATES - 1;
 
-    int is_free = (sp->trig == PX_TRIG_FREE) || (sr_idx == PX_NRATES - 1);
-    slot_use_free[s] = is_free;
+    int cmode = sp->trig;
+    if (sr_idx == PX_NRATES - 1 && cmode == PX_TRIG_SYNC) cmode = PX_TRIG_FREE;
+    slot_clock_mode[s] = cmode;
     slot_step_beats[s] = (sr_idx < PX_NRATES - 1) ? px_rate_beats[sr_idx] : 0.25f;
     if (sr_idx == PX_NRATES - 1) {
       slot_free_inc[s] = (double)free_hz / sr;
@@ -460,6 +552,12 @@ void px_process(PulseFx* x, const PxParams* p,
     float tau_s = (sm >= 0.0f) ? (0.0005f * powf(160.0f, sm)) : 0.0005f;
     slot_smooth_coeff[s] = 1.0f - expf(-1.0f / (tau_s * (float)sr));
     slot_punch_amt[s] = (s == PX_SLOT_GATE && sm < 0.0f) ? -sm : 0.0f;
+    slot_thr_lin[s] = px_db(clampf(sp->threshold_db, -60.0f, 0.0f));
+
+    if (midi_trig && cmode == PX_TRIG_MIDI) {
+      x->st[s].trig_active = 1;
+      x->st[s].free_pos = 0.0;
+    }
   }
 
   const int rolling = x->rolling;
@@ -472,12 +570,22 @@ void px_process(PulseFx* x, const PxParams* p,
   const float xover_g  = xover_on ? tanf((float)M_PI * xover_fc / (float)sr) : 0.0f;
   const float xover_k  = 1.41421356f; /* Butterworth Q = 1/sqrt(2) -> cascaded = LR4 */
 
+  /* Time slot parameters */
+  const PxSlotParams* tp = &p->slot[PX_SLOT_TIME];
+  const int    time_mode = tp->mode;
+  const float  time_p1   = clampf(tp->param1, 0.0f, 100.0f);
+  const float  time_win  = clampf(tp->param2 * 0.01f, 0.0f, 1.0f);
+  const int    time_xfade_len = (int)((2.0f + 8.0f * time_win) * 0.001f * (float)sr);
+  const double samples_per_beat = (60.0 / (double)x->bpm) * sr;
+  const double time_range_beats = (time_p1 < 25.0f) ? 0.5 : (time_p1 < 50.0f) ? 1.0 : (time_p1 < 75.0f) ? 2.0 : 4.0;
+  const double time_max_del = (x->time_frames > 16) ? (double)(x->time_frames - 16) : 64.0;
+  const double time_range_samp = fmin(time_range_beats * samples_per_beat, time_max_del);
+
   /* Drive & Crush parameters */
   const PxSlotParams* dp = &p->slot[PX_SLOT_DRIVE];
   const int   drv_mode  = dp->mode;
   const float drv_base  = clampf(dp->param1 * 0.01f, 0.0f, 1.0f);
   const float drv_p2    = clampf(dp->param2 * 0.01f, 0.0f, 1.0f);
-  const float drv_depth = clampf(dp->depth, -1.0f, 1.0f);
   const float drv_tone_hz = 800.0f * powf(22.5f, drv_p2); /* 800 Hz .. 18 kHz */
   const float drv_tone_coeff = 1.0f - expf(-2.0f * (float)M_PI * drv_tone_hz / (float)sr);
   const float drv_dc_coeff = expf(-2.0f * (float)M_PI * 15.0f / (float)sr);
@@ -487,18 +595,17 @@ void px_process(PulseFx* x, const PxParams* p,
   const int   flt_mode   = fp->mode;
   const float flt_cut_hz = 40.0f * powf(450.0f, clampf(fp->param1 * 0.01f, 0.0f, 1.0f));
   const float flt_res    = clampf(fp->param2 * 0.01f, 0.0f, 1.0f);
-  const float flt_depth  = clampf(fp->depth, -1.0f, 1.0f);
 
   /* Gate slot parameters */
   const PxSlotParams* gp = &p->slot[PX_SLOT_GATE];
   const float gate_floor = clampf(gp->param1 * 0.01f, 0.0f, 1.0f);
   const float gate_width = clampf(gp->param2 * 0.01f, 0.0f, 1.0f);
-  const float gate_depth = clampf(gp->depth, -1.0f, 1.0f);
   const int   gate_mode  = gp->mode;
   const int   low_duck   = p->low_duck ? 1 : 0;
 
   float in_pk = x->in_peak;
   float out_pk = x->out_peak;
+  float env_v = x->env_val;
   float lim_env = x->lim_env;
   float lim_gr_max = 0.0f;
 
@@ -510,20 +617,46 @@ void px_process(PulseFx* x, const PxParams* p,
 
     float a_in = fmaxf(fabsf(dl), fabsf(dr));
     in_pk = (a_in > in_pk) ? a_in : in_pk * peak_decay;
+    env_v += ((a_in > env_v) ? env_att : env_rel) * (a_in - env_v);
 
     double cur_beats = base_rel_beats + (double)i * beats_per_sample;
+    float eff_depth[PX_SLOTS];
 
-    /* Advance all 4 polyrhythmic Step Shapers */
+    /* Advance all 4 polyrhythmic Step Shapers + Audio/MIDI Triggers + Env -> Depth */
     for (int s = 0; s < PX_SLOTS; s++) {
       const PxSlotParams* sp = &p->slot[s];
       PxSlotState* st = &x->st[s];
       int nst = slot_steps[s];
+      int cmode = slot_clock_mode[s];
+      float thr = slot_thr_lin[s];
 
-      int slot_running = slot_use_free[s] || rolling;
+      /* Env -> Depth normalized above slot threshold */
+      float env_norm = clampf((env_v - thr) / fmaxf(1.0f - thr, 0.05f), 0.0f, 1.0f);
+      eff_depth[s] = clampf(sp->depth + env_norm * sp->env_depth, -1.0f, 1.0f);
+
+      if (cmode == PX_TRIG_SYNC) {
+        st->trig_active = 0;
+        st->audio_armed = 1;
+      } else if (cmode == PX_TRIG_AUDIO) {
+        if (st->audio_holdoff > 0) st->audio_holdoff--;
+        if (st->audio_armed && st->audio_holdoff == 0 && env_v >= thr && env_v > 1e-4f) {
+          st->trig_active = 1;
+          st->free_pos = 0.0;
+          st->audio_armed = 0;
+          st->audio_holdoff = audio_holdoff_n;
+        } else if (env_v < thr * 0.5f) {
+          st->audio_armed = 1;
+        }
+      }
+
+      int slot_running = (cmode == PX_TRIG_FREE) ? 1
+                       : (cmode == PX_TRIG_SYNC) ? rolling
+                       : st->trig_active;
+
       if (!slot_running) {
-        /* Sync mode with transport stopped: stand still at beat 1 (phase 0), pass audio cleanly. */
         st->phase = 0.0f;
         st->last_step = 0;
+        st->last_frac = 0.0f;
         st->free_pos = 0.0;
         st->curve_raw = 0.0f;
         st->curve_smooth = 0.0f;
@@ -537,7 +670,7 @@ void px_process(PulseFx* x, const PxParams* p,
       }
 
       double pos;
-      if (!slot_use_free[s]) {
+      if (cmode == PX_TRIG_SYNC) {
         double total = cur_beats / (double)slot_step_beats[s];
         pos = fmod(total, (double)nst);
         if (pos < 0.0) pos += (double)nst;
@@ -556,6 +689,7 @@ void px_process(PulseFx* x, const PxParams* p,
 
       st->phase = (float)(pos / (double)nst);
       st->last_step = idx;
+      st->last_frac = frac;
 
       float lvl = clampf(sp->levels[idx], 0.0f, 1.0f);
       float raw = lvl * px_eval_shape(sp->shapes[idx], frac, sp->warp);
@@ -603,9 +737,121 @@ void px_process(PulseFx* x, const PxParams* p,
       svf_tick(&x->xover_hp[1][1], hp1, xover_g, xover_k, &lp2, &bp2, &wr);
     }
 
+    /* Slot 1: TIME (always record into ring buffer so enabling mid-bar has audio immediately) */
+    if (x->time_buf) {
+      uint32_t wi = (uint32_t)(x->time_w & x->time_mask) * 2u;
+      x->time_buf[wi]     = wl;
+      x->time_buf[wi + 1] = wr;
+      x->time_w++;
+
+      PxSlotState* tst = &x->st[PX_SLOT_TIME];
+      if (tst->bypass_gain > 1e-6f && x->time_w > 4) {
+        float t_depth = eff_depth[PX_SLOT_TIME];
+        float ad = fabsf(t_depth);
+        float c = clampf(tst->curve_smooth, 0.0f, 1.0f);
+        double now_pos = (double)(x->time_w - 1);
+
+        if (time_mode == PX_TIME_CURVE) {
+          float shaped = (t_depth >= 0.0f) ? c : (1.0f - c);
+          double del = (double)(shaped * ad) * time_range_samp;
+          x->time_rpos = now_pos - del;
+        } else if (time_mode == PX_TIME_CHOP) {
+          int act = (ad < 0.05f) ? 0 : chop_action_from_level(tp->levels[tst->last_step]);
+          if (tst->last_step != x->time_prev_step || act != x->time_prev_act) {
+            x->time_prev_step = tst->last_step;
+            x->time_prev_act = act;
+            x->time_anchor = now_pos;
+            if (act == 1 || act == 2) {
+              double rep_len = fmin(((act == 1) ? 0.5 : 0.25) * samples_per_beat, time_max_del * 0.5);
+              time_jump(x, now_pos - rep_len, time_xfade_len);
+            } else if (act == 3 || act == 4 || act == 5) {
+              time_jump(x, now_pos, time_xfade_len);
+            } else {
+              time_jump(x, now_pos, time_xfade_len);
+            }
+          }
+          if (act == 0) {
+            x->time_rpos = now_pos;
+          } else if (act == 1 || act == 2) {
+            double rep_len = fmin(((act == 1) ? 0.5 : 0.25) * samples_per_beat, time_max_del * 0.5);
+            if (rep_len < 64.0) rep_len = 64.0;
+            x->time_rpos += 1.0;
+            if (x->time_rpos >= x->time_anchor) {
+              time_jump(x, x->time_anchor - rep_len, time_xfade_len);
+            }
+          } else if (act == 3) {
+            x->time_rpos += 0.5;
+          } else if (act == 4) {
+            x->time_rpos -= 1.0;
+          } else { /* STOP */
+            float spd = clampf(1.0f - tst->last_frac * 1.15f, 0.0f, 1.0f);
+            x->time_rpos += (double)spd;
+          }
+        } else if (time_mode == PX_TIME_STUTTER) {
+          float v = c * ad;
+          int div = (v < 0.10f) ? 0 : (v < 0.35f) ? 1 : (v < 0.60f) ? 2 : (v < 0.85f) ? 3 : 4;
+          if (div != x->time_prev_act || tst->last_step != x->time_prev_step) {
+            x->time_prev_act = div;
+            x->time_prev_step = tst->last_step;
+            x->time_anchor = now_pos;
+            if (div > 0) {
+              static const double div_beats[4] = { 0.5, 0.25, 0.125, 0.0625 };
+              double rep_len = fmin(div_beats[div - 1] * samples_per_beat, time_max_del * 0.5);
+              time_jump(x, now_pos - rep_len, time_xfade_len);
+            } else {
+              time_jump(x, now_pos, time_xfade_len);
+            }
+          }
+          if (div == 0) {
+            x->time_rpos = now_pos;
+          } else {
+            static const double div_beats[4] = { 0.5, 0.25, 0.125, 0.0625 };
+            double rep_len = fmin(div_beats[div - 1] * samples_per_beat, time_max_del * 0.5);
+            if (rep_len < 32.0) rep_len = 32.0;
+            x->time_rpos += 1.0;
+            if (x->time_rpos >= x->time_anchor) {
+              time_jump(x, x->time_anchor - rep_len, time_xfade_len);
+            }
+          }
+        } else { /* PX_TIME_TAPESTOP */
+          float shaped = (t_depth >= 0.0f) ? c : (1.0f - c);
+          float speed = clampf(1.0f - shaped * ad, 0.0f, 1.0f);
+          if (speed < 0.995f) {
+            x->time_tape_delay += (1.0 - (double)speed);
+            if (x->time_tape_delay > time_max_del) x->time_tape_delay = time_max_del;
+          } else if (x->time_tape_delay > 0.0) {
+            x->time_tape_delay *= 0.997;
+            if (x->time_tape_delay < 0.5) x->time_tape_delay = 0.0;
+          }
+          x->time_rpos = now_pos - x->time_tape_delay;
+        }
+
+        float tl = wl, tr = wr;
+        time_read_hermite(x, x->time_rpos, &tl, &tr);
+        if (x->time_xfade_rem > 0) {
+          float xl = tl, xr = tr;
+          time_read_hermite(x, x->time_xfade_pos, &xl, &xr);
+          x->time_xfade_pos += 1.0;
+          float a = (float)x->time_xfade_rem / (float)x->time_xfade_len;
+          tl = tl + a * (xl - tl);
+          tr = tr + a * (xr - tr);
+          x->time_xfade_rem--;
+        }
+        float bg = tst->bypass_gain;
+        wl = wl + bg * (tl - wl);
+        wr = wr + bg * (tr - wr);
+      } else {
+        x->time_rpos = (double)(x->time_w - 1);
+        x->time_prev_step = -1;
+        x->time_prev_act = -1;
+        x->time_tape_delay = 0.0;
+      }
+    }
+
     /* Slot 2: DRIVE & CRUSH */
     PxSlotState* dst = &x->st[PX_SLOT_DRIVE];
     if (dst->bypass_gain > 1e-6f) {
+      float drv_depth = eff_depth[PX_SLOT_DRIVE];
       float c = clampf(dst->curve_smooth, 0.0f, 1.0f);
       float shaped = (drv_depth >= 0.0f) ? c : (1.0f - c);
       float ad = fabsf(drv_depth);
@@ -621,6 +867,7 @@ void px_process(PulseFx* x, const PxParams* p,
     /* Slot 3: FILTER (SVF + Phaser) */
     PxSlotState* fst = &x->st[PX_SLOT_FILTER];
     if (fst->bypass_gain > 1e-6f) {
+      float flt_depth = eff_depth[PX_SLOT_FILTER];
       float c = clampf(fst->curve_smooth, 0.0f, 1.0f);
       float oct_shift = (c * 2.0f - 1.0f) * flt_depth * 3.5f; /* +-3.5 octaves */
       float fc = flt_cut_hz * powf(2.0f, oct_shift);
@@ -635,6 +882,7 @@ void px_process(PulseFx* x, const PxParams* p,
     /* Slot 4: GATE & SPACE */
     PxSlotState* gst = &x->st[PX_SLOT_GATE];
     if (gst->bypass_gain > 1e-6f) {
+      float gate_depth = eff_depth[PX_SLOT_GATE];
       float gl = wl;
       float gr = wr;
       float c = clampf(gst->curve_smooth, 0.0f, 1.0f);
@@ -729,6 +977,7 @@ void px_process(PulseFx* x, const PxParams* p,
 
   x->in_peak = in_pk;
   x->out_peak = out_pk;
+  x->env_val = env_v;
   x->lim_env = lim_env;
   x->lim_gr = lim_gr_max;
 }

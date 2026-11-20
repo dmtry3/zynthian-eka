@@ -6,6 +6,7 @@
 #include <lv2/atom/forge.h>
 #include <lv2/atom/util.h>
 #include <lv2/core/lv2.h>
+#include <lv2/midi/midi.h>
 #include <lv2/patch/patch.h>
 #include <lv2/state/state.h>
 #include <lv2/time/time.h>
@@ -256,6 +257,22 @@ int main(int argc, char** argv) {
     run_blocks(2);
   }
   CHECK(mons[PHASE0 + 3 - PEAK] == 0.0f);
+
+  /* MIDI Note On triggers slot 4 when Trig = MIDI and transport is stopped */
+  ctl_set(P("s4_trig"), 3); /* MIDI */
+  run_blocks(2);
+  CHECK(mons[PHASE0 + 3 - PEAK] == 0.0f);
+  {
+    uint8_t note_on[3] = { 0x90, 60, 100 };
+    ctl_begin();
+    lv2_atom_forge_frame_time(&forge, 0);
+    lv2_atom_forge_atom(&forge, 3, U(LV2_MIDI__MidiEvent));
+    lv2_atom_forge_write(&forge, note_on, 3);
+    run_blocks(2);
+  }
+  CHECK(mons[PHASE0 + 3 - PEAK] > 0.0f);
+  ctl_set(P("s4_trig"), 0); /* restore Sync */
+  run_blocks(1);
 
   /* patch:Get reports all parameters over several runs */
   memset(was_reported, 0, sizeof was_reported);

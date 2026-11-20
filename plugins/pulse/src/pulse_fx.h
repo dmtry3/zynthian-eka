@@ -38,6 +38,13 @@ enum {
 };
 
 enum {
+  PX_TIME_CURVE = 0,
+  PX_TIME_CHOP = 1,
+  PX_TIME_STUTTER = 2,
+  PX_TIME_TAPESTOP = 3
+};
+
+enum {
   PX_DRV_TUBE = 0,
   PX_DRV_FOLD = 1,
   PX_DRV_HARD = 2,
@@ -98,14 +105,18 @@ typedef struct {
 } PxParams;
 
 typedef struct {
-  double free_pos;               /* step position in Free/stopped-transport mode (0..steps) */
+  double free_pos;               /* step position in Free/Audio/MIDI mode (0..steps) */
   float  phase;                  /* 0..1 normalized loop phase for UI */
   float  curve_raw;              /* 0..1 unsmoothed curve */
   float  curve_smooth;           /* 0..1 smoothed curve */
   float  prev_raw;               /* previous sample raw curve for Punch edge detect */
   float  punch_env;              /* 0..1 transient punch envelope */
   float  bypass_gain;            /* 0..1 click-free slot enable crossfade */
-  int    last_step;              /* last integer step index (for ping-pong) */
+  int    last_step;              /* last integer step index (for ping-pong / chop) */
+  float  last_frac;              /* 0..1 fractional position within current step */
+  int    trig_active;            /* 1 while running after Audio/MIDI trigger */
+  int    audio_armed;            /* 1 when ready for next Audio transient */
+  int    audio_holdoff;          /* samples remaining in anti-chatter holdoff */
 } PxSlotState;
 
 typedef struct {
@@ -115,7 +126,23 @@ typedef struct {
   int         rolling;           /* 1 while host transport is running, 0 when stopped */
   double      transport_beats;   /* current song position in beats while rolling */
   double      origin_beats;      /* bar downbeat where transport started */
+  int         midi_trig_pending; /* set by px_midi_trigger(), consumed in px_process() */
   PxSlotState st[PX_SLOTS];
+  /* Input envelope follower (for Env -> Depth & Audio Trigger) */
+  float       env_val;
+  /* Slot 1: TIME stereo ring buffer (~4..5.5 s, allocated in px_init) */
+  float*      time_buf;          /* interleaved stereo [L, R, ...] */
+  uint32_t    time_frames;       /* power of 2 */
+  uint32_t    time_mask;         /* time_frames - 1 */
+  uint64_t    time_w;            /* monotonic write head */
+  double      time_rpos;         /* current fractional read position */
+  double      time_xfade_pos;    /* previous read position during jump crossfade */
+  int         time_xfade_rem;    /* samples remaining in crossfade */
+  int         time_xfade_len;    /* total crossfade length */
+  double      time_anchor;       /* write head snapshot at step/repeat start */
+  int         time_prev_step;    /* previous step index for Chop/Stutter */
+  int         time_prev_act;     /* previous Chop/Stutter action */
+  double      time_tape_delay;   /* accumulated delay in TapeStop mode */
   /* Low Split LR4 crossover (2 channels x 2 cascaded Butterworth stages) */
   PxSvf       xover_lp[2][2];
   PxSvf       xover_hp[2][2];
@@ -147,6 +174,7 @@ int   px_init(PulseFx* x, double sr);
 void  px_reset(PulseFx* x);
 void  px_free(PulseFx* x);
 void  px_set_transport(PulseFx* x, float bpm, int rolling, int has_pos, double beats, int bpb);
+void  px_midi_trigger(PulseFx* x);
 void  px_process(PulseFx* x, const PxParams* p,
                  const float* in_l, const float* in_r,
                  float* out_l, float* out_r, uint32_t nframes);
