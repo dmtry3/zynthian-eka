@@ -2,8 +2,8 @@
 
 [English](README.md) · **Русский**
 
-Семь LV2-плагинов для [Zynthian](https://zynthian.org), у каждого свой виджет для тачскрина: аудио-лупер,
-MIDI-лупер, генеративный арпеджиатор, гранулярный сэмплер, синтезатор West Coast, гранулярный эффект и четырёхголосый питч-гармонизатор. Сделаны для живой игры на
+Восемь LV2-плагинов для [Zynthian](https://zynthian.org), у каждого свой виджет для тачскрина: аудио-лупер,
+MIDI-лупер, генеративный арпеджиатор, гранулярный сэмплер, синтезатор West Coast, гранулярный эффект, четырёхголосый питч-гармонизатор и ритмический мультиэффект-шейпер. Сделаны для живой игры на
 Raspberry Pi 5 и для работы вместе в одном сетапе.
 
 > Проверено на: Zynthian **Vangelis** (stable 2610), Raspberry Pi 5, набор V5, тачскрин 800x480.
@@ -61,6 +61,10 @@ Raspberry Pi 5 и для работы вместе в одном сетапе.
 
 ![Eka Weave-4](plugins/weave4/docs/1-main.png)
 
+### [Eka Pulse](plugins/pulse): ритмический мультиэффект-шейпер
+
+Четыре полиритмических слота (`TIME`, `DRIVE & CRUSH`, `FILTER`, `GATE & SPACE`) с независимой длиной `1..16` шагов, кроссовер `Low Split` с `Low Duck`, Audio/MIDI-триггеры, `Env → Depth`, экран живой игры `Perform` (3×3 моментальных пэда + XY-пэд + четыре сцены A–D) и 24 заводских пресета.
+
 ## Сетап
 
 Типичная цепочка: **Roll** пишет аккорды, **Bloom** превращает их в живое арпеджио, его играет **Fold** или
@@ -73,7 +77,7 @@ Raspberry Pi 5 и для работы вместе в одном сетапе.
 ```bash
 git clone https://github.com/dmtry3/zynthian-eka.git
 cd zynthian-eka
-sudo make install-bloom          # один плагин: tape, roll, bloom, mist, fold, grainflow или weave4
+sudo make install-bloom          # один плагин: tape, roll, bloom, mist, fold, grainflow, weave4 или pulse
 sudo make install                # или все
 systemctl restart zynthian
 ```

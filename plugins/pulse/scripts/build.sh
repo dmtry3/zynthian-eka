@@ -11,7 +11,7 @@ if [ -z "$LV2_CFLAGS" ]; then
 fi
 mkdir -p "$B"
 python3 "$ROOT/scripts/gen_ttl.py" > /dev/null
-cp "$ROOT/lv2/manifest.ttl" "$ROOT/lv2/eka_pulse.ttl" "$B/"
+cp "$ROOT/lv2/manifest.ttl" "$ROOT/lv2/eka_pulse.ttl" "$ROOT/lv2/presets.ttl" "$B/"
 CPU=""
 [ "$(uname -m)" = "aarch64" ] && CPU="-mcpu=cortex-a76"
 gcc -std=c11 -O3 $CPU -fPIC -shared -Wall -Wextra $LV2_CFLAGS \

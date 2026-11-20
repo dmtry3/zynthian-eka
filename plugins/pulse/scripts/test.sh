@@ -14,5 +14,5 @@ gcc -std=c11 $OPT -Wall -Wextra -o "$ROOT/build_test/test_core" "$ROOT/test/test
 gcc -std=c11 $OPT -Wall -Wextra $LV2_CFLAGS -o "$ROOT/build_test/test_plugin" "$ROOT/test/test_plugin.c" -ldl -lm
 cd "$ROOT/build_test"
 ./test_core
-./test_plugin "$ROOT/build/eka-pulse.lv2/eka_pulse.so"
+./test_plugin "$ROOT/build/eka-pulse.lv2/eka_pulse.so" "$ROOT/build/eka-pulse.lv2/presets.ttl"
 python3 "$ROOT/test/widget_check.py"

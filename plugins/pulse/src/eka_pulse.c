@@ -551,6 +551,7 @@ static LV2_State_Status restore(LV2_Handle h, LV2_State_Retrieve_Function retrie
   (void)flags; (void)f;
   Plugin* P = (Plugin*)h;
   q_defaults(P);
+  unsigned char has_lvl[PX_SLOTS] = { 0 };
   for (int i = 0; i < NQ; i++) {
     size_t size; uint32_t type, fl;
     const void* d = retrieve(sh, P->q_urid[i], &size, &type, &fl);
@@ -559,6 +560,16 @@ static LV2_State_Status restore(LV2_Handle h, LV2_State_Retrieve_Function retrie
     else if (type == P->atom_Int && size == sizeof(int32_t))   P->q[i] = q_clamp(i, (float)*(const int32_t*)d);
     else if (type == P->atom_Double && size == sizeof(double)) P->q[i] = q_clamp(i, (float)*(const double*)d);
     else if (type == P->atom_Long && size == sizeof(int64_t))  P->q[i] = q_clamp(i, (float)*(const int64_t*)d);
+    if (i < Q_PER_SLOT * PX_SLOTS && (i % Q_PER_SLOT) >= Q_SLOT_LVL) {
+      has_lvl[i / Q_PER_SLOT] = 1;
+    }
+  }
+  /* Factory presets that set a built-in pattern without explicit step levels expand from the pattern table. */
+  for (int s = 0; s < PX_SLOTS; s++) {
+    int pat = (int)P->q[q_slot_idx(s, Q_SLOT_FACE + F_PATTERN)];
+    if (!has_lvl[s] && pat >= 1 && pat < PX_NPATTERNS) {
+      apply_slot_pattern(P, s, pat, 0);
+    }
   }
   /* Initialize all 4 scenes from restored q[], then overwrite if scenes_blob is present */
   for (int sc = 0; sc < NSCENES; sc++) memcpy(P->scenes[sc], P->q, sizeof(float) * NQ_SCENE);

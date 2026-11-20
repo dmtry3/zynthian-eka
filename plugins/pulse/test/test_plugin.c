@@ -324,6 +324,68 @@ int main(int argc, char** argv) {
   ctl[PREV_SCENE] = 1; run_blocks(2); ctl[PREV_SCENE] = 0; run_blocks(1);
   CHECK(mons[CUR_SCENE - PEAK] == 0 && mons[STEPS0 + 3 - PEAK] == 16);
 
+  /* M4: Load and process every factory preset from lv2/presets.ttl */
+  if (argc > 2) {
+    static const char* pnames[] = {
+      "slot", "mix", "low_split", "scene", "mode", "param1", "param2", "depth",
+      "pattern", "step_rate", "steps", "warp", "trig", "threshold", "env_depth", "smooth",
+      "live_pad", "prev_scene", "next_scene", "output_db"
+    };
+    FILE* pf = fopen(argv[2], "r");
+    CHECK(pf != NULL);
+    if (pf) {
+      char line[512];
+      int loaded = 0;
+      int in_preset = 0;
+      while (fgets(line, sizeof line, pf)) {
+        if (!strncmp(line, "<http://dmtry3.github.io/zynthian-eka/pulse#preset_", 51)) {
+          clear_items();
+          in_preset = 1;
+          continue;
+        }
+        if (!in_preset) continue;
+        char sym[96], number[64];
+        double val;
+        if (sscanf(line, " [ lv2:symbol \"%95[^\"]\" ; pset:value %lf", sym, &val) == 2) {
+          for (int k = 0; k < NCTL; k++) if (!strcmp(pnames[k], sym)) ctl[k] = (float)val;
+        } else if (sscanf(line, " <http://dmtry3.github.io/zynthian-eka/pulse#%95[^>]> %63s", sym, number) == 2) {
+          char uri[256];
+          snprintf(uri, sizeof uri, "http://dmtry3.github.io/zynthian-eka/pulse#%s", sym);
+          Item* it = &items[nitems++];
+          it->key = U(uri); it->size = 8; it->blob = NULL;
+          if (strchr(number, '.')) { it->type = U(LV2_ATOM__Double); it->dv = strtod(number, NULL); }
+          else { it->type = U(LV2_ATOM__Long); it->lv = strtoll(number, NULL, 10); }
+        } else if (strstr(line, "] .")) {
+          in_preset = 0;
+          si->restore(inst, retrieve, NULL, 0, NULL);
+          /* Start transport so Sync presets run */
+          LV2_Atom_Forge_Frame f;
+          ctl_begin();
+          lv2_atom_forge_frame_time(&forge, 0);
+          lv2_atom_forge_object(&forge, &f, 0, U(LV2_TIME__Position));
+          lv2_atom_forge_key(&forge, U(LV2_TIME__beatsPerMinute));
+          lv2_atom_forge_float(&forge, 120.0f);
+          lv2_atom_forge_key(&forge, U(LV2_TIME__speed));
+          lv2_atom_forge_float(&forge, 1.0f);
+          lv2_atom_forge_key(&forge, U(LV2_TIME__bar));
+          lv2_atom_forge_int(&forge, 0);
+          lv2_atom_forge_key(&forge, U(LV2_TIME__barBeat));
+          lv2_atom_forge_float(&forge, 0.0f);
+          lv2_atom_forge_pop(&forge, &f);
+          run_blocks(12);
+          int ok = 1;
+          for (int k = 0; k < NFR; k++) {
+            if (!isfinite(out_l[k]) || !isfinite(out_r[k]) || fabsf(out_l[k]) > 1.001f) ok = 0;
+          }
+          CHECK(ok);
+          loaded++;
+        }
+      }
+      fclose(pf);
+      CHECK(loaded == 24);
+    }
+  }
+
   clear_items();
   if (D->deactivate) D->deactivate(inst);
   D->cleanup(inst);
