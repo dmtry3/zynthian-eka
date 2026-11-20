@@ -45,7 +45,8 @@ enum {
   IN_L = NCTL, IN_R, OUT_L, OUT_R, CONTROL, NOTIFY,
   PEAK, OUT_PEAK, LIM_GR, LOADS, BPM, SEL, ON_MASK, CUR_SCENE,
   PHASE0, VAL0 = PHASE0 + 4, STEPS0 = VAL0 + 4, MODE0 = STEPS0 + 4,
-  CUR0 = MODE0 + 4, NPORTS = CUR0 + 12
+  CUR0 = MODE0 + 4, CUR_LVL0 = CUR0 + 12, CUR_SHP0 = CUR_LVL0 + 16,
+  NPORTS = CUR_SHP0 + 16
 };
 
 #define NFR 256
@@ -305,14 +306,25 @@ int main(int argc, char** argv) {
 
   /* M3: Scenes A-D Store, Pedal Next/Prev Scene, and State save/restore of scenes */
   ctl[SCENE] = 0; run_blocks(2);
-  ctl_set(P("s4_steps"), 5); run_blocks(2);
-  ctl_set(P("store_scene"), 2); /* copy A (5 steps) into B */
+  ctl_set(P("s4_steps"), 5);
+  ctl_set(P("s4_lvl1"), 33.0f);
   run_blocks(2);
-  ctl_set(P("s4_steps"), 16); run_blocks(2); /* edit A to 16 steps */
-  /* Pedal Next Scene: A (0) -> B (1) should load 5 steps */
+  /* Store into B (2): plugin copies state into B and switches cur_scene -> 1 without overwriting A */
+  ctl_set(P("store_scene"), 2);
+  run_blocks(2);
+  CHECK(mons[CUR_SCENE - PEAK] == 1 && mons[STEPS0 + 3 - PEAK] == 5);
+  ctl[SCENE] = 1; run_blocks(1); /* widget syncs scene port to cur_scene */
+  /* Switch back to A (0) and edit A to 16 steps */
+  ctl[SCENE] = 0; run_blocks(2);
+  ctl_set(P("s4_steps"), 16);
+  ctl_set(P("s4_lvl1"), 88.0f);
+  run_blocks(2);
+  /* Pedal Next Scene: A (0) -> B (1) should load 5 steps & cur_lvl1 = 33 */
   ctl[NEXT_SCENE] = 1; run_blocks(2); ctl[NEXT_SCENE] = 0; run_blocks(1);
   CHECK(mons[CUR_SCENE - PEAK] == 1);
   CHECK(mons[STEPS0 + 3 - PEAK] == 5);
+  ctl[SLOT] = 4; run_blocks(2);
+  CHECK(mons[CUR_LVL0 - PEAK] == 33.0f);
   /* Save State (including scenes_blob), mutate, restore, and verify B still has 5 and A has 16 */
   clear_items();
   si->save(inst, store, NULL, 0, NULL);
@@ -320,9 +332,9 @@ int main(int argc, char** argv) {
   si->restore(inst, retrieve, NULL, 0, NULL);
   run_blocks(2);
   CHECK(mons[CUR_SCENE - PEAK] == 1 && mons[STEPS0 + 3 - PEAK] == 5);
-  /* Pedal Prev Scene: B (1) -> A (0) should load 16 steps */
+  /* Pedal Prev Scene: B (1) -> A (0) should load 16 steps & cur_lvl1 = 88 */
   ctl[PREV_SCENE] = 1; run_blocks(2); ctl[PREV_SCENE] = 0; run_blocks(1);
-  CHECK(mons[CUR_SCENE - PEAK] == 0 && mons[STEPS0 + 3 - PEAK] == 16);
+  CHECK(mons[CUR_SCENE - PEAK] == 0 && mons[STEPS0 + 3 - PEAK] == 16 && mons[CUR_LVL0 - PEAK] == 88.0f);
 
   /* M4: Load and process every factory preset from lv2/presets.ttl */
   if (argc > 2) {

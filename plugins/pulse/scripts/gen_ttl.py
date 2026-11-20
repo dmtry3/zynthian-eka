@@ -151,6 +151,10 @@ for s in range(SLOTS):
     OUT_MONITORS.append(("mode%d" % (s + 1), "Slot %d mode" % (s + 1), SLOT_DEFAULTS[s][0], 0, 6))
 for idx, (sym, name, _rng, _d, lo, hi) in enumerate(SLOT_FACES):
     OUT_MONITORS.append(("cur_" + sym, "Selected " + name, SLOT_DEFAULTS[3][idx], lo, hi))
+for k in range(MAX_STEPS):
+    OUT_MONITORS.append(("cur_lvl%d" % (k + 1), "Selected step %d level" % (k + 1), 100, 0, 100))
+for k in range(MAX_STEPS):
+    OUT_MONITORS.append(("cur_shp%d" % (k + 1), "Selected step %d shape" % (k + 1), 1, 0, 5))
 
 
 def params():

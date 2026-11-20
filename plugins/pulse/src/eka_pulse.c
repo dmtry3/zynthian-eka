@@ -43,7 +43,9 @@ enum {
   P_STEPS0 = P_VAL0 + PX_SLOTS,
   P_MODE0 = P_STEPS0 + PX_SLOTS,
   P_CUR0 = P_MODE0 + PX_SLOTS,
-  P_END = P_CUR0 + 12
+  P_CUR_LVL0 = P_CUR0 + 12,
+  P_CUR_SHP0 = P_CUR_LVL0 + PX_MAX_STEPS,
+  P_END = P_CUR_SHP0 + PX_MAX_STEPS
 };
 
 /* The 12 face parameters per slot (order matches FX, Curve, Trigger pages). */
@@ -378,6 +380,10 @@ static void read_events(Plugin* P) {
         int dst = (int)nv;
         if (dst >= 1 && dst <= NSCENES) {
           memcpy(P->scenes[dst - 1], P->q, sizeof(float) * NQ_SCENE);
+          P->cur_scene = dst - 1;
+          P->scene_seen = 0;
+          P->loads += 1.0f;
+          P->report_next = 0;
         }
         P->q[Q_STORE_SCENE] = 0.0f;
         P->dirty[Q_STORE_SCENE] = 1;
@@ -516,6 +522,10 @@ static void run(LV2_Handle h, uint32_t n) {
 
   for (int f = 0; f < NFACES; f++) {
     if (P->port[P_CUR0 + f]) *P->port[P_CUR0 + f] = P->q[q_slot_idx(P->sel, Q_SLOT_FACE + f)];
+  }
+  for (int k = 0; k < PX_MAX_STEPS; k++) {
+    if (P->port[P_CUR_LVL0 + k]) *P->port[P_CUR_LVL0 + k] = P->q[q_slot_idx(P->sel, Q_SLOT_LVL + k)];
+    if (P->port[P_CUR_SHP0 + k]) *P->port[P_CUR_SHP0 + k] = P->q[q_slot_idx(P->sel, Q_SLOT_SHP + k)];
   }
 }
 

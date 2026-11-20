@@ -263,10 +263,12 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         except Exception:
             return default
 
-    def _zset(self, sym, value):
+    def _zset(self, sym, value, force=False):
         try:
             z = self.processor.controllers_dict[sym]
-            if z.value != value:
+            if force and z.value == value:
+                z.set_value(0 if value != 0 else 1)
+            if force or z.value != value:
                 z.set_value(value)
             return True
         except Exception as e:
@@ -397,6 +399,17 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             key = "cur_" + sym
             if key in self.monitors:
                 self._zset(sym, self._mon(key))
+        # Sync selected slot's 16 step levels & shapes from monitors (for scene/preset/pattern changes)
+        if "cur_lvl1" in self.monitors:
+            for k in range(MAX_STEPS):
+                lk = "cur_lvl%d" % (k + 1)
+                sk = "cur_shp%d" % (k + 1)
+                if lk in self.monitors:
+                    self._zset("s%d_lvl%d" % (slot, k + 1), self._mon(lk))
+                if sk in self.monitors:
+                    self._zset("s%d_shp%d" % (slot, k + 1), int(round(self._mon(sk))))
+            self.steps_view = None
+            self.curve_sig = None
         self.sync_pending = False
 
     # ---------- layout ----------
@@ -787,9 +800,14 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             lh = pk * (h - 4)
             c.coords(self.hist_items[i], lx, y1 - 1, lx, y1 - 1 - lh)
 
-        # 2. Step bars + shape/chop row
-        lvls = [min(max(self._zval("s%d_lvl%d" % (sel, k + 1), 100.0), 0.0), 100.0) for k in range(nst)]
-        shps = [min(max(int(round(self._zval("s%d_shp%d" % (sel, k + 1), 1))), 0), 5) for k in range(nst)]
+        # 2. Step bars + shape/chop row (prefer live monitors when plugin matches selected slot)
+        mon_ok = bool(self.monitors) and int(round(self._mon("sel", 0))) == sel and ("cur_lvl1" in self.monitors) and not self.dragging_steps
+        if mon_ok:
+            lvls = [min(max(self._mon("cur_lvl%d" % (k + 1), 100.0), 0.0), 100.0) for k in range(nst)]
+            shps = [min(max(int(round(self._mon("cur_shp%d" % (k + 1), 1))), 0), 5) for k in range(nst)]
+        else:
+            lvls = [min(max(self._zval("s%d_lvl%d" % (sel, k + 1), 100.0), 0.0), 100.0) for k in range(nst)]
+            shps = [min(max(int(round(self._zval("s%d_shp%d" % (sel, k + 1), 1))), 0), 5) for k in range(nst)]
         warp = min(max(self._zval("warp", 0.0), -100.0), 100.0) * 0.01
         smooth = min(max(self._zval("smooth", 10.0), -100.0), 100.0) * 0.01
         is_chop = (sel == 1 and self._slot_mode(1) == 1)
@@ -1233,11 +1251,12 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         elif kind == "scene":
             if self.store_armed:
                 self.store_armed = False
-                self._zset("store_scene", arg + 1)
-                self._zset("scene", arg)
+                # Send store_scene ONLY; plugin copies current state to target scene and updates cur_scene
+                self._zset("store_scene", arg + 1, force=True)
             else:
                 self._zset("scene", arg)
             self.bottom_view = None
+            self.steps_view = None
             self.refresh_gui()
         elif kind == "action":
             self._run_action(arg)

@@ -287,13 +287,13 @@ check(ctl["xy_on"].value == 1, "XY press sets xy_on=1")
 w._on_release(Ev((xb[0] + xb[2]) / 2, (xb[1] + xb[3]) / 2))
 check(ctl["xy_on"].value == 0, "XY release sets xy_on=0")
 
-# Store + Scene B arms and stores scene 2
+# Store + Scene B arms and sends store_scene = 2 (without racing scene port)
 stb = w.store_box
 tap((stb[0] + stb[2]) / 2, (stb[1] + stb[3]) / 2)
 check(w.store_armed, "Store arms")
 scb = w.scene_boxes[1]
 tap((scb[0] + scb[2]) / 2, (scb[1] + scb[3]) / 2)
-check(not w.store_armed and ctl["store_scene"].value == 2 and ctl["scene"].value == 1, "Store + B saves scene 2")
+check(not w.store_armed and ctl["store_scene"].value == 2, "Store + B sends store_scene=2")
 
 tb = w.tab_boxes[2]
 tap((tb[0] + tb[2]) / 2, (tb[1] + tb[3]) / 2)
