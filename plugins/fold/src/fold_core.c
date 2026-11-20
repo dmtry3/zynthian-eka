@@ -478,6 +478,31 @@ void fc_all_sound_off(FoldCore* c) {
   }
 }
 
+void fc_reset(FoldCore* c) {
+  c->sustain_pedal = 0;
+  c->nkeys = 0;
+  c->bend = 0.0f;
+  c->wheel = 0.0f;
+  c->chan_at = 0.0f;
+  memset(c->hbuf, 0, sizeof c->hbuf);
+  for (int i = 0; i < FC_VOICES; i++) {
+    FcVoice* v = &c->v[i];
+    v->stage = FC_IDLE;
+    v->note = -1;
+    v->next_note = -1;
+    v->held = 0;
+    v->pedal = 0;
+    v->tail = 0;
+    v->played = 0;
+    v->pitch_step = 0.0f;
+    v->vac = 0.0f;
+    v->ic1 = v->ic2 = 0.0f;
+    v->dl_cur = FC_DL_OFF_MODE;
+    v->dl_mix = 0.0f;
+    dl_clear(v);
+  }
+}
+
 /* One step of a function generator; gate = the key or the pedal is down. */
 static inline void fg_step(FcFg* g, int mode, int gate, float rise, float fall) {
   switch (g->seg) {
@@ -768,6 +793,10 @@ static void voice_control(const FoldCore* c, FcVoice* v, const FcRate* r, FcCtl*
   v->lpg_g = clampf(1.0f + v->md[FC_MD_LPG], 0.0f, 2.0f);
   x->inc = note_inc(c, r->sr, v->pitch, FC_MOD_SEMIS * v->md[FC_MD_PITCH]);
   delay_control(c, v, r, x->inc);
+  if (v->tail) {
+    v->tick = FC_COEF_EVERY;
+    return;
+  }
   if (v->snap) {
     v->idx = v->idx_g; v->ord = v->ord_g; v->sym = v->sym_g; v->tim = v->tim_g;
     v->dl_len = v->dl_len_g; v->dl_fb = v->dl_fb_g;

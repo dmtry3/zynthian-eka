@@ -1665,9 +1665,11 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         return rows
 
     def _env_values(self):
+        fg2_other = tuple(name for sym, name, _ in MATRIX_DSTS
+                          if sym != "timbre" and int(round(self._zval("m_fg2_%s" % sym, 0))) != 0)
         return (self._zval("fg1_rise", 5.0), self._zval("fg1_fall", 300.0), int(round(self._zval("fg1_mode", 1))),
                 self._zval("fg2_rise", 300.0), self._zval("fg2_fall", 800.0), int(round(self._zval("fg2_mode", 1))),
-                int(round(self._zval("m_fg2_timbre", 0))))
+                int(round(self._zval("m_fg2_timbre", 0))), fg2_other)
 
     def _draw_env(self):
         rows = self._env_layout()
@@ -1701,8 +1703,15 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                           fill=LABEL_COLOR, font=small, tags="env")
             if i == 1:
                 depth = vals[6]
+                fg2_other = vals[7]
                 bh = 2 * fs + 6
                 box = (lab[0] + 2, lab[3] - bh, lab[2] - 4, lab[3])
+                if fg2_other:
+                    extra = "+ " + ", ".join(fg2_other[:2]) + (" +%d" % (len(fg2_other) - 2) if len(fg2_other) > 2 else "")
+                    ey = box[1] - 3
+                    if ey > lab[1] + fs + 10 + 2 * max(7, fs - 2):
+                        c.create_text(lab[0] + 2, ey, anchor="sw", text=extra, fill=NOTE_COLOR,
+                                      font=self._fit_font(extra, lab[2] - lab[0] - 6, max(7, fs - 2)), tags="env")
                 col = ROUTE_ON if depth else ROUTE_OFF
                 c.create_rectangle(*box, outline=col, tags="env")
                 c.create_text((box[0] + box[2]) / 2, (box[1] + box[3]) / 2, text="Timbre %+d%%" % depth,
@@ -1927,7 +1936,7 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         c = self.widget_canvas
         self.dl_boxes = []
         vx0, vy0, vx1, vy1 = values
-        bw = (vx1 - vx0) / 3.0
+        bw = (vx1 - vx0) / float(max(len(texts), 1))
         for i, (sym, text, lo, hi, v, mid) in enumerate(texts):
             x = vx0 + i * bw
             sx0, sx1 = x, x + bw - 6

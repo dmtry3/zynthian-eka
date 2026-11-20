@@ -136,7 +136,11 @@ static void connect_port(LV2_Handle h, uint32_t port, void* data) {
   else if (port == P_DELAY_LEVEL) S->delay_level_out = (float*)data;
 }
 
-static void activate(LV2_Handle h) { (void)h; }
+static void activate(LV2_Handle h) {
+  Fold* S = (Fold*)h;
+  S->bend = 0.0f;
+  fc_reset(&S->core);
+}
 static void deactivate(LV2_Handle h) { (void)h; }
 
 static float ctl(const Fold* S, int port, float def) {

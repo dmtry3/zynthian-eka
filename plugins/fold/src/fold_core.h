@@ -315,6 +315,7 @@ typedef struct {
 } FoldCore;
 
 void fc_init(FoldCore* c, float sr);
+void fc_reset(FoldCore* c);
 void fc_default_params(FcParams* p);
 void fc_set_params(FoldCore* c, const FcParams* p);
 void fc_note_on(FoldCore* c, int note, int vel);
