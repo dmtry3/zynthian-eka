@@ -4,3 +4,6 @@ AGENTS.md
 deploy.env
 deploy-zynthian.sh
 DEPLOY.ru.md
+test/
+tests/
+TZ.md
