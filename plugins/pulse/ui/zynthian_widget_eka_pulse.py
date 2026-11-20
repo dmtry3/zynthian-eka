@@ -106,6 +106,17 @@ def chop_action_idx(lvl_pct):
         return 4
     return 5
 SCENES = ["A", "B", "C", "D"]
+PERF_PADS = [
+    ("TapeStop", 1, "#ff6b6b"),
+    ("1/16 Rpt", 2, "#4dabf7"),
+    ("1/8 Rpt",  3, "#339af0"),
+    ("Reverse",  4, "#b197fc"),
+    ("Half 1/2", 5, "#9775fa"),
+    ("GateChop", 6, "#63e6be"),
+    ("FiltDrop", 7, "#20c997"),
+    ("BitCrush", 8, "#ffa94d"),
+    ("Bypass",   9, "#868e96"),
+]
 
 FACES = [
     "mode", "param1", "param2", "depth",
@@ -164,6 +175,19 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         self.shape_boxes = []             # [(x0, y0, x1, y1, idx)]
         self.action_boxes = {}            # name -> (x0, y0, x1, y1)
         self.scene_boxes = []             # [(x0, y0, x1, y1)] * 4
+        self.store_box = None
+        self.store_armed = False
+        self.pad_boxes = []               # [(x0, y0, x1, y1, pad_id)] * 9
+        self.pad_rect_items = []
+        self.xy_box = None
+        self.xy_dot_item = None
+        self.xy_hline = None
+        self.xy_vline = None
+        self.xy_txt_item = None
+        self.active_pad = 0               # currently held pad on touchscreen (1..9)
+        self.saved_mix = None             # mix value saved while holding Bypass pad
+        self.dragging_xy = False
+        self.last_group = None
         self.flow_xover_box = None
         self.flow_duck_box = None
         self.flow_meter_box = None
@@ -348,6 +372,19 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
     def _sync_faces(self):
         slot = self._slot()
         self._update_slot_labels(slot)
+        # Sync scene controller when pedal (Prev/Next Scene) changes cur_scene in plugin
+        if self.monitors and "cur_scene" in self.monitors:
+            cs = min(max(int(round(self._mon("cur_scene", 0))), 0), 3)
+            if int(round(self._zval("scene", 0))) != cs:
+                self._zset("scene", cs)
+                self.bottom_view = None
+        # Auto-open Perform tab when user switches encoders to Perform page
+        grp = self._current_group()
+        if grp != self.last_group:
+            self.last_group = grp
+            if grp == "g_perform" and self.view != 1:
+                self.view = 1
+                self.drawn = None
         loads = self._mon("loads", 0)
         if slot != self.last_slot or loads != self.last_loads:
             self.last_slot, self.last_loads = slot, loads
@@ -399,6 +436,12 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         meter = (split_x + 2, y0, x1, y1)
         return xover, duck, route, meter
 
+    def _perf_rects(self):
+        x0, y0, x1, y1 = self._main_area()
+        w = max(x1 - x0, 120)
+        split_x = x0 + int(w * 0.67)
+        return (x0, y0, split_x - 4, y1), (split_x + 2, y0, x1, y1)
+
     # ---------- drawing ----------
     def _reset_canvas(self):
         c = self.widget_canvas
@@ -406,6 +449,10 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         self.slot_view = self.top_view = self.steps_view = self.bottom_view = None
         self.curve_sig = None
         self.flow_sig = None
+        self.pad_boxes = []
+        self.pad_rect_items = []
+        self.xy_box = None
+        self.xy_dot_item = self.xy_hline = self.xy_vline = self.xy_txt_item = None
         self.hist_items = []
         self.bar_items = []
         self.bar_bg_items = []
@@ -438,6 +485,8 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         self._draw_bottom_bar()
         if self.view == 0:
             self._draw_steps_view()
+        elif self.view == 1:
+            self._draw_perform_view()
         elif self.view == 2:
             self._draw_flow_view()
         elif self.view == 3:
@@ -505,16 +554,42 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             self.flow_meter_bar = c.create_rectangle(bar_x0 + 2, my1 - 16, bar_x1 - 2, my1 - 16, fill="#4dabf7", outline="", tags="flow")
             self.flow_thresh_line = c.create_line(mx0 + 6, my0 + 40, mx1 - 6, my0 + 40, fill="#ffd43b", width=2, tags="flow")
             self.flow_thresh_txt = c.create_text((mx0 + mx1) / 2, my1 - 8, text="Thr -24 dB", fill="#ffd43b", font=f_sm, tags="flow")
+        elif self.view == 1:
+            pads_r, xy_r = self._perf_rects()
+            px0, py0, px1, py1 = pads_r
+            pw = (px1 - px0 - 8) / 3.0
+            ph = (py1 - py0 - 8) / 3.0
+            fs = self._font_size()
+            f_pad = (zynthian_gui_config.font_family, fs, "bold")
+            self.pad_boxes = []
+            self.pad_rect_items = []
+            for idx, (lbl, pid, col) in enumerate(PERF_PADS):
+                r, col_i = divmod(idx, 3)
+                bx0 = px0 + col_i * (pw + 4)
+                by0 = py0 + r * (ph + 4)
+                bx1 = bx0 + pw
+                by1 = by0 + ph
+                self.pad_boxes.append((bx0, by0, bx1, by1, pid))
+                rid = c.create_rectangle(bx0, by0, bx1, by1, fill=BG_CARD, outline=col, width=2, tags="perf")
+                c.create_text((bx0 + bx1) / 2, (by0 + by1) / 2, text=lbl, fill="#ffffff", font=f_pad, tags="perf")
+                self.pad_rect_items.append((rid, pid, col))
+
+            # XY Pad
+            xx0, xy0, xx1, xy1 = xy_r
+            self.xy_box = xy_r
+            c.create_rectangle(xx0, xy0, xx1, xy1, fill=BG_AREA, outline="#4dabf7", width=2, tags="perf")
+            c.create_line((xx0 + xx1) / 2, xy0 + 2, (xx0 + xx1) / 2, xy1 - 2, fill=GRID_COLOR, tags="perf")
+            c.create_line(xx0 + 2, (xy0 + xy1) / 2, xx1 - 2, (xy0 + xy1) / 2, fill=GRID_COLOR, tags="perf")
+            f_sm = (zynthian_gui_config.font_family, max(7, fs - 2))
+            c.create_text((xx0 + xx1) / 2, xy0 + 10, text="XY PAD", fill="#74c0fc", font=(zynthian_gui_config.font_family, max(8, fs - 1), "bold"), tags="perf")
+            c.create_text((xx0 + xx1) / 2, xy1 - 9, text="X: Cutoff   Y: Depth", fill="#7a828e", font=f_sm, tags="perf")
+            self.xy_hline = c.create_line(xx0 + 2, (xy0 + xy1) / 2, xx1 - 2, (xy0 + xy1) / 2, fill="#4dabf7", dash=(2, 2), tags="perf")
+            self.xy_vline = c.create_line((xx0 + xx1) / 2, xy0 + 2, (xx0 + xx1) / 2, xy1 - 2, fill="#4dabf7", dash=(2, 2), tags="perf")
+            cx, cy = (xx0 + xx1) / 2, (xy0 + xy1) / 2
+            self.xy_dot_item = c.create_oval(cx - 8, cy - 8, cx + 8, cy + 8, fill="#4dabf7", outline="#ffffff", width=2, tags="perf")
+            self.xy_txt_item = c.create_text(xx0 + 6, xy0 + 22, anchor="nw", text="", fill="#cfd6e0", font=f_sm, tags="perf")
         elif self.view == 3:
             self.help_slot = None
-        else:
-            x0, y0, x1, y1 = self._main_area()
-            c.create_rectangle(x0, y0, x1, y1, fill=BG_AREA, outline=DIM, tags="placeholder")
-            c.create_text(
-                (x0 + x1) / 2, (y0 + y1) / 2, text="Perform (Pads + XY + Scenes) — stage M3",
-                fill="#9aa4b2", font=(zynthian_gui_config.font_family, self._font_size() + 1),
-                tags="placeholder",
-            )
 
     def _sample_peak(self):
         now = time.monotonic()
@@ -639,13 +714,14 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
     def _draw_bottom_bar(self):
         c = self.widget_canvas
         scene = min(max(int(round(self._zval("scene", 0))), 0), 3)
-        sig = (self.view, scene)
+        sig = (self.view, scene, self.store_armed)
         if self.bottom_view == sig:
             return
         self.bottom_view = sig
         c.delete("bottom")
         self.action_boxes = {}
         self.scene_boxes = []
+        self.store_box = None
 
         x0 = self._left_w() + 4
         x1 = max(self.width, 160) - 4
@@ -664,21 +740,36 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
                 c.create_text((bx0 + bx1) / 2, (y0 + y1) / 2, text=label, fill="#e0e6ef", font=f_btn, tags="bottom")
                 cur_x = bx1 + 4
 
-        # Right side: Scene strip A | B | C | D
+        # Right side: Scene strip A | B | C | D + Store
         sw = 34
-        total_sw = len(SCENES) * sw + (len(SCENES) - 1) * 3
-        sx = max(cur_x + 8, x1 - total_sw)
+        store_w = 50
+        total_sw = len(SCENES) * sw + (len(SCENES) - 1) * 3 + 6 + store_w
+        sx = max(cur_x + 6, x1 - total_sw)
         for i, name in enumerate(SCENES):
             bx0, bx1 = sx + i * (sw + 3), sx + i * (sw + 3) + sw
             self.scene_boxes.append((bx0, y0, bx1, y1))
             active = (i == scene)
             c.create_rectangle(
                 bx0, y0, bx1, y1,
-                fill="#3a4a62" if active else BG_CARD,
-                outline="#ffffff" if active else DIM,
+                fill="#5c3d1e" if self.store_armed else ("#3a4a62" if active else BG_CARD),
+                outline="#ffa94d" if self.store_armed else ("#ffffff" if active else DIM),
                 tags="bottom",
             )
-            c.create_text((bx0 + bx1) / 2, (y0 + y1) / 2, text=name, fill="#ffffff" if active else "#9aa4b2", font=f_btn, tags="bottom")
+            c.create_text((bx0 + bx1) / 2, (y0 + y1) / 2, text=name, fill="#ffffff" if (active or self.store_armed) else "#9aa4b2", font=f_btn, tags="bottom")
+
+        stx0 = sx + len(SCENES) * (sw + 3) + 3
+        stx1 = stx0 + store_w
+        self.store_box = (stx0, y0, stx1, y1)
+        c.create_rectangle(
+            stx0, y0, stx1, y1,
+            fill="#ffa94d" if self.store_armed else BG_CARD,
+            outline="#ffa94d" if self.store_armed else DIM,
+            tags="bottom",
+        )
+        c.create_text(
+            (stx0 + stx1) / 2, (y0 + y1) / 2, text="Store",
+            fill="#000000" if self.store_armed else "#cfd6e0", font=f_btn, tags="bottom",
+        )
 
     def _draw_steps_view(self):
         c = self.widget_canvas
@@ -905,14 +996,49 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         tips = [
             "Карточки слева: тап = выбрать слот, повторный/долгий тап = ON/OFF",
             "Steps: свайп по столбикам = уровень, тап под ними = форма (_ \\ / /\\ 2x 3x)",
-            "Flow: свайп по графику = Low Split (чистый бас), Low Duck = гейт на бас",
-            "Sync: стоит без транспорта, стартует с 1-й доли; Free = свой ход",
+            "Trigger: Audio/MIDI = рестарт с шага 1 без транспорта; Env->Depth = от громкости",
+            "Perform: удержание пэдов/XY = живой эффект; Store + A-D = сохранить сцену",
         ]
         for line in tips:
             if y + lh > y1 - 2:
                 break
             c.create_text(x0 + 10, y, anchor="nw", text=line, fill="#9aa4b2", font=f_dim, tags="help")
             y += lh - 1
+
+    def _draw_perform_view(self):
+        c = self.widget_canvas
+        if not self.xy_box:
+            return
+        cur_pad = self.active_pad if self.active_pad else int(round(self._zval("live_pad", 0)))
+        for rid, pid, col in self.pad_rect_items:
+            lit = (cur_pad == pid)
+            c.itemconfig(rid, fill=col if lit else BG_CARD, outline="#ffffff" if lit else col)
+
+        xx0, xy0, xx1, xy1 = self.xy_box
+        xv = min(max(self._zval("xy_x", 50.0), 0.0), 100.0) * 0.01
+        yv = min(max(self._zval("xy_y", 50.0), 0.0), 100.0) * 0.01
+        xy_on = self.dragging_xy or (self._zval("xy_on", 0.0) >= 0.5)
+        cx = xx0 + 8 + xv * max(xx1 - xx0 - 16, 10)
+        cy = xy1 - 18 - yv * max(xy1 - xy0 - 38, 10)
+        c.coords(self.xy_hline, xx0 + 2, cy, xx1 - 2, cy)
+        c.coords(self.xy_vline, cx, xy0 + 18, cx, xy1 - 16)
+        r = 10 if xy_on else 7
+        c.coords(self.xy_dot_item, cx - r, cy - r, cx + r, cy + r)
+        c.itemconfig(self.xy_dot_item, fill="#ffd43b" if xy_on else "#4dabf7")
+        if self.xy_txt_item:
+            hz = int(round(80.0 * (200.0 ** xv)))
+            c.itemconfig(self.xy_txt_item, text="%d Hz  %d%%" % (hz, int(round(yv * 100))) if xy_on else "")
+
+    def _apply_xy_drag(self, x, y):
+        if not self.xy_box:
+            return
+        xx0, xy0, xx1, xy1 = self.xy_box
+        xv = min(max((x - (xx0 + 8)) / max(xx1 - xx0 - 16, 1.0), 0.0), 1.0)
+        yv = min(max(((xy1 - 18) - y) / max(xy1 - xy0 - 38, 1.0), 0.0), 1.0)
+        self._zset("xy_x", round(xv * 100.0, 1))
+        self._zset("xy_y", round(yv * 100.0, 1))
+        self._zset("xy_on", 1)
+        self._draw_perform_view()
 
     # ---------- touch / mouse interaction ----------
     def _hit(self, boxes, x, y):
@@ -969,6 +1095,7 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         self.press = None
         self.dragging_steps = False
         self.dragging_flow = None
+        self.dragging_xy = False
 
         idx = self._hit(self.slot_boxes, x, y)
         if idx >= 0:
@@ -979,6 +1106,12 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
         if idx >= 0:
             self.press = ("tab", idx, now, x, y)
             return
+
+        if self.store_box:
+            b = self.store_box
+            if b[0] <= x <= b[2] and b[1] <= y <= b[3]:
+                self.press = ("store", 0, now, x, y)
+                return
 
         idx = self._hit(self.scene_boxes, x, y)
         if idx >= 0:
@@ -1000,6 +1133,24 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
                 self.dragging_steps = True
                 self._apply_step_touch(x, y)
                 return
+        elif self.view == 1:
+            idx = self._hit(self.pad_boxes, x, y)
+            if idx >= 0:
+                pid = self.pad_boxes[idx][4]
+                self.active_pad = pid
+                if pid == 9:
+                    self.saved_mix = self._zval("mix", 100.0)
+                    self._zset("mix", 0.0)
+                else:
+                    self._zset("live_pad", pid)
+                self._draw_perform_view()
+                return
+            if self.xy_box:
+                b = self.xy_box
+                if b[0] <= x <= b[2] and b[1] <= y <= b[3]:
+                    self.dragging_xy = True
+                    self._apply_xy_drag(x, y)
+                    return
         elif self.view == 2:
             if self.flow_duck_box:
                 b = self.flow_duck_box
@@ -1024,6 +1175,8 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             self._apply_step_touch(event.x, event.y)
         elif self.dragging_flow:
             self._apply_flow_drag(event.x, event.y)
+        elif self.dragging_xy:
+            self._apply_xy_drag(event.x, event.y)
 
     def _on_release(self, event):
         if self.dragging_steps:
@@ -1031,6 +1184,22 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             return
         if self.dragging_flow:
             self.dragging_flow = None
+            return
+        if self.dragging_xy:
+            self.dragging_xy = False
+            self._zset("xy_on", 0)
+            self._draw_perform_view()
+            return
+        if self.active_pad:
+            pid = self.active_pad
+            self.active_pad = 0
+            if pid == 9:
+                if self.saved_mix is not None:
+                    self._zset("mix", self.saved_mix)
+                    self.saved_mix = None
+            else:
+                self._zset("live_pad", 0)
+            self._draw_perform_view()
             return
         if not self.press:
             return
@@ -1056,8 +1225,17 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
                 self.view = arg
                 self.drawn = None
                 self.refresh_gui()
+        elif kind == "store":
+            self.store_armed = not self.store_armed
+            self.bottom_view = None
+            self.refresh_gui()
         elif kind == "scene":
-            self._zset("scene", arg)
+            if self.store_armed:
+                self.store_armed = False
+                self._zset("store_scene", arg + 1)
+                self._zset("scene", arg)
+            else:
+                self._zset("scene", arg)
             self.bottom_view = None
             self.refresh_gui()
         elif kind == "action":

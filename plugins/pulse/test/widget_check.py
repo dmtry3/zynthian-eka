@@ -168,7 +168,11 @@ class Control:
         self.selected = i
 
 
-ctl = {"slot": Zctrl(4), "mix": Zctrl(100), "low_split": Zctrl(0), "scene": Zctrl(0), "low_duck": Zctrl(0)}
+ctl = {
+    "slot": Zctrl(4), "mix": Zctrl(100), "low_split": Zctrl(0), "scene": Zctrl(0),
+    "low_duck": Zctrl(0), "live_pad": Zctrl(0),
+    "xy_x": Zctrl(50.0), "xy_y": Zctrl(50.0), "xy_on": Zctrl(0), "store_scene": Zctrl(0),
+}
 for v, sym in enumerate(W.FACES):
     ctl[sym] = Zctrl(DEFAULTS[3][v])
 for s in range(4):
@@ -257,10 +261,39 @@ ib = w.action_boxes["inv"]
 tap((ib[0] + ib[2]) / 2, (ib[1] + ib[3]) / 2)
 check(ctl["s3_lvl1"].value == 100.0 - before, "Inv button inverted step 1")
 
-# Switch tabs Perform / Flow / Steps and test Flow controls
+# Switch tabs Perform / Flow / Steps and test Perform + Flow controls
 tb = w.tab_boxes[1]
 tap((tb[0] + tb[2]) / 2, (tb[1] + tb[3]) / 2)
-check(w.view == 1, "switched to Perform tab")
+check(w.view == 1 and len(w.pad_boxes) == 9 and w.xy_box is not None, "Perform tab has 9 pads + XY pad")
+
+# Hold TapeStop pad -> live_pad = 1, release -> live_pad = 0
+pb0 = w.pad_boxes[0]
+w._on_press(Ev((pb0[0] + pb0[2]) / 2, (pb0[1] + pb0[3]) / 2))
+check(ctl["live_pad"].value == 1, "holding TapeStop sets live_pad=1")
+w._on_release(Ev((pb0[0] + pb0[2]) / 2, (pb0[1] + pb0[3]) / 2))
+check(ctl["live_pad"].value == 0, "releasing TapeStop resets live_pad=0")
+
+# Hold Bypass pad -> mix = 0, release -> restores mix = 100
+pb8 = w.pad_boxes[8]
+w._on_press(Ev((pb8[0] + pb8[2]) / 2, (pb8[1] + pb8[3]) / 2))
+check(ctl["mix"].value == 0.0, "holding Bypass sets mix=0")
+w._on_release(Ev((pb8[0] + pb8[2]) / 2, (pb8[1] + pb8[3]) / 2))
+check(ctl["mix"].value == 100.0, "releasing Bypass restores mix=100")
+
+# Drag XY pad -> xy_on=1, release -> xy_on=0
+xb = w.xy_box
+w._on_press(Ev((xb[0] + xb[2]) / 2, (xb[1] + xb[3]) / 2))
+check(ctl["xy_on"].value == 1, "XY press sets xy_on=1")
+w._on_release(Ev((xb[0] + xb[2]) / 2, (xb[1] + xb[3]) / 2))
+check(ctl["xy_on"].value == 0, "XY release sets xy_on=0")
+
+# Store + Scene B arms and stores scene 2
+stb = w.store_box
+tap((stb[0] + stb[2]) / 2, (stb[1] + stb[3]) / 2)
+check(w.store_armed, "Store arms")
+scb = w.scene_boxes[1]
+tap((scb[0] + scb[2]) / 2, (scb[1] + scb[3]) / 2)
+check(not w.store_armed and ctl["store_scene"].value == 2 and ctl["scene"].value == 1, "Store + B saves scene 2")
 
 tb = w.tab_boxes[2]
 tap((tb[0] + tb[2]) / 2, (tb[1] + tb[3]) / 2)

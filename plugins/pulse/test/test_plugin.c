@@ -43,7 +43,7 @@ enum {
   LIVE_PAD, PREV_SCENE, NEXT_SCENE, OUTPUT_DB,
   NCTL,
   IN_L = NCTL, IN_R, OUT_L, OUT_R, CONTROL, NOTIFY,
-  PEAK, OUT_PEAK, LIM_GR, LOADS, BPM, SEL, ON_MASK,
+  PEAK, OUT_PEAK, LIM_GR, LOADS, BPM, SEL, ON_MASK, CUR_SCENE,
   PHASE0, VAL0 = PHASE0 + 4, STEPS0 = VAL0 + 4, MODE0 = STEPS0 + 4,
   CUR0 = MODE0 + 4, NPORTS = CUR0 + 12
 };
@@ -117,21 +117,33 @@ static void run_blocks(int n) {
   }
 }
 
-typedef struct { uint32_t key, type; size_t size; union { float v; double dv; int64_t lv; }; } Item;
+typedef struct { uint32_t key, type; size_t size; union { float v; double dv; int64_t lv; }; void* blob; } Item;
 static Item items[512];
 static int nitems = 0;
+static void clear_items(void) {
+  for (int i = 0; i < nitems; i++) { free(items[i].blob); items[i].blob = NULL; }
+  nitems = 0;
+}
 static LV2_State_Status store(LV2_State_Handle h, uint32_t key, const void* v, size_t size, uint32_t type,
                               uint32_t flags) {
   (void)h; (void)flags;
-  items[nitems].key = key; items[nitems].type = type; items[nitems].size = size;
-  memcpy(&items[nitems].v, v, size < sizeof(double) ? size : sizeof(double));
+  items[nitems].key = key; items[nitems].type = type; items[nitems].size = size; items[nitems].blob = NULL;
+  if (size <= sizeof(double)) {
+    memcpy(&items[nitems].v, v, size);
+  } else {
+    items[nitems].blob = malloc(size);
+    memcpy(items[nitems].blob, v, size);
+  }
   nitems++;
   return LV2_STATE_SUCCESS;
 }
 static const void* retrieve(LV2_State_Handle h, uint32_t key, size_t* size, uint32_t* type, uint32_t* flags) {
   (void)h;
   for (int i = 0; i < nitems; i++)
-    if (items[i].key == key) { *size = items[i].size; *type = items[i].type; *flags = 0; return &items[i].v; }
+    if (items[i].key == key) {
+      *size = items[i].size; *type = items[i].type; *flags = 0;
+      return items[i].blob ? items[i].blob : (const void*)&items[i].v;
+    }
   return NULL;
 }
 static float saved(LV2_URID key) {
@@ -291,6 +303,28 @@ int main(int argc, char** argv) {
   CHECK(mons[LOADS - PEAK] == loads + 1);
   CHECK(mons[STEPS0 + 2 - PEAK] == 11);
 
+  /* M3: Scenes A-D Store, Pedal Next/Prev Scene, and State save/restore of scenes */
+  ctl[SCENE] = 0; run_blocks(2);
+  ctl_set(P("s4_steps"), 5); run_blocks(2);
+  ctl_set(P("store_scene"), 2); /* copy A (5 steps) into B */
+  run_blocks(2);
+  ctl_set(P("s4_steps"), 16); run_blocks(2); /* edit A to 16 steps */
+  /* Pedal Next Scene: A (0) -> B (1) should load 5 steps */
+  ctl[NEXT_SCENE] = 1; run_blocks(2); ctl[NEXT_SCENE] = 0; run_blocks(1);
+  CHECK(mons[CUR_SCENE - PEAK] == 1);
+  CHECK(mons[STEPS0 + 3 - PEAK] == 5);
+  /* Save State (including scenes_blob), mutate, restore, and verify B still has 5 and A has 16 */
+  clear_items();
+  si->save(inst, store, NULL, 0, NULL);
+  ctl_set(P("s4_steps"), 3); run_blocks(2);
+  si->restore(inst, retrieve, NULL, 0, NULL);
+  run_blocks(2);
+  CHECK(mons[CUR_SCENE - PEAK] == 1 && mons[STEPS0 + 3 - PEAK] == 5);
+  /* Pedal Prev Scene: B (1) -> A (0) should load 16 steps */
+  ctl[PREV_SCENE] = 1; run_blocks(2); ctl[PREV_SCENE] = 0; run_blocks(1);
+  CHECK(mons[CUR_SCENE - PEAK] == 0 && mons[STEPS0 + 3 - PEAK] == 16);
+
+  clear_items();
   if (D->deactivate) D->deactivate(inst);
   D->cleanup(inst);
   dlclose(lib);

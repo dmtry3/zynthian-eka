@@ -1657,6 +1657,42 @@
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
+<http://dmtry3.github.io/zynthian-eka/pulse#xy_x>
+    a lv2:Parameter ;
+    lv2:symbol "xy_x" ;
+    rdfs:label "XY Cutoff" ;
+    rdfs:range atom:Float ;
+    lv2:default 50.0 ; lv2:minimum 0.0 ; lv2:maximum 100.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/pulse#xy_y>
+    a lv2:Parameter ;
+    lv2:symbol "xy_y" ;
+    rdfs:label "XY Depth" ;
+    rdfs:range atom:Float ;
+    lv2:default 50.0 ; lv2:minimum 0.0 ; lv2:maximum 100.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/pulse#xy_on>
+    a lv2:Parameter ;
+    lv2:symbol "xy_on" ;
+    rdfs:label "XY Active" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/pulse#store_scene>
+    a lv2:Parameter ;
+    lv2:symbol "store_scene" ;
+    rdfs:label "Store Scene" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 4 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
 <http://dmtry3.github.io/zynthian-eka/pulse>
     a lv2:Plugin , lv2:ModulatorPlugin ;
     doap:name "Eka Pulse" ;
@@ -1848,7 +1884,11 @@
         <http://dmtry3.github.io/zynthian-eka/pulse#s4_shp15> ,
         <http://dmtry3.github.io/zynthian-eka/pulse#s4_shp16> ,
         <http://dmtry3.github.io/zynthian-eka/pulse#low_duck> ,
-        <http://dmtry3.github.io/zynthian-eka/pulse#free_hz> ;
+        <http://dmtry3.github.io/zynthian-eka/pulse#free_hz> ,
+        <http://dmtry3.github.io/zynthian-eka/pulse#xy_x> ,
+        <http://dmtry3.github.io/zynthian-eka/pulse#xy_y> ,
+        <http://dmtry3.github.io/zynthian-eka/pulse#xy_on> ,
+        <http://dmtry3.github.io/zynthian-eka/pulse#store_scene> ;
     # Control input ports MUST be indices 0..N-1: Zynthian numbers LV2 parameters from len(control ports)+1.
     lv2:port
     [
@@ -2108,141 +2148,146 @@
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 33 ; lv2:symbol "phase1" ; lv2:name "Slot 1 phase" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 34 ; lv2:symbol "phase2" ; lv2:name "Slot 2 phase" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 35 ; lv2:symbol "phase3" ; lv2:name "Slot 3 phase" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 36 ; lv2:symbol "phase4" ; lv2:name "Slot 4 phase" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 37 ; lv2:symbol "val1" ; lv2:name "Slot 1 value" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 38 ; lv2:symbol "val2" ; lv2:name "Slot 2 value" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 39 ; lv2:symbol "val3" ; lv2:name "Slot 3 value" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 40 ; lv2:symbol "val4" ; lv2:name "Slot 4 value" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 41 ; lv2:symbol "steps1" ; lv2:name "Slot 1 steps" ;
-        lv2:default 16 ; lv2:minimum 1 ; lv2:maximum 16 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 42 ; lv2:symbol "steps2" ; lv2:name "Slot 2 steps" ;
-        lv2:default 5 ; lv2:minimum 1 ; lv2:maximum 16 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 43 ; lv2:symbol "steps3" ; lv2:name "Slot 3 steps" ;
-        lv2:default 7 ; lv2:minimum 1 ; lv2:maximum 16 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 44 ; lv2:symbol "steps4" ; lv2:name "Slot 4 steps" ;
-        lv2:default 8 ; lv2:minimum 1 ; lv2:maximum 16 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 45 ; lv2:symbol "mode1" ; lv2:name "Slot 1 mode" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 46 ; lv2:symbol "mode2" ; lv2:name "Slot 2 mode" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 47 ; lv2:symbol "mode3" ; lv2:name "Slot 3 mode" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 48 ; lv2:symbol "mode4" ; lv2:name "Slot 4 mode" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 49 ; lv2:symbol "cur_mode" ; lv2:name "Selected Mode" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 50 ; lv2:symbol "cur_param1" ; lv2:name "Selected Param 1" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 51 ; lv2:symbol "cur_param2" ; lv2:name "Selected Param 2" ;
-        lv2:default 50 ; lv2:minimum 0 ; lv2:maximum 100 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 52 ; lv2:symbol "cur_depth" ; lv2:name "Selected Depth %" ;
-        lv2:default 100 ; lv2:minimum -100 ; lv2:maximum 100 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 53 ; lv2:symbol "cur_pattern" ; lv2:name "Selected Pattern" ;
-        lv2:default 2 ; lv2:minimum 0 ; lv2:maximum 24 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 54 ; lv2:symbol "cur_step_rate" ; lv2:name "Selected Step Rate" ;
-        lv2:default 2 ; lv2:minimum 0 ; lv2:maximum 8 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 55 ; lv2:symbol "cur_steps" ; lv2:name "Selected Steps" ;
-        lv2:default 8 ; lv2:minimum 1 ; lv2:maximum 16 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 56 ; lv2:symbol "cur_warp" ; lv2:name "Selected Warp %" ;
-        lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
-    ] ,
-    [
-        a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 57 ; lv2:symbol "cur_trig" ; lv2:name "Selected Trig" ;
+        lv2:index 33 ; lv2:symbol "cur_scene" ; lv2:name "Active scene" ;
         lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 58 ; lv2:symbol "cur_threshold" ; lv2:name "Selected Threshold dB" ;
-        lv2:default -24 ; lv2:minimum -60 ; lv2:maximum 0 ;
+        lv2:index 34 ; lv2:symbol "phase1" ; lv2:name "Slot 1 phase" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 59 ; lv2:symbol "cur_env_depth" ; lv2:name "Selected Env->Depth %" ;
+        lv2:index 35 ; lv2:symbol "phase2" ; lv2:name "Slot 2 phase" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 36 ; lv2:symbol "phase3" ; lv2:name "Slot 3 phase" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 37 ; lv2:symbol "phase4" ; lv2:name "Slot 4 phase" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 38 ; lv2:symbol "val1" ; lv2:name "Slot 1 value" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 39 ; lv2:symbol "val2" ; lv2:name "Slot 2 value" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 40 ; lv2:symbol "val3" ; lv2:name "Slot 3 value" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 41 ; lv2:symbol "val4" ; lv2:name "Slot 4 value" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 42 ; lv2:symbol "steps1" ; lv2:name "Slot 1 steps" ;
+        lv2:default 16 ; lv2:minimum 1 ; lv2:maximum 16 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 43 ; lv2:symbol "steps2" ; lv2:name "Slot 2 steps" ;
+        lv2:default 5 ; lv2:minimum 1 ; lv2:maximum 16 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 44 ; lv2:symbol "steps3" ; lv2:name "Slot 3 steps" ;
+        lv2:default 7 ; lv2:minimum 1 ; lv2:maximum 16 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 45 ; lv2:symbol "steps4" ; lv2:name "Slot 4 steps" ;
+        lv2:default 8 ; lv2:minimum 1 ; lv2:maximum 16 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 46 ; lv2:symbol "mode1" ; lv2:name "Slot 1 mode" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 47 ; lv2:symbol "mode2" ; lv2:name "Slot 2 mode" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 48 ; lv2:symbol "mode3" ; lv2:name "Slot 3 mode" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 49 ; lv2:symbol "mode4" ; lv2:name "Slot 4 mode" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 50 ; lv2:symbol "cur_mode" ; lv2:name "Selected Mode" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 51 ; lv2:symbol "cur_param1" ; lv2:name "Selected Param 1" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 52 ; lv2:symbol "cur_param2" ; lv2:name "Selected Param 2" ;
+        lv2:default 50 ; lv2:minimum 0 ; lv2:maximum 100 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 53 ; lv2:symbol "cur_depth" ; lv2:name "Selected Depth %" ;
+        lv2:default 100 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 54 ; lv2:symbol "cur_pattern" ; lv2:name "Selected Pattern" ;
+        lv2:default 2 ; lv2:minimum 0 ; lv2:maximum 24 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 55 ; lv2:symbol "cur_step_rate" ; lv2:name "Selected Step Rate" ;
+        lv2:default 2 ; lv2:minimum 0 ; lv2:maximum 8 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 56 ; lv2:symbol "cur_steps" ; lv2:name "Selected Steps" ;
+        lv2:default 8 ; lv2:minimum 1 ; lv2:maximum 16 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 57 ; lv2:symbol "cur_warp" ; lv2:name "Selected Warp %" ;
         lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
     ] ,
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 60 ; lv2:symbol "cur_smooth" ; lv2:name "Selected Smooth/Punch" ;
+        lv2:index 58 ; lv2:symbol "cur_trig" ; lv2:name "Selected Trig" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 59 ; lv2:symbol "cur_threshold" ; lv2:name "Selected Threshold dB" ;
+        lv2:default -24 ; lv2:minimum -60 ; lv2:maximum 0 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 60 ; lv2:symbol "cur_env_depth" ; lv2:name "Selected Env->Depth %" ;
+        lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
+    ] ,
+    [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 61 ; lv2:symbol "cur_smooth" ; lv2:name "Selected Smooth/Punch" ;
         lv2:default 10 ; lv2:minimum -100 ; lv2:maximum 100 ;
     ] .

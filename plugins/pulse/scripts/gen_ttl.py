@@ -135,6 +135,7 @@ OUT_MONITORS = [
     ("bpm", "Tempo", 120, 20, 400),
     ("sel", "Selected slot", 4, 1, 4),
     ("on_mask", "Slots on", 8, 0, 15),
+    ("cur_scene", "Active scene", 0, 0, 3),
 ]
 for s in range(SLOTS):
     OUT_MONITORS.append(("phase%d" % (s + 1), "Slot %d phase" % (s + 1), 0, 0, 1))
@@ -161,6 +162,10 @@ def params():
             out.append(("s%d_shp%d" % (s + 1, k + 1), "Slot %d step %d shape" % (s + 1, k + 1), "atom:Int", 1, 0, 5))
     out.append(("low_duck", "Low Duck", "atom:Int", 0, 0, 1))
     out.append(("free_hz", "Free Rate Hz", "atom:Float", 4.0, 0.25, 32.0))
+    out.append(("xy_x", "XY Cutoff", "atom:Float", 50.0, 0.0, 100.0))
+    out.append(("xy_y", "XY Depth", "atom:Float", 50.0, 0.0, 100.0))
+    out.append(("xy_on", "XY Active", "atom:Int", 0, 0, 1))
+    out.append(("store_scene", "Store Scene", "atom:Int", 0, 0, 4))
     return out
 
 

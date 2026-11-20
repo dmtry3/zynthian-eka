@@ -355,6 +355,36 @@ int main(void) {
   }
   write_wav("pulse_m2_time.wav", wl2, wr2, n2, (uint32_t)sr);
 
+  /* 16. M3: All 8 Live Performance Pads + XY Pad stay finite, bounded, and active */
+  for (int pad = PX_PAD_TAPESTOP; pad <= PX_PAD_BITCRUSH; pad++) {
+    px_reset(&fx);
+    px_default_params(&p);
+    p.live_pad = pad;
+    px_set_transport(&fx, 120.0f, 1, 1, 0.0, 4);
+    int ok = 1; float e = 0.0f;
+    for (int b = 0; b < 40; b++) {
+      for (int i = 0; i < 256; i++) {
+        float t = (float)(b * 256 + i) / (float)sr;
+        in_l[i] = in_r[i] = 0.4f * sinf(2.0f * (float)M_PI * 440.0f * t);
+      }
+      px_process(&fx, &p, in_l, in_r, out_l, out_r, 256);
+      for (int i = 0; i < 256; i++) {
+        if (!isfinite(out_l[i]) || !isfinite(out_r[i]) || fabsf(out_l[i]) > 1.001f) ok = 0;
+        e += out_l[i] * out_l[i];
+      }
+    }
+    CHECK(ok && e > 0.5f);
+  }
+  px_reset(&fx);
+  px_default_params(&p);
+  p.xy_on = 1; p.xy_x = 0.25f; p.xy_y = 0.8f;
+  px_set_transport(&fx, 120.0f, 1, 1, 0.0, 4);
+  for (int b = 0; b < 10; b++) {
+    for (int i = 0; i < 256; i++) in_l[i] = in_r[i] = 0.4f * sinf(0.2f * i);
+    px_process(&fx, &p, in_l, in_r, out_l, out_r, 256);
+  }
+  CHECK(isfinite(out_l[255]) && fabsf(out_l[255]) <= 1.001f);
+
   free(wl); free(wr); free(il); free(ir);
   free(wl2); free(wr2); free(il2); free(ir2);
   px_free(&fx);

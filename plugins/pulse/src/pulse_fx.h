@@ -94,6 +94,18 @@ typedef struct {
   int   shapes[PX_MAX_STEPS];    /* 0..5 */
 } PxSlotParams;
 
+enum {
+  PX_PAD_OFF = 0,
+  PX_PAD_TAPESTOP = 1,
+  PX_PAD_RPT16 = 2,
+  PX_PAD_RPT8 = 3,
+  PX_PAD_REVERSE = 4,
+  PX_PAD_HALF = 5,
+  PX_PAD_GATECHOP = 6,
+  PX_PAD_FILTDROP = 7,
+  PX_PAD_BITCRUSH = 8
+};
+
 typedef struct {
   PxSlotParams slot[PX_SLOTS];
   float mix;                     /* 0..1 */
@@ -101,7 +113,10 @@ typedef struct {
   int   low_duck;                /* 0..1 */
   float free_hz;                 /* 0.25..32.0 steps/sec when step_rate == Free */
   float output_db;               /* -24..+6 */
-  int   live_pad;                /* 0..8 */
+  int   live_pad;                /* PX_PAD_* (0..8) */
+  float xy_x;                    /* 0..1 (Cutoff) */
+  float xy_y;                    /* 0..1 (Depth / Res) */
+  int   xy_on;                   /* 0..1 */
 } PxParams;
 
 typedef struct {
@@ -155,6 +170,17 @@ typedef struct {
   PxSvf       flt_svf[2][2];
   float       phaser_ap[2][4];
   float       phaser_fb[2];
+  /* Live Performance Pads & XY Pad state */
+  int         pad_prev;
+  double      pad_anchor;
+  double      pad_rpos;
+  double      pad_tape_delay;
+  double      pad_phase;         /* 0..1 sweep/chop phase while pad held */
+  float       pad_gain;          /* smooth 5 ms pad crossfade */
+  PxSvf       pad_svf[2];
+  float       pad_crush_ph[2], pad_crush_hold[2];
+  float       xy_gain;           /* smooth 10 ms XY crossfade */
+  PxSvf       xy_svf[2];
   /* Master meters & limiter */
   float       in_peak;
   float       out_peak;

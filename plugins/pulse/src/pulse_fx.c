@@ -255,6 +255,17 @@ void px_reset(PulseFx* x) {
   memset(x->flt_svf, 0, sizeof x->flt_svf);
   memset(x->phaser_ap, 0, sizeof x->phaser_ap);
   memset(x->phaser_fb, 0, sizeof x->phaser_fb);
+  x->pad_prev = PX_PAD_OFF;
+  x->pad_anchor = 0.0;
+  x->pad_rpos = 0.0;
+  x->pad_tape_delay = 0.0;
+  x->pad_phase = 0.0;
+  x->pad_gain = 0.0f;
+  memset(x->pad_svf, 0, sizeof x->pad_svf);
+  memset(x->pad_crush_ph, 0, sizeof x->pad_crush_ph);
+  memset(x->pad_crush_hold, 0, sizeof x->pad_crush_hold);
+  x->xy_gain = 0.0f;
+  memset(x->xy_svf, 0, sizeof x->xy_svf);
   for (int s = 0; s < PX_SLOTS; s++) {
     memset(&x->st[s], 0, sizeof x->st[s]);
     x->st[s].bypass_gain = 0.0f;
@@ -940,6 +951,108 @@ void px_process(PulseFx* x, const PxParams* p,
     if (xover_on) {
       wl += low_l;
       wr += low_r;
+    }
+
+    /* Live Performance Pad (momentary override on output, returns to grid on release) */
+    {
+      int pad = p->live_pad;
+      if (pad < PX_PAD_OFF || pad > PX_PAD_BITCRUSH) pad = PX_PAD_OFF;
+      float target_pg = (pad != PX_PAD_OFF) ? 1.0f : 0.0f;
+      if (x->pad_gain < target_pg) {
+        x->pad_gain += bypass_step;
+        if (x->pad_gain > 1.0f) x->pad_gain = 1.0f;
+      } else if (x->pad_gain > target_pg) {
+        x->pad_gain -= bypass_step;
+        if (x->pad_gain < 0.0f) x->pad_gain = 0.0f;
+      }
+      if (pad != x->pad_prev) {
+        x->pad_prev = pad;
+        x->pad_anchor = (x->time_w > 1) ? (double)(x->time_w - 1) : 0.0;
+        x->pad_rpos = x->pad_anchor;
+        x->pad_tape_delay = 0.0;
+        x->pad_phase = 0.0;
+        if (pad == PX_PAD_RPT16 || pad == PX_PAD_RPT8) {
+          double rlen = fmin(((pad == PX_PAD_RPT16) ? 0.25 : 0.5) * samples_per_beat, time_max_del * 0.5);
+          x->pad_rpos = x->pad_anchor - rlen;
+        }
+      }
+      if (x->pad_gain > 1e-6f && pad != PX_PAD_OFF && x->time_buf && x->time_w > 4) {
+        float pl = wl, pr = wr;
+        double now_pos = (double)(x->time_w - 1);
+        if (pad == PX_PAD_TAPESTOP) {
+          x->pad_phase += 1.0 / fmax(samples_per_beat * 2.0, 2000.0); /* decelerate over 2 beats */
+          float spd = clampf(1.0f - (float)x->pad_phase, 0.0f, 1.0f);
+          x->pad_tape_delay += (1.0 - (double)spd);
+          if (x->pad_tape_delay > time_max_del) x->pad_tape_delay = time_max_del;
+          time_read_hermite(x, now_pos - x->pad_tape_delay, &pl, &pr);
+        } else if (pad == PX_PAD_RPT16 || pad == PX_PAD_RPT8) {
+          double rlen = fmin(((pad == PX_PAD_RPT16) ? 0.25 : 0.5) * samples_per_beat, time_max_del * 0.5);
+          if (rlen < 64.0) rlen = 64.0;
+          x->pad_rpos += 1.0;
+          if (x->pad_rpos >= x->pad_anchor) x->pad_rpos = x->pad_anchor - rlen;
+          time_read_hermite(x, x->pad_rpos, &pl, &pr);
+        } else if (pad == PX_PAD_REVERSE) {
+          x->pad_rpos -= 1.0;
+          time_read_hermite(x, x->pad_rpos, &pl, &pr);
+        } else if (pad == PX_PAD_HALF) {
+          x->pad_rpos += 0.5;
+          time_read_hermite(x, x->pad_rpos, &pl, &pr);
+        } else if (pad == PX_PAD_GATECHOP) {
+          x->pad_phase += 1.0 / fmax(samples_per_beat * 0.25, 256.0); /* 1/16th chop */
+          double f = x->pad_phase - floor(x->pad_phase);
+          float g = (f < 0.5) ? 1.0f : 0.0f;
+          pl *= g; pr *= g;
+        } else if (pad == PX_PAD_FILTDROP) {
+          x->pad_phase += 1.0 / fmax(samples_per_beat * 4.0, 4000.0); /* 1 bar sweep */
+          float t = clampf((float)x->pad_phase, 0.0f, 1.0f);
+          float fc = 12000.0f * powf(120.0f / 12000.0f, t);
+          float g = tanf((float)M_PI * clampf(fc, 40.0f, 0.44f * (float)sr) / (float)sr);
+          float lp, bp, hp;
+          svf_tick(&x->pad_svf[0], wl, g, 0.45f, &lp, &bp, &hp); pl = lp;
+          svf_tick(&x->pad_svf[1], wr, g, 0.45f, &lp, &bp, &hp); pr = lp;
+        } else if (pad == PX_PAD_BITCRUSH) {
+          float step = 1.0f / 12.0f;
+          for (int ch = 0; ch < 2; ch++) {
+            float s = (ch == 0) ? wl : wr;
+            x->pad_crush_ph[ch] += step;
+            if (x->pad_crush_ph[ch] >= 1.0f) {
+              x->pad_crush_ph[ch] -= 1.0f;
+              x->pad_crush_hold[ch] = floorf(s * 16.0f + 0.5f) / 16.0f;
+            }
+          }
+          pl = x->pad_crush_hold[0];
+          pr = x->pad_crush_hold[1];
+        }
+        wl = wl + x->pad_gain * (pl - wl);
+        wr = wr + x->pad_gain * (pr - wr);
+      }
+    }
+
+    /* Live XY Pad macro filter (X: Cutoff 80..16000 Hz, Y: Resonance / Depth) */
+    {
+      float target_xy = p->xy_on ? 1.0f : 0.0f;
+      if (x->xy_gain < target_xy) {
+        x->xy_gain += bypass_step;
+        if (x->xy_gain > 1.0f) x->xy_gain = 1.0f;
+      } else if (x->xy_gain > target_xy) {
+        x->xy_gain -= bypass_step;
+        if (x->xy_gain < 0.0f) x->xy_gain = 0.0f;
+      }
+      if (x->xy_gain > 1e-6f) {
+        float xx = clampf(p->xy_x, 0.0f, 1.0f);
+        float yy = clampf(p->xy_y, 0.0f, 1.0f);
+        float fc = 80.0f * powf(200.0f, xx);
+        float g = tanf((float)M_PI * clampf(fc, 40.0f, 0.44f * (float)sr) / (float)sr);
+        float k = 1.0f / (0.7f + 7.5f * yy);
+        float lp, bp, hp;
+        svf_tick(&x->xy_svf[0], wl, g, k, &lp, &bp, &hp);
+        float xl = lp;
+        svf_tick(&x->xy_svf[1], wr, g, k, &lp, &bp, &hp);
+        float xr = lp;
+        float amt = x->xy_gain * (0.25f + 0.75f * yy);
+        wl = wl + amt * (xl - wl);
+        wr = wr + amt * (xr - wr);
+      }
     }
 
     /* Dry/Wet mix + Output Gain */
