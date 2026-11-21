@@ -24,7 +24,8 @@
         [ lv2:symbol "drive" ; pset:value 0 ] ,
         [ lv2:symbol "auto_makeup" ; pset:value 0 ] ,
         [ lv2:symbol "soft_clip" ; pset:value 1 ] ,
-        [ lv2:symbol "output" ; pset:value 0 ] .
+        [ lv2:symbol "output" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/press#preset_guitar_mic_leveler>
     a pset:Preset ;
@@ -47,7 +48,8 @@
         [ lv2:symbol "drive" ; pset:value 10 ] ,
         [ lv2:symbol "auto_makeup" ; pset:value 1 ] ,
         [ lv2:symbol "soft_clip" ; pset:value 1 ] ,
-        [ lv2:symbol "output" ; pset:value 0 ] .
+        [ lv2:symbol "output" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/press#preset_acoustic_sparkle>
     a pset:Preset ;
@@ -70,7 +72,8 @@
         [ lv2:symbol "drive" ; pset:value 0 ] ,
         [ lv2:symbol "auto_makeup" ; pset:value 0 ] ,
         [ lv2:symbol "soft_clip" ; pset:value 1 ] ,
-        [ lv2:symbol "output" ; pset:value 0 ] .
+        [ lv2:symbol "output" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/press#preset_opto_vocal_flute>
     a pset:Preset ;
@@ -93,7 +96,8 @@
         [ lv2:symbol "drive" ; pset:value 15 ] ,
         [ lv2:symbol "auto_makeup" ; pset:value 1 ] ,
         [ lv2:symbol "soft_clip" ; pset:value 1 ] ,
-        [ lv2:symbol "output" ; pset:value 0 ] .
+        [ lv2:symbol "output" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/press#preset_synth_punch>
     a pset:Preset ;
@@ -116,7 +120,8 @@
         [ lv2:symbol "drive" ; pset:value 25 ] ,
         [ lv2:symbol "auto_makeup" ; pset:value 0 ] ,
         [ lv2:symbol "soft_clip" ; pset:value 1 ] ,
-        [ lv2:symbol "output" ; pset:value 0 ] .
+        [ lv2:symbol "output" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/press#preset_bass_lock>
     a pset:Preset ;
@@ -139,7 +144,8 @@
         [ lv2:symbol "drive" ; pset:value 20 ] ,
         [ lv2:symbol "auto_makeup" ; pset:value 1 ] ,
         [ lv2:symbol "soft_clip" ; pset:value 1 ] ,
-        [ lv2:symbol "output" ; pset:value 0 ] .
+        [ lv2:symbol "output" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/press#preset_tape_bus_glue>
     a pset:Preset ;
@@ -162,7 +168,8 @@
         [ lv2:symbol "drive" ; pset:value 15 ] ,
         [ lv2:symbol "auto_makeup" ; pset:value 0 ] ,
         [ lv2:symbol "soft_clip" ; pset:value 1 ] ,
-        [ lv2:symbol "output" ; pset:value 0 ] .
+        [ lv2:symbol "output" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/press#preset_ny_parallel_crush>
     a pset:Preset ;
@@ -185,7 +192,8 @@
         [ lv2:symbol "drive" ; pset:value 40 ] ,
         [ lv2:symbol "auto_makeup" ; pset:value 0 ] ,
         [ lv2:symbol "soft_clip" ; pset:value 1 ] ,
-        [ lv2:symbol "output" ; pset:value 0 ] .
+        [ lv2:symbol "output" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/press#preset_warm_analog_squeeze>
     a pset:Preset ;
@@ -208,7 +216,8 @@
         [ lv2:symbol "drive" ; pset:value 55 ] ,
         [ lv2:symbol "auto_makeup" ; pset:value 1 ] ,
         [ lv2:symbol "soft_clip" ; pset:value 1 ] ,
-        [ lv2:symbol "output" ; pset:value 0 ] .
+        [ lv2:symbol "output" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/press#preset_brickwall_limiter>
     a pset:Preset ;
@@ -231,4 +240,5 @@
         [ lv2:symbol "drive" ; pset:value 0 ] ,
         [ lv2:symbol "auto_makeup" ; pset:value 0 ] ,
         [ lv2:symbol "soft_clip" ; pset:value 1 ] ,
-        [ lv2:symbol "output" ; pset:value 0 ] .
+        [ lv2:symbol "output" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .

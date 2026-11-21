@@ -1,5 +1,9 @@
 # Changelog — Eka Press
 
+## Unreleased
+
+- Long-press (0.5 s) on the mode button toggles clickless true **Bypass** (`bypass` LV2 port); the entire widget turns greyscale while bypassed.
+
 ## 0.1.0 — 2026-11-21
 
 - Initial release of **Eka Press** (`eka-press.lv2`, `eka_press.so`, `zynthian_widget_eka_press.py`).

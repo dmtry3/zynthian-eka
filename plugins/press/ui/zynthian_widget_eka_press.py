@@ -12,6 +12,8 @@ from zyngui import zynthian_widget_base
 MULTI_INSTANCE = True
 
 REFRESH_SEC = 0.08
+LONG_PRESS_MS = 500
+LONG_PRESS_SLOP = 16
 TRACE_STEPS = 64
 FLOOR_DB = -60.0
 CEIL_DB = 0.0
@@ -42,6 +44,16 @@ OUT_STROKE = "#63e6be"
 GR_STROKE  = "#ff922b"
 GR_FILL    = "#5c3314"
 HOT_RED    = "#ff6b6b"
+
+# Monochrome greyscale palette used when bypass is active
+BYP_ACCENT   = "#888888"
+BYP_STROKE   = "#6e6e6e"
+BYP_IN_FILL  = "#2c2c2c"
+BYP_GR_FILL  = "#343434"
+BYP_TEXT     = "#909090"
+BYP_TEXT_DIM = "#666666"
+BYP_BTN_ON   = "#4e4e4e"
+BYP_BTN_TEXT = "#d0d0d0"
 
 
 def _limit(val, lo, hi):
@@ -94,6 +106,10 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
         self.hit_rects = {}
         self.active_drag = None
         self.graph_box = (0.0, 0.0, 1.0, 1.0)
+        self._mode_pressed = False
+        self._mode_press_ts = 0.0
+        self._mode_long_fired = False
+        self._mode_after_id = None
 
         self.widget_canvas = tkinter.Canvas(
             self,
@@ -142,15 +158,42 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
         except (TypeError, ValueError):
             return fallback
 
+    def _cancel_mode_timer(self):
+        if self._mode_after_id is not None:
+            try:
+                self.after_cancel(self._mode_after_id)
+            except Exception:
+                pass
+            self._mode_after_id = None
+
+    def _toggle_bypass(self):
+        cur = 1 if self._param("bypass", 0.0) >= 0.5 else 0
+        self._write_param("bypass", 0 if cur else 1)
+        self.refresh_gui()
+
+    def _on_mode_long_press(self):
+        self._mode_after_id = None
+        if not self._mode_pressed:
+            return
+        self._mode_long_fired = True
+        self._toggle_bypass()
+
     def _handle_press(self, event):
         px, py = event.x, event.y
         self.active_drag = None
+        self._cancel_mode_timer()
+        self._mode_pressed = False
+        self._mode_long_fired = False
 
         box = self.hit_rects.get("mode_cycle")
         if box and box[0] <= px <= box[2] and box[1] <= py <= box[3]:
-            cur_mode = int(_limit(round(self._param("mode", 0.0)), 0, len(COMPRESSOR_MODES) - 1))
-            self._write_param("mode", (cur_mode + 1) % len(COMPRESSOR_MODES))
-            self.refresh_gui()
+            self._mode_pressed = True
+            self._mode_press_ts = time.monotonic()
+            if hasattr(self, "after"):
+                try:
+                    self._mode_after_id = self.after(LONG_PRESS_MS, self._on_mode_long_press)
+                except Exception:
+                    self._mode_after_id = None
             return
 
         for sym, _, _ in SWITCH_BUTTONS:
@@ -167,11 +210,31 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
             self._drag_transfer(px, py)
 
     def _handle_motion(self, event):
+        if self._mode_pressed:
+            box = self.hit_rects.get("mode_cycle")
+            if not box or not (
+                box[0] - LONG_PRESS_SLOP <= event.x <= box[2] + LONG_PRESS_SLOP
+                and box[1] - LONG_PRESS_SLOP <= event.y <= box[3] + LONG_PRESS_SLOP
+            ):
+                self._cancel_mode_timer()
+                self._mode_pressed = False
+            return
         if self.active_drag == "transfer":
             self._drag_transfer(event.x, event.y)
 
     def _handle_release(self, _event):
         self.active_drag = None
+        if self._mode_pressed:
+            self._cancel_mode_timer()
+            self._mode_pressed = False
+            if not self._mode_long_fired:
+                if (time.monotonic() - self._mode_press_ts) >= (LONG_PRESS_MS / 1000.0):
+                    self._toggle_bypass()
+                else:
+                    cur_mode = int(_limit(round(self._param("mode", 0.0)), 0, len(COMPRESSOR_MODES) - 1))
+                    self._write_param("mode", (cur_mode + 1) % len(COMPRESSOR_MODES))
+                    self.refresh_gui()
+            self._mode_long_fired = False
 
     def _drag_transfer(self, px, py):
         gx0, gy0, gx1, gy1 = self.graph_box
@@ -202,11 +265,12 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
         auto_mk = self._param("auto_makeup", 0.0) >= 0.5
         sc_lstn = self._param("sc_listen", 0.0) >= 0.5
         sclip = self._param("soft_clip", 1.0) >= 0.5
+        bypassed = self._param("bypass", 0.0) >= 0.5
 
         in_db = _limit(self._meter("in_peak", FLOOR_DB), FLOOR_DB, 6.0)
         out_db = _limit(self._meter("out_peak", FLOOR_DB), FLOOR_DB, 6.0)
         sc_db = _limit(self._meter("sc_peak", FLOOR_DB), FLOOR_DB, 6.0)
-        gr_db = _limit(self._meter("gr_db", 0.0), 0.0, 36.0)
+        gr_db = 0.0 if bypassed else _limit(self._meter("gr_db", 0.0), 0.0, 36.0)
 
         self.in_ring.pop(0)
         self.in_ring.append(in_db)
@@ -217,9 +281,19 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
 
         self.hold_in = max(in_db, self.hold_in - 1.2)
         self.hold_out = max(out_db, self.hold_out - 1.2)
-        self.hold_gr = max(gr_db, self.hold_gr - 0.8)
+        self.hold_gr = 0.0 if bypassed else max(gr_db, self.hold_gr - 0.8)
 
-        mode_label, accent = COMPRESSOR_MODES[mode_idx]
+        mode_label, raw_accent = COMPRESSOR_MODES[mode_idx]
+        accent = BYP_ACCENT if bypassed else raw_accent
+        in_fill_c = BYP_IN_FILL if bypassed else IN_FILL
+        out_stroke_c = BYP_STROKE if bypassed else OUT_STROKE
+        gr_fill_c = BYP_GR_FILL if bypassed else GR_FILL
+        gr_stroke_c = BYP_STROKE if bypassed else GR_STROKE
+        hot_c = BYP_TEXT if bypassed else HOT_RED
+        hi_text_c = BYP_TEXT if bypassed else LABEL_HI
+        dim_text_c = BYP_TEXT_DIM if bypassed else LABEL_DIM
+        in_bar_c = BYP_STROKE if bypassed else "#4dabf7"
+        sc_badge_c = BYP_STROKE if bypassed else "#ffa94d"
         eff_k = mode_knee_db(knee, mode_idx)
 
         cv.delete("all")
@@ -274,14 +348,15 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
         dy_pt = bot_y - ((op_y_db - FLOOR_DB) / (CEIL_DB - FLOOR_DB)) * body_h
         dy_raw = bot_y - ((sc_cl - FLOOR_DB) / (CEIL_DB - FLOOR_DB)) * body_h
         if gr_db > 0.2:
-            cv.create_line(dx_pt, dy_raw, dx_pt, dy_pt, fill=GR_STROKE, width=2)
-        cv.create_oval(dx_pt - 4, dy_pt - 4, dx_pt + 4, dy_pt + 4, fill=LABEL_HI, outline=accent, width=2)
+            cv.create_line(dx_pt, dy_raw, dx_pt, dy_pt, fill=gr_stroke_c, width=2)
+        cv.create_oval(dx_pt - 4, dy_pt - 4, dx_pt + 4, dy_pt + 4, fill=hi_text_c, outline=accent, width=2)
 
         r_txt = "LIM" if ratio >= 19.9 else f"{ratio:.1f}:1"
-        cv.create_text(gx0 + 6, top_y + 5, anchor="nw", text=mode_label,
+        p1_mode_txt = f"{mode_label} (BYP)" if bypassed else mode_label
+        cv.create_text(gx0 + 6, top_y + 5, anchor="nw", text=p1_mode_txt,
                        fill=accent, font=font_md)
         cv.create_text(gx1 - 6, top_y + 6, anchor="ne", text=f"{thresh:.0f}dB {r_txt}",
-                       fill=LABEL_HI, font=font_sm)
+                       fill=hi_text_c, font=font_sm)
 
         # Panel 2: Scrolling Timeline
         cv.create_rectangle(tx0, top_y, tx1, bot_y, fill=PANEL_BG, outline=LINE_DIM, width=1)
@@ -307,17 +382,21 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
         in_poly.extend((tx1, bot_y))
         gr_poly.extend((tx1, top_y))
 
-        cv.create_polygon(*in_poly, fill=IN_FILL, outline="")
-        cv.create_line(*out_pts, fill=OUT_STROKE, width=1.5)
-        cv.create_polygon(*gr_poly, fill=GR_FILL, outline="")
-        cv.create_line(*gr_pts, fill=GR_STROKE, width=2)
+        cv.create_polygon(*in_poly, fill=in_fill_c, outline="")
+        cv.create_line(*out_pts, fill=out_stroke_c, width=1.5)
+        cv.create_polygon(*gr_poly, fill=gr_fill_c, outline="")
+        cv.create_line(*gr_pts, fill=gr_stroke_c, width=2)
 
-        gr_label = f"-{gr_db:.1f} dB" if gr_db >= 0.05 else "0.0 dB"
-        cv.create_text(tx1 - 8, top_y + 6, anchor="ne", text=f"GR {gr_label}",
-                       fill=GR_STROKE if gr_db >= 0.5 else LABEL_DIM, font=font_gr)
+        if bypassed:
+            cv.create_text(tx1 - 8, top_y + 6, anchor="ne", text="BYPASS",
+                           fill=BYP_TEXT, font=font_gr)
+        else:
+            gr_label = f"-{gr_db:.1f} dB" if gr_db >= 0.05 else "0.0 dB"
+            cv.create_text(tx1 - 8, top_y + 6, anchor="ne", text=f"GR {gr_label}",
+                           fill=gr_stroke_c if gr_db >= 0.5 else LABEL_DIM, font=font_gr)
         if sc_lstn:
             cv.create_text(tx0 + 8, top_y + 6, anchor="nw", text="SC LISTEN",
-                           fill="#ffa94d", font=font_md)
+                           fill=sc_badge_c, font=font_md)
 
         # Panel 3: Vertical Peak Meters
         cv.create_rectangle(mx0, top_y, mx1, bot_y, fill=PANEL_BG, outline=LINE_DIM, width=1)
@@ -331,7 +410,7 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
             bx0 = mx0 + mp + col_idx * (col_w + mp)
             bx1 = bx0 + col_w
             cv.create_text((bx0 + bx1) * 0.5, top_y + 9, text=title,
-                           fill=GR_STROKE if downward else LABEL_DIM, font=font_sm)
+                           fill=gr_stroke_c if downward else dim_text_c, font=font_sm)
             cv.create_rectangle(bx0, bar_y0, bx1, bar_y1, fill="#0e1116", outline="")
             if downward:
                 frac = _limit(val / MAX_GR_DB, 0.0, 1.0)
@@ -342,15 +421,15 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
             else:
                 frac = _limit((val - FLOOR_DB) / (CEIL_DB - FLOOR_DB), 0.0, 1.0)
                 pfrac = _limit((pk - FLOOR_DB) / (CEIL_DB - FLOOR_DB), 0.0, 1.0)
-                fill_c = HOT_RED if val > -0.5 else col
+                fill_c = hot_c if val > -0.5 else col
                 if frac > 0.005:
                     cv.create_rectangle(bx0 + 1, bar_y1 - frac * bar_h, bx1 - 1, bar_y1, fill=fill_c, outline="")
                 py = bar_y1 - pfrac * bar_h
-            cv.create_line(bx0, py, bx1, py, fill=LABEL_HI, width=2)
+            cv.create_line(bx0, py, bx1, py, fill=hi_text_c, width=2)
 
-        draw_meter(0, "IN", in_db, self.hold_in, "#4dabf7", downward=False)
-        draw_meter(1, "GR", gr_db, self.hold_gr, GR_STROKE, downward=True)
-        draw_meter(2, "OUT", out_db, self.hold_out, OUT_STROKE, downward=False)
+        draw_meter(0, "IN", in_db, self.hold_in, in_bar_c, downward=False)
+        draw_meter(1, "GR", gr_db, self.hold_gr, gr_stroke_c, downward=True)
+        draw_meter(2, "OUT", out_db, self.hold_out, out_stroke_c, downward=False)
 
         # Compact status readout line (fits narrow Zynthian widget width)
         sy = bot_y + margin
@@ -359,9 +438,9 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
             f"A {atk:.1f}ms  R {rel:.0f}ms  K {knee:.0f}dB  "
             f"HPF {hpf_str}  DRV {drive:.0f}%  MIX {mix:.0f}%"
         )
-        cv.create_text(w * 0.5, sy + strip_h * 0.5, text=info, fill=LABEL_DIM, font=font_sm)
+        cv.create_text(w * 0.5, sy + strip_h * 0.5, text=info, fill=dim_text_c, font=font_sm)
 
-        # Footer: single row of 5 buttons (4 toggles + 5th mode cycle button)
+        # Footer: single row of 5 buttons (4 toggles + 5th mode/bypass button)
         fy0 = sy + strip_h + 4
         fy1 = h - bot_pad
         gap = 5
@@ -377,16 +456,29 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
             x0 = margin + i * (bw + gap)
             x1 = x0 + bw
             on = sw_map[sym]
-            cv.create_rectangle(x0, fy0, x1, fy1, fill=col if on else BUTTON_BG,
-                                outline=col if on else LINE_DIM, width=2 if on else 1)
+            if bypassed:
+                btn_fill = BYP_BTN_ON if on else BUTTON_BG
+                btn_out = BYP_STROKE if on else LINE_DIM
+                btn_txt = "#16191e" if on else BYP_TEXT_DIM
+            else:
+                btn_fill = col if on else BUTTON_BG
+                btn_out = col if on else LINE_DIM
+                btn_txt = "#0b0d10" if on else LABEL_DIM
+            cv.create_rectangle(x0, fy0, x1, fy1, fill=btn_fill,
+                                outline=btn_out, width=2 if on else 1)
             cv.create_text((x0 + x1) * 0.5, (fy0 + fy1) * 0.5, text=lbl,
-                           fill="#0b0d10" if on else LABEL_DIM, font=font_sm)
+                           fill=btn_txt, font=font_sm)
             self.hit_rects[f"sw_{sym}"] = (x0, fy0, x1, fy1)
 
-        # 5th button: cycles compressor mode (CLEAN -> OPTO -> PUNCH -> GLUE)
+        # 5th button: tap cycles mode, long press toggles bypass
         mx_b0 = margin + 4 * (bw + gap)
         mx_b1 = mx_b0 + bw
-        cv.create_rectangle(mx_b0, fy0, mx_b1, fy1, fill=accent, outline=accent, width=2)
-        cv.create_text((mx_b0 + mx_b1) * 0.5, (fy0 + fy1) * 0.5, text=mode_label,
-                       fill="#0b0d10", font=font_md)
+        if bypassed:
+            cv.create_rectangle(mx_b0, fy0, mx_b1, fy1, fill=BYP_BTN_ON, outline=BYP_ACCENT, width=2)
+            cv.create_text((mx_b0 + mx_b1) * 0.5, (fy0 + fy1) * 0.5, text="BYPASS",
+                           fill=BYP_BTN_TEXT, font=font_md)
+        else:
+            cv.create_rectangle(mx_b0, fy0, mx_b1, fy1, fill=accent, outline=accent, width=2)
+            cv.create_text((mx_b0 + mx_b1) * 0.5, (fy0 + fy1) * 0.5, text=mode_label,
+                           fill="#0b0d10", font=font_md)
         self.hit_rects["mode_cycle"] = (mx_b0, fy0, mx_b1, fy1)

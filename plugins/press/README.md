@@ -69,7 +69,7 @@ Four pages of 4 encoders:
 ## Widget & Gestures
 
 - **Transfer Curve (left):** drag horizontally to set `Threshold`, vertically to set `Ratio`.
-- **Bottom 5 buttons:** tap `AUTO REL`, `AUTO GAIN`, `SC LSTN`, `SOFT CLIP` to toggle; tap the 5th colored mode button to cycle `CLEAN → OPTO → PUNCH → GLUE`.
+- **Bottom 5 buttons:** tap `AUTO REL`, `AUTO GAIN`, `SC LSTN`, `SOFT CLIP` to toggle; tap the 5th colored mode button to cycle `CLEAN → OPTO → PUNCH → GLUE`, or **long-press** it (0.5 s) to toggle clickless **Bypass** (the whole widget turns grey).
 
 ## Building & Testing on Linux / WSL
 

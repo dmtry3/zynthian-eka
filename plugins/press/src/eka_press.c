@@ -45,6 +45,9 @@ enum {
     PORT_SC_PEAK,
     PORT_GR_DB,
 
+    /* Utility */
+    PORT_BYPASS,
+
     PORT_COUNT
 };
 
@@ -130,6 +133,7 @@ static void run(LV2_Handle instance, uint32_t nframes) {
     p->auto_makeup  = read_port(self->ctrl[PORT_AUTO_MAKEUP],    0.0f) >= 0.5f ? 1 : 0;
     p->soft_clip    = read_port(self->ctrl[PORT_SOFT_CLIP],      1.0f) >= 0.5f ? 1 : 0;
     p->output_db    = read_port(self->ctrl[PORT_OUTPUT],         0.0f);
+    p->bypass       = read_port(self->ctrl[PORT_BYPASS],         0.0f) >= 0.5f ? 1 : 0;
 
     press_core_process(&self->core, p, self->in_l, self->in_r, self->out_l, self->out_r, nframes);
 

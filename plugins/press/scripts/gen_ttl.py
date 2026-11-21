@@ -12,6 +12,7 @@ GROUPS = [
     ("g_env",   "Envelope",  1, 40),
     ("g_sc",    "Sidechain", 2, 30),
     ("g_color", "Color",     3, 20),
+    ("g_util",  "Bypass",    4, 10),
 ]
 
 # Input control ports matching enum in src/eka_press.c (indices 4..19)
@@ -49,6 +50,11 @@ CONTROL_PORTS = [
          props=["lv2:integer", "lv2:toggled", "lv2:enumeration"],
          points=[("Off", 0), ("On", 1)]),
     dict(idx=19, sym="output",       name="Output",   grp="g_color", default=0.0,   min=-24.0, max=12.0,   unit="units:db"),
+
+    # Page 5: Bypass (index 24 keeps existing port indices 0..23 intact)
+    dict(idx=24, sym="bypass",       name="Bypass",   grp="g_util",  default=0,     min=0,     max=1,
+         props=["lv2:integer", "lv2:toggled", "lv2:enumeration"],
+         points=[("Off", 0), ("On", 1)]),
 ]
 
 OUTPUT_PORTS = [

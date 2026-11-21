@@ -36,6 +36,7 @@ typedef struct {
     float mix_pct;        /* 0.0 .. 100.0 % */
     int   soft_clip;      /* 0 / 1 */
     float output_db;      /* -24.0 .. +12.0 dB */
+    int   bypass;         /* 0 / 1 */
 } PressParams;
 
 typedef struct {
@@ -82,6 +83,7 @@ typedef struct {
     float sm_drive;
     float sm_sc_listen;
     float sm_hpf_mix;
+    float sm_bypass;
     int   sm_init;
 
     /* Cached block meters */

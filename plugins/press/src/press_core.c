@@ -77,6 +77,7 @@ void press_params_default(PressParams *p) {
     p->mix_pct      = 100.0f;
     p->soft_clip    = 1;
     p->output_db    = 0.0f;
+    p->bypass       = 0;
 }
 
 void press_core_reset(PressCore *c) {
@@ -183,6 +184,7 @@ void press_core_process(PressCore *c, const PressParams *p,
     const float mix_t    = clampf(p->mix_pct, 0.0f, 100.0f) * 0.01f;
     const int   sclip    = p->soft_clip ? 1 : 0;
     const float out_t    = db_to_lin(clampf(p->output_db, -24.0f, 12.0f));
+    const float bypass_t = p->bypass ? 1.0f : 0.0f;
 
     /* Update sidechain HPF coefficients if changed */
     if (fabsf(hpf_hz - c->last_hpf_hz) > 0.25f) {
@@ -209,6 +211,7 @@ void press_core_process(PressCore *c, const PressParams *p,
         c->sm_drive      = drive_t;
         c->sm_sc_listen  = sc_lstn_t;
         c->sm_hpf_mix    = hpf_mix_t;
+        c->sm_bypass     = bypass_t;
         c->sm_init       = 1;
     }
 
@@ -271,6 +274,7 @@ void press_core_process(PressCore *c, const PressParams *p,
         c->sm_drive      += sm_c * (drive_t   - c->sm_drive);
         c->sm_sc_listen  += sm_c * (sc_lstn_t - c->sm_sc_listen);
         c->sm_hpf_mix    += sm_c * (hpf_mix_t - c->sm_hpf_mix);
+        c->sm_bypass     += sm_c * (bypass_t  - c->sm_bypass);
 
         float xl = sanitizef(in_l[i]);
         float xr = sanitizef(in_r[i]);
@@ -345,7 +349,10 @@ void press_core_process(PressCore *c, const PressParams *p,
         }
 
         float gr_now = (c->env_l > c->env_r) ? c->env_l : c->env_r;
-        if (gr_now > gr_pk) gr_pk = gr_now;
+        float gr_meter = (p->bypass && c->sm_bypass >= 0.9999f)
+                             ? 0.0f
+                             : gr_now * (1.0f - c->sm_bypass);
+        if (gr_meter > gr_pk) gr_pk = gr_meter;
 
         /* Apply gain reduction + makeup */
         float gl = db_to_lin(-c->env_l) * c->sm_makeup_lin;
@@ -383,6 +390,15 @@ void press_core_process(PressCore *c, const PressParams *p,
         if (sclip) {
             yl = soft_clip_sample(yl);
             yr = soft_clip_sample(yr);
+        }
+
+        /* Clickless true bypass crossfade */
+        if (p->bypass && c->sm_bypass >= 0.9999f) {
+            yl = xl;
+            yr = xr;
+        } else if (c->sm_bypass > 1e-4f) {
+            yl = yl + c->sm_bypass * (xl - yl);
+            yr = yr + c->sm_bypass * (xr - yr);
         }
 
         yl = sanitizef(yl);
