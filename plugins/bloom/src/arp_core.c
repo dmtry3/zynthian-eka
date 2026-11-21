@@ -512,13 +512,14 @@ static void do_step(ArpCore* a, long long g, double s, arp_emit_fn emit, void* u
   if (a->rpt_mode == ARP_RPT_ECHO)
     for (int j = 0; j < k; j++) vel = vel * ARP_ECHO_PCT / 100;
   vel = clampi(vel, 1, 127);
-  if (a->dynamics < 50) vel = clampi(vel * (30 + 70 * a->dynamics / 50) / 100, 1, 127);   /* Play: Dynamics */
-  else if (a->dynamics > 50) vel = clampi(vel + (127 - vel) * (a->dynamics - 50) / 50, 1, 127);
   if (a->accent) {   /* by the feel shape h: h = 0 toward 127, h = 1 down to 30 % (at Accent 100 %) */
     const int hi = vel + a->accent * (127 - vel) / 100;
     const int lo = vel * (100 - 70 * a->accent / 100) / 100;
     vel = clampi((hi * (6 - a->off_sixths) + lo * a->off_sixths + 3) / 6, 1, 127);
   }
+  const int roll_v = vel;                                 /* pre-dynamics velocity for Roll */
+  if (a->dynamics < 50) vel = clampi(vel * (30 + 70 * a->dynamics / 50) / 100, 1, 127);   /* Play: Dynamics */
+  else if (a->dynamics > 50) vel = clampi(vel + (127 - vel) * (a->dynamics - 50) / 50, 1, 127);
 
   if (a->sounding && a->tied && a->on_note == pitch && a->on_ch == n->ch) {
     /* tied into the same pitch: the note just continues */
@@ -530,7 +531,7 @@ static void do_step(ArpCore* a, long long g, double s, arp_emit_fn emit, void* u
     if (a->sounding) note_off_at(a, s, emit, user);
     emit(user, s, (uint8_t)(0x90 | n->ch), (uint8_t)pitch, (uint8_t)vel);
   }
-  a->sounding = 1; a->on_ch = n->ch; a->on_note = (uint8_t)pitch; a->on_vel = (uint8_t)vel; a->has_on = 1;
+  a->sounding = 1; a->on_ch = n->ch; a->on_note = (uint8_t)pitch; a->on_vel = (uint8_t)roll_v; a->has_on = 1;
   int gt = 0;                                           /* gate of the step in ticks (not Tie) */
   if (gate != ARP_GATE_TIE) {
     gt = (gate == ARP_GATE_GLOBAL) ? a->gate_ticks : a->step_ticks * gate / 100;
@@ -575,7 +576,7 @@ static void do_hit(ArpCore* a, double t, arp_emit_fn emit, void* user) {
   a->rat_next += a->rat_len;
 }
 
-/* Roll: the latched note on every roll tick, half a roll tick long; the pattern steps are skipped. */
+/* Roll: the latched note on every roll tick (gate follows Gate % and Dynamics); the pattern steps are skipped. */
 static void process_roll(ArpCore* a, double from, double to, arp_emit_fn emit, void* user) {
   const double rt = a->roll_ticks;
   if (a->roll_next < from - rt) a->roll_next = -INFINITY; /* time went back */
@@ -592,9 +593,16 @@ static void process_roll(ArpCore* a, double from, double to, arp_emit_fn emit, v
     a->roll_next += rt;
     if (a->nheld == 0 || a->roll_vel == 0) continue;    /* nothing held: the roll is silent */
     if (a->sounding) note_off_at(a, t, emit, user);
-    emit(user, t, (uint8_t)(0x90 | a->roll_ch), a->roll_note, a->roll_vel);
+    int vel = a->roll_vel;
+    if (a->dynamics < 50) vel = clampi(vel * (30 + 70 * a->dynamics / 50) / 100, 1, 127);
+    else if (a->dynamics > 50) vel = clampi(vel + (127 - vel) * (a->dynamics - 50) / 50, 1, 127);
+    emit(user, t, (uint8_t)(0x90 | a->roll_ch), a->roll_note, (uint8_t)vel);
     a->sounding = 1; a->tied = 0; a->on_ch = a->roll_ch; a->on_note = a->roll_note;
-    a->off_tick = t + rt / 2;
+    double gt = rt * a->gate_pct / 100.0;
+    if (a->dynamics < 50) gt = gt * (40 + 60 * a->dynamics / 50) / 100.0;
+    else if (a->dynamics > 50) gt = gt + (rt - gt) * (a->dynamics - 50) / 50.0;
+    if (gt < 1.0) gt = 1.0;
+    a->off_tick = t + gt;
   }
   /* the steps under the roll are over: after it the pattern comes back on the next step of the grid */
   const double step = a->step_ticks;

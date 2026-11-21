@@ -19,8 +19,11 @@
         [ lv2:symbol "len_shift" ; pset:value 16.0 ] ,
         [ lv2:symbol "len_vel" ; pset:value 16.0 ] ,
         [ lv2:symbol "len_gate" ; pset:value 16.0 ] ,
+        [ lv2:symbol "len_ratch" ; pset:value 16.0 ] ,
+        [ lv2:symbol "ratch_every" ; pset:value 1.0 ] ,
         [ lv2:symbol "key" ; pset:value 0.0 ] ,
         [ lv2:symbol "scale" ; pset:value 0.0 ] ,
+        [ lv2:symbol "degree" ; pset:value 0.0 ] ,
         [ lv2:symbol "mut_notes" ; pset:value 0.0 ] ,
         [ lv2:symbol "loop_len" ; pset:value 8.0 ] ,
         [ lv2:symbol "mut_steps" ; pset:value 0.0 ] ,
@@ -33,24 +36,27 @@
         [ lv2:symbol "drunk" ; pset:value 0.0 ] ,
         [ lv2:symbol "accent" ; pset:value 0.0 ] ,
         [ lv2:symbol "passing" ; pset:value 0.0 ] ,
-        [ lv2:symbol "pass_style" ; pset:value 0.0 ] ;
+        [ lv2:symbol "pass_style" ; pset:value 0.0 ] ,
+        [ lv2:symbol "fx" ; pset:value 0.0 ] ,
+        [ lv2:symbol "density" ; pset:value 50.0 ] ,
+        [ lv2:symbol "dynamics" ; pset:value 50.0 ] ;
     state:state [
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob1> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift1> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel1> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate1> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob2> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift2> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel2> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate2> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob3> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift3> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel3> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate3> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob4> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift4> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel4> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate4> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob5> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift5> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel5> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate5> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob6> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift6> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel6> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate6> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift7> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate7> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob8> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift8> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel8> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate8> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob9> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift9> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel9> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate9> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob10> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift10> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel10> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate10> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift11> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate11> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob12> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift12> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel12> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate12> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob13> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift13> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel13> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate13> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob14> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift14> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel14> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate14> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift15> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate15> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob16> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift16> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel16> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate16> 0
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob1> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift1> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel1> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate1> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch1> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob2> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift2> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel2> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate2> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch2> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob3> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift3> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel3> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate3> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch3> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob4> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift4> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel4> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate4> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch4> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob5> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift5> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel5> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate5> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch5> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob6> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift6> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel6> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate6> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch6> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift7> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate7> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch7> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob8> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift8> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel8> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate8> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch8> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob9> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift9> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel9> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate9> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch9> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob10> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift10> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel10> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate10> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch10> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift11> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate11> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch11> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob12> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift12> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel12> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate12> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch12> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob13> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift13> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel13> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate13> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch13> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob14> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift14> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel14> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate14> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch14> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift15> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate15> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch15> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob16> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift16> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel16> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate16> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch16> 1
     ] .
 
 <http://dmtry3.github.io/zynthian-eka/bloom#preset_accent_bass>
@@ -68,8 +74,11 @@
         [ lv2:symbol "len_shift" ; pset:value 16.0 ] ,
         [ lv2:symbol "len_vel" ; pset:value 16.0 ] ,
         [ lv2:symbol "len_gate" ; pset:value 16.0 ] ,
+        [ lv2:symbol "len_ratch" ; pset:value 16.0 ] ,
+        [ lv2:symbol "ratch_every" ; pset:value 1.0 ] ,
         [ lv2:symbol "key" ; pset:value 0.0 ] ,
         [ lv2:symbol "scale" ; pset:value 0.0 ] ,
+        [ lv2:symbol "degree" ; pset:value 0.0 ] ,
         [ lv2:symbol "mut_notes" ; pset:value 0.0 ] ,
         [ lv2:symbol "loop_len" ; pset:value 8.0 ] ,
         [ lv2:symbol "mut_steps" ; pset:value 0.0 ] ,
@@ -82,24 +91,27 @@
         [ lv2:symbol "drunk" ; pset:value 0.0 ] ,
         [ lv2:symbol "accent" ; pset:value 0.0 ] ,
         [ lv2:symbol "passing" ; pset:value 0.0 ] ,
-        [ lv2:symbol "pass_style" ; pset:value 0.0 ] ;
+        [ lv2:symbol "pass_style" ; pset:value 0.0 ] ,
+        [ lv2:symbol "fx" ; pset:value 0.0 ] ,
+        [ lv2:symbol "density" ; pset:value 50.0 ] ,
+        [ lv2:symbol "dynamics" ; pset:value 50.0 ] ;
     state:state [
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob1> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift1> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel1> 130 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate1> 60 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob2> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift2> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel2> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate2> 25 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob3> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift3> 12 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel3> 90 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate3> 25 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob4> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift4> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel4> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate4> 101 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob5> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift5> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel5> 120 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate5> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob6> 60 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift6> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel6> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate6> 25 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift7> -12 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel7> 90 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate7> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob8> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift8> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel8> 60 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate8> 25 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob9> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift9> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel9> 130 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate9> 60 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob10> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift10> 12 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel10> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate10> 25 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift11> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel11> 90 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate11> 101 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob12> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift12> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel12> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate12> 101 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob13> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift13> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel13> 120 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate13> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob14> 50 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift14> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel14> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate14> 25 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift15> 7 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate15> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob16> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift16> 12 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel16> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate16> 25
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob1> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift1> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel1> 130 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate1> 60 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch1> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob2> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift2> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel2> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate2> 25 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch2> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob3> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift3> 12 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel3> 90 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate3> 25 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch3> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob4> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift4> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel4> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate4> 101 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch4> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob5> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift5> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel5> 120 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate5> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch5> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob6> 60 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift6> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel6> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate6> 25 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch6> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift7> -12 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel7> 90 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate7> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch7> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob8> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift8> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel8> 60 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate8> 25 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch8> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob9> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift9> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel9> 130 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate9> 60 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch9> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob10> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift10> 12 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel10> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate10> 25 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch10> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift11> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel11> 90 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate11> 101 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch11> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob12> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift12> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel12> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate12> 101 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch12> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob13> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift13> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel13> 120 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate13> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch13> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob14> 50 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift14> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel14> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate14> 25 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch14> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift15> 7 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate15> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch15> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob16> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift16> 12 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel16> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate16> 25 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch16> 1
     ] .
 
 <http://dmtry3.github.io/zynthian-eka/bloom#preset_polyrhythm>
@@ -117,8 +129,11 @@
         [ lv2:symbol "len_shift" ; pset:value 3.0 ] ,
         [ lv2:symbol "len_vel" ; pset:value 4.0 ] ,
         [ lv2:symbol "len_gate" ; pset:value 5.0 ] ,
+        [ lv2:symbol "len_ratch" ; pset:value 16.0 ] ,
+        [ lv2:symbol "ratch_every" ; pset:value 1.0 ] ,
         [ lv2:symbol "key" ; pset:value 0.0 ] ,
         [ lv2:symbol "scale" ; pset:value 0.0 ] ,
+        [ lv2:symbol "degree" ; pset:value 0.0 ] ,
         [ lv2:symbol "mut_notes" ; pset:value 0.0 ] ,
         [ lv2:symbol "loop_len" ; pset:value 8.0 ] ,
         [ lv2:symbol "mut_steps" ; pset:value 0.0 ] ,
@@ -131,24 +146,27 @@
         [ lv2:symbol "drunk" ; pset:value 0.0 ] ,
         [ lv2:symbol "accent" ; pset:value 0.0 ] ,
         [ lv2:symbol "passing" ; pset:value 0.0 ] ,
-        [ lv2:symbol "pass_style" ; pset:value 0.0 ] ;
+        [ lv2:symbol "pass_style" ; pset:value 0.0 ] ,
+        [ lv2:symbol "fx" ; pset:value 0.0 ] ,
+        [ lv2:symbol "density" ; pset:value 50.0 ] ,
+        [ lv2:symbol "dynamics" ; pset:value 50.0 ] ;
     state:state [
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob1> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift1> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel1> 130 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate1> 70 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob2> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift2> 12 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel2> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate2> 20 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob3> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift3> 7 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel3> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate3> 40 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob4> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift4> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel4> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate4> 20 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob5> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift5> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel5> 130 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate5> 101 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob6> 50 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift6> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel6> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate6> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift7> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate7> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob8> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift8> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel8> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate8> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob9> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift9> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel9> 130 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate9> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob10> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift10> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel10> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate10> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift11> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate11> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob12> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift12> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel12> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate12> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob13> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift13> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel13> 130 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate13> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob14> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift14> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel14> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate14> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift15> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate15> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob16> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift16> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel16> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate16> 0
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob1> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift1> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel1> 130 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate1> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch1> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob2> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift2> 12 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel2> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate2> 20 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch2> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob3> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift3> 7 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel3> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate3> 40 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch3> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob4> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift4> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel4> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate4> 20 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch4> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob5> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift5> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel5> 130 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate5> 101 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch5> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob6> 50 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift6> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel6> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate6> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch6> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift7> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate7> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch7> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob8> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift8> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel8> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate8> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch8> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob9> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift9> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel9> 130 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate9> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch9> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob10> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift10> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel10> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate10> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch10> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift11> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate11> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch11> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob12> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift12> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel12> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate12> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch12> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob13> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift13> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel13> 130 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate13> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch13> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob14> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift14> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel14> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate14> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch14> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift15> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate15> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch15> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob16> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift16> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel16> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate16> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch16> 1
     ] .
 
 <http://dmtry3.github.io/zynthian-eka/bloom#preset_turing_minor>
@@ -166,8 +184,11 @@
         [ lv2:symbol "len_shift" ; pset:value 16.0 ] ,
         [ lv2:symbol "len_vel" ; pset:value 16.0 ] ,
         [ lv2:symbol "len_gate" ; pset:value 16.0 ] ,
+        [ lv2:symbol "len_ratch" ; pset:value 16.0 ] ,
+        [ lv2:symbol "ratch_every" ; pset:value 1.0 ] ,
         [ lv2:symbol "key" ; pset:value 9.0 ] ,
         [ lv2:symbol "scale" ; pset:value 2.0 ] ,
+        [ lv2:symbol "degree" ; pset:value 0.0 ] ,
         [ lv2:symbol "mut_notes" ; pset:value 10.0 ] ,
         [ lv2:symbol "loop_len" ; pset:value 8.0 ] ,
         [ lv2:symbol "mut_steps" ; pset:value 0.0 ] ,
@@ -180,24 +201,27 @@
         [ lv2:symbol "drunk" ; pset:value 0.0 ] ,
         [ lv2:symbol "accent" ; pset:value 0.0 ] ,
         [ lv2:symbol "passing" ; pset:value 0.0 ] ,
-        [ lv2:symbol "pass_style" ; pset:value 0.0 ] ;
+        [ lv2:symbol "pass_style" ; pset:value 0.0 ] ,
+        [ lv2:symbol "fx" ; pset:value 0.0 ] ,
+        [ lv2:symbol "density" ; pset:value 50.0 ] ,
+        [ lv2:symbol "dynamics" ; pset:value 50.0 ] ;
     state:state [
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob1> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift1> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel1> 120 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate1> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob2> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift2> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel2> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate2> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob3> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift3> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel3> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate3> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob4> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift4> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel4> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate4> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob5> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift5> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel5> 120 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate5> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob6> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift6> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel6> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate6> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift7> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate7> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob8> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift8> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel8> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate8> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob9> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift9> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel9> 120 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate9> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob10> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift10> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel10> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate10> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift11> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate11> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob12> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift12> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel12> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate12> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob13> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift13> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel13> 120 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate13> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob14> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift14> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel14> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate14> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift15> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate15> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob16> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift16> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel16> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate16> 0
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob1> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift1> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel1> 120 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate1> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch1> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob2> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift2> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel2> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate2> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch2> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob3> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift3> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel3> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate3> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch3> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob4> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift4> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel4> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate4> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch4> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob5> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift5> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel5> 120 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate5> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch5> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob6> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift6> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel6> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate6> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch6> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift7> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate7> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch7> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob8> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift8> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel8> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate8> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch8> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob9> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift9> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel9> 120 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate9> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch9> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob10> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift10> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel10> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate10> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch10> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift11> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate11> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch11> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob12> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift12> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel12> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate12> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch12> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob13> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift13> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel13> 120 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate13> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch13> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob14> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift14> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel14> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate14> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch14> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift15> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate15> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch15> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob16> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift16> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel16> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate16> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch16> 1
     ] .
 
 <http://dmtry3.github.io/zynthian-eka/bloom#preset_breathing>
@@ -215,8 +239,11 @@
         [ lv2:symbol "len_shift" ; pset:value 8.0 ] ,
         [ lv2:symbol "len_vel" ; pset:value 8.0 ] ,
         [ lv2:symbol "len_gate" ; pset:value 8.0 ] ,
+        [ lv2:symbol "len_ratch" ; pset:value 16.0 ] ,
+        [ lv2:symbol "ratch_every" ; pset:value 1.0 ] ,
         [ lv2:symbol "key" ; pset:value 0.0 ] ,
         [ lv2:symbol "scale" ; pset:value 1.0 ] ,
+        [ lv2:symbol "degree" ; pset:value 0.0 ] ,
         [ lv2:symbol "mut_notes" ; pset:value 0.0 ] ,
         [ lv2:symbol "loop_len" ; pset:value 8.0 ] ,
         [ lv2:symbol "mut_steps" ; pset:value 25.0 ] ,
@@ -229,24 +256,27 @@
         [ lv2:symbol "drunk" ; pset:value 0.0 ] ,
         [ lv2:symbol "accent" ; pset:value 0.0 ] ,
         [ lv2:symbol "passing" ; pset:value 0.0 ] ,
-        [ lv2:symbol "pass_style" ; pset:value 0.0 ] ;
+        [ lv2:symbol "pass_style" ; pset:value 0.0 ] ,
+        [ lv2:symbol "fx" ; pset:value 0.0 ] ,
+        [ lv2:symbol "density" ; pset:value 50.0 ] ,
+        [ lv2:symbol "dynamics" ; pset:value 50.0 ] ;
     state:state [
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob1> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift1> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel1> 110 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate1> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob2> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift2> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel2> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate2> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob3> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift3> 2 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel3> 90 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate3> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob4> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift4> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel4> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate4> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob5> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift5> 4 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel5> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate5> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob6> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift6> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel6> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate6> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift7> -3 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel7> 90 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate7> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob8> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift8> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel8> 60 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate8> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob9> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift9> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel9> 110 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate9> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob10> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift10> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel10> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate10> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift11> 2 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel11> 90 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate11> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob12> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift12> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel12> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate12> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob13> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift13> 4 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel13> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate13> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob14> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift14> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel14> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate14> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift15> -3 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel15> 90 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate15> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob16> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift16> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel16> 60 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate16> 0
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob1> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift1> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel1> 110 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate1> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch1> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob2> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift2> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel2> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate2> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch2> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob3> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift3> 2 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel3> 90 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate3> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch3> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob4> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift4> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel4> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate4> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch4> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob5> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift5> 4 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel5> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate5> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch5> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob6> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift6> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel6> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate6> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch6> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift7> -3 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel7> 90 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate7> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch7> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob8> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift8> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel8> 60 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate8> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch8> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob9> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift9> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel9> 110 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate9> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch9> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob10> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift10> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel10> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate10> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch10> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift11> 2 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel11> 90 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate11> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch11> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob12> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift12> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel12> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate12> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch12> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob13> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift13> 4 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel13> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate13> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch13> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob14> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift14> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel14> 70 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate14> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch14> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift15> -3 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel15> 90 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate15> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch15> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob16> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift16> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel16> 60 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate16> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch16> 1
     ] .
 
 <http://dmtry3.github.io/zynthian-eka/bloom#preset_scale_runs>
@@ -264,8 +294,11 @@
         [ lv2:symbol "len_shift" ; pset:value 16.0 ] ,
         [ lv2:symbol "len_vel" ; pset:value 3.0 ] ,
         [ lv2:symbol "len_gate" ; pset:value 5.0 ] ,
+        [ lv2:symbol "len_ratch" ; pset:value 16.0 ] ,
+        [ lv2:symbol "ratch_every" ; pset:value 1.0 ] ,
         [ lv2:symbol "key" ; pset:value 2.0 ] ,
         [ lv2:symbol "scale" ; pset:value 3.0 ] ,
+        [ lv2:symbol "degree" ; pset:value 0.0 ] ,
         [ lv2:symbol "mut_notes" ; pset:value 0.0 ] ,
         [ lv2:symbol "loop_len" ; pset:value 8.0 ] ,
         [ lv2:symbol "mut_steps" ; pset:value 0.0 ] ,
@@ -278,23 +311,26 @@
         [ lv2:symbol "drunk" ; pset:value 0.0 ] ,
         [ lv2:symbol "accent" ; pset:value 0.0 ] ,
         [ lv2:symbol "passing" ; pset:value 0.0 ] ,
-        [ lv2:symbol "pass_style" ; pset:value 0.0 ] ;
+        [ lv2:symbol "pass_style" ; pset:value 0.0 ] ,
+        [ lv2:symbol "fx" ; pset:value 0.0 ] ,
+        [ lv2:symbol "density" ; pset:value 50.0 ] ,
+        [ lv2:symbol "dynamics" ; pset:value 50.0 ] ;
     state:state [
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob1> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift1> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel1> 125 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate1> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob2> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift2> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel2> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate2> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob3> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift3> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel3> 95 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate3> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob4> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift4> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel4> 125 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate4> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob5> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift5> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel5> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate5> 101 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob6> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift6> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel6> 95 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate6> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift7> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel7> 125 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate7> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob8> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift8> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel8> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate8> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob9> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift9> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel9> 95 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate9> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob10> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift10> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel10> 125 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate10> 101 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift11> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel11> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate11> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob12> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift12> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel12> 95 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate12> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob13> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift13> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel13> 125 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate13> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob14> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift14> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel14> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate14> 0 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift15> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel15> 95 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate15> 101 ;
-        <http://dmtry3.github.io/zynthian-eka/bloom#prob16> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift16> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel16> 125 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate16> 0
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob1> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift1> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel1> 125 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate1> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch1> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob2> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift2> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel2> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate2> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch2> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob3> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift3> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel3> 95 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate3> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch3> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob4> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift4> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel4> 125 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate4> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch4> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob5> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift5> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel5> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate5> 101 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch5> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob6> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift6> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel6> 95 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate6> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch6> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob7> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift7> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel7> 125 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate7> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch7> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob8> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift8> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel8> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate8> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch8> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob9> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift9> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel9> 95 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate9> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch9> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob10> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift10> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel10> 125 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate10> 101 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch10> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob11> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift11> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel11> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate11> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch11> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob12> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift12> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel12> 95 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate12> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch12> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob13> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift13> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel13> 125 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate13> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch13> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob14> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift14> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel14> 80 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate14> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch14> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob15> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift15> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel15> 95 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate15> 101 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch15> 1 ;
+        <http://dmtry3.github.io/zynthian-eka/bloom#prob16> 100 ; <http://dmtry3.github.io/zynthian-eka/bloom#shift16> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#vel16> 125 ; <http://dmtry3.github.io/zynthian-eka/bloom#gate16> 0 ; <http://dmtry3.github.io/zynthian-eka/bloom#ratch16> 1
     ] .
 

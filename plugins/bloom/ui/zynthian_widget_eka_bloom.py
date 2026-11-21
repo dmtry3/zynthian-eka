@@ -127,7 +127,6 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         self.lane = 0
         self.drag = None             # (lane, last column, last y) while a finger is on the grid
         self.last_tap = (-1, -1, 0.0)  # (lane, column, time) for double tap
-        self.last_scale = None       # scale seen on the previous redraw (None until the first one)
         self.geo = None
         self.roll_bars = 2           # Roll window in bars
         self.mm = None               # shared memory of the plugin (Roll tab)
@@ -144,6 +143,7 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         self.widget_canvas.bind("<ButtonPress-1>", self._on_press)
         self.widget_canvas.bind("<B1-Motion>", self._on_motion)
         self.widget_canvas.bind("<ButtonRelease-1>", self._on_release)
+        self.widget_canvas.bind("<Unmap>", self._on_unmap)
 
     def on_size(self, event):
         if not super().on_size(event):
@@ -231,15 +231,13 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
                 return r
         return self._snap_shift(v)
 
-    def _follow_scale(self):
-        """When the scale changes, move every Shift step into it (the values are saved in the snapshot).
-        Not on the first redraw: a loading snapshot already holds values that fit its scale."""
-        sc = self._scale()
-        if self.last_scale is not None and sc != self.last_scale:
-            for i in range(NSTEPS):
-                v = self._step_val(1, i)
-                self._zset("shift%d" % (i + 1), self._remap_shift(v, self.last_scale, sc))
-        self.last_scale = sc
+    def _remap_shifts(self, old, new):
+        """Move every Shift step into the new scale (only when the user picks a scale on the Scale view)."""
+        if new == old:
+            return
+        for i in range(NSTEPS):
+            v = self._step_val(1, i)
+            self._zset("shift%d" % (i + 1), self._remap_shift(v, old, new))
 
     def _drift(self, lane, i):
         """Drift of row `lane` of step i in notches, from the dev<i> output port of the plugin."""
@@ -351,6 +349,10 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         self.drag = None
         self._play_release()
 
+    def _on_unmap(self, event=None):
+        self.drag = None
+        self._play_release()
+
     def _paint(self, col, y, redraw=True):
         key = LANES[self.lane][0]
         self._zset("%s%d" % (key, col + 1), self._value_at(self.lane, y))
@@ -387,7 +389,6 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
         if not self.processor:
             return
         self._follow_page()
-        self._follow_scale()
         c = self.widget_canvas
         c.delete("dyn")
         w, h, pad, tab_h, num_h, x0, x1, y0, y1, cw = self._layout()
@@ -892,7 +893,9 @@ class zynthian_widget_eka_bloom(zynthian_widget_base.zynthian_widget_base):
                 if kind == "key":
                     self._zset("key", val)
                 elif kind == "scale":
+                    old = self._scale()
                     self._zset("scale", val)
+                    self._remap_shifts(old, val)
                 elif kind == "degree":
                     self._zset("degree", val)
                 self._draw()
