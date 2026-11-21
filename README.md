@@ -2,8 +2,8 @@
 
 **English** · [Русский](README.ru.md)
 
-Nine LV2 plugins for [Zynthian](https://zynthian.org), each with its own touch widget: an audio looper, a MIDI
-looper, a generative arpeggiator, a granular sampler, a West Coast synth, a live granular effect, a four-voice pitch harmonizer, a rhythmic multi-effect shaper and a single-band live compressor. They are made to play live on a
+Ten LV2 plugins for [Zynthian](https://zynthian.org), each with its own touch widget: an audio looper, a MIDI
+looper, a generative arpeggiator, a granular sampler, a West Coast synth, a live granular effect, a four-voice pitch harmonizer, a rhythmic multi-effect shaper, a single-band live compressor and a 4-band parametric equalizer. They are made to play live on a
 Raspberry Pi 5 and to work together in one setup.
 
 > Tested on: Zynthian **Vangelis** (stable 2610), Raspberry Pi 5, V5 kit, 800x480 touch screen.
@@ -73,6 +73,10 @@ Four compressor characters (`Clean`, `Opto`, `Punch`, `Glue`), `SC HPF` (`20..50
 
 ![Eka Press](plugins/press/docs/1-main.png)
 
+### [Eka Q-4](plugins/q4): 4-band live parametric equalizer
+
+Four 64-bit parametric bands (`Shelf`, `Bell`, `Pultec`, `Notch`, `Air`, `Off`), Butterworth `HPF`/`LPF` (`12`/`24 dB/oct`), `1 kHz` `Tilt`, global `Scale`, per-band `Solo` audition, perceptual `AutoGain`, a zero-latency 24-band live spectrum analyzer behind an interactive touch EQ graph, and 10 factory presets.
+
 ## A setup
 
 A typical chain: **Roll** records the chords, **Bloom** turns them into a moving arpeggio, **Fold** or **Mist**
@@ -85,7 +89,7 @@ On the Zynthian (SSH as root):
 ```bash
 git clone https://github.com/dmtry3/zynthian-eka.git
 cd zynthian-eka
-sudo make install-bloom          # one plugin: tape, roll, bloom, mist, fold, grainflow, weave4, pulse or press
+sudo make install-bloom          # one plugin: tape, roll, bloom, mist, fold, grainflow, weave4, pulse, press or q4
 sudo make install                # or all of them
 systemctl restart zynthian
 ```
