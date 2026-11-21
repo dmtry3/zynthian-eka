@@ -131,6 +131,7 @@ void ep_core_init(EpCore* c, double sr) {
   c->seq.scene = 0;
   c->seq.pend_scene = -1;
   c->seq.cur_step = -1;
+  c->seq.num_steps = EP_STEPS_DEF;
   c->seq.bpm = 120.0;
   c->seq.swing = 50.0f;
   c->seq.last_step_fired = -1;
@@ -315,6 +316,22 @@ void ep_seq_set_mode(EpCore* c, int mode) {
   }
 }
 
+void ep_seq_set_len(EpCore* c, int steps) {
+  if (steps < EP_STEPS_MIN) steps = EP_STEPS_MIN;
+  if (steps > EP_STEPS) steps = EP_STEPS;
+  c->seq.num_steps = steps;
+  double len = (double)steps;
+  if (c->seq.bar_phase >= len) {
+    c->seq.bar_phase = fmod(c->seq.bar_phase, len);
+  }
+  if (c->seq.last_step_fired >= steps) {
+    c->seq.last_step_fired = steps - 1;
+  }
+  if (c->seq.cur_step >= steps) {
+    c->seq.cur_step = steps - 1;
+  }
+}
+
 void ep_seq_request_scene(EpCore* c, int scene) {
   if (scene < 0 || scene >= EP_SCENES) return;
   if (c->seq.mode == EP_SEQ_STOP) {
@@ -338,13 +355,16 @@ void ep_seq_sync_host(EpCore* c, double bpm, int playing, double bar_beat, int b
   if (!was_host && c->seq.host_playing && c->seq.mode == EP_SEQ_STOP) {
     ep_seq_set_mode(c, EP_SEQ_PLAY);
   }
+  int nsteps = c->seq.num_steps;
+  if (nsteps < EP_STEPS_MIN || nsteps > EP_STEPS) nsteps = EP_STEPS_DEF;
+  double len = (double)nsteps;
   if (playing && bpb > 0 && bar_beat >= 0.0) {
-    /* Map host barBeat (0..bpb) onto 0..16 16th-note phase */
-    double ph = fmod(bar_beat * 4.0, 16.0);
-    if (ph < 0.0) ph += 16.0;
+    /* Map host barBeat (0..bpb) onto 0..len 16th-note phase */
+    double ph = fmod(bar_beat * 4.0, len);
+    if (ph < 0.0) ph += len;
     /* Only hard-sync if drift > 0.15 steps so internal sample-accurate stepping stays jitter-free */
     double diff = fabs(ph - c->seq.bar_phase);
-    if (diff > 8.0) diff = 16.0 - diff;
+    if (diff > len * 0.5) diff = len - diff;
     if (diff > 0.15) {
       c->seq.bar_phase = ph;
     }
@@ -353,12 +373,14 @@ void ep_seq_sync_host(EpCore* c, double bpm, int playing, double bar_beat, int b
 
 void ep_seq_record_hit(EpCore* c, int pad, int vel) {
   if (c->seq.mode != EP_SEQ_REC || pad < 0 || pad >= EP_PADS || vel <= 0) return;
+  int nsteps = c->seq.num_steps;
+  if (nsteps < EP_STEPS_MIN || nsteps > EP_STEPS) nsteps = EP_STEPS_DEF;
   double ph = c->seq.bar_phase;
-  int step = (int)llround(ph) % EP_STEPS;
-  if (step < 0) step += EP_STEPS;
+  int step = (int)llround(ph) % nsteps;
+  if (step < 0) step += nsteps;
   c->scenes[c->seq.scene].steps[pad][step].vel = (uint8_t)(vel > 127 ? 127 : vel);
   /* If quantized forward to the next upcoming step, suppress its immediate auto-trigger once */
-  int cur = (int)floor(ph) % EP_STEPS;
+  int cur = (int)floor(ph) % nsteps;
   if (step != cur) {
     c->seq.skip_step = step;
     c->seq.skip_next_mask |= (uint16_t)(1u << pad);
@@ -606,6 +628,9 @@ void ep_core_process(EpCore* c, float* out_l, float* out_r, uint32_t nframes, in
     if (chunk > 256) chunk = 256;
 
     if (c->seq.mode != EP_SEQ_STOP) {
+      int nsteps = c->seq.num_steps;
+      if (nsteps < EP_STEPS_MIN || nsteps > EP_STEPS) nsteps = EP_STEPS_DEF;
+      double len = (double)nsteps;
       double bpm = c->seq.bpm < 40.0 ? 40.0 : (c->seq.bpm > 240.0 ? 240.0 : c->seq.bpm);
       /* 4 16th-notes per quarter note */
       double steps_per_sample = (bpm / 60.0) * 4.0 / c->sr;
@@ -620,10 +645,10 @@ void ep_core_process(EpCore* c, float* out_l, float* out_r, uint32_t nframes, in
           fire_seq_step(c, 0, samples_per_step);
         }
 
-        int next_step = (c->seq.last_step_fired + 1) % EP_STEPS;
+        int next_step = (c->seq.last_step_fired + 1) % nsteps;
         double target_ph = step_trigger_phase(next_step, c->seq.swing);
         double dph = target_ph - c->seq.bar_phase;
-        if (dph < -8.0) dph += 16.0;
+        if (dph < -len * 0.5) dph += len;
         else if (dph < 0.0) dph = 0.0;
         uint32_t to_step = (uint32_t)ceil(dph * samples_per_step);
 
@@ -649,7 +674,7 @@ void ep_core_process(EpCore* c, float* out_l, float* out_r, uint32_t nframes, in
         if (adv > 0) {
           render_voices(c, out_l + done + sub_pos, out_r + done + sub_pos,
                         send_l, send_r, adv, sel_pad);
-          c->seq.bar_phase = fmod(c->seq.bar_phase + (double)adv * steps_per_sample, 16.0);
+          c->seq.bar_phase = fmod(c->seq.bar_phase + (double)adv * steps_per_sample, len);
           for (int p = 0; p < EP_PADS; p++) {
             if (c->seq.roll_rem[p] > 0) c->seq.roll_timer[p] -= (double)adv;
           }

@@ -9,7 +9,9 @@
 #define EP_CHOKE_MAX  4
 #define EP_FADE_MS    2.0f
 #define EP_SCENES     8
-#define EP_STEPS      16
+#define EP_STEPS      32
+#define EP_STEPS_MIN  4
+#define EP_STEPS_DEF  16
 
 /* Sequencer modes */
 enum {
@@ -109,7 +111,8 @@ typedef struct {
   int mode;               /* EP_SEQ_STOP / PLAY / REC */
   int scene;              /* 0..7 currently playing scene */
   int pend_scene;         /* -1 or 0..7 queued for next bar */
-  int cur_step;           /* -1 if stopped, 0..15 */
+  int cur_step;           /* -1 if stopped, 0..num_steps-1 */
+  int num_steps;          /* 4..32 active pattern length */
   double bpm;             /* 40..240 */
   float swing;            /* 50..75 % */
   double bar_phase;       /* 0..16 in 16th-note units */
@@ -153,6 +156,7 @@ void ep_core_all_off(EpCore* c);
 
 /* Sequencer control */
 void ep_seq_set_mode(EpCore* c, int mode);
+void ep_seq_set_len(EpCore* c, int steps);
 void ep_seq_request_scene(EpCore* c, int scene);
 void ep_seq_sync_host(EpCore* c, double bpm, int playing, double bar_beat, int bpb);
 void ep_seq_record_hit(EpCore* c, int pad, int vel);

@@ -28,7 +28,7 @@
 #define EP_MAX_SECONDS 120.0
 #define EP_RETIRED_MAX 32
 #define EP_SHM_MAGIC   0x45504144u /* "EPAD" */
-#define EP_SHM_VER     1u
+#define EP_SHM_VER     2u
 
 /* Control input ports MUST come first (0..P_END-1) for Zynthian's controller indexing. */
 enum {
@@ -52,14 +52,15 @@ enum {
 #define N_CTL     P_END
 #define N_PAD_CTL 12
 
-/* Packed seq_cmd operations: (op << 20) | (a << 16) | (b << 12) | (c << 8) | val */
+/* Packed seq_cmd operations: (op << 21) | (a << 17) | (b << 13) | (c << 8) | val */
 enum {
-  CMD_SET_VEL = 1,    /* a=scene, b=pad, c=step, val=vel(0..127) */
-  CMD_SET_ROLL,       /* a=scene, b=pad, c=step, val=roll(0..3) */
+  CMD_SET_VEL = 1,    /* a=scene, b=pad, c=step(0..31), val=vel(0..127) */
+  CMD_SET_ROLL,       /* a=scene, b=pad, c=step(0..31), val=roll(0..3) */
   CMD_CLEAR_PAD,      /* a=scene, b=pad */
   CMD_CLEAR_SCENE,    /* a=scene */
   CMD_COPY_SCENE,     /* a=src_scene, b=dst_scene */
-  CMD_TRIG_PAD        /* b=pad, val=vel(1..127) */
+  CMD_TRIG_PAD,       /* b=pad, val=vel(1..127) */
+  CMD_SET_LEN         /* val=steps(4..32) */
 };
 
 /* Shared memory snapshot read by the Zynthian Python widget */
@@ -76,11 +77,14 @@ typedef struct {
   int32_t  seq_step;
   float    bpm;
   float    swing;
+  int32_t  seq_len;     /* 4..32 active steps */
+  uint32_t hit_seq;     /* incremented on every MIDI pad trigger */
+  int32_t  last_hit_pad;/* 0..15 pad index of latest MIDI hit */
   EpPadParams pads[EP_PADS];
   EpScene  scenes[EP_SCENES];
 } EpShm;
 _Static_assert(sizeof(EpPadParams) == 64, "EpPadParams size must match Python widget");
-_Static_assert(sizeof(EpShm) == 5168, "EpShm size must match Python widget");
+_Static_assert(sizeof(EpShm) == 9276, "EpShm size must match Python widget");
 
 /* Worker messages */
 enum { MSG_LOAD = 1, MSG_FREE };
@@ -112,7 +116,7 @@ typedef struct {
 
   LV2_URID p_sample[EP_PADS];
   LV2_URID p_sel_pad, p_follow, p_learn, p_mute_mask, p_solo_mask, p_pad_end;
-  LV2_URID p_seq_bpm, p_seq_cmd;
+  LV2_URID p_seq_bpm, p_seq_cmd, p_seq_len;
   LV2_URID st_pad_params, st_scenes;
 
   EpSample* samples[EP_PADS];
@@ -125,6 +129,8 @@ typedef struct {
   int sel_pad;
   int follow;
   int learn;
+  uint32_t hit_seq;
+  int32_t last_hit_pad;
   int report_next;
 
   float prev_ctl[N_CTL];
@@ -152,6 +158,9 @@ static void shm_publish(EkaPads* P) {
   s->seq_step  = P->core.seq.cur_step;
   s->bpm       = (float)P->core.seq.bpm;
   s->swing     = P->core.seq.swing;
+  s->seq_len   = P->core.seq.num_steps;
+  s->hit_seq   = P->hit_seq;
+  s->last_hit_pad = P->last_hit_pad;
   if (P->shm_dirty) {
     memcpy(s->pads, P->core.pad, sizeof P->core.pad);
     memcpy(s->scenes, P->core.scenes, sizeof P->core.scenes);
@@ -263,10 +272,10 @@ static int atom_to_double(const EkaPads* P, const LV2_Atom* a, double* out) {
 }
 
 static void handle_seq_cmd(EkaPads* P, int cmd) {
-  int op  = (cmd >> 20) & 0xF;
-  int a   = (cmd >> 16) & 0xF;
-  int b   = (cmd >> 12) & 0xF;
-  int c   = (cmd >> 8)  & 0xF;
+  int op  = (cmd >> 21) & 0xF;
+  int a   = (cmd >> 17) & 0xF;
+  int b   = (cmd >> 13) & 0xF;
+  int c   = (cmd >> 8)  & 0x1F;
   int val = cmd & 0xFF;
 
   switch (op) {
@@ -298,6 +307,10 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
       if (b < EP_PADS) {
         ep_core_trigger(&P->core, b, val > 0 ? (val > 127 ? 127 : val) : 100);
       }
+      break;
+    case CMD_SET_LEN:
+      ep_seq_set_len(&P->core, val);
+      P->shm_dirty = 1;
       break;
     default:
       break;
@@ -493,6 +506,7 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double sr, const char* bu
   P->p_pad_end     = P->map->map(P->map->handle, EP_URI "#pad_end");
   P->p_seq_bpm     = P->map->map(P->map->handle, EP_URI "#seq_bpm");
   P->p_seq_cmd     = P->map->map(P->map->handle, EP_URI "#seq_cmd");
+  P->p_seq_len     = P->map->map(P->map->handle, EP_URI "#seq_len");
   P->st_pad_params = P->map->map(P->map->handle, EP_URI "#state_pads");
   P->st_scenes     = P->map->map(P->map->handle, EP_URI "#state_scenes");
 
@@ -623,6 +637,8 @@ static void run(LV2_Handle h, uint32_t nframes) {
             for (int p = 0; p < EP_PADS; p++) {
               if (P->core.pad[p].midi_note == note) {
                 matched = 1;
+                P->last_hit_pad = p;
+                P->hit_seq++;
                 if (P->follow) P->sel_pad = p;
                 ep_core_trigger(&P->core, p, vel);
                 if (P->core.seq.mode == EP_SEQ_REC) {
@@ -743,11 +759,14 @@ static LV2_State_Status state_save(LV2_Handle h, LV2_State_Store_Function store,
     }
   }
   int32_t bpm_i = (int32_t)lrint(P->core.seq.bpm);
+  int32_t len_i = (int32_t)P->core.seq.num_steps;
   store(handle, P->p_sel_pad, &P->sel_pad, sizeof(int32_t), P->atom_Int,
         LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
   store(handle, P->p_follow, &P->follow, sizeof(int32_t), P->atom_Int,
         LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
   store(handle, P->p_seq_bpm, &bpm_i, sizeof(int32_t), P->atom_Int,
+        LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+  store(handle, P->p_seq_len, &len_i, sizeof(int32_t), P->atom_Int,
         LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
   store(handle, P->st_pad_params, P->core.pad, sizeof P->core.pad, P->atom_Chunk,
         LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
@@ -770,6 +789,19 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
   const void* sc = retrieve(handle, P->st_scenes, &sz, &type, &fl);
   if (sc && sz == sizeof P->core.scenes) {
     memcpy(P->core.scenes, sc, sz);
+  } else if (sc && sz == (size_t)(EP_SCENES * EP_PADS * 16 * sizeof(EpStep))) {
+    /* Legacy 16-step snapshot migration */
+    memset(P->core.scenes, 0, sizeof P->core.scenes);
+    const EpStep* old = (const EpStep*)sc;
+    for (int s = 0; s < EP_SCENES; s++) {
+      for (int p = 0; p < EP_PADS; p++) {
+        memcpy(P->core.scenes[s].steps[p], old + (s * EP_PADS + p) * 16, 16 * sizeof(EpStep));
+      }
+    }
+  }
+  const void* lv = retrieve(handle, P->p_seq_len, &sz, &type, &fl);
+  if (lv && sz == sizeof(int32_t)) {
+    ep_seq_set_len(&P->core, *(const int32_t*)lv);
   }
   const void* sp = retrieve(handle, P->p_sel_pad, &sz, &type, &fl);
   if (sp && sz == sizeof(int32_t)) {
