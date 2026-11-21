@@ -60,7 +60,7 @@ SHIFT_STEPS = ((960, "1/4"), (480, "1/8"), (240, "1/16"), (120, "1/32"), (60, "1
 SHIFT_DEFAULT = 2                     # 1/16
 SLOT_SEL = "#a8f0a8"                  # the selected slot: light green
 
-# Undo/Redo on one knob: tap = Undo, long press (touch or encoder push) = Redo.
+# Undo/Redo on one knob: tap = Undo, bold press = Redo, long press = Zynthian controller options / MIDI learn.
 # Open Roll widgets by processor id: the touch hook below is shared by all instances.
 ROLL_WIDGETS = {}
 
@@ -131,8 +131,8 @@ def _hook_control_cuia(ctl):
 def _hook_touch_release(zc):
     """Touch on the Undo/Redo knob. Zynthian toggles the knob on a short tap, which would leave it turned and
     so become a Redo after 0.5 s: make a short tap a quick turn-and-back (= Undo) instead.
-    A long touch: older Zynthian (oram) decides it here (= Redo); newer ones send it through
-    cuia_v5_zynpot_switch (see above)."""
+    A bold touch: older Zynthian (oram) decides it here (= Redo), leaving a long touch (>= zynswitch_long_seconds)
+    to Zynthian's controller options / MIDI learn; newer ones send bold/long through cuia_v5_zynpot_switch."""
     if getattr(zc, "_eka_roll_hook", False):
         return
     orig = getattr(zc, "cb_canvas_release", None)
@@ -159,7 +159,8 @@ def _hook_touch_release(zc):
                     dbg("touch tap on Undo/Redo -> Undo")
                     wdg.undo()
                     return
-                if dts is not None and hasattr(zc, "canvas_push_ts"):           # oram: long touch here
+                if (dts is not None and hasattr(zc, "canvas_push_ts")
+                        and dts < getattr(zynthian_gui_config, "zynswitch_long_seconds", 2.0)):  # oram: bold touch
                     zc.canvas_push_ts = None
                     wdg.redo()
                     return
@@ -373,7 +374,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             return False
 
     def cuia_v5_zynpot_switch(self, params):
-        """Encoder push on the Undo/Redo knob: short = Undo, bold/long = Redo."""
+        """Encoder push on the Undo/Redo knob: short = Undo, bold = Redo, long = Zynthian options / MIDI learn."""
         try:
             i, t = int(params[0]), str(params[1]).upper()
             ctl = self.zyngui_control
@@ -384,9 +385,11 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                 return False
             if t == "S":
                 self.undo()
-            else:
+                return True
+            if t == "B":
                 self.redo()
-            return True
+                return True
+            return False
         except Exception:
             return False
 
