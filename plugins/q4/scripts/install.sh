@@ -21,9 +21,42 @@ mkdir -p "$USER_PSET"
 EOF2
 echo "User presets: $USER_PSET"
 ENVARS="${ZYNTHIAN_ENVARS:-/zynthian/config/zynthian_envars.sh}"
+CFG_DIR="${ZYNTHIAN_CONFIG_DIR:-/zynthian/config}"
 if [ -f "$UI_DIR/zyngine/zynthian_lv2.py" ] && [ -f "$ENVARS" ]; then
     ( set +e; source "$ENVARS"; cd "$UI_DIR" && python3 zyngine/zynthian_lv2.py presets http://dmtry3.github.io/zynthian-eka/q4 ) \
         && echo "Preset list updated." || echo "Warning: preset list not updated (run install.sh again on Zynthian)."
 fi
+python3 - "$CFG_DIR" <<'PYEOF'
+import json, os, sys
+from pathlib import Path
+
+cfg_dir = Path(sys.argv[1])
+uri = "http://dmtry3.github.io/zynthian-eka/q4"
+for rel in ("engine_config.json", "jalv/plugins.json"):
+    p = cfg_dir / rel
+    if not p.is_file():
+        continue
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        continue
+    if not isinstance(data, dict):
+        continue
+    changed = False
+    for k, v in data.items():
+        if isinstance(v, dict) and (v.get("URL") == uri or k in ("JV/Eka Q-4", "Eka Q-4")):
+            if v.get("CAT") != "Filter & EQ":
+                v["CAT"] = "Filter & EQ"
+                changed = True
+            if "CLASS" in v and v["CLASS"] != "Filter & EQ":
+                v["CLASS"] = "Filter & EQ"
+                changed = True
+    if changed:
+        tmp = p.with_name(p.name + ".q4.tmp")
+        tmp.write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+        os.chmod(tmp, p.stat().st_mode & 0o777)
+        tmp.replace(p)
+        print(f"Updated category to 'Filter & EQ' in {p}")
+PYEOF
 echo "Installed. Restart Zynthian: systemctl restart zynthian"
 echo "If Eka Q-4 is not in the list of audio effects: webconf -> Software -> LV2 Plugins, enable it there."
