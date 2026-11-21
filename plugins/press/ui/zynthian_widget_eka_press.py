@@ -226,10 +226,11 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
         self.hit_rects = {}
 
         margin = 8
-        footer_h = max(36, int(h * 0.13))
+        bot_pad = 4
+        footer_h = max(28, int(h * 0.10))
         strip_h = 20
         top_y = margin
-        body_h = max(110, h - footer_h - strip_h - margin * 3)
+        body_h = max(110, h - footer_h - strip_h - margin * 2 - bot_pad - 4)
         bot_y = top_y + body_h
 
         curve_w = int((w - margin * 4) * 0.36)
@@ -362,7 +363,7 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
 
         # Footer: single row of 5 buttons (4 toggles + 5th mode cycle button)
         fy0 = sy + strip_h + 4
-        fy1 = h - margin
+        fy1 = h - bot_pad
         gap = 5
         bw = (w - margin * 2 - gap * 4) / 5.0
 
