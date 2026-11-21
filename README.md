@@ -2,8 +2,8 @@
 
 **English** · [Русский](README.ru.md)
 
-Eight LV2 plugins for [Zynthian](https://zynthian.org), each with its own touch widget: an audio looper, a MIDI
-looper, a generative arpeggiator, a granular sampler, a West Coast synth, a live granular effect, a four-voice pitch harmonizer and a rhythmic multi-effect shaper. They are made to play live on a
+Nine LV2 plugins for [Zynthian](https://zynthian.org), each with its own touch widget: an audio looper, a MIDI
+looper, a generative arpeggiator, a granular sampler, a West Coast synth, a live granular effect, a four-voice pitch harmonizer, a rhythmic multi-effect shaper and a single-band live compressor. They are made to play live on a
 Raspberry Pi 5 and to work together in one setup.
 
 > Tested on: Zynthian **Vangelis** (stable 2610), Raspberry Pi 5, V5 kit, 800x480 touch screen.
@@ -67,10 +67,16 @@ Four polyrhythmic shaper slots (`TIME`, `DRIVE & CRUSH`, `FILTER`, `GATE & SPACE
 
 ![Eka Pulse](plugins/pulse/docs/1-gate.png)
 
+### [Eka Press](plugins/press): single-band live compressor
+
+Four compressor characters (`Clean`, `Opto`, `Punch`, `Glue`), `SC HPF` (`20..500 Hz`), `Stereo Link`, `Auto Release`, `SC Listen`, analog `Drive`, `Auto Makeup`, parallel `Mix`, `-0.3 dBFS` `Soft Clip`, an interactive Transfer Curve + scrolling Gain-Reduction timeline widget, and 10 factory presets.
+
+![Eka Press](plugins/press/docs/1-main.png)
+
 ## A setup
 
 A typical chain: **Roll** records the chords, **Bloom** turns them into a moving arpeggio, **Fold** or **Mist**
-plays it, **Weave-4** adds four-voice harmony to your live instrument (or follows the chords from **Roll**), **Grain Flow** reshapes the audio, and **Tape** loops the sound together with your instrument. Each plugin also works on its own.
+plays it, **Weave-4** adds four-voice harmony to your live instrument (or follows the chords from **Roll**), **Grain Flow** reshapes the audio, **Tape** loops the sound together with your instrument, and **Press** shapes the live input or glues the mix. Each plugin also works on its own.
 
 ## Installation
 
@@ -79,7 +85,7 @@ On the Zynthian (SSH as root):
 ```bash
 git clone https://github.com/dmtry3/zynthian-eka.git
 cd zynthian-eka
-sudo make install-bloom          # one plugin: tape, roll, bloom, mist, fold, grainflow, weave4 or pulse
+sudo make install-bloom          # one plugin: tape, roll, bloom, mist, fold, grainflow, weave4, pulse or press
 sudo make install                # or all of them
 systemctl restart zynthian
 ```
