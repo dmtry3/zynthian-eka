@@ -222,6 +222,7 @@ class zynthian_widget_eka_q4(zynthian_widget_base.zynthian_widget_base):
         super().__init__(parent)
         self.next_tick = 0.0
         self.selected_band = 0
+        self.last_group = None
         self.saved_types = [0, 0, 0, 0]
         self.spec_smooth = [SPEC_FLOOR] * SPEC_BINS
         self.hold_in = SPEC_FLOOR
@@ -274,15 +275,48 @@ class zynthian_widget_eka_q4(zynthian_widget_base.zynthian_widget_base):
         if zctrl is not None:
             zctrl.set_value(value)
 
-    def _select_page(self, band_idx):
+    def _page_rows(self):
+        """Zynthian's control pages: (index, group_symbol) for this processor."""
         try:
-            zyngui = getattr(self, "zyngui", None)
-            if zyngui and hasattr(zyngui, "screens") and "control" in zyngui.screens:
-                scr = zyngui.screens["control"]
-                if hasattr(scr, "set_active_group"):
-                    scr.set_active_group(f"g_b{band_idx + 1}")
+            rows = self.zyngui_control.list_data
+        except Exception:
+            return []
+        out = []
+        for i, row in enumerate(rows):
+            if len(row) >= 5 and row[0] and row[3] is self.processor:
+                out.append((i, row[0]))
+        return out
+
+    def _select_group(self, group_sym):
+        self.last_group = group_sym
+        for i, group in self._page_rows():
+            if group == group_sym:
+                try:
+                    self.zyngui_control.select(i)
+                except Exception:
+                    pass
+                return
+
+    def _select_page(self, band_idx):
+        self._select_group(f"g_b{band_idx + 1}")
+
+    def _current_group(self):
+        try:
+            info = self.zyngui_control.screen_info
+            if info and len(info) >= 5 and info[3] is self.processor:
+                return info[0]
         except Exception:
             pass
+        return None
+
+    def _follow_page(self):
+        """When the user changes the knob page on Zynthian, highlight the matching band."""
+        group = self._current_group()
+        if group == self.last_group:
+            return
+        self.last_group = group
+        if group in ("g_b1", "g_b2", "g_b3", "g_b4"):
+            self.selected_band = int(group[-1]) - 1
 
     def _read_state(self):
         return {
@@ -341,6 +375,7 @@ class zynthian_widget_eka_q4(zynthian_widget_base.zynthian_widget_base):
         return in_db, out_db
 
     def refresh_gui(self):
+        self._follow_page()
         cv = self.widget_canvas
         w = max(240, int(self.width or cv.winfo_width() or 640))
         h = max(180, int(self.height or cv.winfo_height() or 380))
@@ -644,6 +679,8 @@ class zynthian_widget_eka_q4(zynthian_widget_base.zynthian_widget_base):
                 idx = int(best_key[1:])
                 self.selected_band = idx
                 self._select_page(idx)
+            elif best_key in ("hpf", "lpf"):
+                self._select_group("g_cuts")
             self.drag_mode = ("node", best_key)
             self._apply_node_drag(best_key, x, y)
             self.refresh_gui()

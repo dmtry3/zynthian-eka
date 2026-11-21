@@ -200,7 +200,7 @@ def gen_plugin_ttl():
     lines += [
         "",
         f"<{URI}>",
-        "    a lv2:Plugin, lv2:ParaEQPlugin ;",
+        "    a lv2:Plugin, lv2:FilterPlugin ;",
         '    doap:name "Eka Q-4" ;',
         "    doap:license <https://spdx.org/licenses/GPL-3.0-or-later.html> ;",
         "    lv2:minorVersion 0 ;",

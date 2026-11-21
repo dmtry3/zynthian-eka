@@ -15,7 +15,7 @@
 <http://dmtry3.github.io/zynthian-eka/q4#g_master> a pg:Group ; lv2:symbol "g_master" ; lv2:name "Master" ; lv2:index 5 ; lv2:displayPriority 10 .
 
 <http://dmtry3.github.io/zynthian-eka/q4>
-    a lv2:Plugin, lv2:ParaEQPlugin ;
+    a lv2:Plugin, lv2:FilterPlugin ;
     doap:name "Eka Q-4" ;
     doap:license <https://spdx.org/licenses/GPL-3.0-or-later.html> ;
     lv2:minorVersion 0 ;
