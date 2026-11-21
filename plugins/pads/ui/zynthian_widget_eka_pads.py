@@ -308,6 +308,10 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         )
         for sym, val in mapping:
             self._zset(sym, val)
+        scene = int(round(self._mon("out_seq_scene", 0)))
+        ps, pe = self._pad_range_get(scene, pad_idx)
+        self._zset("pad_steps", pe)
+        self._zset("pad_beg", ps + 1)
 
     def _send_cmd(self, op, a=0, b=0, c=0, val=0):
         self._zset("seq_cmd", pack_cmd(op, a, b, c, val))
@@ -335,8 +339,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
 
     # ---------- Tab <-> Knob Page Sync ----------
 
-    def _select_page(self, tab):
-        target = TAB_GROUPS[tab]
+    def _select_group(self, target):
         try:
             for i, row in enumerate(self.zyngui_control.list_data):
                 if len(row) >= 5 and row[0] == target and row[3] is self.processor:
@@ -344,6 +347,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                     return
         except Exception:
             pass
+
+    def _select_page(self, tab):
+        self._select_group(TAB_GROUPS[tab])
 
     def _follow_page(self):
         try:
@@ -598,9 +604,10 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             quant = 1
         ps, pe = self._pad_range_get(scene, self.sel_pad)
 
-        # Row 1: 2 Large Scene buttons (A, B) + Quantize + Per-Pad Start / End
-        r1_h = max(30, fs * 2 + 10)
+        # Row 1: 2 Large Scene buttons (A, B) + Quantize + Copy + Clear
+        r1_h = max(28, fs * 2 + 8)
         c5w = (w - 2 * pad_m) / 5.0
+        other_sc = 1 - (scene & 1)
         for s in range(EP_UI_SCENES):
             x0 = pad_m + s * c5w
             x1 = x0 + c5w - 4
@@ -617,69 +624,111 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self._add_btn(c, pad_m + 2 * c5w, y, pad_m + 3 * c5w - 4, y + r1_h,
                       "Q: %s" % QUANT_NAMES[quant], q_bg, q_fg, fam, fsmall, "seq_quant", (quant + 1) % 4)
         self._add_btn(c, pad_m + 3 * c5w, y, pad_m + 4 * c5w - 4, y + r1_h,
-                      "Beg %d" % (ps + 1), "#263040", "#ffd43b", fam, fsmall, "beg_drag", (scene, self.sel_pad, ps))
+                      "Copy %s>%s" % (SCENE_NAMES[scene & 1], SCENE_NAMES[other_sc]),
+                      COL_PANEL, "#d8d8e4", fam, fsmall, "seq_copy_ab", (scene & 1, other_sc))
         self._add_btn(c, pad_m + 4 * c5w, y, w - pad_m, y + r1_h,
-                      "End %d" % pe, "#283444", "#74c0fc", fam, fsmall, "end_drag", (scene, self.sel_pad, pe))
+                      "Clr P%d" % (self.sel_pad + 1), COL_PANEL, "#ff8787", fam, fsmall, "seq_clr_pad", (scene, self.sel_pad))
         y += r1_h + 4
 
-        # Row 2: Transport + Tools (Play, Rec, Copy A<->B, Clr Pad, BPM drag)
-        tbw = (w - 2 * pad_m) / 5.0
-        other_sc = 1 - (scene & 1)
-        self._add_btn(c, pad_m, y, pad_m + tbw - 3, y + bh,
+        # Row 2: Play/Stop + Overdub + BPM + Horizontal Steps Slider (Beg..End 1..32)
+        r2_h = max(26, fs * 2 + 6)
+        ctrl_w = (w - 2 * pad_m) * 0.44
+        b3w = ctrl_w / 3.0
+        self._add_btn(c, pad_m, y, pad_m + b3w - 3, y + r2_h,
                       "Stop" if smode >= 1 else "Play",
                       COL_PLAY if smode == 1 else COL_PANEL,
                       "#000000" if smode == 1 else "#e0e0e0", fam, fsmall, "seq_play", 0 if smode >= 1 else 1)
-        self._add_btn(c, pad_m + tbw, y, pad_m + 2 * tbw - 3, y + bh,
-                      "Rec ON" if smode == 2 else "Overdub",
+        self._add_btn(c, pad_m + b3w, y, pad_m + 2 * b3w - 3, y + r2_h,
+                      "Rec" if smode == 2 else "Dub",
                       COL_REC if smode == 2 else COL_PANEL,
                       "#ffffff" if smode == 2 else "#e0e0e0", fam, fsmall, "seq_rec", 1 if smode == 2 else 2)
-        self._add_btn(c, pad_m + 2 * tbw, y, pad_m + 3 * tbw - 3, y + bh,
-                      "Copy %s>%s" % (SCENE_NAMES[scene & 1], SCENE_NAMES[other_sc]),
-                      COL_PANEL, "#d8d8e4", fam, fsmall, "seq_copy_ab", (scene & 1, other_sc))
-        self._add_btn(c, pad_m + 3 * tbw, y, pad_m + 4 * tbw - 3, y + bh,
-                      "Clr P%d" % (self.sel_pad + 1), COL_PANEL, "#ff8787", fam, fsmall, "seq_clr_pad", (scene, self.sel_pad))
-        self._add_btn(c, pad_m + 4 * tbw, y, w - pad_m, y + bh,
+        self._add_btn(c, pad_m + 2 * b3w, y, pad_m + ctrl_w - 4, y + r2_h,
                       "%d BPM" % bpm, "#263040", "#ffffff", fam, fsmall, "bpm_drag", bpm)
-        y += bh + 5
 
-        # Middle: 32 Steps (4 rows of 8) for selected pad; active ps..pe-1
+        # Horizontal Steps Slider (Beg..End 1..32) on the right half of Row 2
+        sl_x0 = pad_m + ctrl_w + 2
+        sl_x1 = w - pad_m
+        sl_w = max(40.0, sl_x1 - sl_x0)
+        pad_col = ROW_COLORS[(self.sel_pad // 4) & 3]
+        c.create_rectangle(sl_x0, y, sl_x1, y + r2_h, fill="#1a1c24", outline="#3c4252", width=1)
+        # Quarter-note ticks at 4, 8, 12, 16, 20, 24, 28
+        for tick in range(4, EP_STEPS, 4):
+            tx = sl_x0 + (tick / float(EP_STEPS)) * sl_w
+            c.create_line(tx, y + 2, tx, y + r2_h - 2, fill="#2b303e", width=1)
+        # Highlighted active range [ps .. pe]
+        rx_a = sl_x0 + (ps / float(EP_STEPS)) * sl_w
+        rx_b = sl_x0 + (pe / float(EP_STEPS)) * sl_w
+        c.create_rectangle(rx_a, y + 2, rx_b, y + r2_h - 2, fill="#22384c", outline="")
+        c.create_rectangle(rx_a, y + 2, rx_b, y + 5, fill=pad_col, width=0)
+        # Left (Beg) & Right (End) slider thumbs
+        c.create_rectangle(rx_a, y + 1, min(sl_x1, rx_a + 4), y + r2_h - 1, fill="#ffd43b", width=0)
+        c.create_rectangle(max(sl_x0, rx_b - 4), y + 1, rx_b, y + r2_h - 1, fill="#74c0fc", width=0)
+        sl_txt = "P%d: %d..%d (%d st)" % (self.sel_pad + 1, ps + 1, pe, pe - ps)
+        c.create_text((sl_x0 + sl_x1) / 2, y + r2_h / 2, text=sl_txt,
+                      fill="#f0f6fc", font=(fam, fsmall, "bold"))
+        self.hit_boxes.append((sl_x0, y, sl_x1, y + r2_h, "steps_slider", (scene, self.sel_pad, ps, pe, sl_x0, sl_x1)))
+        y += r2_h + 6
+
+        # Middle: 32 Styled LED Step Tiles (4 rows of 8, grouped 4 + 4) for selected pad
         strip_h = max(24, fs * 2 + 4)
-        grid_h = max(72, h - y - strip_h - pad_m - 5)
-        sw = (w - 2 * pad_m) / 8.0
+        grid_h = max(72, h - y - strip_h - pad_m - 6)
+        mid_gap = 6.0
+        sw = (w - 2 * pad_m - mid_gap) / 8.0
         sh = grid_h / 4.0
 
         for st in range(EP_STEPS):
             col_i = st % 8
             row_i = st // 8
-            sx0 = pad_m + col_i * sw + 2
+            gx_off = mid_gap if col_i >= 4 else 0.0
+            sx0 = pad_m + col_i * sw + gx_off + 2
             sy0 = y + row_i * sh + 2
-            sx1 = pad_m + (col_i + 1) * sw - 2
+            sx1 = pad_m + (col_i + 1) * sw + gx_off - 2
             sy1 = y + (row_i + 1) * sh - 2
+            th = max(8.0, sy1 - sy0)
 
             in_len = (ps <= st < pe)
             vel, roll = self._step_get(scene, self.sel_pad, st)
             is_cur = (in_len and st == cur_step)
+            is_beat = ((st - ps) % 4 == 0)
+
             if not in_len:
-                beat_bg = "#17171d"
-                out_col = "#282832"
+                c.create_rectangle(sx0, sy0, sx1, sy1, fill="#15161c", outline="#242630", width=1)
+                c.create_text(sx0 + 5, sy0 + 3, anchor="nw", text="%d" % (st + 1),
+                              fill="#343744", font=(fam, max(7, fsmall - 1)))
+                continue
+
+            # Tile body with subtle beat shading & bright cursor highlight
+            if is_cur:
+                bg = "#2d3a4d"
+                out_c = "#ffffff"
+                out_w = 2
             else:
-                beat_bg = "#2d2d38" if ((st - ps) % 4 == 0) else COL_PANEL
-                out_col = "#ffffff" if is_cur else "#40404c"
-            c.create_rectangle(sx0, sy0, sx1, sy1, fill=beat_bg,
-                               outline=out_col, width=2 if is_cur else 1)
-            if in_len and vel > 0:
+                bg = "#282b36" if is_beat else "#1e2028"
+                out_c = pad_col if vel > 0 else ("#43485a" if is_beat else "#303442")
+                out_w = 1
+            c.create_rectangle(sx0, sy0, sx1, sy1, fill=bg, outline=out_c, width=out_w)
+
+            # Velocity fill bar + bright top cap
+            step_col = "#ff922b" if vel >= 120 else pad_col
+            if vel > 0:
                 frac = vel / 127.0
-                bar_y = sy1 - 2 - frac * (sy1 - sy0 - 4)
-                bar_col = "#ff922b" if vel >= 120 else COL_ACCENT
-                c.create_rectangle(sx0 + 2, bar_y, sx1 - 2, sy1 - 2, fill=bar_col, width=0)
-            lbl = "%d" % (st + 1)
-            if in_len and vel > 0 and roll > 0:
-                lbl += " %dx" % (roll + 1)
-            txt_col = ("#ffffff" if (vel > 0 or is_cur) else "#888898") if in_len else "#3e3e4a"
-            c.create_text((sx0 + sx1) / 2, sy0 + 2, anchor="n", text=lbl,
-                          fill=txt_col, font=(fam, max(7, fsmall - 1)))
-            if in_len:
-                self.hit_boxes.append((sx0, sy0, sx1, sy1, "step", (scene, self.sel_pad, st)))
+                bar_top = sy1 - 2 - frac * max(2.0, th - 8.0)
+                c.create_rectangle(sx0 + 2, bar_top, sx1 - 2, sy1 - 2, fill="#243242" if vel < 120 else "#4a2c14", width=0)
+                c.create_line(sx0 + 2, bar_top, sx1 - 2, bar_top, fill=step_col, width=2)
+
+            # Top LED indicator strip
+            led_col = "#ffffff" if is_cur else (step_col if vel > 0 else ("#4a5064" if is_beat else "#2b2f3d"))
+            c.create_rectangle(sx0 + 3, sy0 + 2, sx1 - 3, sy0 + 5, fill=led_col, width=0)
+
+            # Step number (top-left) + Ratchet badge (bottom-right)
+            c.create_text(sx0 + 5, sy0 + 7, anchor="nw", text="%d" % (st + 1),
+                          fill="#ffffff" if (vel > 0 or is_cur) else "#8d94a6",
+                          font=(fam, max(7, fsmall - 1), "bold" if (vel > 0 or is_cur) else "normal"))
+            if vel > 0 and roll > 0:
+                c.create_text(sx1 - 4, sy1 - 3, anchor="se", text="x%d" % (roll + 1),
+                              fill="#ffd43b", font=(fam, max(7, fsmall - 1), "bold"))
+
+            self.hit_boxes.append((sx0, sy0, sx1, sy1, "step", (scene, self.sel_pad, st)))
 
         # Bottom: 16-Pad selector strip (shows dots for pads with steps in this scene)
         py0 = h - pad_m - strip_h
@@ -822,14 +871,17 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.refresh_gui()
                 return
 
-            if action == "beg_drag":
-                self.len_dragged = False
-                self.drag_info = ("beg", arg[:2], y, arg[2])
-                return
-
-            if action == "end_drag":
-                self.len_dragged = False
-                self.drag_info = ("end", arg[:2], y, arg[2])
+            if action == "steps_slider":
+                sc, p, ps, pe, sl_x0, sl_x1 = arg
+                sl_w = max(1.0, sl_x1 - sl_x0)
+                rx_a = sl_x0 + (ps / float(EP_STEPS)) * sl_w
+                rx_b = sl_x0 + (pe / float(EP_STEPS)) * sl_w
+                # Drag Beg if finger lands near left thumb; otherwise drag End (steps count)
+                which = "beg" if (abs(x - rx_a) < 22 and abs(x - rx_a) < abs(x - rx_b)) else "end"
+                self.drag_info = ("steps_slider", (sc, p, which, sl_x0, sl_x1), y, 0)
+                self._select_group("g_stereo")
+                self._apply_steps_slider(sc, p, which, sl_x0, sl_x1, x)
+                self.refresh_gui()
                 return
 
             if action == "bpm_drag":
@@ -885,10 +937,26 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.refresh_gui()
                 return
 
+    def _apply_steps_slider(self, sc, p, which, sl_x0, sl_x1, x):
+        t = max(0.0, min(1.0, (x - sl_x0) / max(1.0, sl_x1 - sl_x0)))
+        if which == "beg":
+            nbeg = max(0, min(EP_STEPS - 1, int(round(t * EP_STEPS))))
+            self._send_cmd(CMD_SET_START, a=sc, b=p, val=nbeg)
+            self._zset("pad_beg", nbeg + 1)
+        else:
+            nend = max(1, min(EP_STEPS, int(round(t * EP_STEPS))))
+            self._send_cmd(CMD_SET_END, a=sc, b=p, val=nend)
+            self._zset("pad_steps", nend)
+
     def _on_motion(self, event):
         if not self.drag_info or event is None:
             return
         kind, arg, y0, start_val = self.drag_info
+        if kind == "steps_slider":
+            sc, p, which, sl_x0, sl_x1 = arg
+            self._apply_steps_slider(sc, p, which, sl_x0, sl_x1, event.x)
+            self.refresh_gui()
+            return
         dy = y0 - event.y
         if abs(dy) < 4:
             return
@@ -897,18 +965,6 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             nbpm = max(40, min(240, int(round(start_val + dy * 0.5))))
             self._zset("seq_bpm", nbpm)
             self.refresh_gui()
-        elif kind == "beg":
-            self.len_dragged = True
-            sc, p = arg
-            nbeg = max(0, min(EP_STEPS - 1, int(round(start_val + dy * 0.12))))
-            self._send_cmd(CMD_SET_START, a=sc, b=p, val=nbeg)
-            self.refresh_gui()
-        elif kind == "end":
-            self.len_dragged = True
-            sc, p = arg
-            nend = max(1, min(EP_STEPS, int(round(start_val + dy * 0.12))))
-            self._send_cmd(CMD_SET_END, a=sc, b=p, val=nend)
-            self.refresh_gui()
         elif kind == "step":
             sc, p, st = arg
             nvel = max(1, min(127, int(round(start_val + dy * 1.2))))
@@ -916,15 +972,4 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self.refresh_gui()
 
     def _on_release(self, event):
-        if self.drag_info and not self.len_dragged:
-            kind, arg, _y0, cur = self.drag_info
-            if kind == "beg":
-                sc, p = arg
-                self._send_cmd(CMD_SET_START, a=sc, b=p, val=0)
-                self.refresh_gui()
-            elif kind == "end":
-                sc, p = arg
-                nxt = next((v for v in LEN_PRESETS if v > int(cur)), LEN_PRESETS[0])
-                self._send_cmd(CMD_SET_END, a=sc, b=p, val=nxt)
-                self.refresh_gui()
         self.drag_info = None

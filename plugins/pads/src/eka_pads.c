@@ -47,7 +47,9 @@ enum {
   P_OUT_SEQ_PEND,
   P_OUT_LVL0,                                     /* 16 ports: P_OUT_LVL0 .. P_OUT_LVL0+15 */
   P_OUT_PLAYHEAD = P_OUT_LVL0 + EP_PADS,
-  P_STEREO_WIDTH                                  /* index 41: Stereo Width 0..200% */
+  P_STEREO_WIDTH,                                 /* index 41: Stereo Width 0..200% */
+  P_PAD_STEPS,                                    /* index 42: End / Steps 1..32 for selected pad */
+  P_PAD_BEG                                       /* index 43: Begin step 1..32 for selected pad */
 };
 
 #define N_CTL     P_END
@@ -109,6 +111,11 @@ typedef struct {
   float* out_lvl[EP_PADS];
   float* out_playhead;
   const float* in_stereo_width;
+  const float* in_pad_steps;
+  const float* in_pad_beg;
+  float prev_pad_steps;
+  float prev_pad_beg;
+  int have_prev_steps;
 
   LV2_URID_Map* map;
   LV2_Worker_Schedule* sched;
@@ -680,6 +687,8 @@ static void connect_port(LV2_Handle h, uint32_t port, void* data) {
     case P_OUT_SEQ_PEND:  P->out_seq_pend = (float*)data; break;
     case P_OUT_PLAYHEAD:  P->out_playhead = (float*)data; break;
     case P_STEREO_WIDTH:  P->in_stereo_width = (const float*)data; break;
+    case P_PAD_STEPS:     P->in_pad_steps = (const float*)data; break;
+    case P_PAD_BEG:       P->in_pad_beg = (const float*)data; break;
     default:
       if (port >= P_OUT_LVL0 && port < P_OUT_LVL0 + EP_PADS)
         P->out_lvl[port - P_OUT_LVL0] = (float*)data;
@@ -691,6 +700,7 @@ static void activate(LV2_Handle h) {
   EkaPads* P = (EkaPads*)h;
   ep_core_reset(&P->core);
   P->have_prev_ctl = 0;
+  P->have_prev_steps = 0;
   P->shm_dirty = 1;
 }
 
@@ -732,6 +742,45 @@ static void run(LV2_Handle h, uint32_t nframes) {
   if (P->ctl[P_SEQ_SWING]) P->core.seq.swing = *P->ctl[P_SEQ_SWING];
   if (P->ctl[P_MASTER])    P->core.master_vol = *P->ctl[P_MASTER];
   if (P->in_stereo_width)  P->core.stereo_width = *P->in_stereo_width;
+
+  /* Encoder control for selected pad's Steps (End) and Beg Step */
+  if (!P->have_prev_steps) {
+    if (P->in_pad_steps) P->prev_pad_steps = *P->in_pad_steps;
+    if (P->in_pad_beg)   P->prev_pad_beg   = *P->in_pad_beg;
+    P->have_prev_steps = 1;
+  } else {
+    int sc = P->core.seq.scene;
+    int pd = P->sel_pad;
+    if (P->in_pad_steps) {
+      float v = *P->in_pad_steps;
+      if (fabsf(v - P->prev_pad_steps) > 0.4f) {
+        P->prev_pad_steps = v;
+        int ne = (int)lrintf(v);
+        if (ne < 1) ne = 1;
+        if (ne > EP_STEPS) ne = EP_STEPS;
+        int cs = P->core.scenes[sc].pad_start[pd];
+        int ns = cs >= ne ? ne - 1 : cs;
+        ep_seq_set_pad_range(&P->core, sc, pd, ns, ne);
+        P->shm_dirty = 1;
+        P->seq_notify_dirty = 1;
+      }
+    }
+    if (P->in_pad_beg) {
+      float v = *P->in_pad_beg;
+      if (fabsf(v - P->prev_pad_beg) > 0.4f) {
+        P->prev_pad_beg = v;
+        int ns = (int)lrintf(v) - 1;
+        if (ns < 0) ns = 0;
+        if (ns >= EP_STEPS) ns = EP_STEPS - 1;
+        int ce = P->core.scenes[sc].pad_end[pd];
+        if (ce == 0) ce = EP_STEPS_DEF;
+        int ne = ce <= ns ? ns + 1 : ce;
+        ep_seq_set_pad_range(&P->core, sc, pd, ns, ne);
+        P->shm_dirty = 1;
+        P->seq_notify_dirty = 1;
+      }
+    }
+  }
 
   uint32_t pos = 0;
   if (P->in) {
