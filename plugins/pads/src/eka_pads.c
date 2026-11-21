@@ -1,0 +1,810 @@
+/* Eka Pads: 16-pad drum sampler + 8-scene step sequencer LV2 plugin for Zynthian. */
+#include <lv2/core/lv2.h>
+#include <lv2/atom/atom.h>
+#include <lv2/atom/forge.h>
+#include <lv2/atom/util.h>
+#include <lv2/midi/midi.h>
+#include <lv2/patch/patch.h>
+#include <lv2/state/state.h>
+#include <lv2/time/time.h>
+#include <lv2/urid/urid.h>
+#include <lv2/worker/worker.h>
+
+#include <fcntl.h>
+#include <math.h>
+#include <stdatomic.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <unistd.h>
+
+#include "pads_core.h"
+#include "sample.h"
+
+#define EP_URI "http://dmtry3.github.io/zynthian-eka/pads"
+#define EP_MAX_SECONDS 120.0
+#define EP_RETIRED_MAX 32
+#define EP_SHM_MAGIC   0x45504144u /* "EPAD" */
+#define EP_SHM_VER     1u
+
+/* Control input ports MUST come first (0..P_END-1) for Zynthian's controller indexing. */
+enum {
+  P_PITCH = 0, P_DECAY, P_FILTER, P_LEVEL,        /* Page 1: Pad Sound */
+  P_START, P_MODE, P_PUNCH, P_DRIVE,              /* Page 2: Pad Shape */
+  P_PAN, P_VEL, P_CHOKE, P_SEND,                  /* Page 3: Pad Mix */
+  P_SEQ_MODE, P_SEQ_SCENE, P_SEQ_SWING, P_MASTER, /* Page 4: Seq & Master */
+  P_END,
+  P_MIDI_IN = P_END,
+  P_OUT_L,
+  P_OUT_R,
+  P_NOTIFY,
+  P_OUT_SEL_PAD,
+  P_OUT_SEQ_STEP,
+  P_OUT_SEQ_SCENE,
+  P_OUT_SEQ_PEND,
+  P_OUT_LVL0,                                     /* 16 ports: P_OUT_LVL0 .. P_OUT_LVL0+15 */
+  P_OUT_PLAYHEAD = P_OUT_LVL0 + EP_PADS
+};
+
+#define N_CTL     P_END
+#define N_PAD_CTL 12
+
+/* Packed seq_cmd operations: (op << 20) | (a << 16) | (b << 12) | (c << 8) | val */
+enum {
+  CMD_SET_VEL = 1,    /* a=scene, b=pad, c=step, val=vel(0..127) */
+  CMD_SET_ROLL,       /* a=scene, b=pad, c=step, val=roll(0..3) */
+  CMD_CLEAR_PAD,      /* a=scene, b=pad */
+  CMD_CLEAR_SCENE,    /* a=scene */
+  CMD_COPY_SCENE,     /* a=src_scene, b=dst_scene */
+  CMD_TRIG_PAD        /* b=pad, val=vel(1..127) */
+};
+
+/* Shared memory snapshot read by the Zynthian Python widget */
+typedef struct {
+  uint32_t magic;
+  uint32_t version;
+  uint32_t seq;         /* incremented whenever pads/scenes/meta change */
+  int32_t  sel_pad;
+  int32_t  follow;
+  int32_t  learn;
+  int32_t  seq_mode;
+  int32_t  seq_scene;
+  int32_t  seq_pend;
+  int32_t  seq_step;
+  float    bpm;
+  float    swing;
+  EpPadParams pads[EP_PADS];
+  EpScene  scenes[EP_SCENES];
+} EpShm;
+_Static_assert(sizeof(EpPadParams) == 64, "EpPadParams size must match Python widget");
+_Static_assert(sizeof(EpShm) == 5168, "EpShm size must match Python widget");
+
+/* Worker messages */
+enum { MSG_LOAD = 1, MSG_FREE };
+typedef struct { uint32_t type; int pad; uint32_t seq; char path[EP_PATH_MAX]; } MsgLoad;
+typedef struct { uint32_t type; EpSample* s; } MsgFree;
+typedef struct { int pad; uint32_t seq; int err; EpSample* s; } MsgDone;
+
+typedef struct {
+  const float* ctl[N_CTL];
+  const LV2_Atom_Sequence* in;
+  LV2_Atom_Sequence* notify;
+  float* out_l;
+  float* out_r;
+  float* out_sel_pad;
+  float* out_seq_step;
+  float* out_seq_scene;
+  float* out_seq_pend;
+  float* out_lvl[EP_PADS];
+  float* out_playhead;
+
+  LV2_URID_Map* map;
+  LV2_Worker_Schedule* sched;
+  LV2_Atom_Forge forge;
+
+  LV2_URID midi_Event, atom_Object, atom_Path, atom_String, atom_URID;
+  LV2_URID atom_Int, atom_Float, atom_Double, atom_Long, atom_Chunk;
+  LV2_URID patch_Set, patch_Get, patch_property, patch_value;
+  LV2_URID time_Position, time_bpm, time_speed, time_bar, time_barBeat, time_bpb;
+
+  LV2_URID p_sample[EP_PADS];
+  LV2_URID p_sel_pad, p_follow, p_learn, p_mute_mask, p_solo_mask, p_pad_end;
+  LV2_URID p_seq_bpm, p_seq_cmd;
+  LV2_URID st_pad_params, st_scenes;
+
+  EpSample* samples[EP_PADS];
+  char paths[EP_PADS][EP_PATH_MAX];
+  atomic_uint req_seq[EP_PADS];
+
+  struct { EpSample* s; int pad; uint32_t gen; } retired[EP_RETIRED_MAX];
+  int nretired;
+
+  int sel_pad;
+  int follow;
+  int learn;
+  int report_next;
+
+  float prev_ctl[N_CTL];
+  int have_prev_ctl;
+
+  /* Shared memory for widget */
+  char shm_path[128];
+  int shm_fd;
+  EpShm* shm;
+  int shm_dirty;
+
+  double sr;
+  EpCore core;
+} EkaPads;
+
+static void shm_publish(EkaPads* P) {
+  if (!P->shm) return;
+  EpShm* s = P->shm;
+  s->sel_pad   = P->sel_pad;
+  s->follow    = P->follow;
+  s->learn     = P->learn;
+  s->seq_mode  = P->core.seq.mode;
+  s->seq_scene = P->core.seq.scene;
+  s->seq_pend  = P->core.seq.pend_scene;
+  s->seq_step  = P->core.seq.cur_step;
+  s->bpm       = (float)P->core.seq.bpm;
+  s->swing     = P->core.seq.swing;
+  if (P->shm_dirty) {
+    memcpy(s->pads, P->core.pad, sizeof P->core.pad);
+    memcpy(s->scenes, P->core.scenes, sizeof P->core.scenes);
+    P->shm_dirty = 0;
+    s->seq++;
+  }
+}
+
+static void free_in_worker(EkaPads* P, EpSample* s) {
+  if (!s) return;
+  if (P->sched) {
+    MsgFree fm = { MSG_FREE, s };
+    P->sched->schedule_work(P->sched->handle, sizeof fm, &fm);
+  } else {
+    ep_sample_free(s);
+  }
+}
+
+static void swap_sample(EkaPads* P, int pad, EpSample* s) {
+  if (pad < 0 || pad >= EP_PADS) return;
+  EpSample* old = P->samples[pad];
+  EpSource src = { 0 };
+  if (s) {
+    src.data = s->data;
+    src.frames = s->frames;
+    src.rate = (float)s->rate;
+  }
+  uint32_t old_gen = ep_core_set_source(&P->core, pad, s ? &src : NULL);
+  P->samples[pad] = s;
+  if (!old) return;
+
+  if (!ep_core_gen_in_use(&P->core, pad, old_gen)) {
+    free_in_worker(P, old);
+    return;
+  }
+  if (P->nretired >= EP_RETIRED_MAX) {
+    ep_core_all_off(&P->core);
+    for (int i = 0; i < P->nretired; i++) free_in_worker(P, P->retired[i].s);
+    P->nretired = 0;
+  }
+  P->retired[P->nretired].s = old;
+  P->retired[P->nretired].pad = pad;
+  P->retired[P->nretired].gen = old_gen;
+  P->nretired++;
+}
+
+static void collect_retired(EkaPads* P) {
+  int w = 0;
+  for (int i = 0; i < P->nretired; i++) {
+    if (!ep_core_gen_in_use(&P->core, P->retired[i].pad, P->retired[i].gen)) {
+      free_in_worker(P, P->retired[i].s);
+    } else {
+      P->retired[w++] = P->retired[i];
+    }
+  }
+  P->nretired = w;
+}
+
+static void request_load(EkaPads* P, int pad, const char* path) {
+  if (pad < 0 || pad >= EP_PADS) return;
+  if (!path || !*path || strcmp(path, "_") == 0) {
+    P->paths[pad][0] = '\0';
+    atomic_fetch_add_explicit(&P->req_seq[pad], 1, memory_order_relaxed);
+    swap_sample(P, pad, NULL);
+    return;
+  }
+  size_t len = strlen(path);
+  if (len >= EP_PATH_MAX) return;
+  memcpy(P->paths[pad], path, len + 1);
+  uint32_t seq = atomic_fetch_add_explicit(&P->req_seq[pad], 1, memory_order_relaxed) + 1;
+  if (P->sched) {
+    MsgLoad m;
+    m.type = MSG_LOAD;
+    m.pad = pad;
+    m.seq = seq;
+    memcpy(m.path, path, len + 1);
+    P->sched->schedule_work(P->sched->handle, sizeof m, &m);
+  }
+}
+
+static int get_mute_mask(const EkaPads* P) {
+  int m = 0;
+  for (int i = 0; i < EP_PADS; i++) if (P->core.pad[i].mute) m |= (1 << i);
+  return m;
+}
+
+static int get_solo_mask(const EkaPads* P) {
+  int m = 0;
+  for (int i = 0; i < EP_PADS; i++) if (P->core.pad[i].solo) m |= (1 << i);
+  return m;
+}
+
+static int atom_to_int(const EkaPads* P, const LV2_Atom* a, int* out) {
+  if (!a) return 0;
+  if (a->type == P->atom_Int) { *out = ((const LV2_Atom_Int*)a)->body; return 1; }
+  if (a->type == P->atom_Long) { *out = (int)((const LV2_Atom_Long*)a)->body; return 1; }
+  if (a->type == P->atom_Float) { *out = (int)lrintf(((const LV2_Atom_Float*)a)->body); return 1; }
+  if (a->type == P->atom_Double) { *out = (int)llround(((const LV2_Atom_Double*)a)->body); return 1; }
+  return 0;
+}
+
+static int atom_to_double(const EkaPads* P, const LV2_Atom* a, double* out) {
+  if (!a) return 0;
+  if (a->type == P->atom_Float) { *out = (double)((const LV2_Atom_Float*)a)->body; return 1; }
+  if (a->type == P->atom_Double) { *out = ((const LV2_Atom_Double*)a)->body; return 1; }
+  if (a->type == P->atom_Int) { *out = (double)((const LV2_Atom_Int*)a)->body; return 1; }
+  if (a->type == P->atom_Long) { *out = (double)((const LV2_Atom_Long*)a)->body; return 1; }
+  return 0;
+}
+
+static void handle_seq_cmd(EkaPads* P, int cmd) {
+  int op  = (cmd >> 20) & 0xF;
+  int a   = (cmd >> 16) & 0xF;
+  int b   = (cmd >> 12) & 0xF;
+  int c   = (cmd >> 8)  & 0xF;
+  int val = cmd & 0xFF;
+
+  switch (op) {
+    case CMD_SET_VEL:
+      if (a < EP_SCENES && b < EP_PADS && c < EP_STEPS) {
+        P->core.scenes[a].steps[b][c].vel = (uint8_t)(val > 127 ? 127 : val);
+        P->shm_dirty = 1;
+      }
+      break;
+    case CMD_SET_ROLL:
+      if (a < EP_SCENES && b < EP_PADS && c < EP_STEPS) {
+        P->core.scenes[a].steps[b][c].roll = (uint8_t)(val > 3 ? 3 : val);
+        P->shm_dirty = 1;
+      }
+      break;
+    case CMD_CLEAR_PAD:
+      ep_seq_clear_pad(&P->core, a, b);
+      P->shm_dirty = 1;
+      break;
+    case CMD_CLEAR_SCENE:
+      ep_seq_clear_scene(&P->core, a);
+      P->shm_dirty = 1;
+      break;
+    case CMD_COPY_SCENE:
+      ep_seq_copy_scene(&P->core, a, b);
+      P->shm_dirty = 1;
+      break;
+    case CMD_TRIG_PAD:
+      if (b < EP_PADS) {
+        ep_core_trigger(&P->core, b, val > 0 ? (val > 127 ? 127 : val) : 100);
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+static void handle_patch_set(EkaPads* P, const LV2_Atom_Object* obj) {
+  const LV2_Atom* prop = NULL;
+  const LV2_Atom* val = NULL;
+  lv2_atom_object_get(obj, P->patch_property, &prop, P->patch_value, &val, 0);
+  if (!prop || prop->type != P->atom_URID || !val) return;
+  LV2_URID u = ((const LV2_Atom_URID*)prop)->body;
+
+  for (int i = 0; i < EP_PADS; i++) {
+    if (u == P->p_sample[i] && (val->type == P->atom_Path || val->type == P->atom_String)) {
+      const char* s = (const char*)LV2_ATOM_BODY_CONST(val);
+      request_load(P, i, s);
+      return;
+    }
+  }
+
+  int iv = 0;
+  if (!atom_to_int(P, val, &iv)) return;
+
+  if (u == P->p_sel_pad) {
+    if (iv >= 0 && iv < EP_PADS) P->sel_pad = iv;
+  } else if (u == P->p_follow) {
+    P->follow = iv ? 1 : 0;
+  } else if (u == P->p_learn) {
+    P->learn = iv ? 1 : 0;
+  } else if (u == P->p_mute_mask) {
+    for (int i = 0; i < EP_PADS; i++) P->core.pad[i].mute = (iv >> i) & 1;
+    P->shm_dirty = 1;
+  } else if (u == P->p_solo_mask) {
+    for (int i = 0; i < EP_PADS; i++) P->core.pad[i].solo = (iv >> i) & 1;
+    P->shm_dirty = 1;
+  } else if (u == P->p_pad_end) {
+    if (iv < 5) iv = 5;
+    if (iv > 100) iv = 100;
+    P->core.pad[P->sel_pad].end = (float)iv;
+    P->shm_dirty = 1;
+  } else if (u == P->p_seq_bpm) {
+    if (iv < 40) iv = 40;
+    if (iv > 240) iv = 240;
+    P->core.seq.bpm = (double)iv;
+  } else if (u == P->p_seq_cmd) {
+    handle_seq_cmd(P, iv);
+  }
+}
+
+static void handle_time_position(EkaPads* P, const LV2_Atom_Object* obj) {
+  const LV2_Atom *a_bpm = NULL, *a_speed = NULL, *a_beat = NULL, *a_bpb = NULL;
+  lv2_atom_object_get(obj,
+                      P->time_bpm, &a_bpm,
+                      P->time_speed, &a_speed,
+                      P->time_barBeat, &a_beat,
+                      P->time_bpb, &a_bpb, 0);
+  double bpm = P->core.seq.bpm;
+  double speed = 0.0;
+  double beat = -1.0;
+  double bpb = 4.0;
+  atom_to_double(P, a_bpm, &bpm);
+  atom_to_double(P, a_speed, &speed);
+  atom_to_double(P, a_beat, &beat);
+  atom_to_double(P, a_bpb, &bpb);
+  ep_seq_sync_host(&P->core, bpm, speed > 0.01, beat, (int)lrint(bpb));
+}
+
+static void apply_pad_control(EpPadParams* p, int idx, float v) {
+  switch (idx) {
+    case P_PITCH:  p->pitch = v; break;
+    case P_DECAY:  p->decay = v; break;
+    case P_FILTER: p->filter = v; break;
+    case P_LEVEL:  p->level = v; break;
+    case P_START:  p->start = v; break;
+    case P_MODE:   p->mode = (int)lrintf(v); if (p->mode < 0) p->mode = 0; if (p->mode >= EP_NMODES) p->mode = EP_NMODES - 1; break;
+    case P_PUNCH:  p->punch = v; break;
+    case P_DRIVE:  p->drive = v; break;
+    case P_PAN:    p->pan = v; break;
+    case P_VEL:    p->vel_sens = v; break;
+    case P_CHOKE:  p->choke = (int)lrintf(v); if (p->choke < 0) p->choke = 0; if (p->choke > EP_CHOKE_MAX) p->choke = EP_CHOKE_MAX; break;
+    case P_SEND:   p->send = v; break;
+    default: break;
+  }
+}
+
+static void forge_notify_reports(EkaPads* P) {
+  if (!P->notify) return;
+  const uint32_t cap = P->notify->atom.size;
+  lv2_atom_forge_set_buffer(&P->forge, (uint8_t*)P->notify, cap);
+  LV2_Atom_Forge_Frame seq_frame;
+  lv2_atom_forge_sequence_head(&P->forge, &seq_frame, 0);
+
+  if (P->report_next >= 0) {
+    int budget = 8;
+    while (P->report_next >= 0 && budget-- > 0) {
+      LV2_Atom_Forge_Frame obj;
+      if (P->report_next < EP_PADS) {
+        int i = P->report_next;
+        lv2_atom_forge_frame_time(&P->forge, 0);
+        lv2_atom_forge_object(&P->forge, &obj, 0, P->patch_Set);
+        lv2_atom_forge_key(&P->forge, P->patch_property);
+        lv2_atom_forge_urid(&P->forge, P->p_sample[i]);
+        lv2_atom_forge_key(&P->forge, P->patch_value);
+        const char* p = P->paths[i][0] ? P->paths[i] : "_";
+        lv2_atom_forge_path(&P->forge, p, (uint32_t)strlen(p));
+        lv2_atom_forge_pop(&P->forge, &obj);
+      } else {
+        int k = P->report_next - EP_PADS;
+        LV2_URID u = 0;
+        int val = 0;
+        if (k == 0) { u = P->p_sel_pad; val = P->sel_pad; }
+        else if (k == 1) { u = P->p_follow; val = P->follow; }
+        else if (k == 2) { u = P->p_learn; val = P->learn; }
+        else if (k == 3) { u = P->p_mute_mask; val = get_mute_mask(P); }
+        else if (k == 4) { u = P->p_solo_mask; val = get_solo_mask(P); }
+        else if (k == 5) { u = P->p_pad_end; val = (int)lrintf(P->core.pad[P->sel_pad].end); }
+        else if (k == 6) { u = P->p_seq_bpm; val = (int)lrint(P->core.seq.bpm); }
+        else { P->report_next = -1; break; }
+        lv2_atom_forge_frame_time(&P->forge, 0);
+        lv2_atom_forge_object(&P->forge, &obj, 0, P->patch_Set);
+        lv2_atom_forge_key(&P->forge, P->patch_property);
+        lv2_atom_forge_urid(&P->forge, u);
+        lv2_atom_forge_key(&P->forge, P->patch_value);
+        lv2_atom_forge_int(&P->forge, val);
+        lv2_atom_forge_pop(&P->forge, &obj);
+      }
+      P->report_next++;
+      if (P->report_next >= EP_PADS + 7) P->report_next = -1;
+    }
+  }
+  lv2_atom_forge_pop(&P->forge, &seq_frame);
+}
+
+/* ---------- LV2 callbacks ---------- */
+
+static LV2_Handle instantiate(const LV2_Descriptor* d, double sr, const char* bundle_path,
+                              const LV2_Feature* const* features) {
+  (void)d; (void)bundle_path;
+  EkaPads* P = (EkaPads*)calloc(1, sizeof(EkaPads));
+  if (!P) return NULL;
+  P->sr = sr;
+  P->follow = 1;
+  P->report_next = -1;
+  P->shm_fd = -1;
+  P->shm_dirty = 1;
+  ep_core_init(&P->core, sr);
+
+  for (int i = 0; features && features[i]; i++) {
+    if (!strcmp(features[i]->URI, LV2_URID__map))
+      P->map = (LV2_URID_Map*)features[i]->data;
+    else if (!strcmp(features[i]->URI, LV2_WORKER__schedule))
+      P->sched = (LV2_Worker_Schedule*)features[i]->data;
+  }
+  if (!P->map) { free(P); return NULL; }
+
+  lv2_atom_forge_init(&P->forge, P->map);
+  P->midi_Event     = P->map->map(P->map->handle, LV2_MIDI__MidiEvent);
+  P->atom_Object    = P->map->map(P->map->handle, LV2_ATOM__Object);
+  P->atom_Path      = P->map->map(P->map->handle, LV2_ATOM__Path);
+  P->atom_String    = P->map->map(P->map->handle, LV2_ATOM__String);
+  P->atom_URID      = P->map->map(P->map->handle, LV2_ATOM__URID);
+  P->atom_Int       = P->map->map(P->map->handle, LV2_ATOM__Int);
+  P->atom_Float     = P->map->map(P->map->handle, LV2_ATOM__Float);
+  P->atom_Double    = P->map->map(P->map->handle, LV2_ATOM__Double);
+  P->atom_Long      = P->map->map(P->map->handle, LV2_ATOM__Long);
+  P->atom_Chunk     = P->map->map(P->map->handle, LV2_ATOM__Chunk);
+  P->patch_Set      = P->map->map(P->map->handle, LV2_PATCH__Set);
+  P->patch_Get      = P->map->map(P->map->handle, LV2_PATCH__Get);
+  P->patch_property = P->map->map(P->map->handle, LV2_PATCH__property);
+  P->patch_value    = P->map->map(P->map->handle, LV2_PATCH__value);
+  P->time_Position  = P->map->map(P->map->handle, LV2_TIME__Position);
+  P->time_bpm       = P->map->map(P->map->handle, LV2_TIME__beatsPerMinute);
+  P->time_speed     = P->map->map(P->map->handle, LV2_TIME__speed);
+  P->time_bar       = P->map->map(P->map->handle, LV2_TIME__bar);
+  P->time_barBeat   = P->map->map(P->map->handle, LV2_TIME__barBeat);
+  P->time_bpb       = P->map->map(P->map->handle, LV2_TIME__beatsPerBar);
+
+  char uri[128];
+  for (int i = 0; i < EP_PADS; i++) {
+    snprintf(uri, sizeof uri, "%s#sample%d", EP_URI, i + 1);
+    P->p_sample[i] = P->map->map(P->map->handle, uri);
+  }
+  P->p_sel_pad     = P->map->map(P->map->handle, EP_URI "#sel_pad");
+  P->p_follow      = P->map->map(P->map->handle, EP_URI "#follow");
+  P->p_learn       = P->map->map(P->map->handle, EP_URI "#learn");
+  P->p_mute_mask   = P->map->map(P->map->handle, EP_URI "#mute_mask");
+  P->p_solo_mask   = P->map->map(P->map->handle, EP_URI "#solo_mask");
+  P->p_pad_end     = P->map->map(P->map->handle, EP_URI "#pad_end");
+  P->p_seq_bpm     = P->map->map(P->map->handle, EP_URI "#seq_bpm");
+  P->p_seq_cmd     = P->map->map(P->map->handle, EP_URI "#seq_cmd");
+  P->st_pad_params = P->map->map(P->map->handle, EP_URI "#state_pads");
+  P->st_scenes     = P->map->map(P->map->handle, EP_URI "#state_scenes");
+
+  /* Shared memory snapshot for Zynthian widget (same pattern as Eka Roll) */
+  snprintf(P->shm_path, sizeof P->shm_path, "/dev/shm/eka_pads_%d", (int)getpid());
+  P->shm_fd = open(P->shm_path, O_RDWR | O_CREAT | O_TRUNC, 0644);
+  if (P->shm_fd >= 0 && ftruncate(P->shm_fd, (off_t)sizeof(EpShm)) == 0) {
+    void* mp = mmap(NULL, sizeof(EpShm), PROT_READ | PROT_WRITE, MAP_SHARED, P->shm_fd, 0);
+    if (mp != MAP_FAILED) {
+      P->shm = (EpShm*)mp;
+      memset(P->shm, 0, sizeof(EpShm));
+      P->shm->magic = EP_SHM_MAGIC;
+      P->shm->version = EP_SHM_VER;
+      shm_publish(P);
+    }
+  }
+
+  return (LV2_Handle)P;
+}
+
+static void connect_port(LV2_Handle h, uint32_t port, void* data) {
+  EkaPads* P = (EkaPads*)h;
+  if (port < N_CTL) { P->ctl[port] = (const float*)data; return; }
+  switch (port) {
+    case P_MIDI_IN:       P->in = (const LV2_Atom_Sequence*)data; break;
+    case P_OUT_L:         P->out_l = (float*)data; break;
+    case P_OUT_R:         P->out_r = (float*)data; break;
+    case P_NOTIFY:        P->notify = (LV2_Atom_Sequence*)data; break;
+    case P_OUT_SEL_PAD:   P->out_sel_pad = (float*)data; break;
+    case P_OUT_SEQ_STEP:  P->out_seq_step = (float*)data; break;
+    case P_OUT_SEQ_SCENE: P->out_seq_scene = (float*)data; break;
+    case P_OUT_SEQ_PEND:  P->out_seq_pend = (float*)data; break;
+    case P_OUT_PLAYHEAD:  P->out_playhead = (float*)data; break;
+    default:
+      if (port >= P_OUT_LVL0 && port < P_OUT_LVL0 + EP_PADS)
+        P->out_lvl[port - P_OUT_LVL0] = (float*)data;
+      break;
+  }
+}
+
+static void activate(LV2_Handle h) {
+  EkaPads* P = (EkaPads*)h;
+  ep_core_reset(&P->core);
+  P->have_prev_ctl = 0;
+  P->shm_dirty = 1;
+}
+
+static void run(LV2_Handle h, uint32_t nframes) {
+  EkaPads* P = (EkaPads*)h;
+  if (!P->out_l || !P->out_r) return;
+
+  collect_retired(P);
+
+  /* Sync control inputs: only apply pad knobs (0..11) when they actually move */
+  if (!P->have_prev_ctl) {
+    for (int i = 0; i < N_CTL; i++) P->prev_ctl[i] = P->ctl[i] ? *P->ctl[i] : 0.0f;
+    P->have_prev_ctl = 1;
+  } else {
+    for (int i = 0; i < N_PAD_CTL; i++) {
+      if (!P->ctl[i]) continue;
+      float v = *P->ctl[i];
+      if (fabsf(v - P->prev_ctl[i]) > 1e-4f) {
+        P->prev_ctl[i] = v;
+        apply_pad_control(&P->core.pad[P->sel_pad], i, v);
+        P->shm_dirty = 1;
+      }
+    }
+    if (P->ctl[P_SEQ_MODE]) {
+      float v = *P->ctl[P_SEQ_MODE];
+      if (fabsf(v - P->prev_ctl[P_SEQ_MODE]) > 1e-4f) {
+        P->prev_ctl[P_SEQ_MODE] = v;
+        ep_seq_set_mode(&P->core, (int)lrintf(v));
+      }
+    }
+    if (P->ctl[P_SEQ_SCENE]) {
+      float v = *P->ctl[P_SEQ_SCENE];
+      if (fabsf(v - P->prev_ctl[P_SEQ_SCENE]) > 1e-4f) {
+        P->prev_ctl[P_SEQ_SCENE] = v;
+        ep_seq_request_scene(&P->core, (int)lrintf(v) - 1);
+      }
+    }
+  }
+  if (P->ctl[P_SEQ_SWING]) P->core.seq.swing = *P->ctl[P_SEQ_SWING];
+  if (P->ctl[P_MASTER])    P->core.master_vol = *P->ctl[P_MASTER];
+
+  uint32_t pos = 0;
+  if (P->in) {
+    LV2_ATOM_SEQUENCE_FOREACH(P->in, ev) {
+      uint32_t t = (uint32_t)(ev->time.frames < 0 ? 0 : ev->time.frames);
+      if (t > nframes) t = nframes;
+
+      if (ev->body.type == P->midi_Event && ev->body.size >= 3) {
+        if (t > pos) {
+          ep_core_process(&P->core, P->out_l + pos, P->out_r + pos, t - pos, P->sel_pad);
+          pos = t;
+        }
+        const uint8_t* msg = (const uint8_t*)(ev + 1);
+        uint8_t status = msg[0] & 0xF0;
+        uint8_t note = msg[1] & 0x7F;
+        uint8_t vel = msg[2] & 0x7F;
+
+        if (status == 0x90 && vel > 0) {
+          if (P->learn) {
+            P->core.pad[P->sel_pad].midi_note = note;
+            P->learn = 0;
+            P->shm_dirty = 1;
+            ep_core_trigger(&P->core, P->sel_pad, vel);
+          } else {
+            int matched = 0;
+            for (int p = 0; p < EP_PADS; p++) {
+              if (P->core.pad[p].midi_note == note) {
+                matched = 1;
+                if (P->follow) P->sel_pad = p;
+                ep_core_trigger(&P->core, p, vel);
+                if (P->core.seq.mode == EP_SEQ_REC) {
+                  ep_seq_record_hit(&P->core, p, vel);
+                  P->shm_dirty = 1;
+                }
+              }
+            }
+            /* Unassigned Bank B notes 52..59 switch Scenes 1..8 on M-VAVE SMC-PAD! */
+            if (!matched && note >= 52 && note < 52 + EP_SCENES) {
+              ep_seq_request_scene(&P->core, note - 52);
+            }
+          }
+        } else if (status == 0x80 || (status == 0x90 && vel == 0)) {
+          for (int p = 0; p < EP_PADS; p++) {
+            if (P->core.pad[p].midi_note == note) {
+              ep_core_release(&P->core, p);
+            }
+          }
+        }
+      } else if (ev->body.type == P->atom_Object) {
+        const LV2_Atom_Object* obj = (const LV2_Atom_Object*)&ev->body;
+        if (obj->body.otype == P->patch_Set) {
+          handle_patch_set(P, obj);
+        } else if (obj->body.otype == P->patch_Get) {
+          P->report_next = 0;
+        } else if (obj->body.otype == P->time_Position) {
+          handle_time_position(P, obj);
+        }
+      }
+    }
+  }
+
+  if (pos < nframes) {
+    ep_core_process(&P->core, P->out_l + pos, P->out_r + pos, nframes - pos, P->sel_pad);
+  }
+
+  if (P->out_sel_pad)   *P->out_sel_pad   = (float)P->sel_pad;
+  if (P->out_seq_step)  *P->out_seq_step  = (float)P->core.seq.cur_step;
+  if (P->out_seq_scene) *P->out_seq_scene = (float)P->core.seq.scene;
+  if (P->out_seq_pend)  *P->out_seq_pend  = (float)P->core.seq.pend_scene;
+  if (P->out_playhead)  *P->out_playhead  = P->core.sel_playhead;
+  for (int i = 0; i < EP_PADS; i++) {
+    if (P->out_lvl[i]) *P->out_lvl[i] = P->core.activity[i];
+  }
+
+  shm_publish(P);
+  forge_notify_reports(P);
+}
+
+static void cleanup(LV2_Handle h) {
+  EkaPads* P = (EkaPads*)h;
+  if (P->shm) munmap(P->shm, sizeof(EpShm));
+  if (P->shm_fd >= 0) close(P->shm_fd);
+  if (P->shm_path[0]) unlink(P->shm_path);
+  for (int i = 0; i < EP_PADS; i++) ep_sample_free(P->samples[i]);
+  for (int i = 0; i < P->nretired; i++) ep_sample_free(P->retired[i].s);
+  free(P);
+}
+
+/* ---------- LV2 Worker ---------- */
+
+static LV2_Worker_Status work(LV2_Handle h, LV2_Worker_Respond_Function respond,
+                              LV2_Worker_Respond_Handle handle, uint32_t size, const void* data) {
+  EkaPads* P = (EkaPads*)h;
+  if (size < sizeof(uint32_t)) return LV2_WORKER_ERR_UNKNOWN;
+  uint32_t type = *(const uint32_t*)data;
+  if (type == MSG_FREE && size == sizeof(MsgFree)) {
+    const MsgFree* m = (const MsgFree*)data;
+    ep_sample_free(m->s);
+    return LV2_WORKER_SUCCESS;
+  }
+  if (type == MSG_LOAD && size == sizeof(MsgLoad)) {
+    const MsgLoad* m = (const MsgLoad*)data;
+    if (m->pad < 0 || m->pad >= EP_PADS) return LV2_WORKER_SUCCESS;
+    if (m->seq != atomic_load_explicit(&P->req_seq[m->pad], memory_order_relaxed))
+      return LV2_WORKER_SUCCESS;
+    int err = EP_LOAD_OK;
+    EpSample* s = ep_sample_load(m->path, EP_MAX_SECONDS, &err);
+    MsgDone done = { m->pad, m->seq, err, s };
+    respond(handle, sizeof done, &done);
+    return LV2_WORKER_SUCCESS;
+  }
+  return LV2_WORKER_ERR_UNKNOWN;
+}
+
+static LV2_Worker_Status work_response(LV2_Handle h, uint32_t size, const void* data) {
+  EkaPads* P = (EkaPads*)h;
+  if (size != sizeof(MsgDone)) return LV2_WORKER_ERR_UNKNOWN;
+  const MsgDone* d = (const MsgDone*)data;
+  if (d->pad < 0 || d->pad >= EP_PADS) {
+    free_in_worker(P, d->s);
+    return LV2_WORKER_SUCCESS;
+  }
+  if (d->seq != atomic_load_explicit(&P->req_seq[d->pad], memory_order_relaxed)) {
+    free_in_worker(P, d->s);
+    return LV2_WORKER_SUCCESS;
+  }
+  if (d->err == EP_LOAD_OK && d->s) {
+    swap_sample(P, d->pad, d->s);
+  }
+  return LV2_WORKER_SUCCESS;
+}
+
+static const LV2_Worker_Interface worker_iface = { work, work_response, NULL };
+
+/* ---------- LV2 State ---------- */
+
+static LV2_State_Status state_save(LV2_Handle h, LV2_State_Store_Function store,
+                                   LV2_State_Handle handle, uint32_t flags,
+                                   const LV2_Feature* const* features) {
+  (void)flags; (void)features;
+  EkaPads* P = (EkaPads*)h;
+  for (int i = 0; i < EP_PADS; i++) {
+    if (P->paths[i][0]) {
+      store(handle, P->p_sample[i], P->paths[i], strlen(P->paths[i]) + 1,
+            P->atom_Path, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+    }
+  }
+  int32_t bpm_i = (int32_t)lrint(P->core.seq.bpm);
+  store(handle, P->p_sel_pad, &P->sel_pad, sizeof(int32_t), P->atom_Int,
+        LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+  store(handle, P->p_follow, &P->follow, sizeof(int32_t), P->atom_Int,
+        LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+  store(handle, P->p_seq_bpm, &bpm_i, sizeof(int32_t), P->atom_Int,
+        LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+  store(handle, P->st_pad_params, P->core.pad, sizeof P->core.pad, P->atom_Chunk,
+        LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+  store(handle, P->st_scenes, P->core.scenes, sizeof P->core.scenes, P->atom_Chunk,
+        LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+  return LV2_STATE_SUCCESS;
+}
+
+static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function retrieve,
+                                      LV2_State_Handle handle, uint32_t flags,
+                                      const LV2_Feature* const* features) {
+  (void)flags; (void)features;
+  EkaPads* P = (EkaPads*)h;
+  size_t sz; uint32_t type, fl;
+
+  const void* blob = retrieve(handle, P->st_pad_params, &sz, &type, &fl);
+  if (blob && sz == sizeof P->core.pad) {
+    memcpy(P->core.pad, blob, sz);
+  }
+  const void* sc = retrieve(handle, P->st_scenes, &sz, &type, &fl);
+  if (sc && sz == sizeof P->core.scenes) {
+    memcpy(P->core.scenes, sc, sz);
+  }
+  const void* sp = retrieve(handle, P->p_sel_pad, &sz, &type, &fl);
+  if (sp && sz == sizeof(int32_t)) {
+    int v = *(const int32_t*)sp;
+    if (v >= 0 && v < EP_PADS) P->sel_pad = v;
+  }
+  const void* fw = retrieve(handle, P->p_follow, &sz, &type, &fl);
+  if (fw && sz == sizeof(int32_t)) {
+    P->follow = (*(const int32_t*)fw) ? 1 : 0;
+  }
+  const void* bv = retrieve(handle, P->p_seq_bpm, &sz, &type, &fl);
+  if (bv && sz == sizeof(int32_t)) {
+    int b = *(const int32_t*)bv;
+    if (b >= 40 && b <= 240) P->core.seq.bpm = (double)b;
+  }
+
+  for (int i = 0; i < EP_PADS; i++) {
+    const void* pv = retrieve(handle, P->p_sample[i], &sz, &type, &fl);
+    if (pv && (type == P->atom_Path || type == P->atom_String) && sz > 0 && sz < EP_PATH_MAX) {
+      char buf[EP_PATH_MAX];
+      memcpy(buf, pv, sz);
+      buf[sz - 1] = '\0';
+      if (buf[0] && strcmp(buf, "_") != 0) {
+        int err = EP_LOAD_OK;
+        EpSample* s = ep_sample_load(buf, EP_MAX_SECONDS, &err);
+        snprintf(P->paths[i], EP_PATH_MAX, "%s", buf);
+        if (err == EP_LOAD_OK && s) {
+          swap_sample(P, i, s);
+        }
+      }
+    }
+  }
+  P->shm_dirty = 1;
+  shm_publish(P);
+  P->report_next = 0;
+  return LV2_STATE_SUCCESS;
+}
+
+static const LV2_State_Interface state_iface = { state_save, state_restore };
+
+static const void* extension_data(const char* uri) {
+  if (!strcmp(uri, LV2_WORKER__interface)) return &worker_iface;
+  if (!strcmp(uri, LV2_STATE__interface))  return &state_iface;
+  return NULL;
+}
+
+static const LV2_Descriptor descriptor = {
+  EP_URI,
+  instantiate,
+  connect_port,
+  activate,
+  run,
+  NULL,
+  cleanup,
+  extension_data
+};
+
+LV2_SYMBOL_EXPORT const LV2_Descriptor* lv2_descriptor(uint32_t index) {
+  return index == 0 ? &descriptor : NULL;
+}

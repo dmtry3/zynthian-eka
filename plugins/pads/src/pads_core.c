@@ -1,0 +1,666 @@
+#include "pads_core.h"
+#include <math.h>
+#include <string.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+static inline float clampf(float x, float lo, float hi) {
+  return x < lo ? lo : (x > hi ? hi : x);
+}
+
+static inline float fast_tanh(float x) {
+  if (x > 3.0f) return 1.0f;
+  if (x < -3.0f) return -1.0f;
+  float x2 = x * x;
+  return x * (27.0f + x2) / (27.0f + 9.0f * x2);
+}
+
+/* ---------- Lightweight Room Reverb (Space) ---------- */
+
+static void reverb_init(EpReverb* rv, double sr) {
+  memset(rv, 0, sizeof *rv);
+  /* Prime-like room delay lengths scaled from 48 kHz */
+  static const int base_comb[EP_REV_COMBS] = { 1217, 1429, 1613, 1811 };
+  static const int base_ap[EP_REV_APS] = { 241, 563 };
+  double scale = sr / 48000.0;
+  for (int ch = 0; ch < 2; ch++) {
+    int spread = ch ? 23 : 0;
+    for (int i = 0; i < EP_REV_COMBS; i++) {
+      int len = (int)((base_comb[i] + spread) * scale);
+      if (len < 64) len = 64;
+      if (len >= EP_REV_MAXBUF) len = EP_REV_MAXBUF - 1;
+      rv->comb_len[ch][i] = len;
+    }
+    for (int i = 0; i < EP_REV_APS; i++) {
+      int len = (int)((base_ap[i] + spread) * scale);
+      if (len < 32) len = 32;
+      if (len >= 1024) len = 1023;
+      rv->ap_len[ch][i] = len;
+    }
+  }
+}
+
+static void reverb_process(EpReverb* rv, double sr, const float* in_l, const float* in_r,
+                           float* out_l, float* out_r, uint32_t nframes) {
+  float in_e = 0.0f;
+  for (uint32_t i = 0; i < nframes; i++) {
+    in_e += fabsf(in_l[i]) + fabsf(in_r[i]);
+  }
+  if (in_e > 1e-7f) {
+    rv->tail_samples = (int)(sr * 2.0);
+  } else if (rv->tail_samples <= 0 && rv->energy < 1e-6f) {
+    rv->energy = 0.0f;
+    return;
+  } else if (rv->tail_samples > 0) {
+    rv->tail_samples -= (int)nframes;
+    if (rv->tail_samples < 0) rv->tail_samples = 0;
+  }
+
+  const float fb = 0.78f;
+  const float damp = 0.35f;
+  const float wet = 0.32f;
+  float out_e = 0.0f;
+
+  for (uint32_t i = 0; i < nframes; i++) {
+    float x[2] = { in_l[i] * 0.25f, in_r[i] * 0.25f };
+    float y[2] = { 0.0f, 0.0f };
+
+    for (int ch = 0; ch < 2; ch++) {
+      float sum = 0.0f;
+      for (int c = 0; c < EP_REV_COMBS; c++) {
+        int p = rv->comb_pos[ch][c];
+        float d = rv->comb_buf[ch][c][p];
+        rv->comb_lp[ch][c] = d * (1.0f - damp) + rv->comb_lp[ch][c] * damp;
+        rv->comb_buf[ch][c][p] = x[ch] + rv->comb_lp[ch][c] * fb;
+        if (++p >= rv->comb_len[ch][c]) p = 0;
+        rv->comb_pos[ch][c] = p;
+        sum += d;
+      }
+      for (int a = 0; a < EP_REV_APS; a++) {
+        int p = rv->ap_pos[ch][a];
+        float d = rv->ap_buf[ch][a][p];
+        float v = sum + d * 0.5f;
+        rv->ap_buf[ch][a][p] = v;
+        if (++p >= rv->ap_len[ch][a]) p = 0;
+        rv->ap_pos[ch][a] = p;
+        sum = d - v * 0.5f;
+      }
+      y[ch] = sum * wet;
+      out_e += fabsf(y[ch]);
+    }
+    out_l[i] += y[0];
+    out_r[i] += y[1];
+  }
+  rv->energy = out_e / (float)(nframes > 0 ? nframes : 1);
+}
+
+/* ---------- Pad Defaults & Core Init ---------- */
+
+void ep_pad_defaults(EpPadParams* p, int pad_index) {
+  memset(p, 0, sizeof *p);
+  p->pitch = 0.0f;
+  p->decay = 100.0f;
+  p->filter = 0.0f;
+  p->level = 80.0f;
+  p->start = 0.0f;
+  p->end = 100.0f;
+  p->mode = EP_MODE_ONESHOT;
+  p->punch = 0.0f;
+  p->drive = 0.0f;
+  p->pan = 0.0f;
+  p->vel_sens = 75.0f;
+  p->choke = 0;
+  p->send = 15.0f;
+  p->mute = 0;
+  p->solo = 0;
+  p->midi_note = 36 + (pad_index & 15);
+}
+
+void ep_core_init(EpCore* c, double sr) {
+  memset(c, 0, sizeof *c);
+  c->sr = sr > 1000.0 ? sr : 48000.0;
+  c->master_vol = 85.0f;
+  c->sel_playhead = -1.0f;
+  for (int i = 0; i < EP_PADS; i++) {
+    ep_pad_defaults(&c->pad[i], i);
+    c->gen[i] = 1;
+  }
+  c->seq.mode = EP_SEQ_STOP;
+  c->seq.scene = 0;
+  c->seq.pend_scene = -1;
+  c->seq.cur_step = -1;
+  c->seq.bpm = 120.0;
+  c->seq.swing = 50.0f;
+  c->seq.last_step_fired = -1;
+  c->seq.skip_step = -1;
+  reverb_init(&c->rev, c->sr);
+}
+
+void ep_core_reset(EpCore* c) {
+  memset(c->voices, 0, sizeof c->voices);
+  memset(c->activity, 0, sizeof c->activity);
+  c->sel_playhead = -1.0f;
+  c->seq.bar_phase = 0.0;
+  c->seq.cur_step = (c->seq.mode == EP_SEQ_STOP) ? -1 : 0;
+  c->seq.last_step_fired = -1;
+  c->seq.skip_next_mask = 0;
+  c->seq.skip_step = -1;
+  memset(c->seq.roll_rem, 0, sizeof c->seq.roll_rem);
+  reverb_init(&c->rev, c->sr);
+}
+
+uint32_t ep_core_set_source(EpCore* c, int pad, const EpSource* src) {
+  if (pad < 0 || pad >= EP_PADS) return 0;
+  uint32_t old_gen = c->gen[pad];
+  float fstep = 1.0f / (float)(c->sr * EP_FADE_MS * 0.001 + 1.0);
+  for (int i = 0; i < EP_VOICES; i++) {
+    if (c->voices[i].active && c->voices[i].pad == pad) {
+      if (c->voices[i].fade_step == 0.0f) {
+        c->voices[i].fade = 1.0f;
+        c->voices[i].fade_step = fstep;
+      }
+    }
+  }
+  c->gen[pad]++;
+  if (src && src->data && src->frames > 0) {
+    c->src[pad] = *src;
+  } else {
+    memset(&c->src[pad], 0, sizeof c->src[pad]);
+  }
+  return old_gen;
+}
+
+int ep_core_gen_in_use(const EpCore* c, int pad, uint32_t gen) {
+  for (int i = 0; i < EP_VOICES; i++) {
+    if (c->voices[i].active && c->voices[i].pad == pad && c->voices[i].gen == gen)
+      return 1;
+  }
+  return 0;
+}
+
+void ep_core_all_off(EpCore* c) {
+  for (int i = 0; i < EP_VOICES; i++) c->voices[i].active = 0;
+}
+
+static int any_solo(const EpCore* c) {
+  for (int i = 0; i < EP_PADS; i++) {
+    if (c->pad[i].solo) return 1;
+  }
+  return 0;
+}
+
+static int find_voice_slot(EpCore* c) {
+  for (int i = 0; i < EP_VOICES; i++) {
+    if (!c->voices[i].active) return i;
+  }
+  int best = 0;
+  uint64_t oldest = UINT64_MAX;
+  int found_fading = 0;
+  for (int i = 0; i < EP_VOICES; i++) {
+    int fading = c->voices[i].fade_step > 0.0f;
+    if (fading && !found_fading) {
+      found_fading = 1;
+      best = i;
+      oldest = c->voices[i].age;
+    } else if (fading == found_fading && c->voices[i].age < oldest) {
+      best = i;
+      oldest = c->voices[i].age;
+    }
+  }
+  return best;
+}
+
+void ep_core_trigger(EpCore* c, int pad, int vel) {
+  if (pad < 0 || pad >= EP_PADS) return;
+  const EpSource* s = &c->src[pad];
+  const EpPadParams* p = &c->pad[pad];
+  if (!s->data || s->frames <= 0) return;
+
+  float fstep = 1.0f / (float)(c->sr * EP_FADE_MS * 0.001 + 1.0);
+  for (int i = 0; i < EP_VOICES; i++) {
+    EpVoice* v = &c->voices[i];
+    if (!v->active) continue;
+    int same_pad = (v->pad == pad);
+    int same_choke = (p->choke > 0 && c->pad[v->pad].choke == p->choke);
+    if (same_pad || same_choke) {
+      if (v->fade_step == 0.0f) {
+        v->fade = 1.0f;
+        v->fade_step = fstep;
+      }
+    }
+  }
+
+  int slot = find_voice_slot(c);
+  EpVoice* v = &c->voices[slot];
+  memset(v, 0, sizeof *v);
+
+  float st_frac = clampf(p->start * 0.01f, 0.0f, 0.95f);
+  float en_frac = clampf(p->end * 0.01f, st_frac + 0.01f, 1.0f);
+  if (en_frac > 1.0f) en_frac = 1.0f;
+
+  v->active = 1;
+  v->pad = pad;
+  v->gen = c->gen[pad];
+  v->start_frame = (double)st_frac * (double)(s->frames - 1);
+  v->end_frame = (double)en_frac * (double)(s->frames - 1);
+  if (v->end_frame <= v->start_frame) v->end_frame = (double)(s->frames - 1);
+
+  v->reverse = (p->mode == EP_MODE_REV_ONESHOT || p->mode == EP_MODE_REV_GATE);
+  v->gate_mode = (p->mode == EP_MODE_GATE || p->mode == EP_MODE_REV_GATE);
+  v->pos = v->reverse ? v->end_frame : v->start_frame;
+
+  float vel_norm = clampf((float)vel / 127.0f, 0.0f, 1.0f);
+  float vs = clampf(p->vel_sens * 0.01f, 0.0f, 1.0f);
+  v->vel_gain = (1.0f - vs) + vs * (vel_norm * vel_norm);
+
+  v->env = 1.0f;
+  v->full_sample = (p->decay >= 99.5f);
+  if (!v->full_sample) {
+    double dec_sec = 0.010 * pow(1000.0, (double)clampf(p->decay, 0.0f, 100.0f) / 100.0);
+    v->decay_coef = (float)exp(-6.90775527898 / (dec_sec * c->sr));
+  } else {
+    v->decay_coef = 1.0f;
+  }
+
+  v->fade = 1.0f;
+  v->fade_step = 0.0f;
+  v->punch_env = 1.0f;
+  v->punch_coef = (float)exp(-1.0 / (0.025 * c->sr));
+  v->age = ++c->voice_seq;
+
+  float act = 0.35f + 0.65f * vel_norm;
+  if (act > c->activity[pad]) c->activity[pad] = act;
+}
+
+void ep_core_release(EpCore* c, int pad) {
+  if (pad < 0 || pad >= EP_PADS) return;
+  float fstep = 1.0f / (float)(c->sr * 0.012 + 1.0);
+  for (int i = 0; i < EP_VOICES; i++) {
+    EpVoice* v = &c->voices[i];
+    if (v->active && v->pad == pad && v->gate_mode && !v->released) {
+      v->released = 1;
+      if (v->fade_step == 0.0f) {
+        v->fade = 1.0f;
+        v->fade_step = fstep;
+      }
+    }
+  }
+}
+
+/* ---------- Step Sequencer ---------- */
+
+void ep_seq_set_mode(EpCore* c, int mode) {
+  if (mode < EP_SEQ_STOP) mode = EP_SEQ_STOP;
+  if (mode > EP_SEQ_REC) mode = EP_SEQ_REC;
+  if (mode == c->seq.mode) return;
+  int was_stopped = (c->seq.mode == EP_SEQ_STOP);
+  c->seq.mode = mode;
+  if (mode == EP_SEQ_STOP) {
+    c->seq.cur_step = -1;
+    c->seq.last_step_fired = -1;
+    c->seq.skip_next_mask = 0;
+    c->seq.skip_step = -1;
+    memset(c->seq.roll_rem, 0, sizeof c->seq.roll_rem);
+    if (c->seq.pend_scene >= 0) {
+      c->seq.scene = c->seq.pend_scene;
+      c->seq.pend_scene = -1;
+    }
+  } else if (was_stopped) {
+    if (!c->seq.host_playing) {
+      c->seq.bar_phase = 0.0;
+    }
+    c->seq.last_step_fired = -1;
+  }
+}
+
+void ep_seq_request_scene(EpCore* c, int scene) {
+  if (scene < 0 || scene >= EP_SCENES) return;
+  if (c->seq.mode == EP_SEQ_STOP) {
+    c->seq.scene = scene;
+    c->seq.pend_scene = -1;
+  } else if (scene == c->seq.scene) {
+    c->seq.pend_scene = -1;
+  } else {
+    c->seq.pend_scene = scene;
+  }
+}
+
+void ep_seq_sync_host(EpCore* c, double bpm, int playing, double bar_beat, int bpb) {
+  if (bpm >= 40.0 && bpm <= 240.0) c->seq.bpm = bpm;
+  c->seq.host_playing = playing ? 1 : 0;
+  if (playing && bpb > 0 && bar_beat >= 0.0) {
+    /* Map host barBeat (0..bpb) onto 0..16 16th-note phase */
+    double ph = fmod(bar_beat * 4.0, 16.0);
+    if (ph < 0.0) ph += 16.0;
+    /* Only hard-sync if drift > 0.15 steps so internal sample-accurate stepping stays jitter-free */
+    double diff = fabs(ph - c->seq.bar_phase);
+    if (diff > 8.0) diff = 16.0 - diff;
+    if (diff > 0.15) {
+      c->seq.bar_phase = ph;
+    }
+  }
+}
+
+void ep_seq_record_hit(EpCore* c, int pad, int vel) {
+  if (c->seq.mode != EP_SEQ_REC || pad < 0 || pad >= EP_PADS || vel <= 0) return;
+  double ph = c->seq.bar_phase;
+  int step = (int)llround(ph) % EP_STEPS;
+  if (step < 0) step += EP_STEPS;
+  c->scenes[c->seq.scene].steps[pad][step].vel = (uint8_t)(vel > 127 ? 127 : vel);
+  /* If quantized forward to the next upcoming step, suppress its immediate auto-trigger once */
+  int cur = (int)floor(ph) % EP_STEPS;
+  if (step != cur) {
+    c->seq.skip_step = step;
+    c->seq.skip_next_mask |= (uint16_t)(1u << pad);
+  }
+}
+
+void ep_seq_clear_pad(EpCore* c, int scene, int pad) {
+  if (scene < 0 || scene >= EP_SCENES || pad < 0 || pad >= EP_PADS) return;
+  memset(c->scenes[scene].steps[pad], 0, sizeof c->scenes[scene].steps[pad]);
+}
+
+void ep_seq_clear_scene(EpCore* c, int scene) {
+  if (scene < 0 || scene >= EP_SCENES) return;
+  memset(&c->scenes[scene], 0, sizeof c->scenes[scene]);
+}
+
+void ep_seq_copy_scene(EpCore* c, int src_scene, int dst_scene) {
+  if (src_scene < 0 || src_scene >= EP_SCENES || dst_scene < 0 || dst_scene >= EP_SCENES) return;
+  if (src_scene == dst_scene) return;
+  c->scenes[dst_scene] = c->scenes[src_scene];
+}
+
+/* Compute the swing-adjusted phase (0..16) at which step `s` fires */
+static double step_trigger_phase(int s, float swing) {
+  if ((s & 1) == 0) return (double)s;
+  /* swing 50..75% -> odd step shifts from s to s + 0.5 */
+  double shift = ((double)clampf(swing, 50.0f, 75.0f) - 50.0) / 50.0;
+  return (double)s + shift;
+}
+
+static void fire_seq_step(EpCore* c, int step, double samples_per_step) {
+  if (step == 0 && c->seq.pend_scene >= 0) {
+    c->seq.scene = c->seq.pend_scene;
+    c->seq.pend_scene = -1;
+  }
+  c->seq.cur_step = step;
+  const EpScene* sc = &c->scenes[c->seq.scene];
+  uint16_t skip = (c->seq.skip_step == step) ? c->seq.skip_next_mask : 0;
+  if (c->seq.skip_step == step) {
+    c->seq.skip_next_mask = 0;
+    c->seq.skip_step = -1;
+  }
+
+  for (int p = 0; p < EP_PADS; p++) {
+    EpStep st = sc->steps[p][step];
+    if (st.vel > 0) {
+      if (!(skip & (1u << p))) {
+        ep_core_trigger(c, p, st.vel);
+      }
+      if (st.roll > 0 && st.roll <= 3) {
+        int sub = st.roll + 1; /* 2x, 3x, 4x */
+        c->seq.roll_rem[p] = (uint8_t)(sub - 1);
+        c->seq.roll_vel[p] = st.vel;
+        c->seq.roll_interval[p] = samples_per_step / (double)sub;
+        c->seq.roll_timer[p] = c->seq.roll_interval[p];
+      } else {
+        c->seq.roll_rem[p] = 0;
+      }
+    }
+  }
+}
+
+/* Render a contiguous voice block without sequencer events inside it */
+static void render_voices(EpCore* c, float* out_l, float* out_r,
+                          float* send_l, float* send_r, uint32_t nframes, int sel_pad) {
+  memset(out_l, 0, nframes * sizeof(float));
+  memset(out_r, 0, nframes * sizeof(float));
+  memset(send_l, 0, nframes * sizeof(float));
+  memset(send_r, 0, nframes * sizeof(float));
+
+  const int solo_active = any_solo(c);
+  const float act_decay = (float)exp(-(double)nframes / (0.14 * c->sr));
+  for (int i = 0; i < EP_PADS; i++) {
+    c->activity[i] *= act_decay;
+    if (c->activity[i] < 0.002f) c->activity[i] = 0.0f;
+  }
+
+  float sel_ph = -1.0f;
+  uint64_t sel_newest = 0;
+
+  for (int vi = 0; vi < EP_VOICES; vi++) {
+    EpVoice* v = &c->voices[vi];
+    if (!v->active) continue;
+
+    const int pad = v->pad;
+    const EpSource* s = &c->src[pad];
+    const EpPadParams* p = &c->pad[pad];
+    if (!s->data || s->frames <= 0 || v->gen != c->gen[pad]) {
+      v->active = 0;
+      continue;
+    }
+
+    int audible = solo_active ? p->solo : !p->mute;
+    float pad_gain = audible ? (clampf(p->level * 0.01f, 0.0f, 1.5f) * v->vel_gain) : 0.0f;
+    float send_amt = audible ? clampf(p->send * 0.01f, 0.0f, 1.0f) : 0.0f;
+
+    float pan_norm = clampf(p->pan * 0.01f, -1.0f, 1.0f);
+    float angle = (pan_norm + 1.0f) * (float)(0.25 * M_PI);
+    float gain_l = pad_gain * cosf(angle) * 1.41421356f;
+    float gain_r = pad_gain * sinf(angle) * 1.41421356f;
+
+    double base_step = ((double)s->rate / c->sr) * pow(2.0, (double)clampf(p->pitch, -24.0f, 24.0f) / 12.0);
+    float punch_st = clampf(p->punch, -100.0f, 100.0f) * 0.24f;
+
+    float filt = clampf(p->filter, -100.0f, 100.0f);
+    int filt_mode = 0;
+    float g = 0.0f, k = 1.15f, a1 = 0.0f, a2 = 0.0f, a3 = 0.0f;
+    if (filt < -1.0f) {
+      filt_mode = -1;
+      float t = (100.0f + filt) / 100.0f;
+      float fc = 80.0f * powf(250.0f, t);
+      if (fc > 0.45f * (float)c->sr) fc = 0.45f * (float)c->sr;
+      g = tanf((float)M_PI * fc / (float)c->sr);
+      a1 = 1.0f / (1.0f + g * (g + k));
+      a2 = g * a1;
+      a3 = g * a2;
+    } else if (filt > 1.0f) {
+      filt_mode = 1;
+      float t = filt / 100.0f;
+      float fc = 20.0f * powf(400.0f, t);
+      if (fc > 0.45f * (float)c->sr) fc = 0.45f * (float)c->sr;
+      g = tanf((float)M_PI * fc / (float)c->sr);
+      a1 = 1.0f / (1.0f + g * (g + k));
+      a2 = g * a1;
+      a3 = g * a2;
+    }
+
+    float drive = clampf(p->drive, 0.0f, 100.0f);
+    float sat_gain = 1.0f + (drive < 50.0f ? drive : 50.0f) * 0.10f;
+    float crush_amt = drive > 50.0f ? (drive - 50.0f) * 0.02f : 0.0f;
+    float hold_inc = crush_amt > 0.0f ? 1.0f / (1.0f + crush_amt * 15.0f) : 1.0f;
+    float q_steps = crush_amt > 0.0f ? (64.0f - crush_amt * 56.0f) : 0.0f;
+
+    float peak_voice = 0.0f;
+
+    for (uint32_t i = 0; i < nframes; i++) {
+      if (v->reverse) {
+        if (v->pos < v->start_frame) { v->active = 0; break; }
+      } else {
+        if (v->pos >= v->end_frame) { v->active = 0; break; }
+      }
+
+      int64_t idx = (int64_t)v->pos;
+      if (idx < 0) idx = 0;
+      if (idx >= s->frames) idx = s->frames - 1;
+      float frac = (float)(v->pos - (double)idx);
+      const float* p0 = s->data + 2 * idx;
+      const float* p1 = p0 + 2;
+      float l = p0[0] + frac * (p1[0] - p0[0]);
+      float r = p0[1] + frac * (p1[1] - p0[1]);
+
+      if (drive > 0.5f) {
+        l = fast_tanh(l * sat_gain);
+        r = fast_tanh(r * sat_gain);
+        if (crush_amt > 0.0f) {
+          v->hold_phase += hold_inc;
+          if (v->hold_phase >= 1.0f) {
+            v->hold_phase -= 1.0f;
+            v->hold_l = floorf(l * q_steps + 0.5f) / q_steps;
+            v->hold_r = floorf(r * q_steps + 0.5f) / q_steps;
+          }
+          l = v->hold_l;
+          r = v->hold_r;
+        }
+      }
+
+      if (filt_mode != 0) {
+        float v3l = l - v->ic2_l;
+        float v1l = a1 * v->ic1_l + a2 * v3l;
+        float v2l = v->ic2_l + a2 * v->ic1_l + a3 * v3l;
+        v->ic1_l = 2.0f * v1l - v->ic1_l;
+        v->ic2_l = 2.0f * v2l - v->ic2_l;
+        l = (filt_mode < 0) ? v2l : (l - k * v1l - v2l);
+
+        float v3r = r - v->ic2_r;
+        float v1r = a1 * v->ic1_r + a2 * v3r;
+        float v2r = v->ic2_r + a2 * v->ic1_r + a3 * v3r;
+        v->ic1_r = 2.0f * v1r - v->ic1_r;
+        v->ic2_r = 2.0f * v2r - v->ic2_r;
+        r = (filt_mode < 0) ? v2r : (r - k * v1r - v2r);
+      }
+
+      float amp = v->env * v->fade;
+      float ol = l * amp * gain_l;
+      float or_ = r * amp * gain_r;
+      out_l[i] += ol;
+      out_r[i] += or_;
+      if (send_amt > 0.005f) {
+        send_l[i] += ol * send_amt;
+        send_r[i] += or_ * send_amt;
+      }
+
+      float m = fabsf(ol) > fabsf(or_) ? fabsf(ol) : fabsf(or_);
+      if (m > peak_voice) peak_voice = m;
+
+      double step = base_step;
+      if (punch_st != 0.0f && v->punch_env > 0.001f) {
+        step *= pow(2.0, (double)(punch_st * v->punch_env) / 12.0);
+        v->punch_env *= v->punch_coef;
+      }
+      v->pos += v->reverse ? -step : step;
+
+      if (!v->full_sample) {
+        v->env *= v->decay_coef;
+        if (v->env < 0.0005f) { v->active = 0; break; }
+      }
+      if (v->fade_step > 0.0f) {
+        v->fade -= v->fade_step;
+        if (v->fade <= 0.0f) { v->active = 0; break; }
+      }
+    }
+
+    if (peak_voice > c->activity[pad]) {
+      c->activity[pad] = peak_voice > 1.0f ? 1.0f : peak_voice;
+    }
+
+    if (v->active && pad == sel_pad && v->age > sel_newest && s->frames > 1) {
+      sel_newest = v->age;
+      sel_ph = clampf((float)(v->pos / (double)(s->frames - 1)), 0.0f, 1.0f);
+    }
+  }
+
+  c->sel_playhead = sel_ph;
+  reverb_process(&c->rev, c->sr, send_l, send_r, out_l, out_r, nframes);
+
+  float mg = clampf(c->master_vol * 0.01f, 0.0f, 1.5f);
+  for (uint32_t i = 0; i < nframes; i++) {
+    float l = out_l[i] * mg;
+    float r = out_r[i] * mg;
+    if (l > 0.75f) l = 0.75f + 0.25f * fast_tanh((l - 0.75f) * 4.0f);
+    else if (l < -0.75f) l = -0.75f + 0.25f * fast_tanh((l + 0.75f) * 4.0f);
+    if (r > 0.75f) r = 0.75f + 0.25f * fast_tanh((r - 0.75f) * 4.0f);
+    else if (r < -0.75f) r = -0.75f + 0.25f * fast_tanh((r + 0.75f) * 4.0f);
+    out_l[i] = l;
+    out_r[i] = r;
+  }
+}
+
+void ep_core_process(EpCore* c, float* out_l, float* out_r, uint32_t nframes, int sel_pad) {
+  float send_l[256], send_r[256];
+  uint32_t done = 0;
+
+  while (done < nframes) {
+    uint32_t chunk = nframes - done;
+    if (chunk > 256) chunk = 256;
+
+    if (c->seq.mode != EP_SEQ_STOP) {
+      double bpm = c->seq.bpm < 40.0 ? 40.0 : (c->seq.bpm > 240.0 ? 240.0 : c->seq.bpm);
+      /* 4 16th-notes per quarter note */
+      double steps_per_sample = (bpm / 60.0) * 4.0 / c->sr;
+      double samples_per_step = 1.0 / steps_per_sample;
+
+      /* Process sub-chunk sample-accurately up to the next step or roll event */
+      uint32_t sub_pos = 0;
+      while (sub_pos < chunk) {
+        /* Fire step 0 immediately when starting from idle */
+        if (c->seq.last_step_fired < 0 && c->seq.bar_phase < 0.05) {
+          c->seq.last_step_fired = 0;
+          fire_seq_step(c, 0, samples_per_step);
+        }
+
+        int next_step = (c->seq.last_step_fired + 1) % EP_STEPS;
+        double target_ph = step_trigger_phase(next_step, c->seq.swing);
+        double dph = target_ph - c->seq.bar_phase;
+        if (dph < -8.0) dph += 16.0;
+        else if (dph < 0.0) dph = 0.0;
+        uint32_t to_step = (uint32_t)ceil(dph * samples_per_step);
+
+        /* Check ratchet timers */
+        uint32_t to_roll = chunk - sub_pos;
+        int roll_pad = -1;
+        for (int p = 0; p < EP_PADS; p++) {
+          if (c->seq.roll_rem[p] > 0) {
+            uint32_t tr = c->seq.roll_timer[p] <= 0.0 ? 0 : (uint32_t)ceil(c->seq.roll_timer[p]);
+            if (tr < to_roll) {
+              to_roll = tr;
+              roll_pad = p;
+            }
+          }
+        }
+
+        uint32_t rem = chunk - sub_pos;
+        uint32_t adv = rem;
+        int ev_kind = 0; /* 0 = none, 1 = step, 2 = roll */
+        if (to_step <= adv) { adv = to_step; ev_kind = 1; }
+        if (roll_pad >= 0 && to_roll <= adv) { adv = to_roll; ev_kind = 2; }
+
+        if (adv > 0) {
+          render_voices(c, out_l + done + sub_pos, out_r + done + sub_pos,
+                        send_l, send_r, adv, sel_pad);
+          c->seq.bar_phase = fmod(c->seq.bar_phase + (double)adv * steps_per_sample, 16.0);
+          for (int p = 0; p < EP_PADS; p++) {
+            if (c->seq.roll_rem[p] > 0) c->seq.roll_timer[p] -= (double)adv;
+          }
+          sub_pos += adv;
+        }
+
+        if (ev_kind == 1) {
+          c->seq.last_step_fired = next_step;
+          fire_seq_step(c, next_step, samples_per_step);
+        } else if (ev_kind == 2 && roll_pad >= 0) {
+          c->seq.roll_rem[roll_pad]--;
+          c->seq.roll_timer[roll_pad] += c->seq.roll_interval[roll_pad];
+          ep_core_trigger(c, roll_pad, c->seq.roll_vel[roll_pad]);
+        }
+      }
+    } else {
+      render_voices(c, out_l + done, out_r + done, send_l, send_r, chunk, sel_pad);
+    }
+
+    done += chunk;
+  }
+}

@@ -79,6 +79,10 @@ Four 64-bit parametric bands (`Shelf`, `Bell`, `Pultec`, `Notch`, `Air`, `Off`),
 
 ![Eka Q-4](plugins/q4/docs/1-main.png)
 
+### [Eka Pads](plugins/pads): 16-pad drum sampler & scene sequencer
+
+Bitwig Drum Machine-style 4×4 drum sampler built for Bluetooth pad controllers (like M-VAVE SMC-PAD Pocket): 16 independent pads with async WAV/FLAC loading, per-pad pitch, decay, bipolar DJ filter, punch, drive/crush, choke groups, Room Space reverb, Auto-Select syncing Zynthian's 4 encoders to the last hit pad, and an 8-scene 16-step sequencer with live Overdub and ratchets.
+
 ## A setup
 
 A typical chain: **Roll** records the chords, **Bloom** turns them into a moving arpeggio, **Fold** or **Mist**
