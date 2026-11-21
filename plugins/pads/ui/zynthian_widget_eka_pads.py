@@ -130,6 +130,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.mm_path = None
         self.shm_seq = -1
         self.shm_hdr = None
+        self.last_shm_mode = 0
         self.pads_data = None      # list of 16 tuples (pitch, decay, filter, level, start, end, mode, punch, drive, pan, vel_sens, choke, send, mute, solo, midi_note)
         self.scenes_data = None    # bytes of length 8*16*16*2
 
@@ -344,6 +345,13 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             return
         self._follow_page()
         self._read_shm()
+
+        # If host Transport Stop halted the sequencer, sync the seq_mode zctrl back to Stop (0)
+        if self.shm_hdr:
+            cur_mode = self.shm_hdr[6]
+            if self.last_shm_mode > 0 and cur_mode == 0:
+                self._zset("seq_mode", 0)
+            self.last_shm_mode = cur_mode
 
         # Track Auto-Select pad from plugin monitor
         mon_pad = int(round(self._mon("out_sel_pad", self.sel_pad)))

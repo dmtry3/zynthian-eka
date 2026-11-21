@@ -363,7 +363,11 @@ static void handle_time_position(EkaPads* P, const LV2_Atom_Object* obj) {
   atom_to_double(P, a_speed, &speed);
   atom_to_double(P, a_beat, &beat);
   atom_to_double(P, a_bpb, &bpb);
+  int prev_mode = P->core.seq.mode;
   ep_seq_sync_host(&P->core, bpm, speed > 0.01, beat, (int)lrint(bpb));
+  if (P->core.seq.mode != prev_mode) {
+    P->shm_dirty = 1;
+  }
 }
 
 static void apply_pad_control(EpPadParams* p, int idx, float v) {
@@ -580,12 +584,21 @@ static void run(LV2_Handle h, uint32_t nframes) {
       uint32_t t = (uint32_t)(ev->time.frames < 0 ? 0 : ev->time.frames);
       if (t > nframes) t = nframes;
 
-      if (ev->body.type == P->midi_Event && ev->body.size >= 3) {
+      if (ev->body.type == P->midi_Event && ev->body.size >= 1) {
+        const uint8_t* msg = (const uint8_t*)(ev + 1);
+        if (msg[0] == 0xFC) {
+          /* MIDI Real-Time Stop */
+          if (P->core.seq.mode != EP_SEQ_STOP) {
+            ep_seq_set_mode(&P->core, EP_SEQ_STOP);
+            P->shm_dirty = 1;
+          }
+          continue;
+        }
+        if (ev->body.size < 3) continue;
         if (t > pos) {
           ep_core_process(&P->core, P->out_l + pos, P->out_r + pos, t - pos, P->sel_pad);
           pos = t;
         }
-        const uint8_t* msg = (const uint8_t*)(ev + 1);
         uint8_t status = msg[0] & 0xF0;
         uint8_t note = msg[1] & 0x7F;
         uint8_t vel = msg[2] & 0x7F;
