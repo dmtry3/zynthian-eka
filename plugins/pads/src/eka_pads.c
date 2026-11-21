@@ -145,7 +145,8 @@ typedef struct {
   int32_t last_hit_pad;
   int report_next;
   int seq_notify_dirty;
-  char seq_buf[3584];
+  uint32_t seq_notify_cd;
+  char seq_buf[8192];
 
   float prev_ctl[N_CTL];
   int have_prev_ctl;
@@ -321,6 +322,37 @@ static size_t seq_encode(const EpCore* c, char* buf, size_t cap) {
       }
     }
   }
+  /* Append non-default per-pad parameters so Zynthian snapshots persist the full 16-pad kit mix */
+  for (int p = 0; p < EP_PADS; p++) {
+    EpPadParams def;
+    ep_pad_defaults(&def, p);
+    const EpPadParams* cur = &c->pad[p];
+    int diff = (fabsf(cur->pitch - def.pitch) > 0.05f ||
+                fabsf(cur->decay - def.decay) > 0.2f ||
+                fabsf(cur->filter - def.filter) > 0.2f ||
+                fabsf(cur->level - def.level) > 0.2f ||
+                fabsf(cur->start - def.start) > 0.2f ||
+                fabsf(cur->end - def.end) > 0.2f ||
+                cur->mode != def.mode ||
+                fabsf(cur->punch - def.punch) > 0.2f ||
+                fabsf(cur->drive - def.drive) > 0.2f ||
+                fabsf(cur->pan - def.pan) > 0.2f ||
+                fabsf(cur->vel_sens - def.vel_sens) > 0.2f ||
+                cur->choke != def.choke ||
+                fabsf(cur->send - def.send) > 0.2f ||
+                cur->mute != def.mute ||
+                cur->solo != def.solo ||
+                cur->midi_note != def.midi_note);
+    if (!diff) continue;
+    n = snprintf(buf + pos, cap - pos,
+                 "|P%x=%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%.1f,%.1f,%.1f,%.1f,%d,%.1f,%d,%d,%d",
+                 p & 0xF, cur->pitch, cur->decay, cur->filter, cur->level,
+                 cur->start, cur->end, cur->mode, cur->punch, cur->drive,
+                 cur->pan, cur->vel_sens, cur->choke, cur->send,
+                 cur->mute, cur->solo, cur->midi_note);
+    if (n < 0 || (size_t)n >= cap - pos) return pos;
+    pos += (size_t)n;
+  }
   return pos;
 }
 
@@ -341,13 +373,13 @@ static void seq_decode(EpCore* c, const char* str) {
     int q = (int)strtol(p, (char**)&p, 10);
     ep_seq_set_quantize(c, q);
   }
-  while (*p) {
+  while (*p && *p != '|') {
     if (*p == ';') p++;
-    if (!*p) break;
+    if (!*p || *p == '|') break;
     int sc = hex_nibble(p[0]);
     int pad = p[1] ? hex_nibble(p[1]) : -1;
     if (sc < 0 || sc >= EP_SCENES || pad < 0 || pad >= EP_PADS || p[2] != ':') {
-      while (*p && *p != ';') p++;
+      while (*p && *p != ';' && *p != '|') p++;
       continue;
     }
     p += 3;
@@ -369,6 +401,33 @@ static void seq_decode(EpCore* c, const char* str) {
         c->scenes[sc].steps[pad][st].roll = (uint8_t)(roll > 3 ? 3 : (roll < 0 ? 0 : roll));
       }
     }
+  }
+  /* Parse optional |P<hex>=... per-pad parameter overrides */
+  while (*p == '|') {
+    p++;
+    if (p[0] == 'P' && p[1] && p[2] == '=') {
+      int pad = hex_nibble(p[1]);
+      p += 3;
+      if (pad >= 0 && pad < EP_PADS) {
+        EpPadParams* d = &c->pad[pad];
+        float v[16];
+        int cnt = 0;
+        while (cnt < 16 && *p && *p != '|') {
+          v[cnt++] = strtof(p, (char**)&p);
+          if (*p == ',') p++;
+        }
+        if (cnt >= 16) {
+          d->pitch = v[0]; d->decay = v[1]; d->filter = v[2]; d->level = v[3];
+          d->start = v[4]; d->end = v[5]; d->mode = (int)lrintf(v[6]);
+          d->punch = v[7]; d->drive = v[8]; d->pan = v[9]; d->vel_sens = v[10];
+          d->choke = (int)lrintf(v[11]); d->send = v[12];
+          d->mute = v[13] >= 0.5f ? 1 : 0; d->solo = v[14] >= 0.5f ? 1 : 0;
+          int mn = (int)lrintf(v[15]);
+          if (mn >= 0 && mn <= 127) d->midi_note = mn;
+        }
+      }
+    }
+    while (*p && *p != '|') p++;
   }
 }
 
@@ -473,14 +532,17 @@ static void handle_patch_set(EkaPads* P, const LV2_Atom_Object* obj) {
   } else if (u == P->p_mute_mask) {
     for (int i = 0; i < EP_PADS; i++) P->core.pad[i].mute = (iv >> i) & 1;
     P->shm_dirty = 1;
+    P->seq_notify_dirty = 1;
   } else if (u == P->p_solo_mask) {
     for (int i = 0; i < EP_PADS; i++) P->core.pad[i].solo = (iv >> i) & 1;
     P->shm_dirty = 1;
+    P->seq_notify_dirty = 1;
   } else if (u == P->p_pad_end) {
     if (iv < 5) iv = 5;
     if (iv > 100) iv = 100;
     P->core.pad[P->sel_pad].end = (float)iv;
     P->shm_dirty = 1;
+    P->seq_notify_dirty = 1;
   } else if (u == P->p_seq_bpm) {
     if (iv < 40) iv = 40;
     if (iv > 240) iv = 240;
@@ -578,17 +640,22 @@ static void forge_notify_reports(EkaPads* P) {
       }
     }
   } else if (P->seq_notify_dirty) {
-    P->seq_notify_dirty = 0;
-    size_t slen = seq_encode(&P->core, P->seq_buf, sizeof P->seq_buf);
-    if (slen > 0 && slen + 64 < cap) {
-      LV2_Atom_Forge_Frame obj;
-      lv2_atom_forge_frame_time(&P->forge, 0);
-      lv2_atom_forge_object(&P->forge, &obj, 0, P->patch_Set);
-      lv2_atom_forge_key(&P->forge, P->patch_property);
-      lv2_atom_forge_urid(&P->forge, P->p_seq_data);
-      lv2_atom_forge_key(&P->forge, P->patch_value);
-      lv2_atom_forge_string(&P->forge, P->seq_buf, (uint32_t)slen);
-      lv2_atom_forge_pop(&P->forge, &obj);
+    if (P->seq_notify_cd > 0) {
+      P->seq_notify_cd--;
+    } else {
+      P->seq_notify_dirty = 0;
+      P->seq_notify_cd = 16; /* throttle ~85 ms at 256-sample blocks */
+      size_t slen = seq_encode(&P->core, P->seq_buf, sizeof P->seq_buf);
+      if (slen > 0 && slen + 64 < cap) {
+        LV2_Atom_Forge_Frame obj;
+        lv2_atom_forge_frame_time(&P->forge, 0);
+        lv2_atom_forge_object(&P->forge, &obj, 0, P->patch_Set);
+        lv2_atom_forge_key(&P->forge, P->patch_property);
+        lv2_atom_forge_urid(&P->forge, P->p_seq_data);
+        lv2_atom_forge_key(&P->forge, P->patch_value);
+        lv2_atom_forge_string(&P->forge, P->seq_buf, (uint32_t)slen);
+        lv2_atom_forge_pop(&P->forge, &obj);
+      }
     }
   }
   lv2_atom_forge_pop(&P->forge, &seq_frame);
@@ -722,6 +789,7 @@ static void run(LV2_Handle h, uint32_t nframes) {
         P->prev_ctl[i] = v;
         apply_pad_control(&P->core.pad[P->sel_pad], i, v);
         P->shm_dirty = 1;
+        P->seq_notify_dirty = 1;
       }
     }
     if (P->ctl[P_SEQ_MODE]) {
@@ -821,6 +889,7 @@ static void run(LV2_Handle h, uint32_t nframes) {
             P->core.pad[P->sel_pad].midi_note = note;
             P->learn = 0;
             P->shm_dirty = 1;
+            P->seq_notify_dirty = 1;
             ep_core_trigger(&P->core, P->sel_pad, vel);
           } else {
             int matched = 0;
@@ -838,8 +907,8 @@ static void run(LV2_Handle h, uint32_t nframes) {
                 }
               }
             }
-            /* Unassigned Bank B notes 52..59 switch Scenes 1..8 on M-VAVE SMC-PAD! */
-            if (!matched && note >= 52 && note < 52 + EP_SCENES) {
+            /* Unassigned Bank B notes 52..53 switch Scene A / Scene B on M-VAVE SMC-PAD */
+            if (!matched && note >= 52 && note < 54) {
               ep_seq_request_scene(&P->core, note - 52);
             }
           }

@@ -146,6 +146,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
 
         self.sel_pad = 0
         self.last_synced_pad = -1
+        self.last_synced_scene = -1
         self.copy_src = -1         # >=0 when waiting for user to tap destination scene
 
         self.peak_cache = {}       # path -> peaks list
@@ -393,12 +394,14 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                     self._zset("sel_pad", last_hit)
                     self.last_synced_pad = -1
 
-        # Track Auto-Select pad from shared memory / plugin monitor
+        # Track Auto-Select pad & scene from shared memory / plugin monitor
         shm_pad = self.shm_hdr[3] if self.shm_hdr else int(round(self._mon("out_sel_pad", self.sel_pad)))
         if 0 <= shm_pad < EP_PADS:
             self.sel_pad = shm_pad
-        if self.sel_pad != self.last_synced_pad and self.pads_data is not None:
+        cur_scene = int(round(self._mon("out_seq_scene", 0)))
+        if (self.sel_pad != self.last_synced_pad or cur_scene != self.last_synced_scene) and self.pads_data is not None:
             self.last_synced_pad = self.sel_pad
+            self.last_synced_scene = cur_scene
             self._sync_encoders_to_pad(self.sel_pad)
 
         w, h = max(int(self.width), 160), max(int(self.height), 120)
@@ -558,9 +561,12 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             if 0.0 <= ph <= 1.0:
                 px = rx0 + 2 + ph * (rx1 - rx0 - 4)
                 c.create_line(px, wy0 + 1, px, wy1 - 1, fill="#ffffff", width=2)
+            st_pct = pinfo[4] if pinfo else 0.0
+            en_pct = pinfo[5] if pinfo else 100.0
+            self.hit_boxes.append((rx0, wy0, rx1, wy1, "wave_trim", (self.sel_pad, st_pct, en_pct, rx0 + 2, rx1 - 2)))
         else:
             c.create_text((rx0 + rx1) / 2, (wy0 + wy1) / 2, text="Tap to Load WAV", fill=COL_DIM, font=(fam, fs))
-        self.hit_boxes.append((rx0, wy0, rx1, wy1, "load", self.sel_pad))
+            self.hit_boxes.append((rx0, wy0, rx1, wy1, "load", self.sel_pad))
 
         # Parameter summary readout
         iy0 = wy1 + 4
@@ -730,7 +736,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
 
             self.hit_boxes.append((sx0, sy0, sx1, sy1, "step", (scene, self.sel_pad, st)))
 
-        # Bottom: 16-Pad selector strip (shows dots for pads with steps in this scene)
+        # Bottom: 16-Pad selector strip (tap = select lane, long-press = Mute/Unmute)
         py0 = h - pad_m - strip_h
         pw = (w - 2 * pad_m) / float(EP_PADS)
         for p in range(EP_PADS):
@@ -738,12 +744,33 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             px1 = px0 + pw - 2
             p_s, p_e = self._pad_range_get(scene, p)
             has_steps = any(self._step_get(scene, p, st)[0] > 0 for st in range(p_s, p_e))
+            pinfo = self.pads_data[p] if self.pads_data else None
+            mute = pinfo[13] if pinfo else 0
+            solo = pinfo[14] if pinfo else 0
+            lvl = self._mon("out_pad_lvl%d" % (p + 1), 0.0)
             is_sel = (p == self.sel_pad)
-            bg = COL_PAD_SEL if is_sel else ("#263848" if has_steps else COL_PANEL)
-            self._add_btn(c, px0, py0, px1, py0 + strip_h, str(p + 1), bg,
-                          "#ffffff" if (is_sel or has_steps) else "#787888",
-                          fam, max(6, fsmall - 1), "seq_sel_pad", p,
-                          outline="#ffffff" if is_sel else "#3a3a44")
+            accent = ROW_COLORS[(p // 4) & 3]
+
+            if mute:
+                bg = "#3b1d22" if not is_sel else "#5c2630"
+            elif is_sel:
+                bg = COL_PAD_SEL
+            elif lvl > 0.06:
+                bg = "#3b4866"
+            elif has_steps:
+                bg = "#253445"
+            else:
+                bg = COL_PANEL
+
+            out_c = "#ffffff" if is_sel else ("#ffd43b" if solo else ("#fa5252" if mute else "#3a3a44"))
+            c.create_rectangle(px0, py0, px1, py0 + strip_h, fill=bg, outline=out_c, width=2 if is_sel else 1)
+            c.create_rectangle(px0 + 1, py0 + 1, px1 - 1, py0 + 4,
+                               fill="#555560" if mute else accent, width=0)
+            lbl = "M" if mute else ("S" if solo else str(p + 1))
+            fg = "#ff8787" if mute else ("#ffd43b" if solo else ("#ffffff" if (is_sel or has_steps) else "#787888"))
+            c.create_text((px0 + px1) / 2, py0 + strip_h / 2 + 2, text=lbl,
+                          fill=fg, font=(fam, max(6, fsmall - 1), "bold" if (is_sel or mute or solo) else "normal"))
+            self.hit_boxes.append((px0, py0, px1, py0 + strip_h, "seq_sel_pad", p))
 
     def _draw_kit_tab(self, c, w, h, top_h, fam, fs):
         pad_m = 8
@@ -776,8 +803,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         guide = (
             "M-VAVE SMC-PAD Pocket:\n"
             "  • Pads 1..16 = MIDI Notes 36..51 (or tap MIDI Learn)\n"
-            "  • Bank B Notes 52..59 = Quantized Scene Switch A..H\n"
-            "  • Auto-Select focuses the last hit pad on Zynthian's 4 knobs"
+            "  • Bank B Notes 52..53 = Quantized Scene Switch A / B\n"
+            "  • Seq tab: long-press bottom pad 1..16 to Mute / Unmute"
         )
         c.create_text(pad_m, y, anchor="nw", text=guide, fill="#a0a0b4", font=(fam, fsmall))
 
@@ -810,6 +837,17 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
 
             if action == "load":
                 self._open_file_selector(arg)
+                return
+
+            if action == "wave_trim":
+                pad_i, st_pct, en_pct, wx0, wx1 = arg
+                ww = max(1.0, wx1 - wx0)
+                sx = wx0 + (st_pct / 100.0) * ww
+                ex = wx0 + (en_pct / 100.0) * ww
+                which = "start" if abs(x - sx) <= abs(x - ex) else "end"
+                self.drag_info = ("wave_trim", (pad_i, which, wx0, wx1), y, 0)
+                self._apply_wave_trim(which, wx0, wx1, x)
+                self.refresh_gui()
                 return
 
             if action == "mute":
@@ -892,6 +930,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.sel_pad = arg
                 self._zset("sel_pad", arg)
                 self.last_synced_pad = -1
+                self.drag_info = ("seq_pad_hold", arg, now, 0)
                 self.refresh_gui()
                 return
 
@@ -948,6 +987,13 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self._send_cmd(CMD_SET_END, a=sc, b=p, val=nend)
             self._zset("pad_steps", nend)
 
+    def _apply_wave_trim(self, which, wx0, wx1, x):
+        pct = max(0.0, min(100.0, ((x - wx0) / max(1.0, wx1 - wx0)) * 100.0))
+        if which == "start":
+            self._zset("pad_start", round(min(95.0, pct), 1))
+        else:
+            self._zset("pad_end", int(round(max(5.0, pct))))
+
     def _on_motion(self, event):
         if not self.drag_info or event is None:
             return
@@ -956,6 +1002,13 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             sc, p, which, sl_x0, sl_x1 = arg
             self._apply_steps_slider(sc, p, which, sl_x0, sl_x1, event.x)
             self.refresh_gui()
+            return
+        if kind == "wave_trim":
+            _pad_i, which, wx0, wx1 = arg
+            self._apply_wave_trim(which, wx0, wx1, event.x)
+            self.refresh_gui()
+            return
+        if kind == "seq_pad_hold":
             return
         dy = y0 - event.y
         if abs(dy) < 4:
@@ -972,4 +1025,10 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self.refresh_gui()
 
     def _on_release(self, event):
+        if self.drag_info and self.drag_info[0] == "seq_pad_hold":
+            _, pad_i, t0, _ = self.drag_info
+            if (time.monotonic() - t0) >= 0.40:
+                mask = int(round(self._zval("mute_mask", 0)))
+                self._zset("mute_mask", mask ^ (1 << pad_i))
+                self.refresh_gui()
         self.drag_info = None

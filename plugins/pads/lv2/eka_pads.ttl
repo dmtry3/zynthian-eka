@@ -189,8 +189,10 @@
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 13 ; lv2:symbol "seq_scene" ; lv2:name "Scene" ;
         pg:group <http://dmtry3.github.io/zynthian-eka/pads#g_seq> ;
-        lv2:portProperty lv2:integer ;
-        lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 8 ;
+        lv2:portProperty lv2:integer , lv2:enumeration ;
+        lv2:default 1 ; lv2:minimum 1 ; lv2:maximum 2 ;
+        lv2:scalePoint [ rdfs:label "Scene A" ; rdf:value 1 ] ,
+                       [ rdfs:label "Scene B" ; rdf:value 2 ] ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 14 ; lv2:symbol "seq_swing" ; lv2:name "Swing" ;
@@ -211,7 +213,7 @@
         atom:bufferType atom:Sequence ;
         atom:supports midi:MidiEvent , patch:Message , time:Position ;
         lv2:designation lv2:control ;
-        rsz:minimumSize 8192 ;
+        rsz:minimumSize 16384 ;
     ] , [
         a lv2:OutputPort , lv2:AudioPort ;
         lv2:index 17 ; lv2:symbol "out_l" ; lv2:name "Out L" ;
@@ -224,7 +226,7 @@
         atom:bufferType atom:Sequence ;
         atom:supports patch:Message ;
         lv2:designation lv2:control ;
-        rsz:minimumSize 8192 ;
+        rsz:minimumSize 16384 ;
     ] ,
     # Output monitor ports for the Zynthian widget
     [ a lv2:OutputPort , lv2:ControlPort ; lv2:index 20 ; lv2:symbol "out_sel_pad"   ; lv2:name "Sel Pad"   ; lv2:minimum 0  ; lv2:maximum 15 ; ] ,

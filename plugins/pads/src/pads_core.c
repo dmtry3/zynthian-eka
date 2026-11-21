@@ -431,6 +431,13 @@ void ep_seq_sync_host(EpCore* c, double bpm, int playing, double bar_beat, int b
     if (diff > len * 0.5) diff = len - diff;
     if (diff > 0.15) {
       c->seq.bar_phase = ph;
+      const EpScene* sc = &c->scenes[c->seq.scene];
+      for (int p = 0; p < EP_PADS; p++) {
+        int ps, pe;
+        get_pad_range(sc, p, &ps, &pe);
+        double plen = (double)(pe - ps);
+        c->seq.pad_phase[p] = fmod(ph, plen);
+      }
     }
   }
 }
@@ -856,6 +863,23 @@ void ep_core_process(EpCore* c, float* out_l, float* out_r, uint32_t nframes, in
         if (ev_kind == 1 && ev_pad >= 0) {
           c->seq.pad_last_step[ev_pad] = ev_rel;
           fire_pad_step(c, ev_pad, ev_abs, samples_per_step);
+          /* Fire any other polyrhythmic pads landing on the exact same sample */
+          for (int p = 0; p < EP_PADS; p++) {
+            if (p == ev_pad) continue;
+            int ps, pe;
+            get_pad_range(sc, p, &ps, &pe);
+            int plen = pe - ps;
+            double len = (double)plen;
+            int nr = (c->seq.pad_last_step[p] + 1) % plen;
+            double tp = step_trigger_phase(nr, c->seq.swing);
+            if (tp >= len) tp = fmod(tp, len);
+            double dp = tp - c->seq.pad_phase[p];
+            if (dp < -len * 0.5) dp += len;
+            if (dp >= -1e-4 && dp <= 1e-4) {
+              c->seq.pad_last_step[p] = nr;
+              fire_pad_step(c, p, ps + nr, samples_per_step);
+            }
+          }
         } else if (ev_kind == 2 && ev_pad >= 0) {
           c->seq.roll_rem[ev_pad]--;
           c->seq.roll_timer[ev_pad] += c->seq.roll_interval[ev_pad];
