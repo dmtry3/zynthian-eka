@@ -21,7 +21,7 @@ MULTI_INSTANCE = True
 
 EP_PADS = 16
 EP_SCENES = 8
-EP_UI_SCENES = 2
+EP_UI_SCENES = 5
 EP_STEPS = 32
 EP_STEPS_MIN = 4
 EP_SCENE_SIZE = EP_PADS * EP_STEPS * 2 + EP_PADS * 2   # 1056 bytes
@@ -580,7 +580,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             c.create_text(rx0 + 2, iy0, anchor="nw", text=line1, fill="#d0d0dc", font=(fam, fsmall))
             c.create_text(rx0 + 2, iy0 + fs + 4, anchor="nw", text=line2, fill="#9090a4", font=(fam, fsmall))
 
-        # Quick 2-Scene Launch Bar at bottom right (large Scene A / Scene B buttons)
+        # Quick 5-Scene Launch Bar at bottom right (large A..E buttons)
         sy0 = h - pad_m - max(sc_h, fs * 2 + 12)
         sc_btn_h = h - pad_m - sy0
         scene = int(round(self._mon("out_seq_scene", 0)))
@@ -591,8 +591,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             sx1 = sx0 + sbw - 3
             bg = COL_ACCENT if s == scene else (COL_PEND if s == pend else COL_PANEL)
             fg = "#000000" if (s == scene or s == pend) else "#f0f0f5"
-            self._add_btn(c, sx0, sy0, sx1, sy0 + sc_btn_h, "Scene " + SCENE_NAMES[s],
-                          bg, fg, fam, fs + 1, "scene", s)
+            self._add_btn(c, sx0, sy0, sx1, sy0 + sc_btn_h, "Sc " + SCENE_NAMES[s],
+                          bg, fg, fam, fs, "scene", s)
 
     def _draw_seq_tab(self, c, w, h, top_h, fam, fs):
         pad_m = 4
@@ -610,29 +610,33 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             quant = 1
         ps, pe = self._pad_range_get(scene, self.sel_pad)
 
-        # Row 1: 2 Large Scene buttons (A, B) + Quantize + Copy + Clear
+        # Row 1: 5 Large Scene buttons (A..E) + Quantize + Copy + Clear
         r1_h = max(28, fs * 2 + 8)
-        c5w = (w - 2 * pad_m) / 5.0
-        other_sc = 1 - (scene & 1)
+        scenes_w = (w - 2 * pad_m) * 0.56
+        sc_w = scenes_w / float(EP_UI_SCENES)
         for s in range(EP_UI_SCENES):
-            x0 = pad_m + s * c5w
-            x1 = x0 + c5w - 4
-            if s == scene:
+            x0 = pad_m + s * sc_w
+            x1 = x0 + sc_w - 3
+            if self.copy_src == s:
+                bg, fg = "#e64980", "#ffffff"
+            elif s == scene:
                 bg, fg = COL_ACCENT, "#000000"
             elif s == pend:
                 bg, fg = COL_PEND, "#000000"
             else:
                 bg, fg = COL_PANEL, "#f0f0f5"
-            self._add_btn(c, x0, y, x1, y + r1_h, "Scene " + SCENE_NAMES[s], bg, fg, fam, fs + 1, "seq_scene", s)
+            self._add_btn(c, x0, y, x1, y + r1_h, "Sc " + SCENE_NAMES[s], bg, fg, fam, fs, "seq_scene", s)
 
+        tools_x = pad_m + scenes_w + 2
+        tw3 = (w - pad_m - tools_x) / 3.0
         q_bg = "#284038" if quant > 0 else COL_PANEL
         q_fg = "#63e6be" if quant > 0 else "#a0a0b0"
-        self._add_btn(c, pad_m + 2 * c5w, y, pad_m + 3 * c5w - 4, y + r1_h,
-                      "Q: %s" % QUANT_NAMES[quant], q_bg, q_fg, fam, fsmall, "seq_quant", (quant + 1) % 4)
-        self._add_btn(c, pad_m + 3 * c5w, y, pad_m + 4 * c5w - 4, y + r1_h,
-                      "Copy %s>%s" % (SCENE_NAMES[scene & 1], SCENE_NAMES[other_sc]),
-                      COL_PANEL, "#d8d8e4", fam, fsmall, "seq_copy_ab", (scene & 1, other_sc))
-        self._add_btn(c, pad_m + 4 * c5w, y, w - pad_m, y + r1_h,
+        self._add_btn(c, tools_x, y, tools_x + tw3 - 3, y + r1_h,
+                      "Q:%s" % QUANT_NAMES[quant], q_bg, q_fg, fam, fsmall, "seq_quant", (quant + 1) % 4)
+        self._add_btn(c, tools_x + tw3, y, tools_x + 2 * tw3 - 3, y + r1_h,
+                      "Pick" if self.copy_src >= 0 else "Copy",
+                      "#e64980" if self.copy_src >= 0 else COL_PANEL, "#ffffff", fam, fsmall, "seq_copy", scene)
+        self._add_btn(c, tools_x + 2 * tw3, y, w - pad_m, y + r1_h,
                       "Clr P%d" % (self.sel_pad + 1), COL_PANEL, "#ff8787", fam, fsmall, "seq_clr_pad", (scene, self.sel_pad))
         y += r1_h + 4
 
@@ -803,7 +807,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         guide = (
             "M-VAVE SMC-PAD Pocket:\n"
             "  • Pads 1..16 = MIDI Notes 36..51 (or tap MIDI Learn)\n"
-            "  • Bank B Notes 52..53 = Quantized Scene Switch A / B\n"
+            "  • Bank B Notes 52..56 = Quantized Scene Switch A..E\n"
             "  • Seq tab: long-press bottom pad 1..16 to Mute / Unmute"
         )
         c.create_text(pad_m, y, anchor="nw", text=guide, fill="#a0a0b4", font=(fam, fsmall))
@@ -892,9 +896,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.refresh_gui()
                 return
 
-            if action == "seq_copy_ab":
-                src, dst = arg
-                self._send_cmd(CMD_COPY_SCENE, a=src, b=dst)
+            if action == "seq_copy":
+                self.copy_src = -1 if self.copy_src >= 0 else arg
                 self.refresh_gui()
                 return
 

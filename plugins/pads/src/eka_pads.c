@@ -907,8 +907,8 @@ static void run(LV2_Handle h, uint32_t nframes) {
                 }
               }
             }
-            /* Unassigned Bank B notes 52..53 switch Scene A / Scene B on M-VAVE SMC-PAD */
-            if (!matched && note >= 52 && note < 54) {
+            /* Unassigned Bank B notes 52..56 switch Scenes A..E on M-VAVE SMC-PAD */
+            if (!matched && note >= 52 && note < 57) {
               ep_seq_request_scene(&P->core, note - 52);
             }
           }
