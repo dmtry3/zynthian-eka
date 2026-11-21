@@ -359,6 +359,7 @@ void q4_params_default(Q4Params *p) {
     p->solo_band = 0;
     p->auto_gain = 0;
     p->output_db = 0.0f;
+    p->bypass = 0;
 }
 
 void q4_core_init(Q4Core *c, double sr) {
@@ -375,6 +376,7 @@ void q4_core_init(Q4Core *c, double sr) {
 
     c->cur_gain = 1.0;
     c->cur_solo_mix = 0.0;
+    c->cur_bypass_mix = 0.0;
 
     /* 24 log-spaced spectrum analyzer bins from 28 Hz to 16 kHz. */
     const double f_min = 28.0;
@@ -447,6 +449,7 @@ void q4_core_process(Q4Core *c, const Q4Params *p,
     const double coeff_alpha = 1.0 - exp(-1.0 / (c->sr * 0.008)); /* 8 ms smooth */
     const double gain_alpha  = 1.0 - exp(-1.0 / (c->sr * 0.015)); /* 15 ms smooth */
     const double solo_alpha  = 1.0 - exp(-1.0 / (c->sr * 0.010)); /* 10 ms crossfade */
+    const double target_byp  = p->bypass ? 1.0 : 0.0;
 
     double in_pk = c->in_peak_lin;
     double out_pk = c->out_peak_lin;
@@ -477,6 +480,14 @@ void q4_core_process(Q4Core *c, const Q4Params *p,
             double sm = c->cur_solo_mix;
             yl = yl * (1.0 - sm) + sl * sm;
             yr = yr * (1.0 - sm) + sr_s * sm;
+        }
+
+        /* True click-free bypass crossfade */
+        c->cur_bypass_mix += solo_alpha * (target_byp - c->cur_bypass_mix);
+        if (c->cur_bypass_mix > 1e-5) {
+            double bm = c->cur_bypass_mix;
+            yl = yl * (1.0 - bm) + xl * bm;
+            yr = yr * (1.0 - bm) + xr * bm;
         }
 
         double abs_out = fmax(fabs(yl), fabs(yr));

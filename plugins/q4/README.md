@@ -67,7 +67,7 @@ Six pages of 4 encoders:
 - **EQ graph:** drag nodes `1..4` horizontally (`Freq`) and vertically (`Gain`); drag `H` / `L` along the `0 dB` line for `HPF` / `LPF`.
 - **Double tap** on a node resets its `Gain` to `0 dB` (or bypasses `HPF`/`LPF`).
 - **Q bar:** drag left/right to adjust `Q` of the selected band.
-- **Bottom buttons:** tap `B1..B4` to select a band (**long press** toggles the band On/Off); tap the type button to cycle filter type; tap `SOLO` to audition the selected band; tap `AUTO` to toggle `AutoGain`.
+- **Bottom buttons:** tap `B1..B4` to select a band (**long press** toggles the band On/Off); tap the type button to cycle filter type; tap `SOLO` to audition the selected band; tap `AUTO` to toggle `AutoGain` (**long press** toggles full EQ `Bypass` and grays out the UI).
 
 ## Building & Testing on Linux / WSL
 

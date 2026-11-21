@@ -47,6 +47,14 @@ AUTO_COL   = "#63e6be"
 IN_COL     = "#4dabf7"
 OUT_COL    = "#63e6be"
 HOT_RED    = "#ff6b6b"
+BYP_SPEC_F = "#212429"
+BYP_SPEC_L = "#49505a"
+BYP_CURVE  = "#7c8490"
+BYP_SEL    = "#555c66"
+BYP_NODE   = "#68707c"
+BYP_HI     = "#9aa2ae"
+BYP_METER  = "#5c636e"
+BYP_BAR    = "#2a2e36"
 
 
 def _clamp(v, lo, hi):
@@ -344,6 +352,7 @@ class zynthian_widget_eka_q4(zynthian_widget_base.zynthian_widget_base):
             "solo_band": self._get("solo_band", 0.0),
             "auto_gain": self._get("auto_gain", 0.0),
             "output_db": self._get("output_db", 0.0),
+            "bypass":    self._get("bypass", 0.0),
         }
 
     def _freq_to_x(self, f, x0, x1):
@@ -380,6 +389,7 @@ class zynthian_widget_eka_q4(zynthian_widget_base.zynthian_widget_base):
         w = max(240, int(self.width or cv.winfo_width() or 640))
         h = max(180, int(self.height or cv.winfo_height() or 380))
         st = self._read_state()
+        bypassed = st["bypass"] >= 0.5
         in_db, out_db = self._pull_telemetry()
 
         cv.delete("all")
@@ -424,8 +434,8 @@ class zynthian_widget_eka_q4(zynthian_widget_base.zynthian_widget_base):
             spec_pts.extend((xx, yy))
             spec_line.extend((xx, yy))
         spec_pts.extend((gx1, gy1))
-        cv.create_polygon(*spec_pts, fill=SPEC_FILL, outline="")
-        cv.create_line(*spec_line, fill=SPEC_LINE, width=1.2)
+        cv.create_polygon(*spec_pts, fill=BYP_SPEC_F if bypassed else SPEC_FILL, outline="")
+        cv.create_line(*spec_line, fill=BYP_SPEC_L if bypassed else SPEC_LINE, width=1.2)
 
         # EQ response curves (selected band highlight + total response)
         g_stages, b_stages = build_stage_coeffs(st)
@@ -448,25 +458,26 @@ class zynthian_widget_eka_q4(zynthian_widget_base.zynthian_widget_base):
             tot_pts.extend((xx, self._db_to_y(tdb, gy0, gy1)))
 
         if sel_pts:
-            sel_col = BAND_SPECS[self.selected_band][1]
+            sel_col = BYP_SEL if bypassed else BAND_SPECS[self.selected_band][1]
             cv.create_line(*sel_pts, fill=sel_col, width=1.5, dash=(4, 2))
-        cv.create_line(*tot_pts, fill=CURVE_COL, width=2.4)
+        cv.create_line(*tot_pts, fill=BYP_CURVE if bypassed else CURVE_COL, width=2.4)
 
         # HPF & LPF edge handles on 0 dB line
         y0db = self._db_to_y(0.0, gy0, gy1)
+        cut_c = BYP_NODE if bypassed else CUT_COL
         hpf_active = st["hpf_freq"] > 20.5
         hx = self._freq_to_x(st["hpf_freq"], gx0, gx1)
         cv.create_oval(hx - 8, y0db - 8, hx + 8, y0db + 8,
-                       fill=CUT_COL if hpf_active else PANEL_BG, outline=CUT_COL, width=1.5)
-        cv.create_text(hx, y0db, text="H", fill="#111" if hpf_active else CUT_COL,
+                       fill=cut_c if hpf_active else PANEL_BG, outline=cut_c, width=1.5)
+        cv.create_text(hx, y0db, text="H", fill="#111" if hpf_active else cut_c,
                        font=("TkDefaultFont", 8, "bold"))
         self.node_pos["hpf"] = (hx, y0db)
 
         lpf_active = st["lpf_freq"] < 19900.0
         lx = self._freq_to_x(st["lpf_freq"], gx0, gx1)
         cv.create_oval(lx - 8, y0db - 8, lx + 8, y0db + 8,
-                       fill=CUT_COL if lpf_active else PANEL_BG, outline=CUT_COL, width=1.5)
-        cv.create_text(lx, y0db, text="L", fill="#111" if lpf_active else CUT_COL,
+                       fill=cut_c if lpf_active else PANEL_BG, outline=cut_c, width=1.5)
+        cv.create_text(lx, y0db, text="L", fill="#111" if lpf_active else cut_c,
                        font=("TkDefaultFont", 8, "bold"))
         self.node_pos["lpf"] = (lx, y0db)
 
@@ -480,52 +491,57 @@ class zynthian_widget_eka_q4(zynthian_widget_base.zynthian_widget_base):
             nx = self._freq_to_x(st[f"{pfx}_freq"], gx0, gx1)
             ny = y0db if (is_off or is_notch) else self._db_to_y(st[f"{pfx}_gain"], gy0, gy1)
             r = 13 if idx == self.selected_band else 10
-            if solo_b == idx + 1:
+            node_col = BYP_NODE if bypassed else col
+            sel_ring = BYP_HI if bypassed else LABEL_HI
+            if solo_b == idx + 1 and not bypassed:
                 cv.create_oval(nx - r - 4, ny - r - 4, nx + r + 4, ny + r + 4,
                                fill="", outline=SOLO_COL, width=2)
             cv.create_oval(
                 nx - r, ny - r, nx + r, ny + r,
-                fill=PANEL_BG if is_off else col,
-                outline=LABEL_HI if idx == self.selected_band else col,
+                fill=PANEL_BG if is_off else node_col,
+                outline=sel_ring if idx == self.selected_band else node_col,
                 width=2.2 if idx == self.selected_band else 1.4,
             )
             cv.create_text(
                 nx, ny, text=str(idx + 1),
-                fill=col if is_off else "#101318",
+                fill=node_col if is_off else "#101318",
                 font=("TkDefaultFont", 9, "bold"),
             )
             self.node_pos[f"b{idx}"] = (nx, ny)
 
-        # Top-right badge (Tilt / Scale / Solo indicator)
+        # Top-right badge (Bypass / Tilt / Scale / Solo indicator)
         badges = []
-        if abs(st["tilt_db"]) >= 0.05:
-            badges.append(f"TILT {st['tilt_db']:+.1f}dB")
-        if abs(st["scale_pct"] - 100.0) >= 0.5:
-            badges.append(f"SCALE {st['scale_pct']:.0f}%")
-        if solo_b > 0:
-            badges.append(f"SOLO B{solo_b}")
+        if bypassed:
+            badges.append("BYPASS")
+        else:
+            if abs(st["tilt_db"]) >= 0.05:
+                badges.append(f"TILT {st['tilt_db']:+.1f}dB")
+            if abs(st["scale_pct"] - 100.0) >= 0.5:
+                badges.append(f"SCALE {st['scale_pct']:.0f}%")
+            if solo_b > 0:
+                badges.append(f"SOLO B{solo_b}")
         if badges:
             cv.create_text(gx1 - 6, gy0 + 6, text=" · ".join(badges), anchor="ne",
-                           fill=SOLO_COL if solo_b > 0 else LABEL_HI,
+                           fill=BYP_HI if bypassed else (SOLO_COL if solo_b > 0 else LABEL_HI),
                            font=("TkDefaultFont", 8, "bold"))
 
         # Vertical IN / OUT peak meters on the right
         mx0 = gx1 + 6
         mw = (w - pad - mx0 - 4) * 0.5
         for mi, (lbl, val, hold, col) in enumerate((
-            ("IN", in_db, self.hold_in, IN_COL),
-            ("OUT", out_db, self.hold_out, OUT_COL),
+            ("IN", in_db, self.hold_in, BYP_METER if bypassed else IN_COL),
+            ("OUT", out_db, self.hold_out, BYP_METER if bypassed else OUT_COL),
         )):
             bx0 = mx0 + mi * (mw + 4)
             bx1 = bx0 + mw
             cv.create_rectangle(bx0, gy0, bx1, gy1 - 12, fill=PANEL_BG, outline=LINE_DIM, width=1)
             norm = _clamp((val - SPEC_FLOOR) / (6.0 - SPEC_FLOOR), 0.0, 1.0)
             my = (gy1 - 12) - norm * (gy1 - 12 - gy0)
-            cv.create_rectangle(bx0 + 1, my, bx1 - 1, gy1 - 13,
-                                fill=HOT_RED if val > -0.5 else col, outline="")
+            bar_col = BYP_METER if bypassed else (HOT_RED if val > -0.5 else col)
+            cv.create_rectangle(bx0 + 1, my, bx1 - 1, gy1 - 13, fill=bar_col, outline="")
             hnorm = _clamp((hold - SPEC_FLOOR) / (6.0 - SPEC_FLOOR), 0.0, 1.0)
             hy = (gy1 - 12) - hnorm * (gy1 - 12 - gy0)
-            cv.create_line(bx0 + 1, hy, bx1 - 1, hy, fill=LABEL_HI, width=2)
+            cv.create_line(bx0 + 1, hy, bx1 - 1, hy, fill=BYP_HI if bypassed else LABEL_HI, width=2)
             cv.create_text((bx0 + bx1) * 0.5, gy1 - 5, text=lbl, fill=LABEL_DIM, font=("TkDefaultFont", 7, "bold"))
 
         # Selected-band info strip + touch Q slider
@@ -543,27 +559,31 @@ class zynthian_widget_eka_q4(zynthian_widget_base.zynthian_widget_base):
         self.q_bar_box = (qx0, iy0, qx1, iy1)
         cv.create_rectangle(pad, iy0, qx0 - 6, iy1, fill=PANEL_BG, outline=LINE_DIM, width=1)
         cv.create_text(pad + 8, (iy0 + iy1) * 0.5, text=info_txt, anchor="w",
-                       fill=sb_col, font=("TkDefaultFont", 9, "bold"))
+                       fill=BYP_HI if bypassed else sb_col, font=("TkDefaultFont", 9, "bold"))
 
         # Interactive Q bar
         cv.create_rectangle(qx0, iy0, qx1, iy1, fill=PANEL_BG, outline=LINE_DIM, width=1)
         qt = math.log(_clamp(st[f"{spfx}_q"], qmin, qmax) / qmin) / math.log(qmax / qmin)
         cv.create_rectangle(qx0 + 1, iy0 + 1, qx0 + 1 + qt * (qx1 - qx0 - 2), iy1 - 1,
-                            fill="#22384c", outline="")
+                            fill=BYP_BAR if bypassed else "#22384c", outline="")
         cv.create_text((qx0 + qx1) * 0.5, (iy0 + iy1) * 0.5, text=f"Q {st[f'{spfx}_q']:.2f}",
-                       fill=LABEL_HI, font=("TkDefaultFont", 9, "bold"))
+                       fill=BYP_HI if bypassed else LABEL_HI, font=("TkDefaultFont", 9, "bold"))
 
-        # Bottom touch buttons: 1 | 2 | 3 | 4 | TYPE | SOLO | AUTO
+        # Bottom touch buttons: 1 | 2 | 3 | 4 | TYPE | SOLO | AUTO (long press = BYPASS)
         by0 = iy1 + 4
         by1 = h - pad
         buttons = []
         for idx, col, *_rest in BAND_SPECS:
             off_idx = BAND_SPECS[idx][7]
             is_off = int(round(st[f"b{idx + 1}_type"])) == off_idx
-            buttons.append((f"band_{idx}", f"B{idx + 1}", col, idx == self.selected_band, is_off))
-        buttons.append(("type_cycle", sb_types[st_idx], sb_col, False, False))
-        buttons.append(("solo_toggle", "SOLO", SOLO_COL, solo_b == self.selected_band + 1, False))
-        buttons.append(("auto_toggle", "AUTO", AUTO_COL, st["auto_gain"] >= 0.5, False))
+            c = BYP_NODE if bypassed else col
+            buttons.append((f"band_{idx}", f"B{idx + 1}", c, idx == self.selected_band, is_off or bypassed))
+        buttons.append(("type_cycle", sb_types[st_idx], BYP_NODE if bypassed else sb_col, False, bypassed))
+        buttons.append(("solo_toggle", "SOLO", BYP_NODE if bypassed else SOLO_COL, (solo_b == self.selected_band + 1) and not bypassed, bypassed))
+        if bypassed:
+            buttons.append(("auto_toggle", "BYPASS", BYP_HI, True, False))
+        else:
+            buttons.append(("auto_toggle", "AUTO", AUTO_COL, st["auto_gain"] >= 0.5, False))
 
         gap = 5
         bw = (w - 2 * pad - gap * (len(buttons) - 1)) / float(len(buttons))
@@ -634,9 +654,7 @@ class zynthian_widget_eka_q4(zynthian_widget_base.zynthian_widget_base):
                     self.refresh_gui()
                     return
                 if key == "auto_toggle":
-                    cur = self._get("auto_gain", 0.0)
-                    self._set("auto_gain", 0 if cur >= 0.5 else 1)
-                    self.refresh_gui()
+                    self.drag_mode = ("auto", now)
                     return
 
         # 2. Q bar
@@ -708,6 +726,15 @@ class zynthian_widget_eka_q4(zynthian_widget_base.zynthian_widget_base):
                     self.saved_types[idx] = cur
                     self._set(sym, off_idx)
                 self.refresh_gui()
+        elif self.drag_mode and self.drag_mode[0] == "auto":
+            _, t0 = self.drag_mode
+            if (time.monotonic() - t0) >= LONG_PRESS_SEC:
+                cur_byp = self._get("bypass", 0.0)
+                self._set("bypass", 0 if cur_byp >= 0.5 else 1)
+            else:
+                cur = self._get("auto_gain", 0.0)
+                self._set("auto_gain", 0 if cur >= 0.5 else 1)
+            self.refresh_gui()
         self.drag_mode = None
 
 

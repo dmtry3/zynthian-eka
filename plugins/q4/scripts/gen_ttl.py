@@ -67,6 +67,9 @@ CONTROL_PORTS = [
          props=["lv2:integer", "lv2:toggled", "lv2:enumeration"],
          points=[("Off", 0), ("On", 1)]),
     dict(idx=27, sym="output_db", name="Output",   grp="g_master", default=0.0,   min=-18.0,  max=18.0,    unit="units:db"),
+    dict(idx=54, sym="bypass",    name="Bypass",   grp="g_master", default=0,     min=0,      max=1,
+         props=["lv2:integer", "lv2:toggled", "lv2:enumeration"],
+         points=[("Off", 0), ("On", 1)]),
 ]
 
 # Output telemetry ports (indices 28..53)

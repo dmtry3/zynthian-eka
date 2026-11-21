@@ -32,7 +32,8 @@
         [ lv2:symbol "scale_pct" ; pset:value 100 ] ,
         [ lv2:symbol "solo_band" ; pset:value 0 ] ,
         [ lv2:symbol "auto_gain" ; pset:value 0 ] ,
-        [ lv2:symbol "output_db" ; pset:value 0 ] .
+        [ lv2:symbol "output_db" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/q4#preset_vocal_clarity_air>
     a pset:Preset ;
@@ -63,7 +64,8 @@
         [ lv2:symbol "scale_pct" ; pset:value 100 ] ,
         [ lv2:symbol "solo_band" ; pset:value 0 ] ,
         [ lv2:symbol "auto_gain" ; pset:value 1 ] ,
-        [ lv2:symbol "output_db" ; pset:value 0 ] .
+        [ lv2:symbol "output_db" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/q4#preset_acoustic_guitar_polish>
     a pset:Preset ;
@@ -94,7 +96,8 @@
         [ lv2:symbol "scale_pct" ; pset:value 100 ] ,
         [ lv2:symbol "solo_band" ; pset:value 0 ] ,
         [ lv2:symbol "auto_gain" ; pset:value 1 ] ,
-        [ lv2:symbol "output_db" ; pset:value 0 ] .
+        [ lv2:symbol "output_db" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/q4#preset_bass_pultec_weight>
     a pset:Preset ;
@@ -125,7 +128,8 @@
         [ lv2:symbol "scale_pct" ; pset:value 100 ] ,
         [ lv2:symbol "solo_band" ; pset:value 0 ] ,
         [ lv2:symbol "auto_gain" ; pset:value 1 ] ,
-        [ lv2:symbol "output_db" ; pset:value 0 ] .
+        [ lv2:symbol "output_db" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/q4#preset_warm_keys_rhodes>
     a pset:Preset ;
@@ -156,7 +160,8 @@
         [ lv2:symbol "scale_pct" ; pset:value 100 ] ,
         [ lv2:symbol "solo_band" ; pset:value 0 ] ,
         [ lv2:symbol "auto_gain" ; pset:value 0 ] ,
-        [ lv2:symbol "output_db" ; pset:value 0 ] .
+        [ lv2:symbol "output_db" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/q4#preset_tape_loop_mud_clean>
     a pset:Preset ;
@@ -187,7 +192,8 @@
         [ lv2:symbol "scale_pct" ; pset:value 100 ] ,
         [ lv2:symbol "solo_band" ; pset:value 0 ] ,
         [ lv2:symbol "auto_gain" ; pset:value 1 ] ,
-        [ lv2:symbol "output_db" ; pset:value 0 ] .
+        [ lv2:symbol "output_db" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/q4#preset_granular_cloud_sculpt>
     a pset:Preset ;
@@ -218,7 +224,8 @@
         [ lv2:symbol "scale_pct" ; pset:value 100 ] ,
         [ lv2:symbol "solo_band" ; pset:value 0 ] ,
         [ lv2:symbol "auto_gain" ; pset:value 0 ] ,
-        [ lv2:symbol "output_db" ; pset:value 0 ] .
+        [ lv2:symbol "output_db" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/q4#preset_west_coast_fold_tame>
     a pset:Preset ;
@@ -249,7 +256,8 @@
         [ lv2:symbol "scale_pct" ; pset:value 100 ] ,
         [ lv2:symbol "solo_band" ; pset:value 0 ] ,
         [ lv2:symbol "auto_gain" ; pset:value 0 ] ,
-        [ lv2:symbol "output_db" ; pset:value 0 ] .
+        [ lv2:symbol "output_db" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/q4#preset_stage_anti_feedback>
     a pset:Preset ;
@@ -280,7 +288,8 @@
         [ lv2:symbol "scale_pct" ; pset:value 100 ] ,
         [ lv2:symbol "solo_band" ; pset:value 0 ] ,
         [ lv2:symbol "auto_gain" ; pset:value 0 ] ,
-        [ lv2:symbol "output_db" ; pset:value 0 ] .
+        [ lv2:symbol "output_db" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/q4#preset_master_smile_air>
     a pset:Preset ;
@@ -311,4 +320,5 @@
         [ lv2:symbol "scale_pct" ; pset:value 100 ] ,
         [ lv2:symbol "solo_band" ; pset:value 0 ] ,
         [ lv2:symbol "auto_gain" ; pset:value 1 ] ,
-        [ lv2:symbol "output_db" ; pset:value 0 ] .
+        [ lv2:symbol "output_db" ; pset:value 0 ] ,
+        [ lv2:symbol "bypass" ; pset:value 0 ] .

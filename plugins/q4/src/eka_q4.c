@@ -56,7 +56,8 @@ enum {
     PORT_OUT_PEAK,
     PORT_SPEC_BASE, /* 24 bins: PORT_SPEC_BASE .. PORT_SPEC_BASE + 23 */
 
-    PORT_COUNT = PORT_SPEC_BASE + Q4_SPEC_BINS
+    PORT_BYPASS = PORT_SPEC_BASE + Q4_SPEC_BINS,
+    PORT_COUNT
 };
 
 typedef struct {
@@ -66,6 +67,7 @@ typedef struct {
     float       *out_r;
 
     const float *ctrl[PORT_IN_PEAK];
+    const float *in_bypass;
     float       *out_in_peak;
     float       *out_out_peak;
     float       *out_spec[Q4_SPEC_BINS];
@@ -113,6 +115,8 @@ static void connect_port(LV2_Handle instance, uint32_t port, void *data) {
         self->out_in_peak = (float *)data;
     } else if (port == PORT_OUT_PEAK) {
         self->out_out_peak = (float *)data;
+    } else if (port == PORT_BYPASS) {
+        self->in_bypass = (const float *)data;
     } else {
         uint32_t bin = port - PORT_SPEC_BASE;
         if (bin < Q4_SPEC_BINS) {
@@ -160,6 +164,7 @@ static void run(LV2_Handle instance, uint32_t nframes) {
     p->solo_band = (int)lroundf(read_port(self->ctrl[PORT_SOLO_BAND], 0.0f));
     p->auto_gain = read_port(self->ctrl[PORT_AUTO_GAIN], 0.0f) >= 0.5f ? 1 : 0;
     p->output_db = read_port(self->ctrl[PORT_OUTPUT_DB], 0.0f);
+    p->bypass    = read_port(self->in_bypass,            0.0f) >= 0.5f ? 1 : 0;
 
     q4_core_process(&self->core, p, self->in_l, self->in_r, self->out_l, self->out_r, nframes);
 

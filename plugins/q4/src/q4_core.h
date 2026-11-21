@@ -46,6 +46,7 @@ typedef struct {
     int   solo_band;    /* 0 = Off, 1..4 = Band 1..4 */
     int   auto_gain;    /* 0/1 */
     float output_db;    /* -18..+18 dB */
+    int   bypass;       /* 0/1 */
 } Q4Params;
 
 typedef struct {
@@ -79,6 +80,7 @@ typedef struct {
 
     double cur_gain;
     double cur_solo_mix;
+    double cur_bypass_mix;
 
     Q4SpecBin spec[Q4_SPEC_BINS];
     double spec_att;
