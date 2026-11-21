@@ -9,6 +9,7 @@
 @prefix patch:  <http://lv2plug.in/ns/ext/patch#> .
 @prefix pprops: <http://lv2plug.in/ns/ext/port-props#> .
 @prefix pg:     <http://lv2plug.in/ns/ext/port-groups#> .
+@prefix rsz:    <http://lv2plug.in/ns/ext/resize-port#> .
 @prefix mod:    <http://moddevices.com/ns/mod#> .
 @prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
@@ -48,6 +49,7 @@
 <http://dmtry3.github.io/zynthian-eka/pads#pad_end>   a lv2:Parameter ; lv2:symbol "pad_end"   ; rdfs:label "Pad End"      ; rdfs:range atom:Int ; lv2:default 100 ; lv2:minimum 5 ; lv2:maximum 100 ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
 <http://dmtry3.github.io/zynthian-eka/pads#seq_bpm>   a lv2:Parameter ; lv2:symbol "seq_bpm"   ; rdfs:label "Seq BPM"      ; rdfs:range atom:Int ; lv2:default 120 ; lv2:minimum 40 ; lv2:maximum 240 ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
 <http://dmtry3.github.io/zynthian-eka/pads#seq_cmd>   a lv2:Parameter ; lv2:symbol "seq_cmd"   ; rdfs:label "Seq Cmd"      ; rdfs:range atom:Int ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 67108863 ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
+<http://dmtry3.github.io/zynthian-eka/pads#seq_data>  a lv2:Parameter ; lv2:symbol "seq_data"  ; rdfs:label "Seq Data"     ; rdfs:range atom:String ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
 
 <http://dmtry3.github.io/zynthian-eka/pads>
     a lv2:Plugin , lv2:InstrumentPlugin ;
@@ -82,7 +84,8 @@
         <http://dmtry3.github.io/zynthian-eka/pads#solo_mask> ,
         <http://dmtry3.github.io/zynthian-eka/pads#pad_end> ,
         <http://dmtry3.github.io/zynthian-eka/pads#seq_bpm> ,
-        <http://dmtry3.github.io/zynthian-eka/pads#seq_cmd> ;
+        <http://dmtry3.github.io/zynthian-eka/pads#seq_cmd> ,
+        <http://dmtry3.github.io/zynthian-eka/pads#seq_data> ;
 
     lv2:port
     # Page 1: Pad Sound
@@ -208,6 +211,7 @@
         atom:bufferType atom:Sequence ;
         atom:supports midi:MidiEvent , patch:Message , time:Position ;
         lv2:designation lv2:control ;
+        rsz:minimumSize 8192 ;
     ] , [
         a lv2:OutputPort , lv2:AudioPort ;
         lv2:index 17 ; lv2:symbol "out_l" ; lv2:name "Out L" ;
@@ -220,6 +224,7 @@
         atom:bufferType atom:Sequence ;
         atom:supports patch:Message ;
         lv2:designation lv2:control ;
+        rsz:minimumSize 8192 ;
     ] ,
     # Output monitor ports for the Zynthian widget
     [ a lv2:OutputPort , lv2:ControlPort ; lv2:index 20 ; lv2:symbol "out_sel_pad"   ; lv2:name "Sel Pad"   ; lv2:minimum 0  ; lv2:maximum 15 ; ] ,
