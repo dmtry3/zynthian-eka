@@ -818,6 +818,7 @@ void run(LV2_Handle h, uint32_t n) {
     pl->out(kOutSpd[i], v.speed);
     pl->out(kOutEspd[i], v.espeed);
     if (v.muted) mutes |= 1u << i;
+    if (v.mute_pending) mutes |= 1u << (6 + i);
     if (v.reversed) revs |= 1u << i;
     if (v.stopped) stops |= 1u << i;
     if (v.locked) locks |= 1u << i;
@@ -831,6 +832,7 @@ void run(LV2_Handle h, uint32_t n) {
     }
   }
   if (lp->rec_after_switch()) flags |= 1u << 24;  // запись взведена на новый парт
+  stops |= (uint32_t)(lp->playstop_pending() & 3) << 6;
   pl->out(O_FLAGS, (float)flags);
   pl->out(O_MUTES, (float)mutes);
   pl->out(O_REVS, (float)revs);

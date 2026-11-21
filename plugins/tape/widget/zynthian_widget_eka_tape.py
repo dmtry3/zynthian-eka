@@ -431,7 +431,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
     def _on_press(self, event):
         for (x0, y0, x1, y1, what, arg) in self.hits:
             if x0 <= event.x <= x1 and y0 <= event.y <= y1:
-                if what in ("sseg", "ssl", "sbody"):
+                if what in ("sseg", "ssl", "sdef", "sbody"):
                     # что это было, станет ясно по движению пальца: прокрутка или ползунок
                     self.sdrag = {"what": what, "arg": arg, "x": event.x, "y": event.y,
                                   "scroll": self.s_scroll, "mode": None}
@@ -453,6 +453,10 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                     return
                 if what == "sclose":
                     self.speed_slot = None
+                    self.refresh_gui()
+                    return
+                if what == "snext":  # вкладка TRACK N на экране Speed: переключить дорожку по кругу
+                    self.speed_slot = (self.speed_slot + 1) % getattr(self, "cur_n", 4)
                     self.refresh_gui()
                     return
                 if what == "sreset":
@@ -597,6 +601,15 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                 self._zset(d["arg"][0], d["arg"][2])
             elif d["what"] == "ssl":
                 self._slide(d["arg"], event.x)
+            elif d["what"] == "sdef":  # двойной тап по подписи настройки: значение по умолчанию
+                sym = d["arg"]
+                now = time.monotonic()
+                if self.last_tap[0] == ("sdef", sym) and now - self.last_tap[1] < DOUBLE_TAP_S:
+                    if sym in SETTING_DEFAULTS:
+                        self._zset(sym, SETTING_DEFAULTS[sym])
+                    self.last_tap = (None, 0.0)
+                else:
+                    self.last_tap = (("sdef", sym), now)
             self.refresh_gui()
 
     # ---------- текст, который всегда влезает в свою клетку ----------
@@ -755,6 +768,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             "n": n,
             "pend": int(m.get("o_pend", -1)),
             "parts": int(m.get("o_parts", 0)),
+            "ps_pending": (stops >> 6) & 3,
             "rec_next": bool(flags >> 24 & 1),
             "widget": int(m.get("o_widget", 0)),
             "count": int(round(m.get("o_count", 0.0))),  # счёт перед записью на активной: долей до начала
@@ -769,6 +783,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                 "pos": float(m.get("o_pos%d" % (i + 1), 0.0)),
                 "len": float(m.get("o_len%d" % (i + 1), 0.0)),
                 "muted": bool(mutes >> i & 1),
+                "mute_pending": bool(mutes >> (6 + i) & 1),
                 "reversed": bool(revs >> i & 1),
                 "stopped": bool(stops >> i & 1),
                 "locked": bool(locks >> i & 1),
@@ -941,9 +956,10 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             bw = wx1 - wx0
             # неподвижная часть строки: перерисовывается, только когда меняются её данные
             d = self._read_peaks(i) if (has_loop or state == ST_REC) else None
+            ratio = (tr["speed"] / tr["espeed"]) if (tr["espeed"] > 1e-3 and tr["speed"] > 1e-3) else 1.0
             key = (x0, y0, x1, y1, n, state, color, has_loop, recorded, current, pending,
-                   blink if pending else None, round(tr["speed"], 2), round(tr["pitch"], 2), st["quantize"], st["bpm"],
-                   st["bpb"],
+                   blink if pending else None, round(tr["speed"], 2), round(tr["pitch"], 2), round(ratio, 3),
+                   st["quantize"], st["bpm"], st["bpb"],
                    round(tr["len"], 2) if state == ST_REC else tr["len"],
                    (d["seq"], d["live"], d.get("rec") and d["rec"][0]) if d else None,
                    self._zval("len%d" % (i + 1)) if state == ST_REC else None,
@@ -974,8 +990,8 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                 if has_loop:
                     self._waves(i, wx0, wx1, cy, row_h * 0.42, color, tr["pos"], tr["reversed"])
                     if st["quantize"]:
-                        # тонкие линии долей, толстые — тактов
-                        beats = tr["len"] * beats_per_s
+                        # тонкие линии долей, толстые — тактов (по исходному темпу записи: speed/espeed)
+                        beats = tr["len"] * beats_per_s * ratio
                         nb = int(round(beats))
                         if 0 < nb <= 64:
                             for b in range(1, nb):
@@ -994,6 +1010,13 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             c.section("rowp%d" % i)
             frac = tr["pos"] if has_loop else (1.0 if state == ST_REC else 0.0)
             self._pie(pcx, pcy, pie_r, color, frac, empty=not (has_loop or state == ST_REC))
+            if tr["mute_pending"] and blink:  # ждёт границы такта для mute/unmute
+                c.create_oval(pcx - pie_r - 2, pcy - pie_r - 2, pcx + pie_r + 2, pcy + pie_r + 2,
+                              outline=GRAY, width=2)
+            elif active and (has_loop or state == ST_REC) and color != GREEN:
+                # активную дорожку видно по зелёному ободку, даже если она в Mute/Reverse/Rec/Dub
+                c.create_oval(pcx - pie_r - 2, pcy - pie_r - 2, pcx + pie_r + 2, pcy + pie_r + 2,
+                              outline=GREEN, width=2)
             num_col = TEXT if (has_loop or state == ST_REC) else (GREEN if active else DIM)
             self._text(pcx, pcy, str(i + 1), pie_r * 1.3, pie_r * 1.3, num_col)
             if tr["locked"]:
@@ -1231,7 +1254,10 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             by0 = py0 + ph + hh * 0.04
             bh = max(14, hh * 0.09)
             fy0, fy1 = by0 + bh + hh * 0.05, y1 - lab_h - 4
-            if not c.section("mix%d" % i, (geo, i, n, col, tr["muted"], pan, chm, round(db, 1))):
+            blink = int(time.monotonic() * 3) % 2 == 0
+            mpend = tr["mute_pending"]
+            if not c.section("mix%d" % i, (geo, i, n, col, tr["muted"], mpend, blink if mpend else None,
+                                           pan, chm, round(db, 1))):
                 if i:
                     c.create_line(cx0, y0, cx0, y1, fill="#1c1c1c", width=1)
                 # панорама: полоса, метка центра, бегунок
@@ -1250,8 +1276,8 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                            PURPLE if split else "#b0b0b0")
                 self.hits.append((bx, by0, bx + bw, by0 + bh, "chm", "chm%d" % n))
                 mx = bx + bw + 4
-                c.create_rectangle(mx, by0, mx + bw, by0 + bh, fill=GRAY if tr["muted"] else mix(col, BG, 0.4),
-                                   width=0)
+                mfill = (GRAY if blink else mix(col, BG, 0.4)) if mpend else (GRAY if tr["muted"] else mix(col, BG, 0.4))
+                c.create_rectangle(mx, by0, mx + bw, by0 + bh, fill=mfill, width=0)
                 self._text(mx + bw / 2, by0 + bh / 2, "M", bw * 0.8, bh * 0.75, TEXT)
                 self.hits.append((mx, by0, mx + bw, by0 + bh, "mute", i + 1))
                 self._text(mid, y1 - lab_h / 2 - 2, "-\u221e" if db <= MIN_DB else "%+.1f" % db, ew * 0.8, lab_h,
@@ -1468,6 +1494,8 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                         label = "POOL %d%%" % int(round(100 * float(mm.get("o_pool", 0.0))))
                 if full:
                     self._text(lab_x, cy, label, cx0 - lab_x - pad, ih * 0.62, "#d8d8d8", "w")
+                if sym not in CONFIRM_SYMS:
+                    hit(x0, ry0, cx0, ry1, "sdef", sym)
                 if kind == "seg":
                     names = item[3]
                     vals = item[4] if len(item) > 4 else list(range(len(names)))
@@ -1529,6 +1557,10 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
         tw = (x1 - x0 - gap * 2) / 3.0
         if st["rec_next"] and st["pend"] >= 0:
             hint, hcol = "REC \u2192 PART %d" % (st["pend"] + 1), RED
+        elif st.get("ps_pending") == 1:
+            hint, hcol = "WAIT STOP", GRAY
+        elif st.get("ps_pending") == 2:
+            hint, hcol = "WAIT PLAY", BLUE
         elif now < self.action_until and st["act"]:
             hint, hcol = ACTIONS[st["act"]]
         else:
@@ -1555,6 +1587,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             c.create_rectangle(tx0, y0, tx0 + tw, y1, fill=TAB, width=0)
             self._text(tx0 + tw / 2, (y0 + y1) / 2, text, tw * 0.9, (y1 - y0) * 0.78, color)
         if self.speed_slot is not None:
+            self.hits.append((x0 + (tw + gap), y0, x0 + 2 * tw + gap, y1, "snext", None))
             self.hits.append((x0 + 2 * (tw + gap), y0, x1, y1, "sclose", None))
         elif self.settings_open:
             self.hits.append((x0 + 2 * (tw + gap), y0, x1, y1, "gear", None))

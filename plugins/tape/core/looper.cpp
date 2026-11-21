@@ -1447,6 +1447,8 @@ void Looper::set_time(const TimeInfo& ti) {
     } else if (stopped_now) {
       transport_stop();
     }
+  } else if (!time_seen_) {
+    tstop_ = !rolling_;
   }
   time_seen_ = true;
 }
@@ -2116,8 +2118,11 @@ void Looper::process(const float* in_l, const float* in_r, float* out_l, float* 
         if (t.st != TState::Armed || (t.count_n > 0 && beats_ < t.count_end)) continue;  // идёт счёт
         t.count_n = 0;
         t.count_end = -1.0;
-        if (thr > 0.0f) {  // старт по порогу (после счёта, если он был)
-          const float a = std::fmax(in_l ? std::fabs(in_l[i]) : 0.0f, in_r ? std::fabs(in_r[i]) : 0.0f);
+        if (thr > 0.0f) {  // старт по порогу (после счёта, если он был); учитывает режим канала (ST/L/R)
+          const int chm = mix_[k].mode;
+          const float al = (chm != 2 && in_l) ? std::fabs(in_l[i]) : 0.0f;
+          const float ar = (chm != 1 && in_r) ? std::fabs(in_r[i]) : 0.0f;
+          const float a = std::fmax(al, ar);
           if (a < thr) continue;
           start_rec(k);
           prefill_rec(k);
@@ -2416,6 +2421,7 @@ TrackView Looper::view(int i) const {
   v.speed = (float)t.mcur;
   v.espeed = (float)t.spd;
   v.muted = t.muted;
+  v.mute_pending = t.mute_pending;
   v.stopped = t.stopped || t.ustop;
   v.locked = t.locked;
   v.reversed = t.dir < 0;

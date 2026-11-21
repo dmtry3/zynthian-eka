@@ -70,7 +70,7 @@ enum class TState : uint8_t { Empty, Armed, Rec, Closing, Play, Dub };
 // Для выходных портов и виджета.
 struct TrackView {
   uint8_t state;     // 0 пусто, 1 ждёт такта, 2 запись, 3 играет, 4 овердаб
-  bool muted, reversed, can_undo, can_redo, stopped, locked;
+  bool muted, mute_pending, reversed, can_undo, can_redo, stopped, locked;
   float pos;         // 0..1 доля цикла
   float speed;       // ручная скорость сейчас (с плавным ходом)
   float espeed;      // итоговая: ручная × следование темпу × автоподстройка

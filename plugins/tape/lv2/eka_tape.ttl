@@ -577,7 +577,7 @@
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
         lv2:index 80 ; lv2:symbol "o_mutes" ; lv2:name "Out: Mute Mask" ;
-        lv2:minimum 0 ; lv2:maximum 63 ;
+        lv2:minimum 0 ; lv2:maximum 4095 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
         lv2:index 81 ; lv2:symbol "o_revs" ; lv2:name "Out: Reverse Mask" ;
@@ -585,7 +585,7 @@
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
         lv2:index 82 ; lv2:symbol "o_stops" ; lv2:name "Out: Stopped Mask" ;
-        lv2:minimum 0 ; lv2:maximum 63 ;
+        lv2:minimum 0 ; lv2:maximum 255 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
         lv2:index 83 ; lv2:symbol "o_locks" ; lv2:name "Out: Lock Mask" ;
