@@ -146,12 +146,12 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
         px, py = event.x, event.y
         self.active_drag = None
 
-        for idx in range(len(COMPRESSOR_MODES)):
-            box = self.hit_rects.get(f"mode_{idx}")
-            if box and box[0] <= px <= box[2] and box[1] <= py <= box[3]:
-                self._write_param("mode", idx)
-                self.refresh_gui()
-                return
+        box = self.hit_rects.get("mode_cycle")
+        if box and box[0] <= px <= box[2] and box[1] <= py <= box[3]:
+            cur_mode = int(_limit(round(self._param("mode", 0.0)), 0, len(COMPRESSOR_MODES) - 1))
+            self._write_param("mode", (cur_mode + 1) % len(COMPRESSOR_MODES))
+            self.refresh_gui()
+            return
 
         for sym, _, _ in SWITCH_BUTTONS:
             box = self.hit_rects.get(f"sw_{sym}")
@@ -226,10 +226,10 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
         self.hit_rects = {}
 
         margin = 8
-        footer_h = max(62, int(h * 0.22))
-        strip_h = 22
+        footer_h = max(36, int(h * 0.13))
+        strip_h = 20
         top_y = margin
-        body_h = max(100, h - footer_h - strip_h - margin * 3)
+        body_h = max(110, h - footer_h - strip_h - margin * 3)
         bot_y = top_y + body_h
 
         curve_w = int((w - margin * 4) * 0.36)
@@ -277,7 +277,9 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
         cv.create_oval(dx_pt - 4, dy_pt - 4, dx_pt + 4, dy_pt + 4, fill=LABEL_HI, outline=accent, width=2)
 
         r_txt = "LIM" if ratio >= 19.9 else f"{ratio:.1f}:1"
-        cv.create_text(gx0 + 6, top_y + 5, anchor="nw", text=f"THR {thresh:.0f}dB  {r_txt}",
+        cv.create_text(gx0 + 6, top_y + 5, anchor="nw", text=mode_label,
+                       fill=accent, font=font_md)
+        cv.create_text(gx1 - 6, top_y + 6, anchor="ne", text=f"{thresh:.0f}dB {r_txt}",
                        fill=LABEL_HI, font=font_sm)
 
         # Panel 2: Scrolling Timeline
@@ -349,35 +351,21 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
         draw_meter(1, "GR", gr_db, self.hold_gr, GR_STROKE, downward=True)
         draw_meter(2, "OUT", out_db, self.hold_out, OUT_STROKE, downward=False)
 
-        # Status readout line
+        # Compact status readout line (fits narrow Zynthian widget width)
         sy = bot_y + margin
         hpf_str = "OFF" if hpf <= 20.5 else f"{hpf:.0f}Hz"
         info = (
-            f"MODE {mode_label}   ATK {atk:.1f}ms   REL {rel:.0f}ms   "
-            f"KNEE {knee:.0f}dB   HPF {hpf_str}   DRV {drive:.0f}%   "
-            f"MKP {makeup:+.1f}dB   MIX {mix:.0f}%"
+            f"A {atk:.1f}ms  R {rel:.0f}ms  K {knee:.0f}dB  "
+            f"HPF {hpf_str}  DRV {drive:.0f}%  MIX {mix:.0f}%"
         )
         cv.create_text(w * 0.5, sy + strip_h * 0.5, text=info, fill=LABEL_DIM, font=font_sm)
 
-        # Footer buttons: Row 1 (Modes), Row 2 (Switches)
+        # Footer: single row of 5 buttons (4 toggles + 5th mode cycle button)
         fy0 = sy + strip_h + 4
-        rh = max(24, (h - fy0 - margin - 4) // 2)
-        gap = 6
-        bw = (w - margin * 2 - gap * 3) / 4.0
+        fy1 = h - margin
+        gap = 5
+        bw = (w - margin * 2 - gap * 4) / 5.0
 
-        for i, (m_name, m_col) in enumerate(COMPRESSOR_MODES):
-            x0 = margin + i * (bw + gap)
-            x1 = x0 + bw
-            y0, y1 = fy0, fy0 + rh
-            sel = (i == mode_idx)
-            cv.create_rectangle(x0, y0, x1, y1, fill=m_col if sel else BUTTON_BG,
-                                outline=m_col if sel else LINE_DIM, width=2 if sel else 1)
-            cv.create_text((x0 + x1) * 0.5, (y0 + y1) * 0.5, text=m_name,
-                           fill="#0b0d10" if sel else LABEL_HI, font=font_md)
-            self.hit_rects[f"mode_{i}"] = (x0, y0, x1, y1)
-
-        ry0 = fy0 + rh + 4
-        ry1 = min(h - margin, ry0 + rh)
         sw_map = {
             "auto_release": auto_rel,
             "auto_makeup": auto_mk,
@@ -388,8 +376,16 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
             x0 = margin + i * (bw + gap)
             x1 = x0 + bw
             on = sw_map[sym]
-            cv.create_rectangle(x0, ry0, x1, ry1, fill=col if on else BUTTON_BG,
+            cv.create_rectangle(x0, fy0, x1, fy1, fill=col if on else BUTTON_BG,
                                 outline=col if on else LINE_DIM, width=2 if on else 1)
-            cv.create_text((x0 + x1) * 0.5, (ry0 + ry1) * 0.5, text=lbl,
+            cv.create_text((x0 + x1) * 0.5, (fy0 + fy1) * 0.5, text=lbl,
                            fill="#0b0d10" if on else LABEL_DIM, font=font_sm)
-            self.hit_rects[f"sw_{sym}"] = (x0, ry0, x1, ry1)
+            self.hit_rects[f"sw_{sym}"] = (x0, fy0, x1, fy1)
+
+        # 5th button: cycles compressor mode (CLEAN -> OPTO -> PUNCH -> GLUE)
+        mx_b0 = margin + 4 * (bw + gap)
+        mx_b1 = mx_b0 + bw
+        cv.create_rectangle(mx_b0, fy0, mx_b1, fy1, fill=accent, outline=accent, width=2)
+        cv.create_text((mx_b0 + mx_b1) * 0.5, (fy0 + fy1) * 0.5, text=mode_label,
+                       fill="#0b0d10", font=font_md)
+        self.hit_rects["mode_cycle"] = (mx_b0, fy0, mx_b1, fy1)
