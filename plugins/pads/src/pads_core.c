@@ -146,7 +146,7 @@ void ep_core_init(EpCore* c, double sr) {
   c->seq.pend_scene = -1;
   c->seq.cur_step = -1;
   c->seq.num_steps = EP_STEPS_DEF;
-  c->seq.quantize = 1; /* 1/16 */
+  c->seq.quantize = 100; /* 100% grid quantize */
   c->seq.bpm = 120.0;
   c->seq.swing = 50.0f;
   c->seq.last_step_fired = -1;
@@ -392,7 +392,7 @@ void ep_seq_set_pad_range(EpCore* c, int scene, int pad, int start_step, int end
 
 void ep_seq_set_quantize(EpCore* c, int q) {
   if (q < 0) q = 0;
-  if (q > 3) q = 3;
+  if (q > 100) q = 100;
   c->seq.quantize = q;
 }
 
@@ -442,6 +442,18 @@ void ep_seq_sync_host(EpCore* c, double bpm, int playing, double bar_beat, int b
   }
 }
 
+static inline double step_micro_offset(uint8_t roll_byte) {
+  int8_t m = (int8_t)roll_byte >> 2; /* arithmetic shift: -32..+31 */
+  return (double)m / 64.0;
+}
+
+static inline uint8_t pack_roll_micro(int roll, double micro_steps) {
+  int m = (int)llround(micro_steps * 64.0);
+  if (m < -30) m = -30;
+  if (m > 30)  m = 30;
+  return (uint8_t)(((m & 0x3F) << 2) | (roll & 3));
+}
+
 void ep_seq_record_hit(EpCore* c, int pad, int vel) {
   if (c->seq.mode != EP_SEQ_REC || pad < 0 || pad >= EP_PADS || vel <= 0) return;
   EpScene* sc = &c->scenes[c->seq.scene];
@@ -449,17 +461,18 @@ void ep_seq_record_hit(EpCore* c, int pad, int vel) {
   get_pad_range(sc, pad, &ps, &pe);
   int plen = pe - ps;
   double ph = c->seq.pad_phase[pad];
-  int rel = 0;
-  if (c->seq.quantize == 0) {
-    /* Quantize Off: stamp immediately onto current step without snapping forward */
-    rel = (int)floor(ph) % plen;
-  } else {
-    int grid = (c->seq.quantize == 2) ? 2 : ((c->seq.quantize == 3) ? 4 : 1);
-    rel = ((int)llround(ph / (double)grid) * grid) % plen;
-  }
+  double nearest = floor(ph + 0.5);
+  double err = ph - nearest; /* -0.5 .. +0.5 step */
+  double keep = 1.0 - clampf((float)c->seq.quantize * 0.01f, 0.0f, 1.0f);
+  double micro = err * keep;
+
+  int rel = ((int)llround(nearest)) % plen;
   if (rel < 0) rel += plen;
   int abs_step = ps + rel;
   sc->steps[pad][abs_step].vel = (uint8_t)(vel > 127 ? 127 : vel);
+  int old_roll = sc->steps[pad][abs_step].roll & 3;
+  sc->steps[pad][abs_step].roll = pack_roll_micro(old_roll, micro);
+
   /* If quantized forward to the next upcoming step, suppress its immediate auto-trigger once */
   int cur_rel = (int)floor(ph) % plen;
   if (rel != cur_rel) {
@@ -506,8 +519,9 @@ static void fire_pad_step(EpCore* c, int p, int abs_step, double samples_per_ste
     if (!skip) {
       ep_core_trigger(c, p, st.vel);
     }
-    if (st.roll > 0 && st.roll <= 3) {
-      int sub = st.roll + 1; /* 2x, 3x, 4x */
+    int r = st.roll & 3;
+    if (r > 0 && r <= 3) {
+      int sub = r + 1; /* 2x, 3x, 4x */
       c->seq.roll_rem[p] = (uint8_t)(sub - 1);
       c->seq.roll_vel[p] = st.vel;
       c->seq.roll_interval[p] = samples_per_step / (double)sub;
@@ -805,8 +819,10 @@ void ep_core_process(EpCore* c, float* out_l, float* out_r, uint32_t nframes, in
           int plen = pe - ps;
           double len = (double)plen;
           int next_rel = (c->seq.pad_last_step[p] + 1) % plen;
-          double target_ph = step_trigger_phase(next_rel, c->seq.swing);
-          if (target_ph >= len) target_ph = fmod(target_ph, len);
+          double target_ph = step_trigger_phase(next_rel, c->seq.swing)
+                           + step_micro_offset(sc->steps[p][ps + next_rel].roll);
+          target_ph = fmod(target_ph, len);
+          if (target_ph < 0.0) target_ph += len;
           double dph = target_ph - c->seq.pad_phase[p];
           if (dph < -len * 0.5) dph += len;
           else if (dph < 0.0) dph = 0.0;

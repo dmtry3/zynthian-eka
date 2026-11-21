@@ -398,7 +398,7 @@ static void seq_decode(EpCore* c, const char* str) {
       if (*p == '.') { p++; roll = (int)strtol(p, (char**)&p, 10); }
       if (st >= 0 && st < EP_STEPS && vel > 0) {
         c->scenes[sc].steps[pad][st].vel = (uint8_t)(vel > 127 ? 127 : vel);
-        c->scenes[sc].steps[pad][st].roll = (uint8_t)(roll > 3 ? 3 : (roll < 0 ? 0 : roll));
+        c->scenes[sc].steps[pad][st].roll = (uint8_t)(roll & 0xFF);
       }
     }
   }
@@ -447,7 +447,8 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
       break;
     case CMD_SET_ROLL:
       if (a < EP_SCENES && b < EP_PADS && c < EP_STEPS) {
-        P->core.scenes[a].steps[b][c].roll = (uint8_t)(val > 3 ? 3 : val);
+        uint8_t prev = P->core.scenes[a].steps[b][c].roll;
+        P->core.scenes[a].steps[b][c].roll = (uint8_t)((prev & 0xFCu) | (uint8_t)(val > 3 ? 3 : val));
         P->shm_dirty = 1;
       }
       break;

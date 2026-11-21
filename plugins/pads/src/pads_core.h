@@ -56,7 +56,7 @@ typedef struct {
 
 typedef struct {
   uint8_t vel;            /* 0 = off, 1..127 = trigger velocity */
-  uint8_t roll;           /* 0 = 1x, 1 = 2x, 2 = 3x, 3 = 4x ratchet within step */
+  uint8_t roll;           /* bits 0..1: ratchet 0..3 (1x..4x); bits 2..7: signed micro-timing (-32..+31 / 64 step) */
 } EpStep;
 
 typedef struct {
@@ -115,7 +115,7 @@ typedef struct {
   int pend_scene;         /* -1 or 0..7 queued for next bar */
   int cur_step;           /* -1 if stopped, 0..31 (for selected pad) */
   int num_steps;          /* 4..32 global/bar cycle length */
-  int quantize;           /* 0=Off, 1=1/16, 2=1/8, 3=1/4 */
+  int quantize;           /* 0..100 % quantize strength (0=free micro-timing, 100=hard grid) */
   double bpm;             /* 40..240 */
   float swing;            /* 50..75 % */
   double bar_phase;       /* 0..num_steps in 16th-note units */

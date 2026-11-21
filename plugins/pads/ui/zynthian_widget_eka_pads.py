@@ -236,7 +236,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         idx = scene * EP_SCENE_SIZE + (pad * EP_STEPS + step) * 2
         if idx + 1 >= len(self.scenes_data):
             return 0, 0
-        return self.scenes_data[idx], self.scenes_data[idx + 1]
+        return self.scenes_data[idx], self.scenes_data[idx + 1] & 3
 
     def _pad_range_get(self, scene, pad):
         if not self.scenes_data:
@@ -605,9 +605,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         cur_step = int(round(self._mon("out_seq_step", -1)))
         smode = self.shm_hdr[6] if self.shm_hdr else int(round(self._zval("seq_mode", 0)))
         bpm = int(round(self.shm_hdr[10])) if self.shm_hdr else int(round(self._zval("seq_bpm", 120)))
-        quant = int(self.shm_hdr[12]) if self.shm_hdr else 1
-        if quant < 0 or quant > 3:
-            quant = 1
+        quant = int(self.shm_hdr[12]) if self.shm_hdr else 100
+        if quant < 0 or quant > 100:
+            quant = 100
         ps, pe = self._pad_range_get(scene, self.sel_pad)
 
         # Row 1: 5 Large Scene buttons (A..E) + Quantize + Copy + Clear
@@ -629,10 +629,17 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
 
         tools_x = pad_m + scenes_w + 2
         tw3 = (w - pad_m - tools_x) / 3.0
-        q_bg = "#284038" if quant > 0 else COL_PANEL
-        q_fg = "#63e6be" if quant > 0 else "#a0a0b0"
-        self._add_btn(c, tools_x, y, tools_x + tw3 - 3, y + r1_h,
-                      "Q:%s" % QUANT_NAMES[quant], q_bg, q_fg, fam, fsmall, "seq_quant", (quant + 1) % 4)
+        # Horizontal Quantize strength slider (0..100%)
+        qx0, qx1 = tools_x, tools_x + tw3 - 3
+        c.create_rectangle(qx0, y, qx1, y + r1_h, fill="#1a1c24", outline="#3c4a46" if quant > 0 else "#383844", width=1)
+        if quant > 0:
+            q_fill_x = qx0 + 1 + (quant / 100.0) * max(1.0, (qx1 - qx0 - 2))
+            c.create_rectangle(qx0 + 1, y + 1, q_fill_x, y + r1_h - 1, fill="#24483d", outline="")
+            c.create_rectangle(qx0 + 1, y + 1, q_fill_x, y + 4, fill="#63e6be", width=0)
+        q_lbl = "Q %d%%" % quant if quant > 0 else "Q Off"
+        c.create_text((qx0 + qx1) / 2, y + r1_h / 2, text=q_lbl,
+                      fill="#63e6be" if quant > 0 else "#9a9aaa", font=(fam, fsmall, "bold"))
+        self.hit_boxes.append((qx0, y, qx1, y + r1_h, "quant_slider", (qx0, qx1)))
         self._add_btn(c, tools_x + tw3, y, tools_x + 2 * tw3 - 3, y + r1_h,
                       "Pick" if self.copy_src >= 0 else "Copy",
                       "#e64980" if self.copy_src >= 0 else COL_PANEL, "#ffffff", fam, fsmall, "seq_copy", scene)
@@ -907,8 +914,10 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.refresh_gui()
                 return
 
-            if action == "seq_quant":
-                self._send_cmd(CMD_SET_QUANT, val=arg)
+            if action == "quant_slider":
+                qx0, qx1 = arg
+                self.drag_info = ("quant_slider", (qx0, qx1), y, 0)
+                self._apply_quant_slider(qx0, qx1, x)
                 self.refresh_gui()
                 return
 
@@ -997,10 +1006,20 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         else:
             self._zset("pad_end", int(round(max(5.0, pct))))
 
+    def _apply_quant_slider(self, qx0, qx1, x):
+        t = max(0.0, min(1.0, (x - qx0) / max(1.0, qx1 - qx0)))
+        q = int(round(t * 20.0)) * 5  # clean 5% steps: 0, 5, 10 .. 100%
+        self._send_cmd(CMD_SET_QUANT, val=q)
+
     def _on_motion(self, event):
         if not self.drag_info or event is None:
             return
         kind, arg, y0, start_val = self.drag_info
+        if kind == "quant_slider":
+            qx0, qx1 = arg
+            self._apply_quant_slider(qx0, qx1, event.x)
+            self.refresh_gui()
+            return
         if kind == "steps_slider":
             sc, p, which, sl_x0, sl_x1 = arg
             self._apply_steps_slider(sc, p, which, sl_x0, sl_x1, event.x)
