@@ -151,7 +151,9 @@ enum Param {
   PR_RTHRESH,                   // старт записи основы по порогу (только Free): 0 выкл, −60..−12 дБ
   PR_PIT0,                      // pit1..pit36: сдвиг высоты дорожки, полутонов (этап 8)
   PR_PRESET = PR_PIT0 + kTracks,  // команда виджета: сдвиг дорожки 1..6 текущего парта в 0
-  PR_COUNT
+  PR_TRMA0,                       // trma1..trma36: начало лупа (0..1)
+  PR_TRMB0 = PR_TRMA0 + kTracks,  // trmb1..trmb36: конец лупа (0..1)
+  PR_COUNT = PR_TRMB0 + kTracks
 };
 struct ParamDef {
   char sym[16];
@@ -203,6 +205,12 @@ void init_params() {
     std::snprintf(kParams[PR_PIT0 + t].sym, 16, "pit%d", t + 1);
   }
   kParams[PR_PRESET] = ParamDef{"pit_reset", 0.0f, 0.0f, 6.0f, false};
+  for (int t = 0; t < kTracks; ++t) {
+    kParams[PR_TRMA0 + t] = ParamDef{{}, 0.0f, 0.0f, 1.0f, true};
+    std::snprintf(kParams[PR_TRMA0 + t].sym, 16, "trma%d", t + 1);
+    kParams[PR_TRMB0 + t] = ParamDef{{}, 1.0f, 0.0f, 1.0f, true};
+    std::snprintf(kParams[PR_TRMB0 + t].sym, 16, "trmb%d", t + 1);
+  }
 }
 constexpr uint32_t kReportPerRun = 4;  // ответов на patch:Get за один run()
 
@@ -317,8 +325,9 @@ struct Plugin {
   // (при загрузке снапшота так не делаем: его микшер относится к его сетке).
   void reset_track_params() {
     for (int i = PR_LEV0; i < PR_COUNT; ++i) {
-      const bool per_track =
-          i < PR_MASTER || (i >= PR_SPD0 && i < PR_SPD0 + kTracks) || (i >= PR_PIT0 && i < PR_PIT0 + kTracks);
+      const bool per_track = i < PR_MASTER || (i >= PR_SPD0 && i < PR_SPD0 + kTracks) ||
+                             (i >= PR_PIT0 && i < PR_PIT0 + kTracks) ||
+                             (i >= PR_TRMA0 && i < PR_TRMB0 + kTracks);
       if (!per_track) continue;  // Master, ограничитель, настройки — общие
       if (vals[i] != kParams[i].def) {
         vals[i] = kParams[i].def;
@@ -345,6 +354,9 @@ struct Plugin {
       looper->set_speed(i - PR_SPD0, vals[i]);
     } else if (i >= PR_PIT0 && i < PR_PIT0 + kTracks) {
       looper->set_pitch(i - PR_PIT0, vals[i]);
+    } else if (i >= PR_TRMA0 && i < PR_TRMB0 + kTracks) {
+      const int t = (i - PR_TRMA0) % kTracks;
+      looper->set_trim(t, vals[PR_TRMA0 + t], vals[PR_TRMB0 + t]);
     }
   }
   static bool is_setting(int i) {
@@ -372,6 +384,10 @@ struct Plugin {
     upd(PR_LIMIT, looper->limiter() ? 1.0f : 0.0f);
     for (int t = 0; t < kTracks; ++t) upd(PR_SPD0 + t, looper->speed(t));
     for (int t = 0; t < kTracks; ++t) upd(PR_PIT0 + t, looper->pitch(t));  // новая основа — с 0
+    for (int t = 0; t < kTracks; ++t) {
+      upd(PR_TRMA0 + t, looper->trim_start(t));
+      upd(PR_TRMB0 + t, looper->trim_end(t));
+    }
   }
 };
 

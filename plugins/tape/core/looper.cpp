@@ -1,5 +1,6 @@
 #include "looper.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <new>
@@ -33,10 +34,24 @@ inline uint64_t wrap_index(int64_t i, uint64_t L) {
   return (uint64_t)(m < 0 ? m + (int64_t)L : m);
 }
 
+inline uint64_t wrap_index_range(int64_t i, uint64_t lo, uint64_t hi) {
+  const int64_t span = (int64_t)(hi - lo);
+  if (span <= 0) return lo;
+  int64_t m = (i - (int64_t)lo) % span;
+  return lo + (uint64_t)(m < 0 ? m + span : m);
+}
+
 inline double wrap_pos(double p, double L) {
   if (L <= 0.0) return 0.0;
   p = std::fmod(p, L);
   return p < 0.0 ? p + L : p;
+}
+
+inline double wrap_range(double p, double lo, double hi) {
+  const double span = hi - lo;
+  if (span <= 0.0) return lo;
+  double x = std::fmod(p - lo, span);
+  return lo + (x < 0.0 ? x + span : x);
 }
 
 constexpr uint32_t kSeekMax = 8192;     // кадров: история и прогон запуска Stretch (до 7200 и 4320)
@@ -406,6 +421,11 @@ void Looper::close_loop(int ti, uint64_t L) {
   clear_redo(t);
   t.sum = base;
   t.len = L;
+  if (t.trim_a != 0.0f || t.trim_b != 1.0f) {
+    t.trim_a = 0.0f;
+    t.trim_b = 1.0f;
+    ++mix_epoch_;
+  }
   push_undo(t, Entry{U_SNAP, -1});
   t.pos = 0.0;
   t.rate = 1.0;
@@ -678,6 +698,11 @@ void Looper::reset_all_now(bool full) {
     t.pw = 0.0f;
     if (full) t.pit = 0.0f;
     t.pcur = t.pit;
+    if (t.trim_a != 0.0f || t.trim_b != 1.0f) {
+      t.trim_a = 0.0f;
+      t.trim_b = 1.0f;
+      ++mix_epoch_;
+    }
     t.phase_reset = t.phase_wait = false;
     t.dub_end = -1;
     t.undo_after_dub = t.reset_after_dub = false;
@@ -1133,6 +1158,108 @@ void Looper::read_sum(const Track& t, int32_t b, double pos, float& l, float& r)
   r = cr(r0, r1, r2, r3);
 }
 
+void Looper::trim_bounds(const Track& t, uint64_t& lo, uint64_t& hi) const {
+  if (t.len == 0) {
+    lo = hi = 0;
+    return;
+  }
+  if (t.trim_a <= 0.0f && t.trim_b >= 1.0f) {
+    lo = 0;
+    hi = t.len;
+    return;
+  }
+  const uint64_t min_span = std::min<uint64_t>(t.len, 2ull * xf_ + 16);
+  lo = (uint64_t)std::llround((double)t.trim_a * (double)t.len);
+  hi = (uint64_t)std::llround((double)t.trim_b * (double)t.len);
+  if (lo > t.len - min_span) lo = t.len - min_span;
+  if (hi > t.len) hi = t.len;
+  if (hi < lo + min_span) hi = std::min<uint64_t>(t.len, lo + min_span);
+}
+
+void Looper::set_trim(int k, float a, float b) {
+  if (k < 0 || k >= kTracks) return;
+  Track& t = tr_[k];
+  if (a < 0.0f) a = 0.0f;
+  if (a > 1.0f) a = 1.0f;
+  if (b < 0.0f) b = 0.0f;
+  if (b > 1.0f) b = 1.0f;
+  const float min_frac = t.len > 0 ? std::fmin(1.0f, (float)(2ull * xf_ + 16) / (float)t.len) : 0.01f;
+  if (b - a < min_frac) {
+    if (std::fabs(a - t.trim_a) > std::fabs(b - t.trim_b)) {
+      a = b - min_frac;
+      if (a < 0.0f) { a = 0.0f; b = std::fmin(1.0f, min_frac); }
+    } else {
+      b = a + min_frac;
+      if (b > 1.0f) { b = 1.0f; a = std::fmax(0.0f, 1.0f - min_frac); }
+    }
+  }
+  if (std::fabs(a - t.trim_a) < 1e-6f && std::fabs(b - t.trim_b) < 1e-6f) return;
+  t.trim_a = a;
+  t.trim_b = b;
+  ++edit_epoch_;
+  if ((t.st == TState::Play || t.st == TState::Dub) && t.len > 0 && t.sum >= 0) {
+    uint64_t lo, hi;
+    trim_bounds(t, lo, hi);
+    if (t.pos < (double)lo || t.pos >= (double)hi) {
+      if (t.xf_from >= 0 && t.xf_owned) pool_.free_buf(t.xf_from);
+      t.xf_from = t.sum;
+      t.xf_owned = false;
+      t.xf_pos = 0;
+      t.xf_len = xf_;
+      t.xpos = t.pos;
+      t.pos = wrap_range(t.pos, (double)lo, (double)hi);
+    }
+  }
+}
+
+// Чтение с мягким кроссфейдом стыка, если луп обрезан (trim_a > 0 или trim_b < 1).
+// Симметричен для воспроизведения вперёд и в Reverse: на стыке hi -> lo (и lo -> hi) скачка нет.
+void Looper::read_loop(const Track& t, int32_t b, double pos, float& l, float& r) const {
+  read_sum(t, b, pos, l, r);
+  if (b < 0 || b != t.sum || t.len == 0) return;
+  uint64_t lo, hi;
+  trim_bounds(t, lo, hi);
+  if (lo == 0 && hi == t.len) return;
+  const uint64_t span = hi - lo;
+  const uint64_t xlen = std::min<uint64_t>(xf_, span / 2);
+  if (xlen < 2) return;
+  const uint64_t left_avail = std::min<uint64_t>(xlen, lo);
+  const uint64_t right_avail = std::min<uint64_t>(xlen, t.len - hi);
+  const uint64_t half_xf = xlen / 2;
+  if (right_avail >= half_xf && right_avail >= left_avail) {
+    // post-roll кроссфейд на [lo, lo + right_avail) с хвостом [hi, hi + right_avail)
+    if (pos >= (double)lo && pos < (double)(lo + right_avail)) {
+      const double d = pos - (double)lo;
+      const float g = (float)(d / (double)right_avail);
+      float hl, hr;
+      read_sum(t, b, (double)hi + d, hl, hr);
+      l = hl * (1.0f - g) + l * g;
+      r = hr * (1.0f - g) + r * g;
+    }
+  } else if (left_avail >= half_xf) {
+    // pre-roll кроссфейд на [hi - left_avail, hi) с предысторией [lo - left_avail, lo)
+    if (pos >= (double)(hi - left_avail) && pos < (double)hi) {
+      const double d = (double)hi - pos;
+      const float g = (float)(d / (double)left_avail);
+      float hl, hr;
+      read_sum(t, b, (double)lo - d, hl, hr);
+      l = l * g + hl * (1.0f - g);
+      r = r * g + hr * (1.0f - g);
+    }
+  } else if (half_xf >= 2) {
+    // обрезано меньше 5 мс от обоих краёв: короткий fade-in / fade-out на границах
+    if (pos >= (double)lo && pos < (double)(lo + half_xf)) {
+      const float g = (float)((pos - (double)lo) / (double)half_xf);
+      l *= g;
+      r *= g;
+    } else if (pos >= (double)(hi - half_xf) && pos < (double)hi) {
+      const float g = (float)(((double)hi - pos) / (double)half_xf);
+      l *= g;
+      r *= g;
+    }
+  }
+}
+
 void Looper::write_add(int32_t b, uint64_t p, float l, float r) {
   Chunk* c = pool_.writable(b, (uint32_t)(p >> kChunkShift), true);
   if (!c) return;
@@ -1190,36 +1317,37 @@ void Looper::dub_write(int ti, uint64_t p, float l, float r) {
 double Looper::dub_pos(const Track& t, double step, uint32_t extra) const {
   const uint32_t lat = lat_ + extra;  // extra: вход прошёл через Stretch овердаба, опоздал ещё на его задержку
   if (!lat || !t.len) return t.pos;
-  const double L = (double)t.len;
-  double w = std::fmod(t.pos - (double)lat * step, L);
-  if (w < 0.0) w += L;
-  return w;
+  uint64_t lo, hi;
+  trim_bounds(t, lo, hi);
+  return wrap_range(t.pos - (double)lat * step, (double)lo, (double)hi);
 }
 
 void Looper::dub_resampled(int ti, float il, float ir, double step) {
   Track& t = tr_[ti];
+  uint64_t lo, hi;
+  trim_bounds(t, lo, hi);
   const double w1 = dub_pos(t, step, t.deng >= 0 ? t.dlat : 0);
   if (step == 1.0 && w1 == std::floor(w1)) {  // ровно 1×: как раньше, кадр в кадр
-    dub_write(ti, wrap_index((int64_t)w1, t.len), il, ir);
+    dub_write(ti, wrap_index_range((int64_t)w1, lo, hi), il, ir);
     return;
   }
-  const double L = (double)t.len;
+  const double span = (double)(hi - lo);
   double d = t.wfirst ? step : w1 - t.wprev;  // сколько прошла головка за кадр
-  if (d > L / 2) d -= L;
-  else if (d < -L / 2) d += L;
+  if (d > span / 2) d -= span;
+  else if (d < -span / 2) d += span;
   const double w0 = w1 - d;
   const float env = dub_env(t);
   bool ok = true;
   if (d > 0) {
     for (int64_t n = (int64_t)std::floor(w0) + 1; n <= (int64_t)std::floor(w1) && ok; ++n) {
       const float a = (float)(((double)n - w0) / d);
-      ok = dub_put(ti, wrap_index(n, t.len), (t.wl_prev + (il - t.wl_prev) * a) * env,
+      ok = dub_put(ti, wrap_index_range(n, lo, hi), (t.wl_prev + (il - t.wl_prev) * a) * env,
                    (t.wr_prev + (ir - t.wr_prev) * a) * env);
     }
   } else if (d < 0) {
     for (int64_t n = (int64_t)std::ceil(w1); n < (int64_t)std::ceil(w0) && ok; ++n) {
       const float a = (float)((w0 - (double)n) / -d);
-      ok = dub_put(ti, wrap_index(n, t.len), (t.wl_prev + (il - t.wl_prev) * a) * env,
+      ok = dub_put(ti, wrap_index_range(n, lo, hi), (t.wl_prev + (il - t.wl_prev) * a) * env,
                    (t.wr_prev + (ir - t.wr_prev) * a) * env);
     }
   }
@@ -1308,7 +1436,7 @@ void Looper::track_sample(int ti, uint32_t i, float il, float ir, float& ol, flo
 
   // чтение (с кроссфейдом со старой суммы)
   float l = 0.0f, r = 0.0f;
-  if (playing) read_sum(t, t.sum, t.pos, l, r);
+  if (playing) read_loop(t, t.sum, t.pos, l, r);
   // вход из тишины (старт цикла, переход в парт): то же нарастание и для сдвинутого звука
   const float fade_in = fading && t.xf_from < 0 ? (float)t.xf_pos / (float)t.xf_len : 1.0f;
   if (fading) {
@@ -1381,13 +1509,19 @@ void Looper::track_sample(int ti, uint32_t i, float il, float ir, float& ol, flo
   }
 
   // транспорт стоит и всё затихло: курсор в начале цикла до пуска (wake поставит его заново)
+  uint64_t lo = 0, hi = t.len;
+  if (t.len > 0) trim_bounds(t, lo, hi);
   if (hold_) {
-    t.pos = t.xpos = t.dir > 0 ? 0.0 : (double)(t.len ? t.len - 1 : 0);
+    t.pos = t.xpos = t.dir > 0 ? (double)lo : (double)(hi > lo ? hi - 1 : 0);
     return;
   }
   // движение: reverse разворачивается как лента (скорость плавно проходит через 0)
   uint64_t L = t.len;
-  if (L == 0 && t.xf_from >= 0) L = pool_.buf(t.xf_from).len;
+  if (L == 0 && t.xf_from >= 0) {
+    L = pool_.buf(t.xf_from).len;
+    lo = 0;
+    hi = L;
+  }
   if (L == 0) return;
   if (t.rev_wait >= 0 && t.rev_wait-- == 0) start_reverse(t, t.rev_n);
   if (t.rate_step != 0.0) {
@@ -1408,11 +1542,14 @@ void Looper::track_sample(int ti, uint32_t i, float il, float ir, float& ol, flo
   }
   t.pos += step;
   bool wrapped = false;
-  if (t.pos >= (double)L) {
-    t.pos -= (double)L;
+  const double span = (double)(hi - lo);
+  if (t.pos >= (double)hi) {
+    t.pos -= span;
+    if (t.pos >= (double)hi || t.pos < (double)lo) t.pos = wrap_range(t.pos, (double)lo, (double)hi);
     wrapped = true;
-  } else if (t.pos < 0.0) {
-    t.pos += (double)L;
+  } else if (t.pos < (double)lo) {
+    t.pos += span;
+    if (t.pos >= (double)hi || t.pos < (double)lo) t.pos = wrap_range(t.pos, (double)lo, (double)hi);
     wrapped = true;
   }
   if (wrapped && t.mute_pending && set_.mute_q == 3) apply_mute(ti);
@@ -1513,13 +1650,17 @@ void Looper::wake(int ti) {
     return;
   }
   // тишина: просто ставим позицию, огибающая сама нарастёт
-  if (t.synced && t.len && t.loop_beats > 0 && t.dir > 0 && t.rate_step == 0.0) {
-    double ph = std::fmod((beats_ - t.b0) / t.loop_beats, 1.0);
+  uint64_t lo = 0, hi = t.len;
+  if (t.len) trim_bounds(t, lo, hi);
+  const double span = (double)(hi - lo);
+  if (t.synced && t.len && t.loop_beats > 0 && t.dir > 0 && t.rate_step == 0.0 && span > 0.0) {
+    const double eff_beats = t.loop_beats * span / (double)t.len;
+    double ph = std::fmod((beats_ - t.b0) / eff_beats, 1.0);
     if (ph < 0) ph += 1.0;
-    t.pos = std::round(ph * (double)t.len);
-    if (t.pos >= (double)t.len) t.pos = 0.0;
+    t.pos = (double)lo + std::round(ph * span);
+    if (t.pos >= (double)hi) t.pos = (double)lo;
   } else {
-    t.pos = t.dir > 0 ? 0.0 : (double)(t.len ? t.len - 1 : 0);
+    t.pos = t.dir > 0 ? (double)lo : (double)(hi > lo ? hi - 1 : 0);
   }
 }
 
@@ -1594,17 +1735,20 @@ void Looper::update_speeds(uint32_t n) {
     } else if (!can_lock) {
       t.tspd += (bpf_ / t.rec_bpf - t.tspd) * kt;
     } else {
-      const double L = (double)t.len;
-      double ph = std::fmod((beats_ - t.b0) / t.loop_beats, 1.0);
+      uint64_t lo, hi;
+      trim_bounds(t, lo, hi);
+      const double span = (double)(hi - lo);
+      const double eff_beats = t.loop_beats * span / (double)t.len;
+      double ph = std::fmod((beats_ - t.b0) / eff_beats, 1.0);
       if (ph < 0) ph += 1.0;
-      double err = ph * L - t.pos;  // > 0: дорожка отстаёт
-      if (err > L / 2) err -= L;
-      if (err < -L / 2) err += L;
+      double err = ((double)lo + ph * span) - t.pos;  // > 0: дорожка отстаёт
+      if (err > span / 2) err -= span;
+      if (err < -span / 2) err += span;
       if (std::fabs(err) > 0.05 * sr_) {
         resync(k);  // далеко (больше 50 мс): перескок через кроссфейд
         t.tspd = bpf_ / t.rec_bpf;
       } else {
-        const double r = bpf_ * L / t.loop_beats;  // скорость сетки в кадрах дорожки за кадр
+        const double r = bpf_ * (double)t.len / t.loop_beats;  // скорость сетки в кадрах дорожки за кадр
         // шагами не длиннее 0,1/w: устойчиво при любом размере блока
         const int m = 1 + (int)((double)n * w / 0.1);
         const double dt = (double)n / m;
@@ -1657,11 +1801,12 @@ void Looper::dub_release(Track& t) {
 
 // n кадров суммы дорожки с позиции from шагом step (для запуска и перескока Stretch).
 void Looper::pitch_fill(Track& t, float* l, float* r, uint32_t n, double from, double step) {
-  const double L = (double)t.len;
-  double p = wrap_pos(from, L);
+  uint64_t lo, hi;
+  trim_bounds(t, lo, hi);
+  double p = wrap_range(from, (double)lo, (double)hi);
   for (uint32_t j = 0; j < n; ++j) {
-    read_sum(t, t.sum, p, l[j], r[j]);
-    p = wrap_pos(p + step, L);
+    read_loop(t, t.sum, p, l[j], r[j]);
+    p = wrap_range(p + step, (double)lo, (double)hi);
   }
 }
 
@@ -1705,7 +1850,9 @@ void Looper::pitch_block(const float* in_l, const float* in_r, uint32_t n) {
       t.pcur += ((double)t.pit - t.pcur) * ks;
       if (std::fabs((double)t.pit - t.pcur) < 1e-3) t.pcur = t.pit;
     }
-    const double L = (double)t.len;
+    uint64_t lo, hi;
+    trim_bounds(t, lo, hi);
+    const double dlo = (double)lo, dhi = (double)hi, span = dhi - dlo;
     const double step0 = t.rate * t.spd;
     if (t.eng < 0) {
       if (!want) {
@@ -1733,14 +1880,14 @@ void Looper::pitch_block(const float* in_l, const float* in_r, uint32_t n) {
       const float* pre[2] = {b.pbuf[0], b.pbuf[1]};
       float* tmp[2] = {b.tbuf[0], b.tbuf[1]};
       sh.start(hist, pre, tmp);
-      t.apos = wrap_pos(t.pos + (double)D * step0, L);
+      t.apos = wrap_range(t.pos + (double)D * step0, dlo, dhi);
       t.axf = false;
       oseek_gap_ = 0;
     } else if (t.rate_step == 0.0) {  // во время разворота не прыгаем: после него — один перескок
-      const double target = wrap_pos(t.pos + (double)D * step0, L);
+      const double target = wrap_range(t.pos + (double)D * step0, dlo, dhi);
       double err = target - t.apos;
-      if (err > L / 2) err -= L;
-      else if (err < -L / 2) err += L;
+      if (err > span / 2) err -= span;
+      else if (err < -span / 2) err += span;
       if (std::fabs(err) > jump) {
         const int S = b.slen;
         pitch_fill(t, b.sbuf[0], b.sbuf[1], (uint32_t)S, target - (double)S * step0, step0);
@@ -1772,7 +1919,7 @@ void Looper::pitch_block(const float* in_l, const float* in_r, uint32_t n) {
     float* ar = b.ain[1];
     for (uint32_t i = 0; i < n; ++i) {
       float l, r;
-      read_sum(t, t.sum, t.apos, l, r);
+      read_loop(t, t.sum, t.apos, l, r);
       const double st = rt * t.spd;
       if (t.axf) {
         if (t.ag < 1.0f && XL > 0.0) {
@@ -1786,7 +1933,7 @@ void Looper::pitch_block(const float* in_l, const float* in_r, uint32_t n) {
       }
       al[i] = l;
       ar[i] = r;
-      t.apos = wrap_pos(t.apos + st, L);
+      t.apos = wrap_range(t.apos + st, dlo, dhi);
       if (rs != 0.0) {
         rt += rs;
         if ((rs > 0 && rt >= 1.0) || (rs < 0 && rt <= -1.0)) {
@@ -1915,6 +2062,8 @@ void Looper::clone_into(int from, int to) {
   n.mcur = o.mcur;
   n.spd = o.spd;
   n.tspd = o.tspd;
+  n.trim_a = o.trim_a;
+  n.trim_b = o.trim_b;
   // Stretch переходит к копии вместе с позицией: сдвинутый звук без шва
   n.pit = o.pit;
   n.pcur = o.pcur;
@@ -1971,7 +2120,9 @@ void Looper::switch_part(int p) {
       Track& t = tr_[k];
       if (t.sum < 0 || (t.st != TState::Play && t.st != TState::Dub)) continue;
       if (t.synced) t.b0 = e;
-      t.pos = t.dir > 0 ? 0.0 : (double)(t.len - 1);
+      uint64_t lo, hi;
+      trim_bounds(t, lo, hi);
+      t.pos = t.dir > 0 ? (double)lo : (double)(hi > lo ? hi - 1 : 0);
       t.rate = (double)t.dir;
       t.rate_step = 0.0;
       t.rev_wait = -1;
@@ -2008,12 +2159,16 @@ void Looper::resync(int ti) {
   Track& t = tr_[ti];
   if (!t.synced || t.len == 0 || t.loop_beats <= 0 || t.dir < 0 || t.rate_step != 0.0) return;
   if (t.st != TState::Play && t.st != TState::Dub) return;
-  double ph = std::fmod((beats_ - t.b0) / t.loop_beats, 1.0);
+  uint64_t lo, hi;
+  trim_bounds(t, lo, hi);
+  const double span = (double)(hi - lo);
+  if (span <= 0.0) return;
+  const double eff_beats = t.loop_beats * span / (double)t.len;
+  double ph = std::fmod((beats_ - t.b0) / eff_beats, 1.0);
   if (ph < 0) ph += 1.0;
-  const double L = (double)t.len;
-  const double want = std::round(ph * L);
+  const double want = (double)lo + std::round(ph * span);
   double diff = std::fabs(want - t.pos);
-  if (diff > L / 2) diff = L - diff;
+  if (diff > span / 2) diff = span - diff;
   if (diff < sr_ * 0.001) return;  // и так в фазе (меньше 1 мс)
   // перескок через кроссфейд: старая позиция затухает, новая нарастает
   if (t.xf_from >= 0 && t.xf_owned) pool_.free_buf(t.xf_from);
@@ -2022,7 +2177,7 @@ void Looper::resync(int ti) {
   t.xf_pos = 0;
   t.xf_len = xf_;
   t.xpos = t.pos;
-  t.pos = want >= L ? 0.0 : want;
+  t.pos = want >= (double)hi ? (double)lo : want;
 }
 
 void Looper::process(const float* in_l, const float* in_r, float* out_l, float* out_r, uint32_t n,
@@ -2245,6 +2400,8 @@ void Looper::session_step() {
         s.loop_beats = t.loop_beats;
         s.rec_bpm = t.rec_bpf * 60.0 * sr_;
         s.b0 = t.b0;
+        s.trim_a = t.trim_a;
+        s.trim_b = t.trim_b;
       }
       frozen_epoch_ = edit_epoch_;
       sess_status_.store(SS_SAVING, std::memory_order_relaxed);
@@ -2296,11 +2453,15 @@ void Looper::install_session(const SessionDesc& d) {
     if (!s.used || s.buf < 0 || k >= n) continue;
     t.sum = s.buf;
     t.len = s.len;
+    t.trim_a = s.trim_a;
+    t.trim_b = s.trim_b;
     t.st = TState::Play;
     t.dir = s.reversed ? -1 : 1;
     t.rate = (double)t.dir;
     t.rate_step = 0.0;
-    t.pos = t.xpos = s.reversed ? (double)(s.len - 1) : 0.0;
+    uint64_t lo, hi;
+    trim_bounds(t, lo, hi);
+    t.pos = t.xpos = s.reversed ? (double)(hi > lo ? hi - 1 : 0) : (double)lo;
     t.muted = s.muted;
     t.mute_pending = false;
     t.gain = s.muted ? 0.0f : 1.0f;
@@ -2324,6 +2485,7 @@ void Looper::install_session(const SessionDesc& d) {
   }
   cur_id_.store(d.id, std::memory_order_relaxed);
   saved_epoch_.store(edit_epoch_, std::memory_order_relaxed);
+  ++mix_epoch_;
 }
 
 // Сдвинуть сетку сессии: самая длинная дорожка в Quantize начинает цикл с доли e,

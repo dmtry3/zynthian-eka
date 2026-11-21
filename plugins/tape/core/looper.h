@@ -168,6 +168,10 @@ class Looper {
   // сдвигается обратно и ложится на своё место (закрытие овердаба на эту задержку позже).
   void set_pitch(int k, float st);
   float pitch(int k) const { return tr_[k].pit; }
+  // Неразрушающие границы лупа дорожки k (доли 0..1 от полной длины буфера).
+  void set_trim(int k, float a, float b);
+  float trim_start(int k) const { return tr_[k].trim_a; }
+  float trim_end(int k) const { return tr_[k].trim_b; }
   // Процессор не успевает: сдвиг высоты отключён (дорожки звучат без него), пока его не поменяют.
   bool pitch_overload() const { return pitch_over_; }
   int pitch_latency() const;  // задержка Stretch, кадров (0 — Stretch недоступен)
@@ -307,6 +311,9 @@ class Looper {
     bool ddrain = false;      // овердаб закрыт: дописываем то, что ещё в Stretch
     uint32_t ddrain_n = 0;
     float dgate = 1.0f;       // вход в Stretch овердаба (после закрытия плавно в 0)
+    // неразрушающие границы цикла (доли 0..1 от len)
+    float trim_a = 0.0f;
+    float trim_b = 1.0f;
   };
 
   // команды
@@ -366,6 +373,8 @@ class Looper {
   void reset_mixer();
   static void mix_matrix(const Mix& m, float out[4]);
   void read_sum(const Track& t, int32_t b, double pos, float& l, float& r) const;
+  void read_loop(const Track& t, int32_t b, double pos, float& l, float& r) const;
+  void trim_bounds(const Track& t, uint64_t& lo, uint64_t& hi) const;
   void write_add(int32_t b, uint64_t p, float l, float r);
   void seam_write(Track& t, float l, float r);
   void dub_write(int ti, uint64_t p, float l, float r);

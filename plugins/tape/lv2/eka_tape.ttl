@@ -239,7 +239,79 @@
         <http://dmtry3.github.io/zynthian-eka/tape#pit34> ,
         <http://dmtry3.github.io/zynthian-eka/tape#pit35> ,
         <http://dmtry3.github.io/zynthian-eka/tape#pit36> ,
-        <http://dmtry3.github.io/zynthian-eka/tape#pit_reset> ;
+        <http://dmtry3.github.io/zynthian-eka/tape#pit_reset> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma1> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma2> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma3> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma4> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma5> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma6> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma7> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma8> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma9> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma10> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma11> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma12> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma13> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma14> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma15> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma16> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma17> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma18> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma19> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma20> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma21> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma22> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma23> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma24> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma25> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma26> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma27> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma28> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma29> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma30> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma31> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma32> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma33> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma34> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma35> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trma36> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb1> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb2> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb3> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb4> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb5> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb6> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb7> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb8> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb9> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb10> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb11> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb12> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb13> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb14> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb15> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb16> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb17> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb18> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb19> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb20> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb21> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb22> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb23> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb24> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb25> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb26> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb27> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb28> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb29> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb30> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb31> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb32> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb33> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb34> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb35> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb36> ;
     lv2:port
     [
         a lv2:InputPort , lv2:AudioPort ; lv2:index 18 ; lv2:symbol "in_l" ; lv2:name "In L" ;
@@ -2525,5 +2597,653 @@
     rdfs:label "Pitch Reset" ;
     rdfs:range atom:Int ;
     lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma1>
+    a lv2:Parameter ;
+    lv2:symbol "trma1" ;
+    rdfs:label "Trim Start 1" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma2>
+    a lv2:Parameter ;
+    lv2:symbol "trma2" ;
+    rdfs:label "Trim Start 2" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma3>
+    a lv2:Parameter ;
+    lv2:symbol "trma3" ;
+    rdfs:label "Trim Start 3" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma4>
+    a lv2:Parameter ;
+    lv2:symbol "trma4" ;
+    rdfs:label "Trim Start 4" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma5>
+    a lv2:Parameter ;
+    lv2:symbol "trma5" ;
+    rdfs:label "Trim Start 5" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma6>
+    a lv2:Parameter ;
+    lv2:symbol "trma6" ;
+    rdfs:label "Trim Start 6" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma7>
+    a lv2:Parameter ;
+    lv2:symbol "trma7" ;
+    rdfs:label "Trim Start 7" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma8>
+    a lv2:Parameter ;
+    lv2:symbol "trma8" ;
+    rdfs:label "Trim Start 8" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma9>
+    a lv2:Parameter ;
+    lv2:symbol "trma9" ;
+    rdfs:label "Trim Start 9" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma10>
+    a lv2:Parameter ;
+    lv2:symbol "trma10" ;
+    rdfs:label "Trim Start 10" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma11>
+    a lv2:Parameter ;
+    lv2:symbol "trma11" ;
+    rdfs:label "Trim Start 11" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma12>
+    a lv2:Parameter ;
+    lv2:symbol "trma12" ;
+    rdfs:label "Trim Start 12" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma13>
+    a lv2:Parameter ;
+    lv2:symbol "trma13" ;
+    rdfs:label "Trim Start 13" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma14>
+    a lv2:Parameter ;
+    lv2:symbol "trma14" ;
+    rdfs:label "Trim Start 14" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma15>
+    a lv2:Parameter ;
+    lv2:symbol "trma15" ;
+    rdfs:label "Trim Start 15" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma16>
+    a lv2:Parameter ;
+    lv2:symbol "trma16" ;
+    rdfs:label "Trim Start 16" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma17>
+    a lv2:Parameter ;
+    lv2:symbol "trma17" ;
+    rdfs:label "Trim Start 17" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma18>
+    a lv2:Parameter ;
+    lv2:symbol "trma18" ;
+    rdfs:label "Trim Start 18" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma19>
+    a lv2:Parameter ;
+    lv2:symbol "trma19" ;
+    rdfs:label "Trim Start 19" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma20>
+    a lv2:Parameter ;
+    lv2:symbol "trma20" ;
+    rdfs:label "Trim Start 20" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma21>
+    a lv2:Parameter ;
+    lv2:symbol "trma21" ;
+    rdfs:label "Trim Start 21" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma22>
+    a lv2:Parameter ;
+    lv2:symbol "trma22" ;
+    rdfs:label "Trim Start 22" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma23>
+    a lv2:Parameter ;
+    lv2:symbol "trma23" ;
+    rdfs:label "Trim Start 23" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma24>
+    a lv2:Parameter ;
+    lv2:symbol "trma24" ;
+    rdfs:label "Trim Start 24" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma25>
+    a lv2:Parameter ;
+    lv2:symbol "trma25" ;
+    rdfs:label "Trim Start 25" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma26>
+    a lv2:Parameter ;
+    lv2:symbol "trma26" ;
+    rdfs:label "Trim Start 26" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma27>
+    a lv2:Parameter ;
+    lv2:symbol "trma27" ;
+    rdfs:label "Trim Start 27" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma28>
+    a lv2:Parameter ;
+    lv2:symbol "trma28" ;
+    rdfs:label "Trim Start 28" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma29>
+    a lv2:Parameter ;
+    lv2:symbol "trma29" ;
+    rdfs:label "Trim Start 29" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma30>
+    a lv2:Parameter ;
+    lv2:symbol "trma30" ;
+    rdfs:label "Trim Start 30" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma31>
+    a lv2:Parameter ;
+    lv2:symbol "trma31" ;
+    rdfs:label "Trim Start 31" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma32>
+    a lv2:Parameter ;
+    lv2:symbol "trma32" ;
+    rdfs:label "Trim Start 32" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma33>
+    a lv2:Parameter ;
+    lv2:symbol "trma33" ;
+    rdfs:label "Trim Start 33" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma34>
+    a lv2:Parameter ;
+    lv2:symbol "trma34" ;
+    rdfs:label "Trim Start 34" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma35>
+    a lv2:Parameter ;
+    lv2:symbol "trma35" ;
+    rdfs:label "Trim Start 35" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trma36>
+    a lv2:Parameter ;
+    lv2:symbol "trma36" ;
+    rdfs:label "Trim Start 36" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb1>
+    a lv2:Parameter ;
+    lv2:symbol "trmb1" ;
+    rdfs:label "Trim End 1" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb2>
+    a lv2:Parameter ;
+    lv2:symbol "trmb2" ;
+    rdfs:label "Trim End 2" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb3>
+    a lv2:Parameter ;
+    lv2:symbol "trmb3" ;
+    rdfs:label "Trim End 3" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb4>
+    a lv2:Parameter ;
+    lv2:symbol "trmb4" ;
+    rdfs:label "Trim End 4" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb5>
+    a lv2:Parameter ;
+    lv2:symbol "trmb5" ;
+    rdfs:label "Trim End 5" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb6>
+    a lv2:Parameter ;
+    lv2:symbol "trmb6" ;
+    rdfs:label "Trim End 6" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb7>
+    a lv2:Parameter ;
+    lv2:symbol "trmb7" ;
+    rdfs:label "Trim End 7" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb8>
+    a lv2:Parameter ;
+    lv2:symbol "trmb8" ;
+    rdfs:label "Trim End 8" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb9>
+    a lv2:Parameter ;
+    lv2:symbol "trmb9" ;
+    rdfs:label "Trim End 9" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb10>
+    a lv2:Parameter ;
+    lv2:symbol "trmb10" ;
+    rdfs:label "Trim End 10" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb11>
+    a lv2:Parameter ;
+    lv2:symbol "trmb11" ;
+    rdfs:label "Trim End 11" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb12>
+    a lv2:Parameter ;
+    lv2:symbol "trmb12" ;
+    rdfs:label "Trim End 12" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb13>
+    a lv2:Parameter ;
+    lv2:symbol "trmb13" ;
+    rdfs:label "Trim End 13" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb14>
+    a lv2:Parameter ;
+    lv2:symbol "trmb14" ;
+    rdfs:label "Trim End 14" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb15>
+    a lv2:Parameter ;
+    lv2:symbol "trmb15" ;
+    rdfs:label "Trim End 15" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb16>
+    a lv2:Parameter ;
+    lv2:symbol "trmb16" ;
+    rdfs:label "Trim End 16" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb17>
+    a lv2:Parameter ;
+    lv2:symbol "trmb17" ;
+    rdfs:label "Trim End 17" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb18>
+    a lv2:Parameter ;
+    lv2:symbol "trmb18" ;
+    rdfs:label "Trim End 18" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb19>
+    a lv2:Parameter ;
+    lv2:symbol "trmb19" ;
+    rdfs:label "Trim End 19" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb20>
+    a lv2:Parameter ;
+    lv2:symbol "trmb20" ;
+    rdfs:label "Trim End 20" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb21>
+    a lv2:Parameter ;
+    lv2:symbol "trmb21" ;
+    rdfs:label "Trim End 21" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb22>
+    a lv2:Parameter ;
+    lv2:symbol "trmb22" ;
+    rdfs:label "Trim End 22" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb23>
+    a lv2:Parameter ;
+    lv2:symbol "trmb23" ;
+    rdfs:label "Trim End 23" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb24>
+    a lv2:Parameter ;
+    lv2:symbol "trmb24" ;
+    rdfs:label "Trim End 24" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb25>
+    a lv2:Parameter ;
+    lv2:symbol "trmb25" ;
+    rdfs:label "Trim End 25" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb26>
+    a lv2:Parameter ;
+    lv2:symbol "trmb26" ;
+    rdfs:label "Trim End 26" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb27>
+    a lv2:Parameter ;
+    lv2:symbol "trmb27" ;
+    rdfs:label "Trim End 27" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb28>
+    a lv2:Parameter ;
+    lv2:symbol "trmb28" ;
+    rdfs:label "Trim End 28" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb29>
+    a lv2:Parameter ;
+    lv2:symbol "trmb29" ;
+    rdfs:label "Trim End 29" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb30>
+    a lv2:Parameter ;
+    lv2:symbol "trmb30" ;
+    rdfs:label "Trim End 30" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb31>
+    a lv2:Parameter ;
+    lv2:symbol "trmb31" ;
+    rdfs:label "Trim End 31" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb32>
+    a lv2:Parameter ;
+    lv2:symbol "trmb32" ;
+    rdfs:label "Trim End 32" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb33>
+    a lv2:Parameter ;
+    lv2:symbol "trmb33" ;
+    rdfs:label "Trim End 33" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb34>
+    a lv2:Parameter ;
+    lv2:symbol "trmb34" ;
+    rdfs:label "Trim End 34" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb35>
+    a lv2:Parameter ;
+    lv2:symbol "trmb35" ;
+    rdfs:label "Trim End 35" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#trmb36>
+    a lv2:Parameter ;
+    lv2:symbol "trmb36" ;
+    rdfs:label "Trim End 36" ;
+    rdfs:range atom:Float ;
+    lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .

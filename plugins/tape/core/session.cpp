@@ -82,9 +82,9 @@ std::string session_to_text(const SessionDesc& d) {
   const int n = d.grid * d.grid;
   for (int k = 0; k < n && k < kSessionTracks; ++k) {
     const SessionTrack& t = d.t[k];
-    std::snprintf(line, sizeof line, "t %d %d %d %d %d %d %llu %.9g %.17g %.17g %.17g |%s\n", k, t.used, t.locked,
-                  t.muted, t.reversed, t.synced, (unsigned long long)t.len, (double)t.gain, t.loop_beats, t.rec_bpm,
-                  t.b0, t.used ? t.file : "");
+    std::snprintf(line, sizeof line, "t %d %d %d %d %d %d %llu %.9g %.17g %.17g %.17g %.9g %.9g |%s\n", k, t.used,
+                  t.locked, t.muted, t.reversed, t.synced, (unsigned long long)t.len, (double)t.gain, t.loop_beats,
+                  t.rec_bpm, t.b0, (double)t.trim_a, (double)t.trim_b, t.used ? t.file : "");
     s += line;
   }
   return s;
@@ -119,10 +119,10 @@ bool session_from_text(const char* txt, size_t n, SessionDesc& d) {
     if (ln[0] == 't') {
       int k, used, locked, muted, rev, synced;
       unsigned long long len;
-      double gain, lb, bpm, b0;
-      if (std::sscanf(ln.c_str(), "t %d %d %d %d %d %d %llu %lf %lf %lf %lf", &k, &used, &locked, &muted, &rev,
-                      &synced, &len, &gain, &lb, &bpm, &b0) != 11)
-        return false;
+      double gain, lb, bpm, b0, ta = 0.0, tb = 1.0;
+      const int got = std::sscanf(ln.c_str(), "t %d %d %d %d %d %d %llu %lf %lf %lf %lf %lf %lf", &k, &used, &locked,
+                                  &muted, &rev, &synced, &len, &gain, &lb, &bpm, &b0, &ta, &tb);
+      if (got < 11) return false;
       if (k < 0 || k >= kSessionTracks) return false;
       SessionTrack& t = d.t[k];
       t.used = used != 0;
@@ -135,6 +135,13 @@ bool session_from_text(const char* txt, size_t n, SessionDesc& d) {
       t.loop_beats = lb;
       t.rec_bpm = bpm;
       t.b0 = b0;
+      if (got >= 13 && ta >= 0.0 && tb <= 1.0 && ta < tb) {
+        t.trim_a = (float)ta;
+        t.trim_b = (float)tb;
+      } else {
+        t.trim_a = 0.0f;
+        t.trim_b = 1.0f;
+      }
       const size_t bar = ln.find('|');
       if (bar != std::string::npos) std::snprintf(t.file, sizeof t.file, "%s", ln.c_str() + bar + 1);
       if (t.used && (!t.file[0] || std::strchr(t.file, '/') || t.len == 0 || !(t.gain > 0))) return false;

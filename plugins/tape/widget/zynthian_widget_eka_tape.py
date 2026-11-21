@@ -369,7 +369,11 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
         self.widget_canvas.bind("<ButtonRelease-1>", self._on_release)
         self.cv = _Frame(self.widget_canvas)  # всё рисование — через него
         self.drag = None          # (вид, символ, прямоугольник) пока палец на фейдере или панораме
-        self.speed_slot = None    # открыт экран Speed этой дорожки (0..3)
+        self.speed_slot = None    # открыт экран Speed этой дорожки (0..5)
+        self.trim_slot = None     # открыт экран Trim (начало/конец лупа) этой дорожки (0..5)
+        self.trim_snap = 0        # привязка маркеров Trim: 0 FREE, 1 BEAT, 2 BAR
+        self.trim_geo = None      # картинка большой волны в окне Trim
+        self.track_hold = None    # долгий тап на дорожке (экран Loop) -> окно Trim
         self.last_tap = (None, 0.0)
         self.family = None
         self.fonts = {}
@@ -428,7 +432,35 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             return default
 
     # ---------- касания ----------
+    def _cancel_track_hold(self):
+        th = self.track_hold
+        self.track_hold = None
+        if th and th.get("after_id"):
+            try:
+                self.after_cancel(th["after_id"])
+            except Exception:
+                pass
+
+    def _on_track_hold(self):
+        th = self.track_hold
+        if not th:
+            return
+        th["after_id"] = None
+        th["fired"] = True
+        slot = th["slot"]
+        m = self.monitors or {}
+        st = int(m.get("o_st%d" % (slot + 1), 0))
+        ln = float(m.get("o_len%d" % (slot + 1), 0.0))
+        if st in (ST_PLAY, ST_DUB) and ln > 0.0:
+            self.trim_slot = slot
+            self.speed_slot = None
+            self.settings_open = False
+        else:
+            self._zcmd("tsel", slot + 1)
+        self.refresh_gui()
+
     def _on_press(self, event):
+        self._cancel_track_hold()
         for (x0, y0, x1, y1, what, arg) in self.hits:
             if x0 <= event.x <= x1 and y0 <= event.y <= y1:
                 if what in ("sseg", "ssl", "sdef", "sbody"):
@@ -438,17 +470,68 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                     return
                 if what == "speed":  # метка скорости у дорожки: экран Speed
                     self.speed_slot = arg
+                    self.trim_slot = None
                     self.settings_open = False
                     self.refresh_gui()
                     return
                 if what == "screen":  # кнопка Loop <-> Mixer слева от темпа
                     self.settings_open = False
                     self.speed_slot = None
+                    self.trim_slot = None
                     self._zcmd("wsel", arg)
                     self.refresh_gui()
                     return
+                if what == "trow":  # строка дорожки на Loop: короткий тап — выбор, долгий — окно Trim
+                    hold_ms = max(250, min(1500, self._zval("hold_ms")))
+                    th = {"slot": arg, "x": event.x, "y": event.y, "fired": False, "after_id": None}
+                    th["after_id"] = self.after(hold_ms, self._on_track_hold)
+                    self.track_hold = th
+                    return
                 if what in ("tsel", "psel"):  # касание строки дорожки / точки парта (этап 7б)
                     self._zcmd(what, arg)
+                    self.refresh_gui()
+                    return
+                if what == "tclose":
+                    self.trim_slot = None
+                    self.refresh_gui()
+                    return
+                if what == "tnext":  # вкладка TRACK N в окне Trim: следующая записанная дорожка (или по кругу)
+                    n = getattr(self, "cur_n", 4)
+                    m = self.monitors or {}
+                    cur = self.trim_slot
+                    for k in range(1, n + 1):
+                        cand = (cur + k) % n
+                        st = int(m.get("o_st%d" % (cand + 1), 0))
+                        ln = float(m.get("o_len%d" % (cand + 1), 0.0))
+                        if st in (ST_PLAY, ST_DUB) and ln > 0.0:
+                            self.trim_slot = cand
+                            break
+                    self.refresh_gui()
+                    return
+                if what == "treset":
+                    trk_num = arg
+                    self._zset("trma%d" % trk_num, 0.0)
+                    self._zset("trmb%d" % trk_num, 1.0)
+                    self.refresh_gui()
+                    return
+                if what == "tsnap":
+                    if self._zval("mode") == 1:
+                        self.trim_snap = (self.trim_snap + 1) % 3
+                    self.refresh_gui()
+                    return
+                if what == "trimwave":
+                    trk_num, wx0, wx1, wy0, wy1, ta, tb, beats, bpb, quant, ln = arg
+                    xa = wx0 + (wx1 - wx0) * ta
+                    xb = wx0 + (wx1 - wx0) * tb
+                    # сверху флажок START (вправо от xa), снизу флажок END (влево от xb)
+                    if event.y <= wy0 + 28 and xa - 14 <= event.x <= xa + 34:
+                        which = "a"
+                    elif event.y >= wy1 - 28 and xb - 34 <= event.x <= xb + 14:
+                        which = "b"
+                    else:
+                        which = "a" if abs(event.x - xa) <= abs(event.x - xb) else "b"
+                    self.drag = ("trim", (which, trk_num, beats, bpb, quant, ln), (wx0, wy0, wx1, wy1))
+                    self._drag_to(event)
                     self.refresh_gui()
                     return
                 if what == "sclose":
@@ -521,6 +604,9 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                     self._zset("limiter", 1 - self._zval("limiter"))
                 elif what == "gear":
                     self.settings_open = not self.settings_open
+                    if self.settings_open:
+                        self.speed_slot = None
+                        self.trim_slot = None
                     self.s_scroll = 0.0
                 self.refresh_gui()
                 return
@@ -540,6 +626,28 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
         if what == "pslider":  # ползунок встроен с полями по 10 px с каждой стороны
             f = (event.x - (x0 + 10)) / max(1.0, x1 - x0 - 20)
             self._zset(sym, pitch_snap((max(0.0, min(1.0, f)) * 2.0 - 1.0) * PITCH_MAX))
+            return
+        if what == "trim":
+            which, trk_num, beats, bpb, quant, ln = sym
+            f = max(0.0, min(1.0, (event.x - x0) / max(1.0, x1 - x0)))
+            if quant and self.trim_snap > 0 and beats > 0.5:
+                step_b = float(bpb) if self.trim_snap == 2 else 1.0
+                snapped = round(f * beats / step_b) * step_b / beats
+                if abs(f - 0.0) < 0.015:
+                    f = 0.0
+                elif abs(f - 1.0) < 0.015:
+                    f = 1.0
+                else:
+                    f = max(0.0, min(1.0, snapped))
+            min_gap = max(0.01, min(0.2, 0.03 / max(0.1, ln)))
+            if which == "a":
+                tb = self._zfloat("trmb%d" % trk_num, 1.0)
+                f = min(f, tb - min_gap)
+                self._zset("trma%d" % trk_num, round(max(0.0, f), 4))
+            else:
+                ta = self._zfloat("trma%d" % trk_num, 0.0)
+                f = max(f, ta + min_gap)
+                self._zset("trmb%d" % trk_num, round(min(1.0, f), 4))
             return
         if what == "fader":
             f = (y1 - event.y) / max(1.0, y1 - y0)
@@ -572,6 +680,10 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             self.grid_confirm = (sym, k, now + GRID_CONFIRM_S)
 
     def _on_motion(self, event):
+        if self.track_hold:
+            if math.hypot(event.x - self.track_hold["x"], event.y - self.track_hold["y"]) > 20:
+                self._cancel_track_hold()
+            return
         d = self.sdrag
         if d:
             dx, dy = event.x - d["x"], event.y - d["y"]
@@ -592,6 +704,13 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             self._draw()
 
     def _on_release(self, event):
+        if self.track_hold:
+            th = self.track_hold
+            self._cancel_track_hold()
+            if not th["fired"]:
+                self._zcmd("tsel", th["slot"] + 1)
+                self.refresh_gui()
+            return
         self.drag = None
         d, self.sdrag = self.sdrag, None
         if d and d["mode"] is None and event is not None:  # простое касание
@@ -778,6 +897,11 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             "tracks": [],
         }
         for i in range(n):
+            trk_num = st["part"] * n + i + 1
+            ta = max(0.0, min(1.0, self._zfloat("trma%d" % trk_num, 0.0)))
+            tb = max(0.0, min(1.0, self._zfloat("trmb%d" % trk_num, 1.0)))
+            if tb <= ta:
+                ta, tb = 0.0, 1.0
             st["tracks"].append({
                 "state": int(m.get("o_st%d" % (i + 1), 0)),
                 "pos": float(m.get("o_pos%d" % (i + 1), 0.0)),
@@ -789,7 +913,9 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                 "locked": bool(locks >> i & 1),
                 "speed": float(m.get("o_spd%d" % (i + 1), 1.0)),
                 "espeed": float(m.get("o_espd%d" % (i + 1), 1.0)),
-                "pitch": self._zfloat("pit%d" % (int(m.get("o_part", 0)) % n * n + i + 1), 0.0),
+                "pitch": self._zfloat("pit%d" % trk_num, 0.0),
+                "trim_a": ta,
+                "trim_b": tb,
             })
         if not 0 <= st["act"] < len(ACTIONS):
             st["act"] = 0
@@ -806,7 +932,9 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             for tr in st["tracks"]:
                 if tr["state"] in (ST_PLAY, ST_DUB) and tr["len"] > 0 and not tr["stopped"]:
                     d = dt / tr["len"] * max(0.0, tr["espeed"])
-                    tr["pos"] = (tr["pos"] + (-d if tr["reversed"] else d)) % 1.0
+                    ta, tb = tr["trim_a"], tr["trim_b"]
+                    span = max(1e-4, tb - ta)
+                    tr["pos"] = ta + ((tr["pos"] - ta + (-d if tr["reversed"] else d)) % span)
 
         # вспышка на сильной доле: смена такта (досчитанная по позиции из аудиопотока)
         fb = self.flash_bar
@@ -821,6 +949,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
         if self.last_widget is not None and st["widget"] != self.last_widget:
             self.settings_open = False
             self.speed_slot = None
+            self.trim_slot = None
         self.last_widget = st["widget"]
 
         top_h = int(min(max(h * 0.12, 18), 46))
@@ -830,7 +959,14 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
         self.cur_n = st["n"]
         if self.speed_slot is not None and self.speed_slot >= st["n"]:
             self.speed_slot = None
-        if self.speed_slot is None and self.settings_open:
+        if self.trim_slot is not None:
+            if self.trim_slot >= st["n"]:
+                self.trim_slot = None
+            else:
+                ttr = st["tracks"][self.trim_slot]
+                if ttr["state"] not in (ST_PLAY, ST_DUB) or ttr["len"] <= 0:
+                    self.trim_slot = None
+        if self.trim_slot is None and self.speed_slot is None and self.settings_open:
             # настройки прокручиваются: строки за краем закрываются полосой темпа и вкладками
             self._settings(*body)
             c.create_rectangle(0, 0, w, body[1], fill=BG, width=0)
@@ -838,7 +974,9 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             self._tempo_bar(st, 0, 0, w, top_h, now)
         else:
             self._tempo_bar(st, 0, 0, w, top_h, now)
-        if self.speed_slot is not None:
+        if self.trim_slot is not None:
+            self._trim_view(st, *body)
+        elif self.speed_slot is not None:
             self._speed_view(st, *body)
         elif self.settings_open:
             pass
@@ -959,6 +1097,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             ratio = (tr["speed"] / tr["espeed"]) if (tr["espeed"] > 1e-3 and tr["speed"] > 1e-3) else 1.0
             key = (x0, y0, x1, y1, n, state, color, has_loop, recorded, current, pending,
                    blink if pending else None, round(tr["speed"], 2), round(tr["pitch"], 2), round(ratio, 3),
+                   round(tr["trim_a"], 4), round(tr["trim_b"], 4),
                    st["quantize"], st["bpm"], st["bpb"],
                    round(tr["len"], 2) if state == ST_REC else tr["len"],
                    (d["seq"], d["live"], d.get("rec") and d["rec"][0]) if d else None,
@@ -980,15 +1119,16 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                 label = "%.2f×" % sp if abs(pt) < 1e-3 else "%.2f× %s" % (sp, pitch_label(pt))
                 self._text(pcx, cy + u * 0.37, label, u * 0.8, u * 0.22, ORANGE if changed else DIM, bold=changed)
                 self.hits.append((x0 + part_w, cy + u * 0.22, x0 + part_w + u * 0.85, cy + u * 0.5, "speed", i))
-                # касание (этап 7б): точка — переход в парт i, остальная строка — активная дорожка
+                # касание (этап 7б): точка — переход в парт i, остальная строка — выбор (долгий тап — Trim)
                 # (метка скорости выше в списке: она проверяется первой)
                 self.hits.append((x0, ry0, x0 + part_w, ry1, "psel", i + 1))
-                self.hits.append((x0 + part_w, ry0, wx1, ry1, "tsel", i + 1))
+                self.hits.append((x0 + part_w, ry0, wx1, ry1, "trow", i))
                 # волна цикла: сумма цветом дорожки, слои овердабов полупрозрачно поверх
                 if state == ST_REC:
                     self._rec_wave(st, i, wx0, wx1, cy, row_h, color, u)
                 if has_loop:
-                    self._waves(i, wx0, wx1, cy, row_h * 0.42, color, tr["pos"], tr["reversed"])
+                    ta, tb = tr["trim_a"], tr["trim_b"]
+                    self._waves(i, wx0, wx1, cy, row_h * 0.42, color, ta, tb)
                     if st["quantize"]:
                         # тонкие линии долей, толстые — тактов (по исходному темпу записи: speed/espeed)
                         beats = tr["len"] * beats_per_s * ratio
@@ -999,7 +1139,11 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                                 bar_line = b % st["bpb"] == 0
                                 c.create_line(x, cy - row_h * 0.38, x, cy + row_h * 0.38,
                                               fill="#9a9a9a" if bar_line else "#3c3c3c", width=2 if bar_line else 1)
-                    c.create_line(wx1 - 1, ry0 + 3, wx1 - 1, ry1 - 3, fill=RED, width=2)  # конец цикла
+                    if ta > 0.001:
+                        xa = wx0 + bw * ta
+                        c.create_line(xa, ry0 + 3, xa, ry1 - 3, fill=GREEN, width=2)
+                    xb = wx0 + bw * tb if tb < 0.999 else wx1 - 1
+                    c.create_line(xb, ry0 + 3, xb, ry1 - 3, fill=RED, width=2)  # конец цикла
                 elif state != ST_REC:
                     c.create_line(wx0, cy, wx1, cy, fill=GRID, width=1)
                 if active and state == ST_ARMED and st["count"] > 0:
@@ -1008,7 +1152,11 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
                     self._text((wx0 + wx1) / 2, cy, cnt, bw * 0.3, row_h * 0.8, RED)
             # подвижная часть: круг позиции с номером, замок, линия позиции — каждый кадр
             c.section("rowp%d" % i)
-            frac = tr["pos"] if has_loop else (1.0 if state == ST_REC else 0.0)
+            if has_loop:
+                ta, tb = tr["trim_a"], tr["trim_b"]
+                frac = max(0.0, min(1.0, (tr["pos"] - ta) / max(1e-4, tb - ta)))
+            else:
+                frac = 1.0 if state == ST_REC else 0.0
             self._pie(pcx, pcy, pie_r, color, frac, empty=not (has_loop or state == ST_REC))
             if tr["mute_pending"] and blink:  # ждёт границы такта для mute/unmute
                 c.create_oval(pcx - pie_r - 2, pcy - pie_r - 2, pcx + pie_r + 2, pcy + pie_r + 2,
@@ -1141,7 +1289,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
         txt = bars_txt or "REC %.1f s" % tr["len"]
         self._text(x1 - 6, cy - hh * 0.62, txt, bw * 0.3, u * 0.26, TEXT, "e")
 
-    def _waves(self, i, x0, x1, cy, hh, color, pos, reversed_):
+    def _waves(self, i, x0, x1, cy, hh, color, trim_a=0.0, trim_b=1.0, cache_key=None):
         """Волна дорожки — картинкой: столбцы пикселей считаются только при изменении пиков (во время
         овердаба — только изменившиеся столбцы), а на кадре Tk лишь копирует готовую картинку.
         Многоугольники волн перерисовывались бы целиком при каждом сдвиге линии позиции.
@@ -1150,18 +1298,21 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
         if not d:
             return
         W, H = max(2, int(x1 - x0)), max(2, int(2 * hh))
-        g = self.geo.get(i)
+        ck = i if cache_key is None else cache_key
+        g = self.geo.get(ck)
         if not g or g["size"] != (W, H):
             g = {"size": (W, H), "img": tkinter.PhotoImage(width=W, height=H), "cols": None, "key": None}
-            self.geo[i] = g
-        key = (d["seq"], d["live"], color)
+            self.geo[ck] = g
+        xa = int(round(trim_a * W))
+        xb = int(round(trim_b * W))
+        key = (d["seq"], d["live"], color, xa, xb)
         if g["key"] != key:
-            cols = self._wave_columns(d, W, H, color)
+            cols = self._wave_columns(d, W, H, color, xa, xb)
             old = g["cols"]
             if old is None or len(old) != W or g["key"][2] != color:
                 rows = zip(*cols)
                 g["img"].put(" ".join("{" + " ".join(r) + "}" for r in rows))
-            else:  # дорос овердаб: только изменившиеся столбцы, подряд идущие — одним куском
+            else:  # дорос овердаб или сдвинулись границы: только изменившиеся столбцы, подряд идущие — одним куском
                 x = 0
                 while x < W:
                     if cols[x] == old[x]:
@@ -1176,8 +1327,10 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             g["cols"], g["key"] = cols, key
         self.cv.create_image(int(x0), int(cy) - H // 2, image=g["img"], anchor="nw")
 
-    def _wave_columns(self, d, W, H, color):
+    def _wave_columns(self, d, W, H, color, xa=0, xb=None):
         """Цвета пикселей по столбцам: для каждого столбца список из H цветов сверху вниз."""
+        if xb is None:
+            xb = W
         n = PK_COLS
         k = (H / 2.0) * d["gain"] / 127.0
         mid = H / 2.0
@@ -1196,6 +1349,7 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             return out
 
         base = spans(d["sum"][0], d["sum"][1])
+        dim_col = mix(color, BG, 0.72)
         over = [(mix(LAYER_COLORS[no % len(LAYER_COLORS)], color, 0.5),
                  mix(LAYER_COLORS[no % len(LAYER_COLORS)], BG, 0.5), spans(mn, mx))
                 for (no, mn, mx) in reversed(d["layers"])]
@@ -1207,15 +1361,18 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
         for x in range(W):
             yt, yb = base[x]
             col = [BG] * H
-            col[yt:yb] = [color] * (yb - yt)
-            for on_wave, on_bg, sp in over:
-                lt, lb = sp[x]
-                if lb - lt <= 1:
-                    continue  # тишина в слое
-                col[lt:lb] = [on_bg] * (lb - lt)
-                a, b = max(lt, yt), min(lb, yb)
-                if b > a:
-                    col[a:b] = [on_wave] * (b - a)
+            if x < xa or x >= xb:
+                col[yt:yb] = [dim_col] * (yb - yt)
+            else:
+                col[yt:yb] = [color] * (yb - yt)
+                for on_wave, on_bg, sp in over:
+                    lt, lb = sp[x]
+                    if lb - lt <= 1:
+                        continue  # тишина в слое
+                    col[lt:lb] = [on_bg] * (lb - lt)
+                    a, b = max(lt, yt), min(lb, yb)
+                    if b > a:
+                        col[a:b] = [on_wave] * (b - a)
             cols.append(col)
         return cols
 
@@ -1431,6 +1588,106 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             self._text(bx + bw / 2, by0 + bh / 2, label, bw * 0.9, bh * 0.6, colr)
             self.hits.append((bx, by0, bx + bw, by0 + bh, kind, arg))
 
+    def _trim_view(self, st, x0, y0, x1, y1):
+        """Окно редактирования начала и конца лупа (по долгому тапу на треке):
+        сверху START / LEN / END, в центре крупная волна с маркерами S (сверху) и E (снизу),
+        внизу кнопки RESET и SNAP (FREE / BEAT / BAR)."""
+        c = self.cv
+        slot = self.trim_slot
+        tr = st["tracks"][slot]
+        trk_num = st["part"] * st["n"] + slot + 1
+        ta, tb = tr["trim_a"], tr["trim_b"]
+        ln = tr["len"]
+        w, hh = x1 - x0, y1 - y0
+        pad = max(10, w * 0.03)
+        wx0, wx1 = x0 + pad, x1 - pad
+        bw = wx1 - wx0
+        vh = hh * 0.16
+        bh = hh * 0.17
+        wy0 = y0 + vh + 6
+        wy1 = y1 - bh - 12
+        cy = (wy0 + wy1) / 2.0
+        active = slot == st["track"]
+        color = track_color(tr["state"], tr["muted"], tr["reversed"], active)
+        beats_per_s = st["bpm"] / 60.0 if st["bpm"] > 0 else 2.0
+        ratio = (tr["speed"] / tr["espeed"]) if (tr["espeed"] > 1e-3 and tr["speed"] > 1e-3) else 1.0
+        beats = ln * beats_per_s * ratio if st["quantize"] else 0.0
+        trimmed = ta > 0.001 or tb < 0.999
+        d = self._read_peaks(slot)
+
+        def fmt_t(frac):
+            sec = ln * frac
+            return "%.2f s" % sec
+
+        snap_names = ("FREE", "BEAT", "BAR")
+        snap_idx = self.trim_snap if st["quantize"] else 0
+        key = (x0, y0, x1, y1, slot, trk_num, color, round(ta, 4), round(tb, 4), round(ln, 3),
+               st["quantize"], st["bpm"], st["bpb"], round(ratio, 3), snap_idx,
+               (d["seq"], d["live"]) if d else None)
+        if not c.section("trim", key):
+            # верхняя строка: START | LEN | END
+            ty_lab = y0 + vh * 0.25
+            ty_val = y0 + vh * 0.72
+            self._text(wx0, ty_lab, "START", bw * 0.25, vh * 0.36, DIM, "w", bold=False)
+            self._text(wx0, ty_val, fmt_t(ta), bw * 0.28, vh * 0.56, GREEN if ta > 0.001 else TEXT, "w")
+            self._text(x0 + w / 2, ty_lab, "LOOP LEN", bw * 0.3, vh * 0.36, DIM, bold=False)
+            self._text(x0 + w / 2, ty_val, fmt_t(tb - ta), bw * 0.32, vh * 0.56, ORANGE if trimmed else TEXT)
+            self._text(wx1, ty_lab, "END", bw * 0.25, vh * 0.36, DIM, "e", bold=False)
+            self._text(wx1, ty_val, fmt_t(tb), bw * 0.28, vh * 0.56, RED if tb < 0.999 else TEXT, "e")
+
+            # рамка и волна
+            c.create_rectangle(wx0, wy0, wx1, wy1, fill="#0c0c0c", outline="#2a2a2a", width=1)
+            self._waves(slot, wx0, wx1, cy, (wy1 - wy0) * 0.48, color, ta, tb, cache_key=("trim", slot))
+            if st["quantize"] and beats > 0:
+                nb = int(round(beats))
+                if 0 < nb <= 64:
+                    for b in range(1, nb):
+                        x = wx0 + bw * b / beats
+                        bar_line = b % st["bpb"] == 0
+                        c.create_line(x, wy0 + 2, x, wy1 - 2,
+                                      fill="#888888" if bar_line else "#2e2e2e", width=2 if bar_line else 1)
+
+            # маркер START (линия и верхний флажок S вправо)
+            xa = wx0 + bw * ta
+            xb = wx0 + bw * tb
+            fw = max(24, min(36, bw * 0.045))
+            fh = max(18, min(26, (wy1 - wy0) * 0.16))
+            c.create_line(xa, wy0, xa, wy1, fill=GREEN, width=3)
+            sx1 = min(wx1, xa + fw)
+            sx0 = sx1 - fw
+            c.create_rectangle(sx0, wy0, sx1, wy0 + fh, fill=GREEN, width=0)
+            self._text((sx0 + sx1) / 2, wy0 + fh / 2, "S", fw * 0.7, fh * 0.75, BG)
+
+            # маркер END (линия и нижний флажок E влево)
+            c.create_line(xb, wy0, xb, wy1, fill=RED, width=3)
+            ex0 = max(wx0, xb - fw)
+            ex1 = ex0 + fw
+            c.create_rectangle(ex0, wy1 - fh, ex1, wy1, fill=RED, width=0)
+            self._text((ex0 + ex1) / 2, wy1 - fh / 2, "E", fw * 0.7, fh * 0.75, TEXT)
+
+            self.hits.append((wx0 - 16, wy0 - 10, wx1 + 16, wy1 + 10, "trimwave",
+                              (trk_num, wx0, wx1, wy0, wy1, ta, tb, beats, st["bpb"], st["quantize"], ln)))
+
+            # нижние кнопки: RESET и SNAP
+            by0 = y1 - bh - 2
+            gap = max(8, w * 0.025)
+            btn_w = (bw - gap) / 2.0
+            buttons = [
+                ("RESET", "treset", trk_num, GREEN if trimmed else DIM),
+                ("SNAP: " + snap_names[snap_idx], "tsnap", None, TEXT if st["quantize"] else DIM),
+            ]
+            for k, (label, kind, arg, colr) in enumerate(buttons):
+                bx = wx0 + k * (btn_w + gap)
+                c.create_rectangle(bx, by0, bx + btn_w, by0 + bh, fill="#202020", width=0)
+                self._text(bx + btn_w / 2, by0 + bh / 2, label, btn_w * 0.9, bh * 0.58, colr)
+                self.hits.append((bx, by0, bx + btn_w, by0 + bh, kind, arg))
+
+        # подвижная линия позиции — отдельный раздел каждый кадр
+        c.section("trimp")
+        px = wx0 + bw * min(1.0, max(0.0, tr["pos"]))
+        c.create_line(px, wy0 + 2, px, wy1 - 2, fill=TEXT, width=2)
+        c.create_oval(px - 3, wy0 + 1, px + 3, wy0 + 7, fill=TEXT, width=0)
+
     def _settings(self, x0, y0, x1, y1):
         """Настройки одной колонкой с разделами: выбор из 2-4 вариантов — сегменты, времена и длины —
         ползунки. Не влезает — прокрутка пальцем, справа полоса прокрутки."""
@@ -1565,7 +1822,9 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             hint, hcol = ACTIONS[st["act"]]
         else:
             hint, hcol = self._rec_hint(st)
-        if self.speed_slot is not None:
+        if self.trim_slot is not None:
+            items = [("TRIM", TEXT), ("TRACK %d" % (self.trim_slot + 1), GREEN), ("CLOSE", GREEN)]
+        elif self.speed_slot is not None:
             items = [("SPEED", TEXT), ("TRACK %d" % (self.speed_slot + 1), GREEN), ("CLOSE", GREEN)]
         elif self.settings_open:
             if self.grid_confirm and now < self.grid_confirm[2]:
@@ -1580,13 +1839,16 @@ class zynthian_widget_eka_tape(zynthian_widget_base.zynthian_widget_base):
             items = [(part_txt, GREEN),
                      ("TRACK %d" % (st["track"] + 1), GREEN),
                      (hint, hcol)]
-        if c.section("tabs", (x0, y0, x1, y1, tuple(items), self.speed_slot, self.settings_open)):
+        if c.section("tabs", (x0, y0, x1, y1, tuple(items), self.trim_slot, self.speed_slot, self.settings_open)):
             return
         for k, (text, color) in enumerate(items):
             tx0 = x0 + k * (tw + gap)
             c.create_rectangle(tx0, y0, tx0 + tw, y1, fill=TAB, width=0)
             self._text(tx0 + tw / 2, (y0 + y1) / 2, text, tw * 0.9, (y1 - y0) * 0.78, color)
-        if self.speed_slot is not None:
+        if self.trim_slot is not None:
+            self.hits.append((x0 + (tw + gap), y0, x0 + 2 * tw + gap, y1, "tnext", None))
+            self.hits.append((x0 + 2 * (tw + gap), y0, x1, y1, "tclose", None))
+        elif self.speed_slot is not None:
             self.hits.append((x0 + (tw + gap), y0, x0 + 2 * tw + gap, y1, "snext", None))
             self.hits.append((x0 + 2 * (tw + gap), y0, x1, y1, "sclose", None))
         elif self.settings_open:
