@@ -511,6 +511,72 @@ static void fire_pad_step(EpCore* c, int p, int abs_step, double samples_per_ste
   }
 }
 
+/* Band-limited windowed-sinc resampler (8-tap for <=1x, adaptive anti-aliased up to 40-tap for >1x). */
+static inline void sample_read_hq(const EpSource* s, double pos, double step, float* out_l, float* out_r) {
+  int64_t base = (int64_t)floor(pos);
+  double frac = pos - (double)base;
+  int64_t max_i = s->frames - 1;
+
+  if (step <= 1.0001 && step >= 0.9999 && frac < 1e-6) {
+    int64_t i = base < 0 ? 0 : (base > max_i ? max_i : base);
+    *out_l = s->data[2 * i];
+    *out_r = s->data[2 * i + 1];
+    return;
+  }
+
+  double cutoff = (step > 1.02) ? (0.92 / step) : 1.0;
+  int half = (step > 1.02) ? (int)ceil(4.0 * step) : 4;
+  if (half < 4) half = 4;
+  if (half > 20) half = 20;
+
+  double inv_half = 1.0 / (double)half;
+  double start_x = (double)(-half + 1) - frac;
+
+  /* Trigonometric recurrences avoid calling sin/cos inside the tap loop */
+  double d_sinc = M_PI * cutoff;
+  double s_cos_d = cos(d_sinc), s_sin_d = sin(d_sinc);
+  double u0 = M_PI * start_x * cutoff;
+  double s_sin = sin(u0), s_cos = cos(u0);
+
+  double d_win = M_PI * inv_half;
+  double w_cos_d = cos(d_win), w_sin_d = sin(d_win);
+  double v0 = M_PI * start_x * inv_half;
+  double w_sin = sin(v0), w_cos = cos(v0);
+
+  double sum_l = 0.0, sum_r = 0.0, sum_w = 0.0;
+  int count = 2 * half;
+
+  for (int t = 0; t < count; t++) {
+    int k = -half + 1 + t;
+    double x = (double)k - frac;
+    double u = M_PI * x * cutoff;
+    double sinc = (fabs(u) < 1e-6) ? 1.0 : (s_sin / u);
+    double win = 0.5 * (1.0 + w_cos);
+    double w = sinc * win;
+
+    int64_t idx = base + k;
+    if (idx < 0) idx = 0;
+    else if (idx > max_i) idx = max_i;
+
+    sum_l += w * (double)s->data[2 * idx];
+    sum_r += w * (double)s->data[2 * idx + 1];
+    sum_w += w;
+
+    /* Advance sin/cos recurrences */
+    double ns = s_sin * s_cos_d + s_cos * s_sin_d;
+    double nc = s_cos * s_cos_d - s_sin * s_sin_d;
+    s_sin = ns; s_cos = nc;
+
+    double nws = w_sin * w_cos_d + w_cos * w_sin_d;
+    double nwc = w_cos * w_cos_d - w_sin * w_sin_d;
+    w_sin = nws; w_cos = nwc;
+  }
+
+  double inv_w = (fabs(sum_w) > 1e-9) ? (1.0 / sum_w) : 1.0;
+  *out_l = (float)(sum_l * inv_w);
+  *out_r = (float)(sum_r * inv_w);
+}
+
 /* Render a contiguous voice block without sequencer events inside it */
 static void render_voices(EpCore* c, float* out_l, float* out_r,
                           float* send_l, float* send_r, uint32_t nframes, int sel_pad) {
@@ -591,14 +657,14 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
         if (v->pos >= v->end_frame) { v->active = 0; break; }
       }
 
-      int64_t idx = (int64_t)v->pos;
-      if (idx < 0) idx = 0;
-      if (idx >= s->frames) idx = s->frames - 1;
-      float frac = (float)(v->pos - (double)idx);
-      const float* p0 = s->data + 2 * idx;
-      const float* p1 = p0 + 2;
-      float l = p0[0] + frac * (p1[0] - p0[0]);
-      float r = p0[1] + frac * (p1[1] - p0[1]);
+      double step = base_step;
+      if (punch_st != 0.0f && v->punch_env > 0.001f) {
+        step *= pow(2.0, (double)(punch_st * v->punch_env) / 12.0);
+        v->punch_env *= v->punch_coef;
+      }
+
+      float l = 0.0f, r = 0.0f;
+      sample_read_hq(s, v->pos, step, &l, &r);
 
       if (drive > 0.5f) {
         l = fast_tanh(l * sat_gain);
@@ -644,11 +710,6 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
       float m = fabsf(ol) > fabsf(or_) ? fabsf(ol) : fabsf(or_);
       if (m > peak_voice) peak_voice = m;
 
-      double step = base_step;
-      if (punch_st != 0.0f && v->punch_env > 0.001f) {
-        step *= pow(2.0, (double)(punch_st * v->punch_env) / 12.0);
-        v->punch_env *= v->punch_coef;
-      }
       v->pos += v->reverse ? -step : step;
 
       if (!v->full_sample) {
