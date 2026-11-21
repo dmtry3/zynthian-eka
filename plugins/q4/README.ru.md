@@ -22,6 +22,12 @@
 - **10 заводских пресетов** (банк *Factory*): `Init`, `Vocal Clarity & Air`, `Acoustic Guitar Polish`, `Bass Pultec Weight`, `Warm Keys & Rhodes`, `Tape Loop Mud Clean`, `Granular Cloud Sculpt`, `West Coast Fold Tame`, `Stage Anti-Feedback`, `Master Smile & Air`.
 - **Безопасен для реального времени:** без выделений памяти в `run()`, защита от денормалов и NaN, плавное сглаживание коэффициентов без щелчков.
 
+## Скриншот
+
+![Eka Q-4](docs/1-main.png)
+
+*Интерактивный график АЧХ с 4 цветными перетаскиваемыми точками, маркерами HPF/LPF, живым 24-полосным анализатором спектра на фоне, вертикальными метрами IN/OUT, свайп-ползунком Q и нижней панелью кнопок (долгий тап по `AUTO` включает серый режим Bypass).*
+
 ## Установка
 
 На Zynthian (SSH под root):

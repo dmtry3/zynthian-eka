@@ -22,6 +22,12 @@ Made for four encoders: six clean knob pages covering the four parametric bands,
 - **10 Factory Presets** (*Factory* bank): `Init`, `Vocal Clarity & Air`, `Acoustic Guitar Polish`, `Bass Pultec Weight`, `Warm Keys & Rhodes`, `Tape Loop Mud Clean`, `Granular Cloud Sculpt`, `West Coast Fold Tame`, `Stage Anti-Feedback`, and `Master Smile & Air`.
 - **Real-time safe:** zero allocations in `run()`, denormal/NaN-safe, smooth click-free coefficient interpolation.
 
+## Screenshot
+
+![Eka Q-4](docs/1-main.png)
+
+*Interactive EQ frequency-response graph with 4 color-coded draggable nodes, HPF/LPF edge handles, 24-band live spectrum silhouette, IN/OUT peak meters with hold, touch Q slider, and 7-button touch bar (long press `AUTO` for grayscale Bypass).*
+
 ## Installation
 
 On Zynthian (SSH as root):

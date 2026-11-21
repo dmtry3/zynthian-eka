@@ -75,12 +75,14 @@ Four compressor characters (`Clean`, `Opto`, `Punch`, `Glue`), `SC HPF` (`20..50
 
 ### [Eka Q-4](plugins/q4): 4-band live parametric equalizer
 
-Four 64-bit parametric bands (`Shelf`, `Bell`, `Pultec`, `Notch`, `Air`, `Off`), Butterworth `HPF`/`LPF` (`12`/`24 dB/oct`), `1 kHz` `Tilt`, global `Scale`, per-band `Solo` audition, perceptual `AutoGain`, a zero-latency 24-band live spectrum analyzer behind an interactive touch EQ graph, and 10 factory presets.
+Four 64-bit parametric bands (`Shelf`, `Bell`, `Pultec`, `Notch`, `Air`, `Off`), Butterworth `HPF`/`LPF` (`12`/`24 dB/oct`), `1 kHz` `Tilt`, global `Scale`, per-band `Solo` audition, perceptual `AutoGain`, click-free `Bypass`, a zero-latency 24-band live spectrum analyzer behind an interactive touch EQ graph, and 10 factory presets.
+
+![Eka Q-4](plugins/q4/docs/1-main.png)
 
 ## A setup
 
 A typical chain: **Roll** records the chords, **Bloom** turns them into a moving arpeggio, **Fold** or **Mist**
-plays it, **Weave-4** adds four-voice harmony to your live instrument (or follows the chords from **Roll**), **Grain Flow** reshapes the audio, **Tape** loops the sound together with your instrument, and **Press** shapes the live input or glues the mix. Each plugin also works on its own.
+plays it, **Weave-4** adds four-voice harmony to your live instrument (or follows the chords from **Roll**), **Grain Flow** reshapes the audio, **Tape** loops the sound together with your instrument, **Q-4** sculpts the tone and clears resonances, and **Press** shapes the live input or glues the mix. Each plugin also works on its own.
 
 ## Installation
 
