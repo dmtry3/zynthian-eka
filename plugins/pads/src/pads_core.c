@@ -335,6 +335,9 @@ void ep_seq_sync_host(EpCore* c, double bpm, int playing, double bar_beat, int b
     ep_seq_set_mode(c, EP_SEQ_STOP);
     return;
   }
+  if (!was_host && c->seq.host_playing && c->seq.mode == EP_SEQ_STOP) {
+    ep_seq_set_mode(c, EP_SEQ_PLAY);
+  }
   if (playing && bpb > 0 && bar_beat >= 0.0) {
     /* Map host barBeat (0..bpb) onto 0..16 16th-note phase */
     double ph = fmod(bar_beat * 4.0, 16.0);

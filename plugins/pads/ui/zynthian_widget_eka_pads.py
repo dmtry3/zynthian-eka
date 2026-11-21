@@ -346,12 +346,12 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self._follow_page()
         self._read_shm()
 
-        # If host Transport Stop halted the sequencer, sync the seq_mode zctrl back to Stop (0)
+        # Sync seq_mode zctrl whenever host Transport Start/Stop changes plugin sequencer mode
         if self.shm_hdr:
             cur_mode = self.shm_hdr[6]
-            if self.last_shm_mode > 0 and cur_mode == 0:
-                self._zset("seq_mode", 0)
-            self.last_shm_mode = cur_mode
+            if cur_mode != self.last_shm_mode:
+                self._zset("seq_mode", cur_mode)
+                self.last_shm_mode = cur_mode
 
         # Track Auto-Select pad from plugin monitor
         mon_pad = int(round(self._mon("out_sel_pad", self.sel_pad)))

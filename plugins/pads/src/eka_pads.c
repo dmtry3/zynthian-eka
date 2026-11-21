@@ -586,6 +586,15 @@ static void run(LV2_Handle h, uint32_t nframes) {
 
       if (ev->body.type == P->midi_Event && ev->body.size >= 1) {
         const uint8_t* msg = (const uint8_t*)(ev + 1);
+        if (msg[0] == 0xFA || msg[0] == 0xFB) {
+          /* MIDI Real-Time Start (0xFA) / Continue (0xFB) */
+          if (msg[0] == 0xFA) P->core.seq.bar_phase = 0.0;
+          if (P->core.seq.mode == EP_SEQ_STOP) {
+            ep_seq_set_mode(&P->core, EP_SEQ_PLAY);
+            P->shm_dirty = 1;
+          }
+          continue;
+        }
         if (msg[0] == 0xFC) {
           /* MIDI Real-Time Stop */
           if (P->core.seq.mode != EP_SEQ_STOP) {
