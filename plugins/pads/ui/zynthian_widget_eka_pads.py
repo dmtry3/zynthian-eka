@@ -21,14 +21,16 @@ MULTI_INSTANCE = True
 
 EP_PADS = 16
 EP_SCENES = 8
+EP_UI_SCENES = 2
 EP_STEPS = 32
 EP_STEPS_MIN = 4
+EP_SCENE_SIZE = EP_PADS * EP_STEPS * 2 + EP_PADS * 2   # 1056 bytes
 EP_SHM_MAGIC = 0x45504144
 EP_SHM_HDR_FMT = "<IIIiiiiiiiffiIi"
 EP_SHM_HDR_SIZE = struct.calcsize(EP_SHM_HDR_FMT)      # 60 bytes
 EP_PAD_FMT = "<ffffffiffffifiii"
 EP_PAD_SIZE = struct.calcsize(EP_PAD_FMT)              # 64 bytes
-EP_SHM_SIZE = EP_SHM_HDR_SIZE + EP_PADS * EP_PAD_SIZE + EP_SCENES * EP_PADS * EP_STEPS * 2
+EP_SHM_SIZE = EP_SHM_HDR_SIZE + EP_PADS * EP_PAD_SIZE + EP_SCENES * EP_SCENE_SIZE
 
 # Packed seq_cmd operations matching eka_pads.c
 CMD_SET_VEL = 1
@@ -37,8 +39,11 @@ CMD_CLEAR_PAD = 3
 CMD_CLEAR_SCENE = 4
 CMD_COPY_SCENE = 5
 CMD_TRIG_PAD = 6
-CMD_SET_LEN = 7
+CMD_SET_START = 7
+CMD_SET_END = 8
+CMD_SET_QUANT = 9
 LEN_PRESETS = (4, 8, 12, 16, 24, 32)
+QUANT_NAMES = ("Off", "1/16", "1/8", "1/4")
 
 TABS = ["Pads", "Seq", "Kit"]
 TAB_GROUPS = ["g_sound", "g_seq", "g_mix"]
@@ -218,7 +223,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                     pads.append(struct.unpack_from(EP_PAD_FMT, buf, off))
                     off += EP_PAD_SIZE
                 self.pads_data = pads
-                self.scenes_data = buf[off:off + EP_SCENES * EP_PADS * EP_STEPS * 2]
+                self.scenes_data = buf[off:off + EP_SCENES * EP_SCENE_SIZE]
             return True
         except Exception as e:
             logging.debug("Eka Pads widget: shm read error => %s", e)
@@ -227,10 +232,24 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
     def _step_get(self, scene, pad, step):
         if not self.scenes_data:
             return 0, 0
-        idx = ((scene * EP_PADS + pad) * EP_STEPS + step) * 2
+        idx = scene * EP_SCENE_SIZE + (pad * EP_STEPS + step) * 2
         if idx + 1 >= len(self.scenes_data):
             return 0, 0
         return self.scenes_data[idx], self.scenes_data[idx + 1]
+
+    def _pad_range_get(self, scene, pad):
+        if not self.scenes_data:
+            return 0, 16
+        base = scene * EP_SCENE_SIZE + EP_PADS * EP_STEPS * 2
+        if base + EP_PADS + pad >= len(self.scenes_data):
+            return 0, 16
+        ps = self.scenes_data[base + pad]
+        pe = self.scenes_data[base + EP_PADS + pad]
+        if pe == 0:
+            pe = 16
+        if pe <= ps:
+            pe = min(EP_STEPS, ps + 1)
+        return ps, pe
 
     def _zval(self, sym, default=0.0):
         try:
@@ -549,17 +568,19 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             c.create_text(rx0 + 2, iy0, anchor="nw", text=line1, fill="#d0d0dc", font=(fam, fsmall))
             c.create_text(rx0 + 2, iy0 + fs + 4, anchor="nw", text=line2, fill="#9090a4", font=(fam, fsmall))
 
-        # Quick 8-Scene Launch Bar at bottom right
-        sy0 = h - pad_m - sc_h
+        # Quick 2-Scene Launch Bar at bottom right (large Scene A / Scene B buttons)
+        sy0 = h - pad_m - max(sc_h, fs * 2 + 12)
+        sc_btn_h = h - pad_m - sy0
         scene = int(round(self._mon("out_seq_scene", 0)))
         pend = int(round(self._mon("out_seq_pend", -1)))
-        sbw = rw / float(EP_SCENES)
-        for s in range(EP_SCENES):
+        sbw = rw / float(EP_UI_SCENES)
+        for s in range(EP_UI_SCENES):
             sx0 = rx0 + s * sbw
-            sx1 = sx0 + sbw - 2
+            sx1 = sx0 + sbw - 3
             bg = COL_ACCENT if s == scene else (COL_PEND if s == pend else COL_PANEL)
-            fg = "#000000" if (s == scene or s == pend) else "#d0d0d8"
-            self._add_btn(c, sx0, sy0, sx1, sy0 + sc_h, SCENE_NAMES[s], bg, fg, fam, fsmall, "scene", s)
+            fg = "#000000" if (s == scene or s == pend) else "#f0f0f5"
+            self._add_btn(c, sx0, sy0, sx1, sy0 + sc_btn_h, "Scene " + SCENE_NAMES[s],
+                          bg, fg, fam, fs + 1, "scene", s)
 
     def _draw_seq_tab(self, c, w, h, top_h, fam, fs):
         pad_m = 4
@@ -572,28 +593,38 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         cur_step = int(round(self._mon("out_seq_step", -1)))
         smode = self.shm_hdr[6] if self.shm_hdr else int(round(self._zval("seq_mode", 0)))
         bpm = int(round(self.shm_hdr[10])) if self.shm_hdr else int(round(self._zval("seq_bpm", 120)))
-        seq_len = int(self.shm_hdr[12]) if self.shm_hdr else 16
-        if seq_len < EP_STEPS_MIN or seq_len > EP_STEPS:
-            seq_len = 16
+        quant = int(self.shm_hdr[12]) if self.shm_hdr else 1
+        if quant < 0 or quant > 3:
+            quant = 1
+        ps, pe = self._pad_range_get(scene, self.sel_pad)
 
-        # Row 1: 8 Scene buttons (A..H)
-        sbw = (w - 2 * pad_m) / float(EP_SCENES)
-        for s in range(EP_SCENES):
-            x0 = pad_m + s * sbw
-            x1 = x0 + sbw - 3
-            if self.copy_src == s:
-                bg, fg = "#e64980", "#ffffff"
-            elif s == scene:
+        # Row 1: 2 Large Scene buttons (A, B) + Quantize + Per-Pad Start / End
+        r1_h = max(30, fs * 2 + 10)
+        c5w = (w - 2 * pad_m) / 5.0
+        for s in range(EP_UI_SCENES):
+            x0 = pad_m + s * c5w
+            x1 = x0 + c5w - 4
+            if s == scene:
                 bg, fg = COL_ACCENT, "#000000"
             elif s == pend:
                 bg, fg = COL_PEND, "#000000"
             else:
-                bg, fg = COL_PANEL, "#d8d8e0"
-            self._add_btn(c, x0, y, x1, y + bh, "Sc " + SCENE_NAMES[s], bg, fg, fam, fsmall, "seq_scene", s)
-        y += bh + 4
+                bg, fg = COL_PANEL, "#f0f0f5"
+            self._add_btn(c, x0, y, x1, y + r1_h, "Scene " + SCENE_NAMES[s], bg, fg, fam, fs + 1, "seq_scene", s)
 
-        # Row 2: Transport + Tools (Play, Rec, Copy, Clr Pad, Steps Len, BPM drag)
-        tbw = (w - 2 * pad_m) / 6.0
+        q_bg = "#284038" if quant > 0 else COL_PANEL
+        q_fg = "#63e6be" if quant > 0 else "#a0a0b0"
+        self._add_btn(c, pad_m + 2 * c5w, y, pad_m + 3 * c5w - 4, y + r1_h,
+                      "Q: %s" % QUANT_NAMES[quant], q_bg, q_fg, fam, fsmall, "seq_quant", (quant + 1) % 4)
+        self._add_btn(c, pad_m + 3 * c5w, y, pad_m + 4 * c5w - 4, y + r1_h,
+                      "Beg %d" % (ps + 1), "#263040", "#ffd43b", fam, fsmall, "beg_drag", (scene, self.sel_pad, ps))
+        self._add_btn(c, pad_m + 4 * c5w, y, w - pad_m, y + r1_h,
+                      "End %d" % pe, "#283444", "#74c0fc", fam, fsmall, "end_drag", (scene, self.sel_pad, pe))
+        y += r1_h + 4
+
+        # Row 2: Transport + Tools (Play, Rec, Copy A<->B, Clr Pad, BPM drag)
+        tbw = (w - 2 * pad_m) / 5.0
+        other_sc = 1 - (scene & 1)
         self._add_btn(c, pad_m, y, pad_m + tbw - 3, y + bh,
                       "Stop" if smode >= 1 else "Play",
                       COL_PLAY if smode == 1 else COL_PANEL,
@@ -603,17 +634,15 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                       COL_REC if smode == 2 else COL_PANEL,
                       "#ffffff" if smode == 2 else "#e0e0e0", fam, fsmall, "seq_rec", 1 if smode == 2 else 2)
         self._add_btn(c, pad_m + 2 * tbw, y, pad_m + 3 * tbw - 3, y + bh,
-                      "Pick Dst" if self.copy_src >= 0 else "Copy Sc",
-                      "#e64980" if self.copy_src >= 0 else COL_PANEL, "#ffffff", fam, fsmall, "seq_copy", scene)
+                      "Copy %s>%s" % (SCENE_NAMES[scene & 1], SCENE_NAMES[other_sc]),
+                      COL_PANEL, "#d8d8e4", fam, fsmall, "seq_copy_ab", (scene & 1, other_sc))
         self._add_btn(c, pad_m + 3 * tbw, y, pad_m + 4 * tbw - 3, y + bh,
                       "Clr P%d" % (self.sel_pad + 1), COL_PANEL, "#ff8787", fam, fsmall, "seq_clr_pad", (scene, self.sel_pad))
-        self._add_btn(c, pad_m + 4 * tbw, y, pad_m + 5 * tbw - 3, y + bh,
-                      "%d St" % seq_len, "#283444", "#74c0fc", fam, fsmall, "len_drag", seq_len)
-        self._add_btn(c, pad_m + 5 * tbw, y, w - pad_m, y + bh,
+        self._add_btn(c, pad_m + 4 * tbw, y, w - pad_m, y + bh,
                       "%d BPM" % bpm, "#263040", "#ffffff", fam, fsmall, "bpm_drag", bpm)
         y += bh + 5
 
-        # Middle: 32 Steps (4 rows of 8) for selected pad; active 0..seq_len-1
+        # Middle: 32 Steps (4 rows of 8) for selected pad; active ps..pe-1
         strip_h = max(24, fs * 2 + 4)
         grid_h = max(72, h - y - strip_h - pad_m - 5)
         sw = (w - 2 * pad_m) / 8.0
@@ -627,14 +656,14 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             sx1 = pad_m + (col_i + 1) * sw - 2
             sy1 = y + (row_i + 1) * sh - 2
 
-            in_len = (st < seq_len)
+            in_len = (ps <= st < pe)
             vel, roll = self._step_get(scene, self.sel_pad, st)
             is_cur = (in_len and st == cur_step)
             if not in_len:
                 beat_bg = "#17171d"
                 out_col = "#282832"
             else:
-                beat_bg = "#2d2d38" if (st % 4 == 0) else COL_PANEL
+                beat_bg = "#2d2d38" if ((st - ps) % 4 == 0) else COL_PANEL
                 out_col = "#ffffff" if is_cur else "#40404c"
             c.create_rectangle(sx0, sy0, sx1, sy1, fill=beat_bg,
                                outline=out_col, width=2 if is_cur else 1)
@@ -658,7 +687,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         for p in range(EP_PADS):
             px0 = pad_m + p * pw
             px1 = px0 + pw - 2
-            has_steps = any(self._step_get(scene, p, st)[0] > 0 for st in range(seq_len))
+            p_s, p_e = self._pad_range_get(scene, p)
+            has_steps = any(self._step_get(scene, p, st)[0] > 0 for st in range(p_s, p_e))
             is_sel = (p == self.sel_pad)
             bg = COL_PAD_SEL if is_sel else ("#263848" if has_steps else COL_PANEL)
             self._add_btn(c, px0, py0, px1, py0 + strip_h, str(p + 1), bg,
@@ -775,8 +805,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.refresh_gui()
                 return
 
-            if action == "seq_copy":
-                self.copy_src = -1 if self.copy_src >= 0 else arg
+            if action == "seq_copy_ab":
+                src, dst = arg
+                self._send_cmd(CMD_COPY_SCENE, a=src, b=dst)
                 self.refresh_gui()
                 return
 
@@ -786,13 +817,23 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.refresh_gui()
                 return
 
-            if action == "bpm_drag":
-                self.drag_info = ("bpm", None, y, arg)
+            if action == "seq_quant":
+                self._send_cmd(CMD_SET_QUANT, val=arg)
+                self.refresh_gui()
                 return
 
-            if action == "len_drag":
+            if action == "beg_drag":
                 self.len_dragged = False
-                self.drag_info = ("len", None, y, arg)
+                self.drag_info = ("beg", arg[:2], y, arg[2])
+                return
+
+            if action == "end_drag":
+                self.len_dragged = False
+                self.drag_info = ("end", arg[:2], y, arg[2])
+                return
+
+            if action == "bpm_drag":
+                self.drag_info = ("bpm", None, y, arg)
                 return
 
             if action == "seq_sel_pad":
@@ -856,10 +897,17 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             nbpm = max(40, min(240, int(round(start_val + dy * 0.5))))
             self._zset("seq_bpm", nbpm)
             self.refresh_gui()
-        elif kind == "len":
+        elif kind == "beg":
             self.len_dragged = True
-            nlen = max(EP_STEPS_MIN, min(EP_STEPS, int(round(start_val + dy * 0.12))))
-            self._send_cmd(CMD_SET_LEN, val=nlen)
+            sc, p = arg
+            nbeg = max(0, min(EP_STEPS - 1, int(round(start_val + dy * 0.12))))
+            self._send_cmd(CMD_SET_START, a=sc, b=p, val=nbeg)
+            self.refresh_gui()
+        elif kind == "end":
+            self.len_dragged = True
+            sc, p = arg
+            nend = max(1, min(EP_STEPS, int(round(start_val + dy * 0.12))))
+            self._send_cmd(CMD_SET_END, a=sc, b=p, val=nend)
             self.refresh_gui()
         elif kind == "step":
             sc, p, st = arg
@@ -868,9 +916,15 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self.refresh_gui()
 
     def _on_release(self, event):
-        if self.drag_info and self.drag_info[0] == "len" and not self.len_dragged:
-            cur = int(self.drag_info[3])
-            nxt = next((v for v in LEN_PRESETS if v > cur), LEN_PRESETS[0])
-            self._send_cmd(CMD_SET_LEN, val=nxt)
-            self.refresh_gui()
+        if self.drag_info and not self.len_dragged:
+            kind, arg, _y0, cur = self.drag_info
+            if kind == "beg":
+                sc, p = arg
+                self._send_cmd(CMD_SET_START, a=sc, b=p, val=0)
+                self.refresh_gui()
+            elif kind == "end":
+                sc, p = arg
+                nxt = next((v for v in LEN_PRESETS if v > int(cur)), LEN_PRESETS[0])
+                self._send_cmd(CMD_SET_END, a=sc, b=p, val=nxt)
+                self.refresh_gui()
         self.drag_info = None

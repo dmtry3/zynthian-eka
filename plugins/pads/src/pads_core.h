@@ -61,6 +61,8 @@ typedef struct {
 
 typedef struct {
   EpStep steps[EP_PADS][EP_STEPS];
+  uint8_t pad_start[EP_PADS]; /* 0..31 (default 0) */
+  uint8_t pad_end[EP_PADS];   /* 1..32 (default 16) */
 } EpScene;
 
 typedef struct {
@@ -111,13 +113,18 @@ typedef struct {
   int mode;               /* EP_SEQ_STOP / PLAY / REC */
   int scene;              /* 0..7 currently playing scene */
   int pend_scene;         /* -1 or 0..7 queued for next bar */
-  int cur_step;           /* -1 if stopped, 0..num_steps-1 */
-  int num_steps;          /* 4..32 active pattern length */
+  int cur_step;           /* -1 if stopped, 0..31 (for selected pad) */
+  int num_steps;          /* 4..32 global/bar cycle length */
+  int quantize;           /* 0=Off, 1=1/16, 2=1/8, 3=1/4 */
   double bpm;             /* 40..240 */
   float swing;            /* 50..75 % */
-  double bar_phase;       /* 0..16 in 16th-note units */
-  int last_step_fired;    /* -1 or 0..15 */
+  double bar_phase;       /* 0..num_steps in 16th-note units */
+  int last_step_fired;    /* -1 or 0..31 */
   int host_playing;       /* 1 if locked to host transport */
+  /* Independent per-pad polyrhythmic lane state */
+  double pad_phase[EP_PADS];
+  int    pad_last_step[EP_PADS];
+  int    pad_cur_step[EP_PADS];
   /* Ratchet (sub-step roll) pending counters */
   uint8_t roll_rem[EP_PADS];
   uint8_t roll_vel[EP_PADS];
@@ -125,7 +132,7 @@ typedef struct {
   double roll_interval[EP_PADS];
   /* Prevent double trigger when Overdub quantizes a hit forward to the upcoming step */
   uint16_t skip_next_mask;
-  int skip_step;
+  int skip_step[EP_PADS];
 } EpSeq;
 
 typedef struct {
@@ -139,6 +146,7 @@ typedef struct {
   EpSeq seq;
   EpReverb rev;
   float master_vol;       /* 0..100 % */
+  float stereo_width;     /* 0..200 % (0=mono, 100=normal, 200=wide) */
   float activity[EP_PADS];/* 0..1 visual meter per pad */
   float sel_playhead;     /* -1 or 0..1 playhead of selected pad */
 } EpCore;
@@ -157,6 +165,8 @@ void ep_core_all_off(EpCore* c);
 /* Sequencer control */
 void ep_seq_set_mode(EpCore* c, int mode);
 void ep_seq_set_len(EpCore* c, int steps);
+void ep_seq_set_pad_range(EpCore* c, int scene, int pad, int start_step, int end_step);
+void ep_seq_set_quantize(EpCore* c, int q);
 void ep_seq_request_scene(EpCore* c, int scene);
 void ep_seq_sync_host(EpCore* c, double bpm, int playing, double bar_beat, int bpb);
 void ep_seq_record_hit(EpCore* c, int pad, int vel);

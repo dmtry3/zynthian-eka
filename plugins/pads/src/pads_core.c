@@ -118,24 +118,38 @@ void ep_pad_defaults(EpPadParams* p, int pad_index) {
   p->midi_note = 36 + (pad_index & 15);
 }
 
+static void init_scene_ranges(EpScene* sc) {
+  for (int p = 0; p < EP_PADS; p++) {
+    sc->pad_start[p] = 0;
+    sc->pad_end[p] = EP_STEPS_DEF;
+  }
+}
+
 void ep_core_init(EpCore* c, double sr) {
   memset(c, 0, sizeof *c);
   c->sr = sr > 1000.0 ? sr : 48000.0;
   c->master_vol = 85.0f;
+  c->stereo_width = 100.0f;
   c->sel_playhead = -1.0f;
   for (int i = 0; i < EP_PADS; i++) {
     ep_pad_defaults(&c->pad[i], i);
     c->gen[i] = 1;
+    c->seq.pad_last_step[i] = -1;
+    c->seq.pad_cur_step[i] = -1;
+    c->seq.skip_step[i] = -1;
+  }
+  for (int s = 0; s < EP_SCENES; s++) {
+    init_scene_ranges(&c->scenes[s]);
   }
   c->seq.mode = EP_SEQ_STOP;
   c->seq.scene = 0;
   c->seq.pend_scene = -1;
   c->seq.cur_step = -1;
   c->seq.num_steps = EP_STEPS_DEF;
+  c->seq.quantize = 1; /* 1/16 */
   c->seq.bpm = 120.0;
   c->seq.swing = 50.0f;
   c->seq.last_step_fired = -1;
-  c->seq.skip_step = -1;
   reverb_init(&c->rev, c->sr);
 }
 
@@ -147,7 +161,12 @@ void ep_core_reset(EpCore* c) {
   c->seq.cur_step = (c->seq.mode == EP_SEQ_STOP) ? -1 : 0;
   c->seq.last_step_fired = -1;
   c->seq.skip_next_mask = 0;
-  c->seq.skip_step = -1;
+  for (int i = 0; i < EP_PADS; i++) {
+    c->seq.pad_phase[i] = 0.0;
+    c->seq.pad_last_step[i] = -1;
+    c->seq.pad_cur_step[i] = -1;
+    c->seq.skip_step[i] = -1;
+  }
   memset(c->seq.roll_rem, 0, sizeof c->seq.roll_rem);
   reverb_init(&c->rev, c->sr);
 }
@@ -292,6 +311,18 @@ void ep_core_release(EpCore* c, int pad) {
 
 /* ---------- Step Sequencer ---------- */
 
+static inline void get_pad_range(const EpScene* sc, int p, int* out_s, int* out_e) {
+  int s = (int)sc->pad_start[p];
+  int e = (int)sc->pad_end[p];
+  if (e == 0) e = EP_STEPS_DEF;
+  if (s < 0) s = 0;
+  if (s >= EP_STEPS) s = EP_STEPS - 1;
+  if (e <= s) e = s + 1;
+  if (e > EP_STEPS) e = EP_STEPS;
+  *out_s = s;
+  *out_e = e;
+}
+
 void ep_seq_set_mode(EpCore* c, int mode) {
   if (mode < EP_SEQ_STOP) mode = EP_SEQ_STOP;
   if (mode > EP_SEQ_REC) mode = EP_SEQ_REC;
@@ -302,7 +333,11 @@ void ep_seq_set_mode(EpCore* c, int mode) {
     c->seq.cur_step = -1;
     c->seq.last_step_fired = -1;
     c->seq.skip_next_mask = 0;
-    c->seq.skip_step = -1;
+    for (int p = 0; p < EP_PADS; p++) {
+      c->seq.pad_last_step[p] = -1;
+      c->seq.pad_cur_step[p] = -1;
+      c->seq.skip_step[p] = -1;
+    }
     memset(c->seq.roll_rem, 0, sizeof c->seq.roll_rem);
     if (c->seq.pend_scene >= 0) {
       c->seq.scene = c->seq.pend_scene;
@@ -313,6 +348,16 @@ void ep_seq_set_mode(EpCore* c, int mode) {
       c->seq.bar_phase = 0.0;
     }
     c->seq.last_step_fired = -1;
+    const EpScene* sc = &c->scenes[c->seq.scene];
+    for (int p = 0; p < EP_PADS; p++) {
+      int ps, pe;
+      get_pad_range(sc, p, &ps, &pe);
+      double plen = (double)(pe - ps);
+      c->seq.pad_phase[p] = c->seq.host_playing ? fmod(c->seq.bar_phase, plen) : 0.0;
+      c->seq.pad_last_step[p] = -1;
+      c->seq.pad_cur_step[p] = -1;
+      c->seq.skip_step[p] = -1;
+    }
   }
 }
 
@@ -320,16 +365,35 @@ void ep_seq_set_len(EpCore* c, int steps) {
   if (steps < EP_STEPS_MIN) steps = EP_STEPS_MIN;
   if (steps > EP_STEPS) steps = EP_STEPS;
   c->seq.num_steps = steps;
-  double len = (double)steps;
-  if (c->seq.bar_phase >= len) {
-    c->seq.bar_phase = fmod(c->seq.bar_phase, len);
+  for (int p = 0; p < EP_PADS; p++) {
+    ep_seq_set_pad_range(c, c->seq.scene, p, 0, steps);
   }
-  if (c->seq.last_step_fired >= steps) {
-    c->seq.last_step_fired = steps - 1;
+}
+
+void ep_seq_set_pad_range(EpCore* c, int scene, int pad, int start_step, int end_step) {
+  if (scene < 0 || scene >= EP_SCENES || pad < 0 || pad >= EP_PADS) return;
+  if (start_step < 0) start_step = 0;
+  if (start_step >= EP_STEPS) start_step = EP_STEPS - 1;
+  if (end_step <= start_step) end_step = start_step + 1;
+  if (end_step > EP_STEPS) end_step = EP_STEPS;
+  c->scenes[scene].pad_start[pad] = (uint8_t)start_step;
+  c->scenes[scene].pad_end[pad] = (uint8_t)end_step;
+  if (scene == c->seq.scene) {
+    int plen = end_step - start_step;
+    double len = (double)plen;
+    if (c->seq.pad_phase[pad] >= len) {
+      c->seq.pad_phase[pad] = fmod(c->seq.pad_phase[pad], len);
+    }
+    if (c->seq.pad_last_step[pad] >= plen) {
+      c->seq.pad_last_step[pad] = plen - 1;
+    }
   }
-  if (c->seq.cur_step >= steps) {
-    c->seq.cur_step = steps - 1;
-  }
+}
+
+void ep_seq_set_quantize(EpCore* c, int q) {
+  if (q < 0) q = 0;
+  if (q > 3) q = 3;
+  c->seq.quantize = q;
 }
 
 void ep_seq_request_scene(EpCore* c, int scene) {
@@ -373,16 +437,26 @@ void ep_seq_sync_host(EpCore* c, double bpm, int playing, double bar_beat, int b
 
 void ep_seq_record_hit(EpCore* c, int pad, int vel) {
   if (c->seq.mode != EP_SEQ_REC || pad < 0 || pad >= EP_PADS || vel <= 0) return;
-  int nsteps = c->seq.num_steps;
-  if (nsteps < EP_STEPS_MIN || nsteps > EP_STEPS) nsteps = EP_STEPS_DEF;
-  double ph = c->seq.bar_phase;
-  int step = (int)llround(ph) % nsteps;
-  if (step < 0) step += nsteps;
-  c->scenes[c->seq.scene].steps[pad][step].vel = (uint8_t)(vel > 127 ? 127 : vel);
+  EpScene* sc = &c->scenes[c->seq.scene];
+  int ps, pe;
+  get_pad_range(sc, pad, &ps, &pe);
+  int plen = pe - ps;
+  double ph = c->seq.pad_phase[pad];
+  int rel = 0;
+  if (c->seq.quantize == 0) {
+    /* Quantize Off: stamp immediately onto current step without snapping forward */
+    rel = (int)floor(ph) % plen;
+  } else {
+    int grid = (c->seq.quantize == 2) ? 2 : ((c->seq.quantize == 3) ? 4 : 1);
+    rel = ((int)llround(ph / (double)grid) * grid) % plen;
+  }
+  if (rel < 0) rel += plen;
+  int abs_step = ps + rel;
+  sc->steps[pad][abs_step].vel = (uint8_t)(vel > 127 ? 127 : vel);
   /* If quantized forward to the next upcoming step, suppress its immediate auto-trigger once */
-  int cur = (int)floor(ph) % nsteps;
-  if (step != cur) {
-    c->seq.skip_step = step;
+  int cur_rel = (int)floor(ph) % plen;
+  if (rel != cur_rel) {
+    c->seq.skip_step[pad] = abs_step;
     c->seq.skip_next_mask |= (uint16_t)(1u << pad);
   }
 }
@@ -395,6 +469,7 @@ void ep_seq_clear_pad(EpCore* c, int scene, int pad) {
 void ep_seq_clear_scene(EpCore* c, int scene) {
   if (scene < 0 || scene >= EP_SCENES) return;
   memset(&c->scenes[scene], 0, sizeof c->scenes[scene]);
+  init_scene_ranges(&c->scenes[scene]);
 }
 
 void ep_seq_copy_scene(EpCore* c, int src_scene, int dst_scene) {
@@ -411,34 +486,27 @@ static double step_trigger_phase(int s, float swing) {
   return (double)s + shift;
 }
 
-static void fire_seq_step(EpCore* c, int step, double samples_per_step) {
-  if (step == 0 && c->seq.pend_scene >= 0) {
-    c->seq.scene = c->seq.pend_scene;
-    c->seq.pend_scene = -1;
-  }
-  c->seq.cur_step = step;
+static void fire_pad_step(EpCore* c, int p, int abs_step, double samples_per_step) {
+  c->seq.pad_cur_step[p] = abs_step;
   const EpScene* sc = &c->scenes[c->seq.scene];
-  uint16_t skip = (c->seq.skip_step == step) ? c->seq.skip_next_mask : 0;
-  if (c->seq.skip_step == step) {
-    c->seq.skip_next_mask = 0;
-    c->seq.skip_step = -1;
+  int skip = (c->seq.skip_step[p] == abs_step && (c->seq.skip_next_mask & (1u << p)));
+  if (c->seq.skip_step[p] == abs_step) {
+    c->seq.skip_step[p] = -1;
+    c->seq.skip_next_mask &= (uint16_t)~(1u << p);
   }
-
-  for (int p = 0; p < EP_PADS; p++) {
-    EpStep st = sc->steps[p][step];
-    if (st.vel > 0) {
-      if (!(skip & (1u << p))) {
-        ep_core_trigger(c, p, st.vel);
-      }
-      if (st.roll > 0 && st.roll <= 3) {
-        int sub = st.roll + 1; /* 2x, 3x, 4x */
-        c->seq.roll_rem[p] = (uint8_t)(sub - 1);
-        c->seq.roll_vel[p] = st.vel;
-        c->seq.roll_interval[p] = samples_per_step / (double)sub;
-        c->seq.roll_timer[p] = c->seq.roll_interval[p];
-      } else {
-        c->seq.roll_rem[p] = 0;
-      }
+  EpStep st = sc->steps[p][abs_step];
+  if (st.vel > 0) {
+    if (!skip) {
+      ep_core_trigger(c, p, st.vel);
+    }
+    if (st.roll > 0 && st.roll <= 3) {
+      int sub = st.roll + 1; /* 2x, 3x, 4x */
+      c->seq.roll_rem[p] = (uint8_t)(sub - 1);
+      c->seq.roll_vel[p] = st.vel;
+      c->seq.roll_interval[p] = samples_per_step / (double)sub;
+      c->seq.roll_timer[p] = c->seq.roll_interval[p];
+    } else {
+      c->seq.roll_rem[p] = 0;
     }
   }
 }
@@ -607,9 +675,16 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
   reverb_process(&c->rev, c->sr, send_l, send_r, out_l, out_r, nframes);
 
   float mg = clampf(c->master_vol * 0.01f, 0.0f, 1.5f);
+  float sw = clampf(c->stereo_width * 0.01f, 0.0f, 2.0f);
   for (uint32_t i = 0; i < nframes; i++) {
     float l = out_l[i] * mg;
     float r = out_r[i] * mg;
+    if (fabsf(sw - 1.0f) > 0.001f) {
+      float mid  = 0.5f * (l + r);
+      float side = 0.5f * (l - r) * sw;
+      l = mid + side;
+      r = mid - side;
+    }
     if (l > 0.75f) l = 0.75f + 0.25f * fast_tanh((l - 0.75f) * 4.0f);
     else if (l < -0.75f) l = -0.75f + 0.25f * fast_tanh((l + 0.75f) * 4.0f);
     if (r > 0.75f) r = 0.75f + 0.25f * fast_tanh((r - 0.75f) * 4.0f);
@@ -628,68 +703,105 @@ void ep_core_process(EpCore* c, float* out_l, float* out_r, uint32_t nframes, in
     if (chunk > 256) chunk = 256;
 
     if (c->seq.mode != EP_SEQ_STOP) {
-      int nsteps = c->seq.num_steps;
-      if (nsteps < EP_STEPS_MIN || nsteps > EP_STEPS) nsteps = EP_STEPS_DEF;
-      double len = (double)nsteps;
       double bpm = c->seq.bpm < 40.0 ? 40.0 : (c->seq.bpm > 240.0 ? 240.0 : c->seq.bpm);
       /* 4 16th-notes per quarter note */
       double steps_per_sample = (bpm / 60.0) * 4.0 / c->sr;
       double samples_per_step = 1.0 / steps_per_sample;
 
-      /* Process sub-chunk sample-accurately up to the next step or roll event */
+      /* Process sub-chunk sample-accurately up to the next per-pad step or roll event */
       uint32_t sub_pos = 0;
       while (sub_pos < chunk) {
-        /* Fire step 0 immediately when starting from idle */
-        if (c->seq.last_step_fired < 0 && c->seq.bar_phase < 0.05) {
-          c->seq.last_step_fired = 0;
-          fire_seq_step(c, 0, samples_per_step);
-        }
+        const EpScene* sc = &c->scenes[c->seq.scene];
 
-        int next_step = (c->seq.last_step_fired + 1) % nsteps;
-        double target_ph = step_trigger_phase(next_step, c->seq.swing);
-        double dph = target_ph - c->seq.bar_phase;
-        if (dph < -len * 0.5) dph += len;
-        else if (dph < 0.0) dph = 0.0;
-        uint32_t to_step = (uint32_t)ceil(dph * samples_per_step);
-
-        /* Check ratchet timers */
-        uint32_t to_roll = chunk - sub_pos;
-        int roll_pad = -1;
+        /* Fire initial step immediately for any pad starting from idle */
         for (int p = 0; p < EP_PADS; p++) {
-          if (c->seq.roll_rem[p] > 0) {
-            uint32_t tr = c->seq.roll_timer[p] <= 0.0 ? 0 : (uint32_t)ceil(c->seq.roll_timer[p]);
-            if (tr < to_roll) {
-              to_roll = tr;
-              roll_pad = p;
-            }
+          if (c->seq.pad_last_step[p] < 0 && c->seq.pad_phase[p] < 0.05) {
+            int ps, pe;
+            get_pad_range(sc, p, &ps, &pe);
+            c->seq.pad_last_step[p] = 0;
+            fire_pad_step(c, p, ps, samples_per_step);
           }
         }
 
         uint32_t rem = chunk - sub_pos;
         uint32_t adv = rem;
-        int ev_kind = 0; /* 0 = none, 1 = step, 2 = roll */
-        if (to_step <= adv) { adv = to_step; ev_kind = 1; }
-        if (roll_pad >= 0 && to_roll <= adv) { adv = to_roll; ev_kind = 2; }
+        int ev_kind = 0; /* 0 = none, 1 = pad step, 2 = roll */
+        int ev_pad = -1;
+        int ev_rel = 0;
+        int ev_abs = 0;
+
+        /* Find earliest upcoming step across all 16 polyrhythmic pad lanes */
+        for (int p = 0; p < EP_PADS; p++) {
+          int ps, pe;
+          get_pad_range(sc, p, &ps, &pe);
+          int plen = pe - ps;
+          double len = (double)plen;
+          int next_rel = (c->seq.pad_last_step[p] + 1) % plen;
+          double target_ph = step_trigger_phase(next_rel, c->seq.swing);
+          if (target_ph >= len) target_ph = fmod(target_ph, len);
+          double dph = target_ph - c->seq.pad_phase[p];
+          if (dph < -len * 0.5) dph += len;
+          else if (dph < 0.0) dph = 0.0;
+          uint32_t to_st = (uint32_t)ceil(dph * samples_per_step);
+          if (to_st <= adv) {
+            adv = to_st;
+            ev_kind = 1;
+            ev_pad = p;
+            ev_rel = next_rel;
+            ev_abs = ps + next_rel;
+          }
+        }
+
+        /* Check ratchet timers */
+        for (int p = 0; p < EP_PADS; p++) {
+          if (c->seq.roll_rem[p] > 0) {
+            uint32_t tr = c->seq.roll_timer[p] <= 0.0 ? 0 : (uint32_t)ceil(c->seq.roll_timer[p]);
+            if (tr <= adv) {
+              adv = tr;
+              ev_kind = 2;
+              ev_pad = p;
+            }
+          }
+        }
 
         if (adv > 0) {
           render_voices(c, out_l + done + sub_pos, out_r + done + sub_pos,
                         send_l, send_r, adv, sel_pad);
-          c->seq.bar_phase = fmod(c->seq.bar_phase + (double)adv * steps_per_sample, len);
+          double dstep = (double)adv * steps_per_sample;
+          double prev_bar = c->seq.bar_phase;
+          c->seq.bar_phase = fmod(prev_bar + dstep, 16.0);
+          /* Quantized scene switch at 16-step bar boundary */
+          if (c->seq.pend_scene >= 0 && c->seq.bar_phase < prev_bar) {
+            c->seq.scene = c->seq.pend_scene;
+            c->seq.pend_scene = -1;
+            for (int p = 0; p < EP_PADS; p++) {
+              c->seq.pad_phase[p] = c->seq.bar_phase;
+              c->seq.pad_last_step[p] = -1;
+            }
+            sc = &c->scenes[c->seq.scene];
+          } else {
+            for (int p = 0; p < EP_PADS; p++) {
+              int ps, pe;
+              get_pad_range(sc, p, &ps, &pe);
+              c->seq.pad_phase[p] = fmod(c->seq.pad_phase[p] + dstep, (double)(pe - ps));
+            }
+          }
           for (int p = 0; p < EP_PADS; p++) {
             if (c->seq.roll_rem[p] > 0) c->seq.roll_timer[p] -= (double)adv;
           }
           sub_pos += adv;
         }
 
-        if (ev_kind == 1) {
-          c->seq.last_step_fired = next_step;
-          fire_seq_step(c, next_step, samples_per_step);
-        } else if (ev_kind == 2 && roll_pad >= 0) {
-          c->seq.roll_rem[roll_pad]--;
-          c->seq.roll_timer[roll_pad] += c->seq.roll_interval[roll_pad];
-          ep_core_trigger(c, roll_pad, c->seq.roll_vel[roll_pad]);
+        if (ev_kind == 1 && ev_pad >= 0) {
+          c->seq.pad_last_step[ev_pad] = ev_rel;
+          fire_pad_step(c, ev_pad, ev_abs, samples_per_step);
+        } else if (ev_kind == 2 && ev_pad >= 0) {
+          c->seq.roll_rem[ev_pad]--;
+          c->seq.roll_timer[ev_pad] += c->seq.roll_interval[ev_pad];
+          ep_core_trigger(c, ev_pad, c->seq.roll_vel[ev_pad]);
         }
       }
+      c->seq.cur_step = (sel_pad >= 0 && sel_pad < EP_PADS) ? c->seq.pad_cur_step[sel_pad] : -1;
     } else {
       render_voices(c, out_l + done, out_r + done, send_l, send_r, chunk, sel_pad);
     }

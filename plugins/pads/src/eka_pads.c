@@ -28,7 +28,7 @@
 #define EP_MAX_SECONDS 120.0
 #define EP_RETIRED_MAX 32
 #define EP_SHM_MAGIC   0x45504144u /* "EPAD" */
-#define EP_SHM_VER     2u
+#define EP_SHM_VER     3u
 
 /* Control input ports MUST come first (0..P_END-1) for Zynthian's controller indexing. */
 enum {
@@ -46,7 +46,8 @@ enum {
   P_OUT_SEQ_SCENE,
   P_OUT_SEQ_PEND,
   P_OUT_LVL0,                                     /* 16 ports: P_OUT_LVL0 .. P_OUT_LVL0+15 */
-  P_OUT_PLAYHEAD = P_OUT_LVL0 + EP_PADS
+  P_OUT_PLAYHEAD = P_OUT_LVL0 + EP_PADS,
+  P_STEREO_WIDTH                                  /* index 41: Stereo Width 0..200% */
 };
 
 #define N_CTL     P_END
@@ -60,7 +61,9 @@ enum {
   CMD_CLEAR_SCENE,    /* a=scene */
   CMD_COPY_SCENE,     /* a=src_scene, b=dst_scene */
   CMD_TRIG_PAD,       /* b=pad, val=vel(1..127) */
-  CMD_SET_LEN         /* val=steps(4..32) */
+  CMD_SET_START,      /* a=scene, b=pad, val=start_step(0..31) */
+  CMD_SET_END,        /* a=scene, b=pad, val=end_step(1..32) */
+  CMD_SET_QUANT       /* val=quantize(0=Off, 1=1/16, 2=1/8, 3=1/4) */
 };
 
 /* Shared memory snapshot read by the Zynthian Python widget */
@@ -77,14 +80,15 @@ typedef struct {
   int32_t  seq_step;
   float    bpm;
   float    swing;
-  int32_t  seq_len;     /* 4..32 active steps */
+  int32_t  seq_quant;   /* 0=Off, 1=1/16, 2=1/8, 3=1/4 */
   uint32_t hit_seq;     /* incremented on every MIDI pad trigger */
   int32_t  last_hit_pad;/* 0..15 pad index of latest MIDI hit */
   EpPadParams pads[EP_PADS];
   EpScene  scenes[EP_SCENES];
 } EpShm;
 _Static_assert(sizeof(EpPadParams) == 64, "EpPadParams size must match Python widget");
-_Static_assert(sizeof(EpShm) == 9276, "EpShm size must match Python widget");
+_Static_assert(sizeof(EpScene) == 1056, "EpScene size must match Python widget");
+_Static_assert(sizeof(EpShm) == 9532, "EpShm size must match Python widget");
 
 /* Worker messages */
 enum { MSG_LOAD = 1, MSG_FREE };
@@ -104,6 +108,7 @@ typedef struct {
   float* out_seq_pend;
   float* out_lvl[EP_PADS];
   float* out_playhead;
+  const float* in_stereo_width;
 
   LV2_URID_Map* map;
   LV2_Worker_Schedule* sched;
@@ -158,7 +163,7 @@ static void shm_publish(EkaPads* P) {
   s->seq_step  = P->core.seq.cur_step;
   s->bpm       = (float)P->core.seq.bpm;
   s->swing     = P->core.seq.swing;
-  s->seq_len   = P->core.seq.num_steps;
+  s->seq_quant = P->core.seq.quantize;
   s->hit_seq   = P->hit_seq;
   s->last_hit_pad = P->last_hit_pad;
   if (P->shm_dirty) {
@@ -308,8 +313,27 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
         ep_core_trigger(&P->core, b, val > 0 ? (val > 127 ? 127 : val) : 100);
       }
       break;
-    case CMD_SET_LEN:
-      ep_seq_set_len(&P->core, val);
+    case CMD_SET_START:
+      if (a < EP_SCENES && b < EP_PADS) {
+        int cur_end = P->core.scenes[a].pad_end[b];
+        if (cur_end == 0) cur_end = EP_STEPS_DEF;
+        int ns = val < EP_STEPS ? val : EP_STEPS - 1;
+        int ne = cur_end <= ns ? ns + 1 : cur_end;
+        ep_seq_set_pad_range(&P->core, a, b, ns, ne);
+        P->shm_dirty = 1;
+      }
+      break;
+    case CMD_SET_END:
+      if (a < EP_SCENES && b < EP_PADS) {
+        int cur_start = P->core.scenes[a].pad_start[b];
+        int ne = val < 1 ? 1 : (val > EP_STEPS ? EP_STEPS : val);
+        int ns = cur_start >= ne ? ne - 1 : cur_start;
+        ep_seq_set_pad_range(&P->core, a, b, ns, ne);
+        P->shm_dirty = 1;
+      }
+      break;
+    case CMD_SET_QUANT:
+      ep_seq_set_quantize(&P->core, val);
       P->shm_dirty = 1;
       break;
     default:
@@ -540,6 +564,7 @@ static void connect_port(LV2_Handle h, uint32_t port, void* data) {
     case P_OUT_SEQ_SCENE: P->out_seq_scene = (float*)data; break;
     case P_OUT_SEQ_PEND:  P->out_seq_pend = (float*)data; break;
     case P_OUT_PLAYHEAD:  P->out_playhead = (float*)data; break;
+    case P_STEREO_WIDTH:  P->in_stereo_width = (const float*)data; break;
     default:
       if (port >= P_OUT_LVL0 && port < P_OUT_LVL0 + EP_PADS)
         P->out_lvl[port - P_OUT_LVL0] = (float*)data;
@@ -591,6 +616,7 @@ static void run(LV2_Handle h, uint32_t nframes) {
   }
   if (P->ctl[P_SEQ_SWING]) P->core.seq.swing = *P->ctl[P_SEQ_SWING];
   if (P->ctl[P_MASTER])    P->core.master_vol = *P->ctl[P_MASTER];
+  if (P->in_stereo_width)  P->core.stereo_width = *P->in_stereo_width;
 
   uint32_t pos = 0;
   if (P->in) {
@@ -791,9 +817,9 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
     memcpy(P->core.scenes, sc, sz);
   } else if (sc && sz == (size_t)(EP_SCENES * EP_PADS * 16 * sizeof(EpStep))) {
     /* Legacy 16-step snapshot migration */
-    memset(P->core.scenes, 0, sizeof P->core.scenes);
     const EpStep* old = (const EpStep*)sc;
     for (int s = 0; s < EP_SCENES; s++) {
+      ep_seq_clear_scene(&P->core, s);
       for (int p = 0; p < EP_PADS; p++) {
         memcpy(P->core.scenes[s].steps[p], old + (s * EP_PADS + p) * 16, 16 * sizeof(EpStep));
       }

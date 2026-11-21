@@ -17,8 +17,9 @@
 # 4 Zynthian knob pages (4 knobs each)
 <http://dmtry3.github.io/zynthian-eka/pads#g_sound> a pg:Group ; lv2:symbol "g_sound" ; lv2:name "Pad Sound" ; lv2:index 0 ; lv2:displayPriority 40 .
 <http://dmtry3.github.io/zynthian-eka/pads#g_shape> a pg:Group ; lv2:symbol "g_shape" ; lv2:name "Pad Shape" ; lv2:index 1 ; lv2:displayPriority 30 .
-<http://dmtry3.github.io/zynthian-eka/pads#g_mix>   a pg:Group ; lv2:symbol "g_mix"   ; lv2:name "Pad Mix"   ; lv2:index 2 ; lv2:displayPriority 20 .
-<http://dmtry3.github.io/zynthian-eka/pads#g_seq>   a pg:Group ; lv2:symbol "g_seq"   ; lv2:name "Seq & Master" ; lv2:index 3 ; lv2:displayPriority 10 .
+<http://dmtry3.github.io/zynthian-eka/pads#g_mix>    a pg:Group ; lv2:symbol "g_mix"    ; lv2:name "Pad Mix"      ; lv2:index 2 ; lv2:displayPriority 20 .
+<http://dmtry3.github.io/zynthian-eka/pads#g_seq>    a pg:Group ; lv2:symbol "g_seq"    ; lv2:name "Seq & Master" ; lv2:index 3 ; lv2:displayPriority 10 .
+<http://dmtry3.github.io/zynthian-eka/pads#g_stereo> a pg:Group ; lv2:symbol "g_stereo" ; lv2:name "Stereo"       ; lv2:index 4 ; lv2:displayPriority 5 .
 
 # 16 per-pad sample paths (notOnGUI: opened by tapping in the widget)
 <http://dmtry3.github.io/zynthian-eka/pads#sample1>  a lv2:Parameter ; lv2:symbol "sample1"  ; rdfs:label "Pad 1 Sample"  ; rdfs:range atom:Path ; mod:fileTypes "wav,flac,aiff,aif,ogg,mp3" ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
@@ -46,7 +47,7 @@
 <http://dmtry3.github.io/zynthian-eka/pads#solo_mask> a lv2:Parameter ; lv2:symbol "solo_mask" ; rdfs:label "Solo Mask"    ; rdfs:range atom:Int ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 65535 ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
 <http://dmtry3.github.io/zynthian-eka/pads#pad_end>   a lv2:Parameter ; lv2:symbol "pad_end"   ; rdfs:label "Pad End"      ; rdfs:range atom:Int ; lv2:default 100 ; lv2:minimum 5 ; lv2:maximum 100 ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
 <http://dmtry3.github.io/zynthian-eka/pads#seq_bpm>   a lv2:Parameter ; lv2:symbol "seq_bpm"   ; rdfs:label "Seq BPM"      ; rdfs:range atom:Int ; lv2:default 120 ; lv2:minimum 40 ; lv2:maximum 240 ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
-<http://dmtry3.github.io/zynthian-eka/pads#seq_cmd>   a lv2:Parameter ; lv2:symbol "seq_cmd"   ; rdfs:label "Seq Cmd"      ; rdfs:range atom:Int ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 16777215 ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
+<http://dmtry3.github.io/zynthian-eka/pads#seq_cmd>   a lv2:Parameter ; lv2:symbol "seq_cmd"   ; rdfs:label "Seq Cmd"      ; rdfs:range atom:Int ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 67108863 ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
 
 <http://dmtry3.github.io/zynthian-eka/pads>
     a lv2:Plugin , lv2:InstrumentPlugin ;
@@ -222,7 +223,7 @@
     ] ,
     # Output monitor ports for the Zynthian widget
     [ a lv2:OutputPort , lv2:ControlPort ; lv2:index 20 ; lv2:symbol "out_sel_pad"   ; lv2:name "Sel Pad"   ; lv2:minimum 0  ; lv2:maximum 15 ; ] ,
-    [ a lv2:OutputPort , lv2:ControlPort ; lv2:index 21 ; lv2:symbol "out_seq_step"  ; lv2:name "Seq Step"  ; lv2:minimum -1 ; lv2:maximum 15 ; ] ,
+    [ a lv2:OutputPort , lv2:ControlPort ; lv2:index 21 ; lv2:symbol "out_seq_step"  ; lv2:name "Seq Step"  ; lv2:minimum -1 ; lv2:maximum 31 ; ] ,
     [ a lv2:OutputPort , lv2:ControlPort ; lv2:index 22 ; lv2:symbol "out_seq_scene" ; lv2:name "Seq Scene" ; lv2:minimum 0  ; lv2:maximum 7  ; ] ,
     [ a lv2:OutputPort , lv2:ControlPort ; lv2:index 23 ; lv2:symbol "out_seq_pend"  ; lv2:name "Seq Pend"  ; lv2:minimum -1 ; lv2:maximum 7  ; ] ,
     [ a lv2:OutputPort , lv2:ControlPort ; lv2:index 24 ; lv2:symbol "out_pad_lvl1"  ; lv2:name "Lvl 1"     ; lv2:minimum 0.0 ; lv2:maximum 1.0 ; ] ,
@@ -241,4 +242,11 @@
     [ a lv2:OutputPort , lv2:ControlPort ; lv2:index 37 ; lv2:symbol "out_pad_lvl14" ; lv2:name "Lvl 14"    ; lv2:minimum 0.0 ; lv2:maximum 1.0 ; ] ,
     [ a lv2:OutputPort , lv2:ControlPort ; lv2:index 38 ; lv2:symbol "out_pad_lvl15" ; lv2:name "Lvl 15"    ; lv2:minimum 0.0 ; lv2:maximum 1.0 ; ] ,
     [ a lv2:OutputPort , lv2:ControlPort ; lv2:index 39 ; lv2:symbol "out_pad_lvl16" ; lv2:name "Lvl 16"    ; lv2:minimum 0.0 ; lv2:maximum 1.0 ; ] ,
-    [ a lv2:OutputPort , lv2:ControlPort ; lv2:index 40 ; lv2:symbol "out_pad_playhead" ; lv2:name "Playhead" ; lv2:minimum -1.0 ; lv2:maximum 1.0 ; ] .
+    [ a lv2:OutputPort , lv2:ControlPort ; lv2:index 40 ; lv2:symbol "out_pad_playhead" ; lv2:name "Playhead" ; lv2:minimum -1.0 ; lv2:maximum 1.0 ; ] ,
+    [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 41 ; lv2:symbol "stereo_width" ; lv2:name "Stereo" ;
+        pg:group <http://dmtry3.github.io/zynthian-eka/pads#g_stereo> ;
+        lv2:default 100.0 ; lv2:minimum 0.0 ; lv2:maximum 200.0 ;
+        units:unit units:pc ;
+    ] .
