@@ -130,6 +130,9 @@ void ep_core_init(EpCore* c, double sr) {
   c->sr = sr > 1000.0 ? sr : 48000.0;
   c->master_vol = 85.0f;
   c->stereo_width = 100.0f;
+  c->retrig_ms = 25;
+  c->min_vel = 0;
+  c->xtalk = 0;
   c->sel_playhead = -1.0f;
   for (int i = 0; i < EP_PADS; i++) {
     ep_pad_defaults(&c->pad[i], i);

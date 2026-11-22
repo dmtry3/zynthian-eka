@@ -147,6 +147,9 @@ typedef struct {
   EpReverb rev;
   float master_vol;       /* 0..100 % */
   float stereo_width;     /* 0..200 % (0=mono, 100=normal, 200=wide) */
+  int   retrig_ms;        /* 0..80 ms same-pad double-trigger mask (default 25) */
+  int   min_vel;          /* 0..40 minimum MIDI velocity threshold (default 0) */
+  int   xtalk;            /* 0..60 % adjacent-pad crosstalk suppression (default 0) */
   float activity[EP_PADS];/* 0..1 visual meter per pad */
   float sel_playhead;     /* -1 or 0..1 playhead of selected pad */
 } EpCore;

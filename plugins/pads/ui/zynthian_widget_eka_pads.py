@@ -26,8 +26,8 @@ EP_STEPS = 32
 EP_STEPS_MIN = 4
 EP_SCENE_SIZE = EP_PADS * EP_STEPS * 2 + EP_PADS * 2   # 1056 bytes
 EP_SHM_MAGIC = 0x45504144
-EP_SHM_HDR_FMT = "<IIIiiiiiiiffiIi"
-EP_SHM_HDR_SIZE = struct.calcsize(EP_SHM_HDR_FMT)      # 60 bytes
+EP_SHM_HDR_FMT = "<IIIiiiiiiiffiIiiii"
+EP_SHM_HDR_SIZE = struct.calcsize(EP_SHM_HDR_FMT)      # 72 bytes
 EP_PAD_FMT = "<ffffffiffffifiii"
 EP_PAD_SIZE = struct.calcsize(EP_PAD_FMT)              # 64 bytes
 EP_SHM_SIZE = EP_SHM_HDR_SIZE + EP_PADS * EP_PAD_SIZE + EP_SCENES * EP_SCENE_SIZE
@@ -42,6 +42,9 @@ CMD_TRIG_PAD = 6
 CMD_SET_START = 7
 CMD_SET_END = 8
 CMD_SET_QUANT = 9
+CMD_SET_RETRIG = 10
+CMD_SET_MINVEL = 11
+CMD_SET_XTALK = 12
 LEN_PRESETS = (4, 8, 12, 16, 24, 32)
 QUANT_NAMES = ("Off", "1/16", "1/8", "1/4")
 
@@ -808,7 +811,35 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                       "Clear Scene %s" % SCENE_NAMES[scene & 7], COL_PANEL, "#ff8787", fam, fsmall, "clr_scene", scene)
         self._add_btn(c, pad_m * 2 + half, y, w - pad_m, y + bh,
                       "Unload Pad %d Sample" % (self.sel_pad + 1), COL_PANEL, "#ffd43b", fam, fsmall, "unload", self.sel_pad)
-        y += bh + 14
+        y += bh + 10
+
+        # Row 3: Hardware Pad Filter (Retrigger mask, Min Velocity, Crosstalk)
+        retrig = int(self.shm_hdr[15]) if (self.shm_hdr and len(self.shm_hdr) > 17) else 25
+        minvel = int(self.shm_hdr[16]) if (self.shm_hdr and len(self.shm_hdr) > 17) else 0
+        xtalk  = int(self.shm_hdr[17]) if (self.shm_hdr and len(self.shm_hdr) > 17) else 0
+
+        third = (w - 4 * pad_m) / 3.0
+        sliders = (
+            ("retrig", CMD_SET_RETRIG, retrig, 80, 5,
+             "Retrig %dms" % retrig if retrig > 0 else "Retrig Off", "#74c0fc", "#1e3a52"),
+            ("minvel", CMD_SET_MINVEL, minvel, 40, 2,
+             "MinVel %d" % minvel if minvel > 0 else "MinVel Off", "#63e6be", "#1e453b"),
+            ("xtalk",  CMD_SET_XTALK,  xtalk,  60, 5,
+             "XTalk %d%%" % xtalk if xtalk > 0 else "XTalk Off", "#ffd43b", "#473b19"),
+        )
+        for idx, (_key, cmd_op, val, vmax, step, lbl, col_hi, col_fill) in enumerate(sliders):
+            sx0 = pad_m + idx * (third + pad_m)
+            sx1 = sx0 + third
+            c.create_rectangle(sx0, y, sx1, y + bh, fill="#1a1c24",
+                               outline=col_hi if val > 0 else "#383844", width=1)
+            if val > 0:
+                fx = sx0 + 1 + (min(val, vmax) / float(vmax)) * max(1.0, (sx1 - sx0 - 2))
+                c.create_rectangle(sx0 + 1, y + 1, fx, y + bh - 1, fill=col_fill, outline="")
+                c.create_rectangle(sx0 + 1, y + 1, fx, y + 4, fill=col_hi, width=0)
+            c.create_text((sx0 + sx1) / 2, y + bh / 2, text=lbl,
+                          fill=col_hi if val > 0 else "#9a9aaa", font=(fam, fsmall, "bold"))
+            self.hit_boxes.append((sx0, y, sx1, y + bh, "flt_slider", (cmd_op, vmax, step, sx0, sx1)))
+        y += bh + 12
 
         # Helpful M-VAVE SMC-PAD Pocket guide
         guide = (
@@ -988,6 +1019,20 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.refresh_gui()
                 return
 
+            if action == "flt_slider":
+                cmd_op, vmax, step, sx0, sx1 = arg
+                self.drag_info = ("flt_slider", arg, y, 0)
+                self._apply_flt_slider(cmd_op, vmax, step, sx0, sx1, x)
+                self.refresh_gui()
+                return
+
+    def _apply_flt_slider(self, cmd_op, vmax, step, sx0, sx1, x):
+        t = max(0.0, min(1.0, (x - sx0) / max(1.0, sx1 - sx0)))
+        nsteps = max(1, vmax // step)
+        val = int(round(t * nsteps)) * step
+        val = max(0, min(vmax, val))
+        self._send_cmd(cmd_op, val=val)
+
     def _apply_steps_slider(self, sc, p, which, sl_x0, sl_x1, x):
         t = max(0.0, min(1.0, (x - sl_x0) / max(1.0, sl_x1 - sl_x0)))
         if which == "beg":
@@ -1018,6 +1063,11 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         if kind == "quant_slider":
             qx0, qx1 = arg
             self._apply_quant_slider(qx0, qx1, event.x)
+            self.refresh_gui()
+            return
+        if kind == "flt_slider":
+            cmd_op, vmax, step, sx0, sx1 = arg
+            self._apply_flt_slider(cmd_op, vmax, step, sx0, sx1, event.x)
             self.refresh_gui()
             return
         if kind == "steps_slider":

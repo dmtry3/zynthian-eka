@@ -28,7 +28,7 @@
 #define EP_MAX_SECONDS 120.0
 #define EP_RETIRED_MAX 32
 #define EP_SHM_MAGIC   0x45504144u /* "EPAD" */
-#define EP_SHM_VER     3u
+#define EP_SHM_VER     4u
 
 /* Control input ports MUST come first (0..P_END-1) for Zynthian's controller indexing. */
 enum {
@@ -65,7 +65,10 @@ enum {
   CMD_TRIG_PAD,       /* b=pad, val=vel(1..127) */
   CMD_SET_START,      /* a=scene, b=pad, val=start_step(0..31) */
   CMD_SET_END,        /* a=scene, b=pad, val=end_step(1..32) */
-  CMD_SET_QUANT       /* val=quantize(0=Off, 1=1/16, 2=1/8, 3=1/4) */
+  CMD_SET_QUANT,      /* val=quantize(0..100%) */
+  CMD_SET_RETRIG,     /* val=retrig_ms(0..80) */
+  CMD_SET_MINVEL,     /* val=min_vel(0..40) */
+  CMD_SET_XTALK       /* val=xtalk(0..60%) */
 };
 
 /* Shared memory snapshot read by the Zynthian Python widget */
@@ -82,15 +85,18 @@ typedef struct {
   int32_t  seq_step;
   float    bpm;
   float    swing;
-  int32_t  seq_quant;   /* 0=Off, 1=1/16, 2=1/8, 3=1/4 */
+  int32_t  seq_quant;   /* 0..100 % */
   uint32_t hit_seq;     /* incremented on every MIDI pad trigger */
   int32_t  last_hit_pad;/* 0..15 pad index of latest MIDI hit */
+  int32_t  retrig_ms;   /* 0..80 ms same-pad retrigger filter */
+  int32_t  min_vel;     /* 0..40 min velocity threshold */
+  int32_t  xtalk;       /* 0..60 % crosstalk suppression */
   EpPadParams pads[EP_PADS];
   EpScene  scenes[EP_SCENES];
 } EpShm;
 _Static_assert(sizeof(EpPadParams) == 64, "EpPadParams size must match Python widget");
 _Static_assert(sizeof(EpScene) == 1056, "EpScene size must match Python widget");
-_Static_assert(sizeof(EpShm) == 9532, "EpShm size must match Python widget");
+_Static_assert(sizeof(EpShm) == 9544, "EpShm size must match Python widget");
 
 /* Worker messages */
 enum { MSG_LOAD = 1, MSG_FREE };
@@ -158,6 +164,11 @@ typedef struct {
   int shm_dirty;
 
   double sr;
+  uint64_t sample_clock;
+  uint64_t last_pad_hit_sample[EP_PADS];
+  uint64_t last_any_hit_sample;
+  int last_any_hit_pad;
+  int last_any_hit_vel;
   EpCore core;
 } EkaPads;
 
@@ -176,6 +187,9 @@ static void shm_publish(EkaPads* P) {
   s->seq_quant = P->core.seq.quantize;
   s->hit_seq   = P->hit_seq;
   s->last_hit_pad = P->last_hit_pad;
+  s->retrig_ms = P->core.retrig_ms;
+  s->min_vel   = P->core.min_vel;
+  s->xtalk     = P->core.xtalk;
   if (P->shm_dirty) {
     memcpy(s->pads, P->core.pad, sizeof P->core.pad);
     memcpy(s->scenes, P->core.scenes, sizeof P->core.scenes);
@@ -353,6 +367,10 @@ static size_t seq_encode(const EpCore* c, char* buf, size_t cap) {
     if (n < 0 || (size_t)n >= cap - pos) return pos;
     pos += (size_t)n;
   }
+  if (c->retrig_ms != 25 || c->min_vel != 0 || c->xtalk != 0) {
+    n = snprintf(buf + pos, cap - pos, "|F=%d,%d,%d", c->retrig_ms, c->min_vel, c->xtalk);
+    if (n > 0 && (size_t)n < cap - pos) pos += (size_t)n;
+  }
   return pos;
 }
 
@@ -426,6 +444,17 @@ static void seq_decode(EpCore* c, const char* str) {
           if (mn >= 0 && mn <= 127) d->midi_note = mn;
         }
       }
+    } else if (p[0] == 'F' && p[1] == '=') {
+      p += 2;
+      int fv[3] = { 25, 0, 0 };
+      int cnt = 0;
+      while (cnt < 3 && *p && *p != '|') {
+        fv[cnt++] = (int)strtol(p, (char**)&p, 10);
+        if (*p == ',') p++;
+      }
+      if (cnt >= 1) c->retrig_ms = fv[0] < 0 ? 0 : (fv[0] > 80 ? 80 : fv[0]);
+      if (cnt >= 2) c->min_vel   = fv[1] < 0 ? 0 : (fv[1] > 40 ? 40 : fv[1]);
+      if (cnt >= 3) c->xtalk     = fv[2] < 0 ? 0 : (fv[2] > 60 ? 60 : fv[2]);
     }
     while (*p && *p != '|') p++;
   }
@@ -490,6 +519,18 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
       break;
     case CMD_SET_QUANT:
       ep_seq_set_quantize(&P->core, val);
+      P->shm_dirty = 1;
+      break;
+    case CMD_SET_RETRIG:
+      P->core.retrig_ms = val > 80 ? 80 : (val < 0 ? 0 : val);
+      P->shm_dirty = 1;
+      break;
+    case CMD_SET_MINVEL:
+      P->core.min_vel = val > 40 ? 40 : (val < 0 ? 0 : val);
+      P->shm_dirty = 1;
+      break;
+    case CMD_SET_XTALK:
+      P->core.xtalk = val > 60 ? 60 : (val < 0 ? 0 : val);
       P->shm_dirty = 1;
       break;
     default:
@@ -670,6 +711,8 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double sr, const char* bu
   EkaPads* P = (EkaPads*)calloc(1, sizeof(EkaPads));
   if (!P) return NULL;
   P->sr = sr;
+  P->sample_clock = (uint64_t)(sr > 1000.0 ? sr * 10.0 : 480000.0);
+  P->last_any_hit_pad = -1;
   P->follow = 1;
   P->report_next = -1;
   P->shm_fd = -1;
@@ -894,9 +937,32 @@ static void run(LV2_Handle h, uint32_t nframes) {
             ep_core_trigger(&P->core, P->sel_pad, vel);
           } else {
             int matched = 0;
+            uint64_t ev_sample = P->sample_clock + (uint64_t)t;
+            uint64_t retrig_samples = (uint64_t)((double)P->core.retrig_ms * 0.001 * P->sr);
+            uint64_t xtalk_samples  = (uint64_t)(0.015 * P->sr);
             for (int p = 0; p < EP_PADS; p++) {
               if (P->core.pad[p].midi_note == note) {
                 matched = 1;
+                if (P->core.min_vel > 0 && (int)vel < P->core.min_vel) {
+                  continue;
+                }
+                if (retrig_samples > 0 &&
+                    (ev_sample - P->last_pad_hit_sample[p]) < retrig_samples) {
+                  continue;
+                }
+                if (P->core.xtalk > 0 &&
+                    P->last_any_hit_pad >= 0 && P->last_any_hit_pad != p &&
+                    (ev_sample - P->last_any_hit_sample) < xtalk_samples) {
+                  int thresh = (P->last_any_hit_vel * P->core.xtalk + 50) / 100;
+                  if ((int)vel < thresh) continue;
+                }
+                P->last_pad_hit_sample[p] = ev_sample;
+                if ((int)vel >= P->last_any_hit_vel ||
+                    (ev_sample - P->last_any_hit_sample) >= xtalk_samples) {
+                  P->last_any_hit_sample = ev_sample;
+                  P->last_any_hit_pad = p;
+                  P->last_any_hit_vel = vel;
+                }
                 P->last_hit_pad = p;
                 P->hit_seq++;
                 if (P->follow) P->sel_pad = p;
@@ -936,6 +1002,7 @@ static void run(LV2_Handle h, uint32_t nframes) {
   if (pos < nframes) {
     ep_core_process(&P->core, P->out_l + pos, P->out_r + pos, nframes - pos, P->sel_pad);
   }
+  P->sample_clock += (uint64_t)nframes;
 
   if (P->out_sel_pad)   *P->out_sel_pad   = (float)P->sel_pad;
   if (P->out_seq_step)  *P->out_seq_step  = (float)P->core.seq.cur_step;
