@@ -48,7 +48,7 @@ typedef struct {
   float pan;              /* -100..+100 % */
   float vel_sens;         /* 0..100 % */
   int choke;              /* 0 = off, 1..4 = choke group */
-  float width;            /* 0..200 % (0=mono, 100=normal, 200=wide) */
+  float width;            /* -100..+100 % (-100=mono, 0=normal, +100=wide) */
   int mute;               /* 0 or 1 */
   int solo;               /* 0 or 1 */
   int midi_note;          /* 0..127 (default 36 + pad) */
@@ -91,10 +91,12 @@ typedef struct {
   /* Bitcrush / sample-rate hold state */
   float hold_l, hold_r;
   float hold_phase;
-  /* Per-voice stereo widener micro-delay (mono-compatible side decorrelator) */
-  float wid_buf[512];
+  /* Per-voice stereo widener (dual-tap Haas + 2-stage allpass + sub-bass LP) */
+  float wid_buf[1024];
   int   wid_pos;
-  float wid_hp_z;
+  float wid_lp_l, wid_lp_r;
+  float wid_ap1_x, wid_ap1_y;
+  float wid_ap2_x, wid_ap2_y;
   uint64_t age;
 } EpVoice;
 

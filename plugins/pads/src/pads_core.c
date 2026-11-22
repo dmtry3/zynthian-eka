@@ -33,7 +33,7 @@ void ep_pad_defaults(EpPadParams* p, int pad_index) {
   p->pan = 0.0f;
   p->vel_sens = 75.0f;
   p->choke = 0;
-  p->width = 100.0f;
+  p->width = 0.0f;
   p->mute = 0;
   p->solo = 0;
   p->midi_note = 36 + (pad_index & 15);
@@ -598,14 +598,19 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
     float hold_inc = crush_amt > 0.0f ? 1.0f / (1.0f + crush_amt * 15.0f) : 1.0f;
     float q_steps = crush_amt > 0.0f ? (64.0f - crush_amt * 56.0f) : 0.0f;
 
-    float pw = clampf(p->width * 0.01f, 0.0f, 2.0f);
-    int wid_active = fabsf(pw - 1.0f) > 0.005f;
-    float wid_extra = pw > 1.0f ? (pw - 1.0f) : 0.0f;
-    int wid_delay = (int)(c->sr * 0.0075); /* ~7.5 ms decorrelation tap */
-    if (wid_delay < 32) wid_delay = 32;
-    if (wid_delay > 500) wid_delay = 500;
-    /* 1-pole HP at ~250 Hz so sub-bass stays dead-center in mono */
-    float wid_hp_a = (float)exp(-2.0 * M_PI * 250.0 / c->sr);
+    float pw = clampf(p->width * 0.01f, -1.0f, 1.0f);
+    int wid_active = fabsf(pw) > 0.005f;
+    int wid_tap1 = (int)(c->sr * 0.0065); /* 6.5 ms */
+    int wid_tap2 = (int)(c->sr * 0.0135); /* 13.5 ms */
+    if (wid_tap1 < 32) wid_tap1 = 32;
+    if (wid_tap1 > 480) wid_tap1 = 480;
+    if (wid_tap2 < 64) wid_tap2 = 64;
+    if (wid_tap2 > 1000) wid_tap2 = 1000;
+    /* 1-pole LP at ~140 Hz to keep sub-bass centered & punchy */
+    float wid_lp_a = (float)exp(-2.0 * M_PI * 140.0 / c->sr);
+    /* 2-stage 1st-order all-pass poles (~500 Hz & ~2200 Hz) for instant attack spread */
+    float ap1_g = 0.87f;
+    float ap2_g = 0.52f;
 
     float peak_voice = 0.0f;
 
@@ -657,20 +662,42 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
       }
 
       if (wid_active) {
-        float mid = 0.5f * (l + r);
-        float side = 0.5f * (l - r) * pw;
-        if (wid_extra > 0.005f) {
+        if (pw < 0.0f) {
+          /* -100..0%: clean M/S narrowing down to pure mono at -100% */
+          float mid = 0.5f * (l + r);
+          float side = 0.5f * (l - r) * (1.0f + pw);
+          l = mid + side;
+          r = mid - side;
+        } else {
+          /* 0..+100%: sub-safe all-pass + dual-tap opposite-polarity Haas stereoizer */
+          v->wid_lp_l = wid_lp_a * v->wid_lp_l + (1.0f - wid_lp_a) * l;
+          v->wid_lp_r = wid_lp_a * v->wid_lp_r + (1.0f - wid_lp_a) * r;
+          float hi_l = l - v->wid_lp_l;
+          float hi_r = r - v->wid_lp_r;
+          float hi_mid = 0.5f * (hi_l + hi_r);
+          float hi_side = 0.5f * (hi_l - hi_r) * (1.0f + 1.5f * pw);
+
+          /* Instantaneous phase decorrelation via 2-stage all-pass */
+          float ap1 = -ap1_g * hi_mid + v->wid_ap1_x + ap1_g * v->wid_ap1_y;
+          v->wid_ap1_x = hi_mid;
+          v->wid_ap1_y = ap1;
+          float ap2 = -ap2_g * ap1 + v->wid_ap2_x + ap2_g * v->wid_ap2_y;
+          v->wid_ap2_x = ap1;
+          v->wid_ap2_y = ap2;
+
+          /* Dual staggered micro-delay taps (6.5 ms & 13.5 ms) into Side */
           int wp = v->wid_pos;
-          int rp = (wp - wid_delay) & 511;
-          float d = v->wid_buf[rp];
-          v->wid_buf[wp] = mid;
-          v->wid_pos = (wp + 1) & 511;
-          v->wid_hp_z = wid_hp_a * v->wid_hp_z + (1.0f - wid_hp_a) * d;
-          float hp_d = d - v->wid_hp_z;
-          side += hp_d * (wid_extra * 0.65f);
+          float d1 = v->wid_buf[(wp - wid_tap1) & 1023];
+          float d2 = v->wid_buf[(wp - wid_tap2) & 1023];
+          v->wid_buf[wp] = hi_mid;
+          v->wid_pos = (wp + 1) & 1023;
+
+          float synth_side = (0.55f * ap2 + 0.70f * d1 - 0.50f * d2) * pw;
+          float total_side = hi_side + synth_side;
+          float mid_att = 1.0f - 0.25f * pw;
+          l = v->wid_lp_l + hi_mid * mid_att + total_side;
+          r = v->wid_lp_r + hi_mid * mid_att - total_side;
         }
-        l = mid + side;
-        r = mid - side;
       }
 
       float amp = v->env * v->fade;

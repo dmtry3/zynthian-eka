@@ -863,7 +863,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         # Parameter summary readout + compact Aux 1 / Aux 2 / Width sliders for selected pad
         iy0 = wy1 + 3
         if pinfo:
-            line1 = "P%d  Pt %+.0f  Dec %d%%  Flt %+d  Lvl %d%%  Wid %d%%" % (
+            line1 = "P%d  Pt %+.0f  Dec %d%%  Flt %+d  Lvl %d%%  Wid %+d%%" % (
                 self.sel_pad + 1, pinfo[0], int(round(pinfo[1])), int(round(pinfo[2])),
                 int(round(pinfo[3])), int(round(pinfo[12]))
             )
@@ -873,27 +873,35 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         ay1 = ay0 + aux_h
         aux1_v = pinfo[16] if (pinfo and len(pinfo) > 16) else self._zval("pad_aux1", 0.0)
         aux2_v = pinfo[17] if (pinfo and len(pinfo) > 17) else self._zval("pad_aux2", 0.0)
-        wid_v  = pinfo[12] if pinfo else self._zval("pad_width", 100.0)
+        wid_v  = pinfo[12] if pinfo else self._zval("pad_width", 0.0)
         aw3 = (rw - 6) / 3.0
         t1 = self.aux_targets[0][1][:5] if self.aux_targets[0] else "Aux1"
         t2 = self.aux_targets[1][1][:5] if self.aux_targets[1] else "Aux2"
-        for ai, (sym, val, vmax, lbl, col_hi, col_fill, active) in enumerate((
-            ("pad_aux1",  aux1_v, 100.0, "%s %d%%" % (t1, int(round(aux1_v))), "#66d9e8", "#1c3d47", aux1_v > 0.5),
-            ("pad_aux2",  aux2_v, 100.0, "%s %d%%" % (t2, int(round(aux2_v))), "#da77f2", "#3b1f47", aux2_v > 0.5),
-            ("pad_width", wid_v,  200.0, "Wid %d%%" % int(round(wid_v)),       "#74c0fc", "#1e3a52", abs(wid_v - 100.0) > 2.0),
+        for ai, (sym, val, vmin, vmax, lbl, col_hi, col_fill, active) in enumerate((
+            ("pad_aux1",  aux1_v, 0.0,    100.0, "%s %d%%" % (t1, int(round(aux1_v))), "#66d9e8", "#1c3d47", aux1_v > 0.5),
+            ("pad_aux2",  aux2_v, 0.0,    100.0, "%s %d%%" % (t2, int(round(aux2_v))), "#da77f2", "#3b1f47", aux2_v > 0.5),
+            ("pad_width", wid_v,  -100.0, 100.0, "Wid %+d%%" % int(round(wid_v)),      "#74c0fc", "#1e3a52", abs(wid_v) > 2.0),
         )):
             ax0 = rx0 + ai * (aw3 + 3)
             ax1 = ax0 + aw3
             c.create_rectangle(ax0, ay0, ax1, ay1, fill="#1a1c24",
                                outline=col_hi if active else "#383844", width=1)
-            if val > 0.5:
+            if vmin < 0.0:
+                mid_x = (ax0 + ax1) * 0.5
+                c.create_line(mid_x, ay0 + 2, mid_x, ay1 - 2, fill="#404558", width=1)
+                if abs(val) > 1.0:
+                    fx = mid_x + (max(vmin, min(val, vmax)) / vmax) * (max(1.0, ax1 - ax0 - 2) * 0.5)
+                    x_a, x_b = (mid_x, fx) if fx >= mid_x else (fx, mid_x)
+                    c.create_rectangle(x_a, ay0 + 1, x_b, ay1 - 1, fill=col_fill, outline="")
+                    c.create_rectangle(x_a, ay0 + 1, x_b, ay0 + 3, fill=col_hi, width=0)
+            elif val > 0.5:
                 fx = ax0 + 1 + (min(val, vmax) / vmax) * max(1.0, (ax1 - ax0 - 2))
                 c.create_rectangle(ax0 + 1, ay0 + 1, fx, ay1 - 1, fill=col_fill, outline="")
                 c.create_rectangle(ax0 + 1, ay0 + 1, fx, ay0 + 3, fill=col_hi, width=0)
             c.create_text((ax0 + ax1) / 2, (ay0 + ay1) / 2,
                           text=lbl,
                           fill=col_hi if active else "#9090a4", font=(fam, max(7, fsmall - 1), "bold"))
-            self.hit_boxes.append((ax0, ay0, ax1, ay1, "aux_slider", (sym, vmax, ax0, ax1)))
+            self.hit_boxes.append((ax0, ay0, ax1, ay1, "aux_slider", (sym, vmin, vmax, ax0, ax1)))
 
         # Quick 5-Scene Launch Bar at bottom right (large A..E buttons)
         sy0 = h - pad_m - max(sc_h, fs * 2 + 12)
@@ -1351,9 +1359,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 return
 
             if action == "aux_slider":
-                sym, vmax, ax0, ax1 = arg
+                sym, vmin, vmax, ax0, ax1 = arg
                 self.drag_info = ("aux_slider", arg, y, 0)
-                self._apply_aux_slider(sym, vmax, ax0, ax1, x)
+                self._apply_aux_slider(sym, vmin, vmax, ax0, ax1, x)
                 self.refresh_gui()
                 return
 
@@ -1362,11 +1370,12 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.refresh_gui()
                 return
 
-    def _apply_aux_slider(self, sym, vmax, ax0, ax1, x):
+    def _apply_aux_slider(self, sym, vmin, vmax, ax0, ax1, x):
         t = max(0.0, min(1.0, (x - ax0) / max(1.0, ax1 - ax0)))
-        step = 10.0 if vmax > 100.0 else 5.0
-        val = float(round((t * vmax) / step) * step)
-        val = max(0.0, min(vmax, val))
+        step = 10.0 if (vmax - vmin) > 100.0 else 5.0
+        raw = vmin + t * (vmax - vmin)
+        val = float(round(raw / step) * step)
+        val = max(vmin, min(vmax, val))
         self._zset(sym, val)
 
     def _apply_flt_slider(self, cmd_op, vmax, step, sx0, sx1, x):
@@ -1414,8 +1423,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self.refresh_gui()
             return
         if kind == "aux_slider":
-            sym, vmax, ax0, ax1 = arg
-            self._apply_aux_slider(sym, vmax, ax0, ax1, event.x)
+            sym, vmin, vmax, ax0, ax1 = arg
+            self._apply_aux_slider(sym, vmin, vmax, ax0, ax1, event.x)
             self.refresh_gui()
             return
         if kind == "steps_slider":
