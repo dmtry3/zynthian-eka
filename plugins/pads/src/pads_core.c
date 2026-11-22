@@ -17,6 +17,54 @@ static inline float fast_tanh(float x) {
   return x * (27.0f + x2) / (27.0f + 9.0f * x2);
 }
 
+static inline float rng_bipolar(uint32_t* st) {
+  uint32_t x = *st ? *st : 0x12345678u;
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+  *st = x;
+  return ((float)(x & 0xFFFFu) / 32767.5f) - 1.0f;
+}
+
+static inline float lfo_eval(int wave, double ph, float sh) {
+  switch (wave) {
+    case EP_LFO_TRI:  return 1.0f - 4.0f * fabsf((float)ph - 0.5f);
+    case EP_LFO_SAW:  return 2.0f * (float)ph - 1.0f;
+    case EP_LFO_SQR:  return ph < 0.5 ? 1.0f : -1.0f;
+    case EP_LFO_SH:   return sh;
+    case EP_LFO_SINE:
+    default:          return sinf((float)(ph * 2.0 * M_PI));
+  }
+}
+
+static inline float pad_mod_sum(const EpCore* c, const EpVoice* v, int pad, int dst) {
+  const EpPadParams* p = &c->pad[pad];
+  float sum = 0.0f;
+  for (int s = 0; s < EP_MOD_SLOTS; s++) {
+    int src = p->mod_src[s];
+    if (src == EP_MSRC_OFF || p->mod_dst[s] != dst) continue;
+    float amt = p->mod_amt[s];
+    if (fabsf(amt) < 0.01f) continue;
+    float sv = 0.0f;
+    switch (src) {
+      case EP_MSRC_VEL:
+        if ((dst == EP_MDST_DECAY || dst == EP_MDST_FILTER) && amt > 0.0f) {
+          sv = -(1.0f - v->hit_vel);
+        } else {
+          sv = v->hit_vel;
+        }
+        break;
+      case EP_MSRC_RAND: sv = v->hit_rand; break;
+      case EP_MSRC_LFO1: sv = c->lfo_val[pad][0]; break;
+      case EP_MSRC_LFO2: sv = c->lfo_val[pad][1]; break;
+      case EP_MSRC_ENV:  sv = v->env_fol; break;
+      default: break;
+    }
+    sum += sv * amt;
+  }
+  return sum;
+}
+
 /* ---------- Pad Defaults & Core Init ---------- */
 
 void ep_pad_defaults(EpPadParams* p, int pad_index) {
@@ -38,6 +86,10 @@ void ep_pad_defaults(EpPadParams* p, int pad_index) {
   p->solo = 0;
   p->midi_note = 36 + (pad_index & 15);
   for (int a = 0; a < EP_AUX_BUSES; a++) p->aux[a] = 0.0f;
+  p->lfo_wave[0] = EP_LFO_SINE;
+  p->lfo_rate[0] = 1.5f;
+  p->lfo_wave[1] = EP_LFO_TRI;
+  p->lfo_rate[1] = 4.0f;
 }
 
 static void init_scene_ranges(EpScene* sc) {
@@ -55,6 +107,7 @@ void ep_core_init(EpCore* c, double sr) {
   c->retrig_ms = 25;
   c->min_vel = 0;
   c->xtalk = 0;
+  c->rng_state = 0x12345678u;
   c->sel_playhead = -1.0f;
   for (int i = 0; i < EP_PADS; i++) {
     ep_pad_defaults(&c->pad[i], i);
@@ -179,7 +232,13 @@ void ep_core_trigger(EpCore* c, int pad, int vel) {
   EpVoice* v = &c->voices[slot];
   memset(v, 0, sizeof *v);
 
-  float st_frac = clampf(p->start * 0.01f, 0.0f, 0.95f);
+  float vel_norm = clampf((float)vel / 127.0f, 0.0f, 1.0f);
+  v->hit_vel = vel_norm;
+  v->hit_rand = rng_bipolar(&c->rng_state);
+  v->env_fol = vel_norm;
+
+  float eff_start = clampf(p->start + pad_mod_sum(c, v, pad, EP_MDST_START) * 0.5f, 0.0f, 95.0f);
+  float st_frac = clampf(eff_start * 0.01f, 0.0f, 0.95f);
   float en_frac = clampf(p->end * 0.01f, st_frac + 0.01f, 1.0f);
   if (en_frac > 1.0f) en_frac = 1.0f;
 
@@ -194,14 +253,14 @@ void ep_core_trigger(EpCore* c, int pad, int vel) {
   v->gate_mode = (p->mode == EP_MODE_GATE || p->mode == EP_MODE_REV_GATE);
   v->pos = v->reverse ? v->end_frame : v->start_frame;
 
-  float vel_norm = clampf((float)vel / 127.0f, 0.0f, 1.0f);
   float vs = clampf(p->vel_sens * 0.01f, 0.0f, 1.0f);
   v->vel_gain = (1.0f - vs) + vs * (vel_norm * vel_norm);
 
   v->env = 1.0f;
-  v->full_sample = (p->decay >= 99.5f);
+  float eff_decay = clampf(p->decay + pad_mod_sum(c, v, pad, EP_MDST_DECAY), 0.0f, 100.0f);
+  v->full_sample = (eff_decay >= 99.5f);
   if (!v->full_sample) {
-    double dec_sec = 0.010 * pow(1000.0, (double)clampf(p->decay, 0.0f, 100.0f) / 100.0);
+    double dec_sec = 0.010 * pow(1000.0, (double)eff_decay / 100.0);
     v->decay_coef = (float)exp(-6.90775527898 / (dec_sec * c->sr));
   } else {
     v->decay_coef = 1.0f;
@@ -563,9 +622,20 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
 
   const int solo_active = any_solo(c);
   const float act_decay = (float)exp(-(double)nframes / (0.14 * c->sr));
+  const float env_atk = 1.0f - (float)exp(-1.0 / (0.002 * c->sr));
+  const float env_rel = 1.0f - (float)exp(-1.0 / (0.055 * c->sr));
   for (int i = 0; i < EP_PADS; i++) {
     c->activity[i] *= act_decay;
     if (c->activity[i] < 0.002f) c->activity[i] = 0.0f;
+    for (int k = 0; k < EP_LFOS; k++) {
+      float rate = clampf(c->pad[i].lfo_rate[k], 0.05f, 20.0f);
+      c->lfo_phase[i][k] += ((double)rate * (double)nframes) / c->sr;
+      if (c->lfo_phase[i][k] >= 1.0) {
+        c->lfo_phase[i][k] -= floor(c->lfo_phase[i][k]);
+        c->lfo_sh[i][k] = rng_bipolar(&c->rng_state);
+      }
+      c->lfo_val[i][k] = lfo_eval(c->pad[i].lfo_wave[k], c->lfo_phase[i][k], c->lfo_sh[i][k]);
+    }
   }
 
   float sel_ph = -1.0f;
@@ -584,21 +654,27 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
     }
 
     int audible = solo_active ? p->solo : !p->mute;
-    float pad_gain = audible ? (clampf(p->level * 0.01f, 0.0f, 1.5f) * v->vel_gain) : 0.0f;
+    float eff_level = clampf(p->level + pad_mod_sum(c, v, pad, EP_MDST_LEVEL), 0.0f, 150.0f);
+    float pad_gain = audible ? (clampf(eff_level * 0.01f, 0.0f, 1.5f) * v->vel_gain) : 0.0f;
     float aux_amt[EP_AUX_BUSES];
     for (int a = 0; a < EP_AUX_BUSES; a++) {
-      aux_amt[a] = (audible && al[a] && ar[a]) ? clampf(p->aux[a] * 0.01f, 0.0f, 1.0f) : 0.0f;
+      float ea = p->aux[a];
+      if (a == 0) ea += pad_mod_sum(c, v, pad, EP_MDST_AUX1);
+      else if (a == 1) ea += pad_mod_sum(c, v, pad, EP_MDST_AUX2);
+      aux_amt[a] = (audible && al[a] && ar[a]) ? clampf(ea * 0.01f, 0.0f, 1.0f) : 0.0f;
     }
 
-    float pan_norm = clampf(p->pan * 0.01f, -1.0f, 1.0f);
+    float eff_pan = clampf(p->pan + pad_mod_sum(c, v, pad, EP_MDST_PAN), -100.0f, 100.0f);
+    float pan_norm = eff_pan * 0.01f;
     float angle = (pan_norm + 1.0f) * (float)(0.25 * M_PI);
     float gain_l = pad_gain * cosf(angle) * 1.41421356f;
     float gain_r = pad_gain * sinf(angle) * 1.41421356f;
 
-    double base_step = ((double)s->rate / c->sr) * pow(2.0, (double)clampf(p->pitch, -24.0f, 24.0f) / 12.0);
+    float eff_pitch = clampf(p->pitch + pad_mod_sum(c, v, pad, EP_MDST_PITCH) * 0.12f, -36.0f, 36.0f);
+    double base_step = ((double)s->rate / c->sr) * pow(2.0, (double)eff_pitch / 12.0);
     float punch_st = clampf(p->punch, -100.0f, 100.0f) * 0.24f;
 
-    float filt = clampf(p->filter, -100.0f, 100.0f);
+    float filt = clampf(p->filter + pad_mod_sum(c, v, pad, EP_MDST_FILTER), -100.0f, 100.0f);
     int filt_mode = 0;
     float g = 0.0f, k = 1.15f, a1 = 0.0f, a2 = 0.0f, a3 = 0.0f;
     if (filt < -1.0f) {
@@ -621,13 +697,13 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
       a3 = g * a2;
     }
 
-    float drive = clampf(p->drive, 0.0f, 100.0f);
+    float drive = clampf(p->drive + pad_mod_sum(c, v, pad, EP_MDST_DRIVE), 0.0f, 100.0f);
     float sat_gain = 1.0f + (drive < 50.0f ? drive : 50.0f) * 0.10f;
     float crush_amt = drive > 50.0f ? (drive - 50.0f) * 0.02f : 0.0f;
     float hold_inc = crush_amt > 0.0f ? 1.0f / (1.0f + crush_amt * 15.0f) : 1.0f;
     float q_steps = crush_amt > 0.0f ? (64.0f - crush_amt * 56.0f) : 0.0f;
 
-    float pw = clampf(p->width * 0.01f, -1.0f, 1.0f);
+    float pw = clampf((p->width + pad_mod_sum(c, v, pad, EP_MDST_WIDTH)) * 0.01f, -1.0f, 1.0f);
     int wid_active = fabsf(pw) > 0.005f;
     int wid_tap1 = (int)(c->sr * 0.0065); /* 6.5 ms */
     int wid_tap2 = (int)(c->sr * 0.0135); /* 13.5 ms */
@@ -658,6 +734,8 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
 
       float l = 0.0f, r = 0.0f;
       sample_read_hq(s, v->pos, step, &l, &r);
+      float env_in = 0.5f * (fabsf(l) + fabsf(r)) * v->env;
+      v->env_fol += (env_in > v->env_fol ? env_atk : env_rel) * (env_in - v->env_fol);
 
       if (drive > 0.5f) {
         l = fast_tanh(l * sat_gain);

@@ -34,8 +34,8 @@ EP_SCENE_SIZE = EP_PADS * EP_STEPS * 2 + EP_PADS * 2   # 1056 bytes
 EP_SHM_MAGIC = 0x45504144
 EP_SHM_HDR_FMT = "<IIIiiiiiiiffiIiiii"
 EP_SHM_HDR_SIZE = struct.calcsize(EP_SHM_HDR_FMT)      # 72 bytes
-EP_PAD_FMT = "<ffffffiffffifiiiffff"
-EP_PAD_SIZE = struct.calcsize(EP_PAD_FMT)              # 80 bytes
+EP_PAD_FMT = "<ffffffiffffifiiiffffiiffiiiiiiiiffff"
+EP_PAD_SIZE = struct.calcsize(EP_PAD_FMT)              # 144 bytes
 EP_SHM_SIZE = EP_SHM_HDR_SIZE + EP_PADS * EP_PAD_SIZE + EP_SCENES * EP_SCENE_SIZE
 
 # Packed seq_cmd operations matching eka_pads.c
@@ -51,11 +51,19 @@ CMD_SET_QUANT = 9
 CMD_SET_RETRIG = 10
 CMD_SET_MINVEL = 11
 CMD_SET_XTALK = 12
+CMD_SET_LFO = 13
+CMD_SET_MOD_SD = 14
+CMD_SET_MOD_AMT = 15
+
+MOD_SRCS = ("Off", "Vel", "Rand", "LFO1", "LFO2", "Env")
+MOD_DSTS = ("None", "Pitch", "Decay", "Filter", "Level", "Start", "Drive", "Pan", "Width", "Aux1", "Aux2")
+LFO_WAVES = ("Sine", "Tri", "Saw", "Sqr", "S&H")
+
 LEN_PRESETS = (4, 8, 12, 16, 24, 32)
 QUANT_NAMES = ("Off", "1/16", "1/8", "1/4")
 
-TABS = ["Pads", "Seq", "Kit"]
-TAB_GROUPS = ["g_sound", "g_seq", "g_mix"]
+TABS = ["Pads", "Seq", "Mod", "Kit"]
+TAB_GROUPS = ["g_sound", "g_seq", "g_mod", "g_mix"]
 SCENE_NAMES = ["A", "B", "C", "D", "E", "F", "G", "H"]
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
@@ -324,10 +332,14 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             ("pad_vel",    p[10]),
             ("pad_choke",  p[11]),
             ("pad_width",  p[12]),
-            ("pad_aux1",   p[16] if len(p) > 16 else 0.0),
-            ("pad_aux2",   p[17] if len(p) > 17 else 0.0),
-            ("pad_aux3",   p[18] if len(p) > 18 else 0.0),
-            ("pad_aux4",   p[19] if len(p) > 19 else 0.0),
+            ("pad_aux1",      p[16] if len(p) > 16 else 0.0),
+            ("pad_aux2",      p[17] if len(p) > 17 else 0.0),
+            ("pad_aux3",      p[18] if len(p) > 18 else 0.0),
+            ("pad_aux4",      p[19] if len(p) > 19 else 0.0),
+            ("pad_lfo1_rate", p[22] if len(p) > 22 else 1.5),
+            ("pad_lfo2_rate", p[23] if len(p) > 23 else 4.0),
+            ("pad_mod1_amt",  p[32] if len(p) > 32 else 0.0),
+            ("pad_mod2_amt",  p[33] if len(p) > 33 else 0.0),
         )
         for sym, val in mapping:
             self._zset(sym, val)
@@ -842,7 +854,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.last_group = group
         if group == "g_seq" and self.tab != 1:
             self.tab = 1
-        elif group in ("g_sound", "g_shape", "g_mix") and self.tab == 1:
+        elif group == "g_mod" and self.tab != 2:
+            self.tab = 2
+        elif group in ("g_sound", "g_shape", "g_mix") and self.tab in (1, 2):
             self.tab = 0
 
     # ---------- Drawing ----------
@@ -899,6 +913,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self._draw_pads_tab(c, w, h, top_h, fam, fs)
         elif self.tab == 1:
             self._draw_seq_tab(c, w, h, top_h, fam, fs)
+        elif self.tab == 2:
+            self._draw_mod_tab(c, w, h, top_h, fam, fs)
         else:
             self._draw_kit_tab(c, w, h, top_h, fam, fs)
 
@@ -917,8 +933,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
     def _draw_topbar(self, c, w, top_h, fam, fs):
         c.create_rectangle(0, 0, w, top_h, fill=COL_BG, outline="")
         x = 4
-        bw = max(84, int(w * 0.16))
-        tab_fs = fs + 2
+        bw = max(62, int(w * 0.135))
+        tab_fs = fs + 1
         for i, name in enumerate(TABS):
             sel = (i == self.tab)
             c.create_rectangle(x, 2, x + bw, top_h - 3,
@@ -1299,6 +1315,110 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                           fill=fg, font=(fam, max(6, fsmall - 1), "bold" if (is_sel or mute or solo) else "normal"))
             self.hit_boxes.append((px0, py0, px1, py0 + strip_h, "seq_sel_pad", p))
 
+    def _draw_mod_tab(self, c, w, h, top_h, fam, fs):
+        pad_m = 4
+        y = top_h + pad_m
+        fsmall = max(7, fs - 2)
+        p = self.sel_pad
+        pinfo = self.pads_data[p] if (self.pads_data and len(self.pads_data[p]) >= 36) else None
+
+        # Row 1: LFO 1 & LFO 2 controls (Wave button + Log Rate slider)
+        r1_h = max(26, fs * 2 + 6)
+        half = (w - 3 * pad_m) / 2.0
+        lfo_cols = (("#66d9e8", "#1c3d47"), ("#da77f2", "#3b1f47"))
+        for li in range(2):
+            lx0 = pad_m + li * (half + pad_m)
+            lx1 = lx0 + half
+            wave_i = int(pinfo[20 + li]) if pinfo else (0 if li == 0 else 1)
+            rate_v = float(pinfo[22 + li]) if pinfo else (1.5 if li == 0 else 4.0)
+            col_hi, col_fill = lfo_cols[li]
+            wb_w = max(54.0, half * 0.40)
+            self._add_btn(c, lx0, y, lx0 + wb_w - 3, y + r1_h,
+                          "L%d:%s" % (li + 1, LFO_WAVES[wave_i % len(LFO_WAVES)]),
+                          col_fill, col_hi, fam, fsmall, "lfo_wave", (li, p, (wave_i + 1) % len(LFO_WAVES)),
+                          outline=col_hi)
+            rx0, rx1 = lx0 + wb_w, lx1
+            c.create_rectangle(rx0, y, rx1, y + r1_h, fill="#1a1c24", outline=col_hi, width=1)
+            t = max(0.0, min(1.0, math.log(max(0.05, rate_v) / 0.05) / math.log(400.0)))
+            fx = rx0 + 1 + t * max(1.0, rx1 - rx0 - 2)
+            c.create_rectangle(rx0 + 1, y + 1, fx, y + r1_h - 1, fill=col_fill, outline="")
+            c.create_rectangle(rx0 + 1, y + 1, fx, y + 4, fill=col_hi, width=0)
+            rlbl = "%.2fHz" % rate_v if rate_v < 1.0 else ("%.1fHz" % rate_v)
+            c.create_text((rx0 + rx1) / 2, y + r1_h / 2, text=rlbl,
+                          fill="#f0f6fc", font=(fam, fsmall, "bold"))
+            self.hit_boxes.append((rx0, y, rx1, y + r1_h, "lfo_rate", (li, p, rx0, rx1)))
+        y += r1_h + 6
+
+        # Middle: 4 Modulation Matrix rows (Source | Dest | Bipolar Amount slider)
+        strip_h = max(24, fs * 2 + 4)
+        mat_h = max(84, h - y - strip_h - pad_m - 6)
+        row_h = (mat_h - 9) / 4.0
+        w_avail = w - 2 * pad_m
+        src_w = w_avail * 0.23
+        dst_w = w_avail * 0.25
+        amt_x0 = pad_m + src_w + dst_w + 6
+        amt_x1 = w - pad_m
+
+        for sl in range(4):
+            ry0 = y + sl * (row_h + 3)
+            ry1 = ry0 + row_h
+            src_i = int(pinfo[24 + sl]) if pinfo else 0
+            dst_i = int(pinfo[28 + sl]) if pinfo else 0
+            amt_v = float(pinfo[32 + sl]) if pinfo else 0.0
+            active = (src_i > 0 and dst_i > 0 and abs(amt_v) > 0.5)
+
+            s_col = "#74c0fc" if src_i in (1, 2) else ("#66d9e8" if src_i == 3 else ("#da77f2" if src_i == 4 else ("#ffd43b" if src_i == 5 else "#888896")))
+            self._add_btn(c, pad_m, ry0, pad_m + src_w - 3, ry1,
+                          "%d:%s" % (sl + 1, MOD_SRCS[src_i % len(MOD_SRCS)]),
+                          "#232838" if src_i > 0 else COL_PANEL, s_col, fam, fsmall,
+                          "mod_src", (sl, p, (src_i + 1) % len(MOD_SRCS), dst_i),
+                          outline=s_col if src_i > 0 else "#383844")
+            self._add_btn(c, pad_m + src_w, ry0, pad_m + src_w + dst_w - 3, ry1,
+                          "->%s" % MOD_DSTS[dst_i % len(MOD_DSTS)],
+                          "#232838" if dst_i > 0 else COL_PANEL,
+                          "#e6fcf5" if dst_i > 0 else "#888896", fam, fsmall,
+                          "mod_dst", (sl, p, src_i, (dst_i + 1) % len(MOD_DSTS)),
+                          outline="#63e6be" if dst_i > 0 else "#383844")
+
+            # Bipolar Amount slider (-100..+100%)
+            c.create_rectangle(amt_x0, ry0, amt_x1, ry1, fill="#1a1c24",
+                               outline="#63e6be" if active else "#383844", width=1)
+            mid_x = (amt_x0 + amt_x1) * 0.5
+            c.create_line(mid_x, ry0 + 2, mid_x, ry1 - 2, fill="#404558", width=1)
+            if abs(amt_v) > 0.5:
+                fx = mid_x + (max(-100.0, min(100.0, amt_v)) / 100.0) * (max(1.0, amt_x1 - amt_x0 - 2) * 0.5)
+                x_a, x_b = (mid_x, fx) if fx >= mid_x else (fx, mid_x)
+                fill_c = "#1e453b" if amt_v > 0 else "#4a2530"
+                top_c = "#63e6be" if amt_v > 0 else "#ff8787"
+                c.create_rectangle(x_a, ry0 + 1, x_b, ry1 - 1, fill=fill_c, outline="")
+                c.create_rectangle(x_a, ry0 + 1, x_b, ry0 + 4, fill=top_c, width=0)
+            c.create_text((amt_x0 + amt_x1) / 2, (ry0 + ry1) / 2,
+                          text="%+d%%" % int(round(amt_v)),
+                          fill="#f0f6fc" if active else "#9090a4", font=(fam, fsmall, "bold"))
+            self.hit_boxes.append((amt_x0, ry0, amt_x1, ry1, "mod_amt", (sl, p, amt_x0, amt_x1)))
+
+        # Bottom: 16-Pad selector strip (same as Seq tab)
+        py0 = h - pad_m - strip_h
+        pw = (w - 2 * pad_m) / float(EP_PADS)
+        for pi in range(EP_PADS):
+            px0 = pad_m + pi * pw
+            px1 = px0 + pw - 2
+            pi_info = self.pads_data[pi] if (self.pads_data and len(self.pads_data[pi]) >= 36) else None
+            has_mod = bool(pi_info and any(pi_info[24 + s] > 0 and pi_info[28 + s] > 0 and abs(pi_info[32 + s]) > 0.5 for s in range(4)))
+            mute = pi_info[13] if pi_info else 0
+            solo = pi_info[14] if pi_info else 0
+            is_sel = (pi == self.sel_pad)
+            accent = ROW_COLORS[(pi // 4) & 3]
+            bg = COL_PAD_SEL if is_sel else ("#243b38" if has_mod else COL_PANEL)
+            out_c = "#ffffff" if is_sel else ("#63e6be" if has_mod else "#3a3a44")
+            c.create_rectangle(px0, py0, px1, py0 + strip_h, fill=bg, outline=out_c, width=2 if is_sel else 1)
+            c.create_rectangle(px0 + 1, py0 + 1, px1 - 1, py0 + 4, fill="#555560" if mute else accent, width=0)
+            lbl = "M" if mute else ("S" if solo else str(pi + 1))
+            fg = "#ff8787" if mute else ("#ffd43b" if solo else ("#ffffff" if (is_sel or has_mod) else "#787888"))
+            c.create_text((px0 + px1) / 2, py0 + strip_h / 2 + 2, text=lbl,
+                          fill=fg, font=(fam, max(6, fsmall - 1), "bold" if (is_sel or has_mod) else "normal"))
+            self.hit_boxes.append((px0, py0, px1, py0 + strip_h, "seq_sel_pad", pi))
+
     def _draw_kit_tab(self, c, w, h, top_h, fam, fs):
         pad_m = 8
         y = top_h + pad_m
@@ -1586,6 +1706,67 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.refresh_gui()
                 return
 
+            if action == "lfo_wave":
+                li, p_i, nw = arg
+                self._send_cmd(CMD_SET_LFO, a=li, b=p_i, c=0, val=nw)
+                self.refresh_gui()
+                return
+
+            if action == "lfo_rate":
+                li, p_i, rx0, rx1 = arg
+                self.drag_info = ("lfo_rate", arg, y, 0)
+                self._apply_lfo_rate(li, p_i, rx0, rx1, x)
+                self.refresh_gui()
+                return
+
+            if action == "mod_src":
+                sl, p_i, nsrc, dst_i = arg
+                if nsrc > 0 and dst_i == 0:
+                    dst_i = 2  # default to Decay when turning on a fresh slot!
+                self._send_cmd(CMD_SET_MOD_SD, a=sl, b=p_i, c=nsrc, val=dst_i)
+                self.refresh_gui()
+                return
+
+            if action == "mod_dst":
+                sl, p_i, src_i, ndst = arg
+                if ndst > 0 and src_i == 0:
+                    src_i = 1  # default to Vel when picking a destination on an Off slot!
+                self._send_cmd(CMD_SET_MOD_SD, a=sl, b=p_i, c=src_i, val=ndst)
+                self.refresh_gui()
+                return
+
+            if action == "mod_amt":
+                sl, p_i, ax0, ax1 = arg
+                tap_key = ("mod_amt", sl, p_i)
+                if self.last_tap[0] == tap_key and (now - self.last_tap[1]) < 0.35:
+                    self._send_cmd(CMD_SET_MOD_AMT, a=sl, b=p_i, val=100)
+                    if sl in (0, 1):
+                        self._zset("pad_mod%d_amt" % (sl + 1), 0.0)
+                    self.last_tap = (None, 0.0)
+                    self.refresh_gui()
+                    return
+                self.last_tap = (tap_key, now)
+                self.drag_info = ("mod_amt", [sl, p_i, ax0, ax1, -999], y, 0)
+                self._apply_mod_amt(sl, p_i, ax0, ax1, x)
+                self.refresh_gui()
+                return
+
+    def _apply_lfo_rate(self, li, p_i, rx0, rx1, x):
+        t = max(0.0, min(1.0, (x - rx0) / max(1.0, rx1 - rx0)))
+        v200 = int(round(t * 200.0))
+        hz = 0.05 * (400.0 ** (v200 / 200.0))
+        self._send_cmd(CMD_SET_LFO, a=li, b=p_i, c=1, val=v200)
+        self._zset("pad_lfo%d_rate" % (li + 1), round(hz, 3))
+
+    def _apply_mod_amt(self, sl, p_i, ax0, ax1, x):
+        t = max(0.0, min(1.0, (x - ax0) / max(1.0, ax1 - ax0)))
+        amt = int(round((t * 200.0 - 100.0) / 5.0)) * 5
+        amt = max(-100, min(100, amt))
+        self._send_cmd(CMD_SET_MOD_AMT, a=sl, b=p_i, val=amt + 100)
+        if sl in (0, 1):
+            self._zset("pad_mod%d_amt" % (sl + 1), float(amt))
+        return amt
+
     def _apply_aux_slider(self, sym, vmin, vmax, ax0, ax1, x):
         t = max(0.0, min(1.0, (x - ax0) / max(1.0, ax1 - ax0)))
         step = 10.0 if (vmax - vmin) > 100.0 else 5.0
@@ -1645,6 +1826,20 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             sym, vmin, vmax, ax0, ax1 = arg
             self._apply_aux_slider(sym, vmin, vmax, ax0, ax1, event.x)
             self.refresh_gui()
+            return
+        if kind == "lfo_rate":
+            li, p_i, rx0, rx1 = arg
+            self._apply_lfo_rate(li, p_i, rx0, rx1, event.x)
+            self.refresh_gui()
+            return
+        if kind == "mod_amt":
+            sl, p_i, ax0, ax1, last_a = arg
+            t = max(0.0, min(1.0, (event.x - ax0) / max(1.0, ax1 - ax0)))
+            amt = max(-100, min(100, int(round((t * 200.0 - 100.0) / 5.0)) * 5))
+            if amt != last_a:
+                arg[4] = amt
+                self._apply_mod_amt(sl, p_i, ax0, ax1, event.x)
+                self.refresh_gui()
             return
         if kind == "steps_slider":
             sc, p, which, sl_x0, sl_x1, x0, start_st, last_st = arg

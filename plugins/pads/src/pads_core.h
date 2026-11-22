@@ -8,6 +8,8 @@
 #define EP_VOICES     16
 #define EP_CHOKE_MAX  4
 #define EP_AUX_BUSES  4
+#define EP_MOD_SLOTS  4
+#define EP_LFOS       2
 #define EP_FADE_MS    2.0f
 #define EP_SCENES     8
 #define EP_STEPS      32
@@ -28,6 +30,41 @@ enum {
   EP_MODE_REV_ONESHOT,
   EP_MODE_REV_GATE,
   EP_NMODES
+};
+
+/* Modulation matrix sources, destinations, and LFO waves */
+enum {
+  EP_MSRC_OFF = 0,
+  EP_MSRC_VEL,
+  EP_MSRC_RAND,
+  EP_MSRC_LFO1,
+  EP_MSRC_LFO2,
+  EP_MSRC_ENV,
+  EP_MSRC_COUNT
+};
+
+enum {
+  EP_MDST_NONE = 0,
+  EP_MDST_PITCH,
+  EP_MDST_DECAY,
+  EP_MDST_FILTER,
+  EP_MDST_LEVEL,
+  EP_MDST_START,
+  EP_MDST_DRIVE,
+  EP_MDST_PAN,
+  EP_MDST_WIDTH,
+  EP_MDST_AUX1,
+  EP_MDST_AUX2,
+  EP_MDST_COUNT
+};
+
+enum {
+  EP_LFO_SINE = 0,
+  EP_LFO_TRI,
+  EP_LFO_SAW,
+  EP_LFO_SQR,
+  EP_LFO_SH,
+  EP_LFO_NWAVES
 };
 
 typedef struct {
@@ -54,6 +91,11 @@ typedef struct {
   int solo;               /* 0 or 1 */
   int midi_note;          /* 0..127 (default 36 + pad) */
   float aux[EP_AUX_BUSES];/* 0..100 % (Aux Send 1..4 stereo outs) */
+  int   lfo_wave[EP_LFOS];      /* EP_LFO_* */
+  float lfo_rate[EP_LFOS];      /* 0.05..20.0 Hz */
+  int   mod_src[EP_MOD_SLOTS];  /* EP_MSRC_* */
+  int   mod_dst[EP_MOD_SLOTS];  /* EP_MDST_* */
+  float mod_amt[EP_MOD_SLOTS];  /* -100..+100 % */
 } EpPadParams;
 
 typedef struct {
@@ -97,6 +139,10 @@ typedef struct {
   float wid_lp_l, wid_lp_r;
   float wid_ap1_x, wid_ap1_y;
   float wid_ap2_x, wid_ap2_y;
+  /* Per-voice modulation states */
+  float hit_vel;          /* 0..1 trigger velocity */
+  float hit_rand;         /* -1..+1 random value per trigger */
+  float env_fol;          /* 0..1 envelope follower */
   uint64_t age;
 } EpVoice;
 
@@ -140,6 +186,10 @@ typedef struct {
   int   retrig_ms;        /* 0..80 ms same-pad double-trigger mask (default 25) */
   int   min_vel;          /* 0..40 minimum MIDI velocity threshold (default 0) */
   int   xtalk;            /* 0..60 % adjacent-pad crosstalk suppression (default 0) */
+  uint32_t rng_state;
+  double lfo_phase[EP_PADS][EP_LFOS];
+  float  lfo_sh[EP_PADS][EP_LFOS];
+  float  lfo_val[EP_PADS][EP_LFOS];
   float activity[EP_PADS];/* 0..1 visual meter per pad */
   float sel_playhead;     /* -1 or 0..1 playhead of selected pad */
 } EpCore;

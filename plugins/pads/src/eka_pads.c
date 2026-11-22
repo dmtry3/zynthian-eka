@@ -28,9 +28,9 @@
 #define EP_MAX_SECONDS 120.0
 #define EP_RETIRED_MAX 32
 #define EP_SHM_MAGIC   0x45504144u /* "EPAD" */
-#define EP_SHM_VER     8u
+#define EP_SHM_VER     9u
 
-/* Control input ports MUST come first (contiguous 0..22) so Zynthian's synthetic
+/* Control input ports MUST come first (contiguous 0..26) so Zynthian's synthetic
  * patch:writable parameter indices never collide with Input ControlPorts! */
 enum {
   P_PITCH = 0, P_DECAY, P_FILTER, P_LEVEL,        /* Page 1: Pad Sound */
@@ -45,24 +45,28 @@ enum {
   P_STEREO_WIDTH,                                 /* index 20: Stereo Width 0..200% */
   P_PAD_STEPS,                                    /* index 21: End / Steps 1..32 for selected pad */
   P_PAD_BEG,                                      /* index 22: Begin step 1..32 for selected pad */
-  P_MIDI_IN,                                      /* index 23 */
-  P_OUT_L,                                        /* index 24 */
-  P_OUT_R,                                        /* index 25 */
-  P_AUX1_L,                                       /* index 26 */
-  P_AUX1_R,                                       /* index 27 */
-  P_AUX2_L,                                       /* index 28 */
-  P_AUX2_R,                                       /* index 29 */
-  P_AUX3_L,                                       /* index 30 */
-  P_AUX3_R,                                       /* index 31 */
-  P_AUX4_L,                                       /* index 32 */
-  P_AUX4_R,                                       /* index 33 */
-  P_NOTIFY,                                       /* index 34 */
-  P_OUT_SEL_PAD,                                  /* index 35 */
-  P_OUT_SEQ_STEP,                                 /* index 36 */
-  P_OUT_SEQ_SCENE,                                /* index 37 */
-  P_OUT_SEQ_PEND,                                 /* index 38 */
-  P_OUT_LVL0,                                     /* index 39..54 (16 ports) */
-  P_OUT_PLAYHEAD = P_OUT_LVL0 + EP_PADS           /* index 55 */
+  P_PAD_LFO1_RATE,                                /* index 23: Selected pad LFO 1 Rate 0.05..20 Hz */
+  P_PAD_LFO2_RATE,                                /* index 24: Selected pad LFO 2 Rate 0.05..20 Hz */
+  P_PAD_MOD1_AMT,                                 /* index 25: Selected pad Mod 1 Amount -100..+100% */
+  P_PAD_MOD2_AMT,                                 /* index 26: Selected pad Mod 2 Amount -100..+100% */
+  P_MIDI_IN,                                      /* index 27 */
+  P_OUT_L,                                        /* index 28 */
+  P_OUT_R,                                        /* index 29 */
+  P_AUX1_L,                                       /* index 30 */
+  P_AUX1_R,                                       /* index 31 */
+  P_AUX2_L,                                       /* index 32 */
+  P_AUX2_R,                                       /* index 33 */
+  P_AUX3_L,                                       /* index 34 */
+  P_AUX3_R,                                       /* index 35 */
+  P_AUX4_L,                                       /* index 36 */
+  P_AUX4_R,                                       /* index 37 */
+  P_NOTIFY,                                       /* index 38 */
+  P_OUT_SEL_PAD,                                  /* index 39 */
+  P_OUT_SEQ_STEP,                                 /* index 40 */
+  P_OUT_SEQ_SCENE,                                /* index 41 */
+  P_OUT_SEQ_PEND,                                 /* index 42 */
+  P_OUT_LVL0,                                     /* index 43..58 (16 ports) */
+  P_OUT_PLAYHEAD = P_OUT_LVL0 + EP_PADS           /* index 59 */
 };
 
 #define N_CTL     P_END
@@ -81,7 +85,10 @@ enum {
   CMD_SET_QUANT,      /* val=quantize(0..100%) */
   CMD_SET_RETRIG,     /* val=retrig_ms(0..80) */
   CMD_SET_MINVEL,     /* val=min_vel(0..40) */
-  CMD_SET_XTALK       /* val=xtalk(0..60%) */
+  CMD_SET_XTALK,      /* val=xtalk(0..60%) */
+  CMD_SET_LFO,        /* a=lfo(0..1), b=pad(0..15), c=0(wave)|1(rate_log 0..200), val */
+  CMD_SET_MOD_SD,     /* a=slot(0..3), b=pad(0..15), c=src(0..5), val=dst(0..10) */
+  CMD_SET_MOD_AMT     /* a=slot(0..3), b=pad(0..15), val=amt+100 (0..200) */
 };
 
 /* Shared memory snapshot read by the Zynthian Python widget */
@@ -107,9 +114,9 @@ typedef struct {
   EpPadParams pads[EP_PADS];
   EpScene  scenes[EP_SCENES];
 } EpShm;
-_Static_assert(sizeof(EpPadParams) == 80, "EpPadParams size must match Python widget");
+_Static_assert(sizeof(EpPadParams) == 144, "EpPadParams size must match Python widget");
 _Static_assert(sizeof(EpScene) == 1056, "EpScene size must match Python widget");
-_Static_assert(sizeof(EpShm) == 9800, "EpShm size must match Python widget");
+_Static_assert(sizeof(EpShm) == 10824, "EpShm size must match Python widget");
 
 /* Worker messages */
 enum { MSG_LOAD = 1, MSG_FREE };
@@ -135,9 +142,13 @@ typedef struct {
   const float* in_pad_steps;
   const float* in_pad_beg;
   const float* in_pad_aux[EP_AUX_BUSES];
+  const float* in_pad_lfo_rate[EP_LFOS];
+  const float* in_pad_mod_amt[2];
   float prev_pad_steps;
   float prev_pad_beg;
   float prev_pad_aux[EP_AUX_BUSES];
+  float prev_pad_lfo_rate[EP_LFOS];
+  float prev_pad_mod_amt[2];
   int have_prev_steps;
 
   LV2_URID_Map* map;
@@ -393,6 +404,25 @@ static size_t seq_encode(const EpCore* c, char* buf, size_t cap) {
     n = snprintf(buf + pos, cap - pos, "|F=%d,%d,%d", c->retrig_ms, c->min_vel, c->xtalk);
     if (n > 0 && (size_t)n < cap - pos) pos += (size_t)n;
   }
+  for (int p = 0; p < EP_PADS; p++) {
+    EpPadParams def;
+    ep_pad_defaults(&def, p);
+    const EpPadParams* cur = &c->pad[p];
+    int mdiff = (cur->lfo_wave[0] != def.lfo_wave[0] || fabsf(cur->lfo_rate[0] - def.lfo_rate[0]) > 0.02f ||
+                 cur->lfo_wave[1] != def.lfo_wave[1] || fabsf(cur->lfo_rate[1] - def.lfo_rate[1]) > 0.02f);
+    for (int s = 0; s < EP_MOD_SLOTS && !mdiff; s++) {
+      if (cur->mod_src[s] != 0 || cur->mod_dst[s] != 0 || fabsf(cur->mod_amt[s]) > 0.2f) mdiff = 1;
+    }
+    if (!mdiff) continue;
+    n = snprintf(buf + pos, cap - pos,
+                 "|M%x=%d,%.2f,%d,%.2f,%d,%d,%.0f,%d,%d,%.0f,%d,%d,%.0f,%d,%d,%.0f",
+                 p & 0xF, cur->lfo_wave[0], cur->lfo_rate[0], cur->lfo_wave[1], cur->lfo_rate[1],
+                 cur->mod_src[0], cur->mod_dst[0], cur->mod_amt[0],
+                 cur->mod_src[1], cur->mod_dst[1], cur->mod_amt[1],
+                 cur->mod_src[2], cur->mod_dst[2], cur->mod_amt[2],
+                 cur->mod_src[3], cur->mod_dst[3], cur->mod_amt[3]);
+    if (n > 0 && (size_t)n < cap - pos) pos += (size_t)n;
+  }
   return pos;
 }
 
@@ -480,6 +510,32 @@ static void seq_decode(EpCore* c, const char* str) {
       if (cnt >= 1) c->retrig_ms = fv[0] < 0 ? 0 : (fv[0] > 80 ? 80 : fv[0]);
       if (cnt >= 2) c->min_vel   = fv[1] < 0 ? 0 : (fv[1] > 40 ? 40 : fv[1]);
       if (cnt >= 3) c->xtalk     = fv[2] < 0 ? 0 : (fv[2] > 60 ? 60 : fv[2]);
+    } else if (p[0] == 'M' && p[1] && p[2] == '=') {
+      int pad = hex_nibble(p[1]);
+      p += 3;
+      if (pad >= 0 && pad < EP_PADS) {
+        EpPadParams* d = &c->pad[pad];
+        float mv[16];
+        int cnt = 0;
+        while (cnt < 16 && *p && *p != '|') {
+          mv[cnt++] = strtof(p, (char**)&p);
+          if (*p == ',') p++;
+        }
+        if (cnt >= 16) {
+          d->lfo_wave[0] = (int)lrintf(mv[0]) % EP_LFO_NWAVES;
+          d->lfo_rate[0] = mv[1] < 0.05f ? 0.05f : (mv[1] > 20.0f ? 20.0f : mv[1]);
+          d->lfo_wave[1] = (int)lrintf(mv[2]) % EP_LFO_NWAVES;
+          d->lfo_rate[1] = mv[3] < 0.05f ? 0.05f : (mv[3] > 20.0f ? 20.0f : mv[3]);
+          for (int s = 0; s < EP_MOD_SLOTS; s++) {
+            int src = (int)lrintf(mv[4 + s * 3]);
+            int dst = (int)lrintf(mv[5 + s * 3]);
+            float amt = mv[6 + s * 3];
+            d->mod_src[s] = (src >= 0 && src < EP_MSRC_COUNT) ? src : 0;
+            d->mod_dst[s] = (dst >= 0 && dst < EP_MDST_COUNT) ? dst : 0;
+            d->mod_amt[s] = amt < -100.0f ? -100.0f : (amt > 100.0f ? 100.0f : amt);
+          }
+        }
+      }
     }
     while (*p && *p != '|') p++;
   }
@@ -557,6 +613,32 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
     case CMD_SET_XTALK:
       P->core.xtalk = val > 60 ? 60 : (val < 0 ? 0 : val);
       P->shm_dirty = 1;
+      break;
+    case CMD_SET_LFO:
+      if (a < EP_LFOS && b < EP_PADS) {
+        if (c == 0) {
+          P->core.pad[b].lfo_wave[a] = val % EP_LFO_NWAVES;
+        } else {
+          /* Logarithmic mapping val 0..200 -> 0.05..20.0 Hz */
+          double t = (double)(val > 200 ? 200 : val) / 200.0;
+          P->core.pad[b].lfo_rate[a] = (float)(0.05 * pow(400.0, t));
+        }
+        P->shm_dirty = 1;
+      }
+      break;
+    case CMD_SET_MOD_SD:
+      if (a < EP_MOD_SLOTS && b < EP_PADS) {
+        P->core.pad[b].mod_src[a] = (c < EP_MSRC_COUNT) ? c : 0;
+        P->core.pad[b].mod_dst[a] = (val < EP_MDST_COUNT) ? val : 0;
+        P->shm_dirty = 1;
+      }
+      break;
+    case CMD_SET_MOD_AMT:
+      if (a < EP_MOD_SLOTS && b < EP_PADS) {
+        int v = val > 200 ? 200 : val;
+        P->core.pad[b].mod_amt[a] = (float)(v - 100);
+        P->shm_dirty = 1;
+      }
       break;
     default:
       break;
@@ -837,6 +919,10 @@ static void connect_port(LV2_Handle h, uint32_t port, void* data) {
     case P_PAD_AUX2:      P->in_pad_aux[1] = (const float*)data; break;
     case P_PAD_AUX3:      P->in_pad_aux[2] = (const float*)data; break;
     case P_PAD_AUX4:      P->in_pad_aux[3] = (const float*)data; break;
+    case P_PAD_LFO1_RATE: P->in_pad_lfo_rate[0] = (const float*)data; break;
+    case P_PAD_LFO2_RATE: P->in_pad_lfo_rate[1] = (const float*)data; break;
+    case P_PAD_MOD1_AMT:  P->in_pad_mod_amt[0] = (const float*)data; break;
+    case P_PAD_MOD2_AMT:  P->in_pad_mod_amt[1] = (const float*)data; break;
     default:
       if (port >= P_OUT_LVL0 && port < P_OUT_LVL0 + EP_PADS)
         P->out_lvl[port - P_OUT_LVL0] = (float*)data;
@@ -899,10 +985,42 @@ static void run(LV2_Handle h, uint32_t nframes) {
     for (int a = 0; a < EP_AUX_BUSES; a++) {
       if (P->in_pad_aux[a]) P->prev_pad_aux[a] = *P->in_pad_aux[a];
     }
+    for (int k = 0; k < EP_LFOS; k++) {
+      if (P->in_pad_lfo_rate[k]) P->prev_pad_lfo_rate[k] = *P->in_pad_lfo_rate[k];
+    }
+    for (int k = 0; k < 2; k++) {
+      if (P->in_pad_mod_amt[k]) P->prev_pad_mod_amt[k] = *P->in_pad_mod_amt[k];
+    }
     P->have_prev_steps = 1;
   } else {
     int sc = P->core.seq.scene;
     int pd = P->sel_pad;
+    for (int k = 0; k < EP_LFOS; k++) {
+      if (P->in_pad_lfo_rate[k]) {
+        float v = *P->in_pad_lfo_rate[k];
+        if (fabsf(v - P->prev_pad_lfo_rate[k]) > 1e-3f) {
+          P->prev_pad_lfo_rate[k] = v;
+          if (v < 0.05f) v = 0.05f;
+          if (v > 20.0f) v = 20.0f;
+          P->core.pad[pd].lfo_rate[k] = v;
+          P->shm_dirty = 1;
+          P->seq_notify_dirty = 1;
+        }
+      }
+    }
+    for (int k = 0; k < 2; k++) {
+      if (P->in_pad_mod_amt[k]) {
+        float v = *P->in_pad_mod_amt[k];
+        if (fabsf(v - P->prev_pad_mod_amt[k]) > 1e-3f) {
+          P->prev_pad_mod_amt[k] = v;
+          if (v < -100.0f) v = -100.0f;
+          if (v > 100.0f) v = 100.0f;
+          P->core.pad[pd].mod_amt[k] = v;
+          P->shm_dirty = 1;
+          P->seq_notify_dirty = 1;
+        }
+      }
+    }
     for (int a = 0; a < EP_AUX_BUSES; a++) {
       if (P->in_pad_aux[a]) {
         float v = *P->in_pad_aux[a];
@@ -1201,8 +1319,8 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
   const void* blob = retrieve(handle, P->st_pad_params, &sz, &type, &fl);
   if (blob && sz == sizeof P->core.pad) {
     memcpy(P->core.pad, blob, sz);
-  } else if (blob && (sz == EP_PADS * 64 || sz == EP_PADS * 72)) {
-    /* Legacy 64-byte or 72-byte EpPadParams snapshot migration */
+  } else if (blob && (sz == EP_PADS * 64 || sz == EP_PADS * 72 || sz == EP_PADS * 80)) {
+    /* Legacy 64/72/80-byte EpPadParams snapshot migration */
     size_t stride = sz / EP_PADS;
     const uint8_t* src = (const uint8_t*)blob;
     for (int i = 0; i < EP_PADS; i++) {
