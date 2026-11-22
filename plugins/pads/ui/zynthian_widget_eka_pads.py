@@ -28,8 +28,8 @@ EP_SCENE_SIZE = EP_PADS * EP_STEPS * 2 + EP_PADS * 2   # 1056 bytes
 EP_SHM_MAGIC = 0x45504144
 EP_SHM_HDR_FMT = "<IIIiiiiiiiffiIiiii"
 EP_SHM_HDR_SIZE = struct.calcsize(EP_SHM_HDR_FMT)      # 72 bytes
-EP_PAD_FMT = "<ffffffiffffifiiifff"
-EP_PAD_SIZE = struct.calcsize(EP_PAD_FMT)              # 76 bytes
+EP_PAD_FMT = "<ffffffiffffifiiiff"
+EP_PAD_SIZE = struct.calcsize(EP_PAD_FMT)              # 72 bytes
 EP_SHM_SIZE = EP_SHM_HDR_SIZE + EP_PADS * EP_PAD_SIZE + EP_SCENES * EP_SCENE_SIZE
 
 # Packed seq_cmd operations matching eka_pads.c
@@ -311,10 +311,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             ("pad_pan",    p[9]),
             ("pad_vel",    p[10]),
             ("pad_choke",  p[11]),
-            ("pad_send",   p[12]),
+            ("pad_width",  p[12]),
             ("pad_aux1",   p[16] if len(p) > 16 else 0.0),
             ("pad_aux2",   p[17] if len(p) > 17 else 0.0),
-            ("pad_width",  p[18] if len(p) > 18 else 100.0),
         )
         for sym, val in mapping:
             self._zset(sym, val)
@@ -861,10 +860,10 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             c.create_text((rx0 + rx1) / 2, (wy0 + wy1) / 2, text="Tap to Load WAV", fill=COL_DIM, font=(fam, fs))
             self.hit_boxes.append((rx0, wy0, rx1, wy1, "load", self.sel_pad))
 
-        # Parameter summary readout + compact Aux 1 / Aux 2 send sliders for selected pad
+        # Parameter summary readout + compact Aux 1 / Aux 2 / Width sliders for selected pad
         iy0 = wy1 + 3
         if pinfo:
-            line1 = "P%d  Pt %+.0f  Dec %d%%  Flt %+d  Lvl %d%%  Spc %d%%" % (
+            line1 = "P%d  Pt %+.0f  Dec %d%%  Flt %+d  Lvl %d%%  Wid %d%%" % (
                 self.sel_pad + 1, pinfo[0], int(round(pinfo[1])), int(round(pinfo[2])),
                 int(round(pinfo[3])), int(round(pinfo[12]))
             )
@@ -874,7 +873,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         ay1 = ay0 + aux_h
         aux1_v = pinfo[16] if (pinfo and len(pinfo) > 16) else self._zval("pad_aux1", 0.0)
         aux2_v = pinfo[17] if (pinfo and len(pinfo) > 17) else self._zval("pad_aux2", 0.0)
-        wid_v  = pinfo[18] if (pinfo and len(pinfo) > 18) else self._zval("pad_width", 100.0)
+        wid_v  = pinfo[12] if pinfo else self._zval("pad_width", 100.0)
         aw3 = (rw - 6) / 3.0
         t1 = self.aux_targets[0][1][:5] if self.aux_targets[0] else "Aux1"
         t2 = self.aux_targets[1][1][:5] if self.aux_targets[1] else "Aux2"

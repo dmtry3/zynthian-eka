@@ -48,13 +48,12 @@ typedef struct {
   float pan;              /* -100..+100 % */
   float vel_sens;         /* 0..100 % */
   int choke;              /* 0 = off, 1..4 = choke group */
-  float send;             /* 0..100 % (Space room reverb send) */
+  float width;            /* 0..200 % (0=mono, 100=normal, 200=wide) */
   int mute;               /* 0 or 1 */
   int solo;               /* 0 or 1 */
   int midi_note;          /* 0..127 (default 36 + pad) */
   float aux1;             /* 0..100 % (Aux Send 1 stereo out) */
   float aux2;             /* 0..100 % (Aux Send 2 stereo out) */
-  float width;            /* 0..200 % (0=mono, 100=normal, 200=wide) */
 } EpPadParams;
 
 typedef struct {
@@ -99,23 +98,6 @@ typedef struct {
   uint64_t age;
 } EpVoice;
 
-/* Lightweight static-buffer stereo Room Reverb (4 combs + 2 allpasses per channel) */
-#define EP_REV_COMBS   4
-#define EP_REV_APS     2
-#define EP_REV_MAXBUF  4096
-
-typedef struct {
-  float comb_buf[2][EP_REV_COMBS][EP_REV_MAXBUF];
-  int comb_len[2][EP_REV_COMBS];
-  int comb_pos[2][EP_REV_COMBS];
-  float comb_lp[2][EP_REV_COMBS];
-  float ap_buf[2][EP_REV_APS][1024];
-  int ap_len[2][EP_REV_APS];
-  int ap_pos[2][EP_REV_APS];
-  float energy;
-  int tail_samples;
-} EpReverb;
-
 typedef struct {
   int mode;               /* EP_SEQ_STOP / PLAY / REC */
   int scene;              /* 0..7 currently playing scene */
@@ -151,7 +133,6 @@ typedef struct {
   uint64_t voice_seq;
   EpScene scenes[EP_SCENES];
   EpSeq seq;
-  EpReverb rev;
   float master_vol;       /* 0..100 % */
   float stereo_width;     /* 0..200 % (0=mono, 100=normal, 200=wide) */
   int   retrig_ms;        /* 0..80 ms same-pad double-trigger mask (default 25) */

@@ -17,85 +17,6 @@ static inline float fast_tanh(float x) {
   return x * (27.0f + x2) / (27.0f + 9.0f * x2);
 }
 
-/* ---------- Lightweight Room Reverb (Space) ---------- */
-
-static void reverb_init(EpReverb* rv, double sr) {
-  memset(rv, 0, sizeof *rv);
-  /* Prime-like room delay lengths scaled from 48 kHz */
-  static const int base_comb[EP_REV_COMBS] = { 1217, 1429, 1613, 1811 };
-  static const int base_ap[EP_REV_APS] = { 241, 563 };
-  double scale = sr / 48000.0;
-  for (int ch = 0; ch < 2; ch++) {
-    int spread = ch ? 23 : 0;
-    for (int i = 0; i < EP_REV_COMBS; i++) {
-      int len = (int)((base_comb[i] + spread) * scale);
-      if (len < 64) len = 64;
-      if (len >= EP_REV_MAXBUF) len = EP_REV_MAXBUF - 1;
-      rv->comb_len[ch][i] = len;
-    }
-    for (int i = 0; i < EP_REV_APS; i++) {
-      int len = (int)((base_ap[i] + spread) * scale);
-      if (len < 32) len = 32;
-      if (len >= 1024) len = 1023;
-      rv->ap_len[ch][i] = len;
-    }
-  }
-}
-
-static void reverb_process(EpReverb* rv, double sr, const float* in_l, const float* in_r,
-                           float* out_l, float* out_r, uint32_t nframes) {
-  float in_e = 0.0f;
-  for (uint32_t i = 0; i < nframes; i++) {
-    in_e += fabsf(in_l[i]) + fabsf(in_r[i]);
-  }
-  if (in_e > 1e-7f) {
-    rv->tail_samples = (int)(sr * 2.0);
-  } else if (rv->tail_samples <= 0 && rv->energy < 1e-6f) {
-    rv->energy = 0.0f;
-    return;
-  } else if (rv->tail_samples > 0) {
-    rv->tail_samples -= (int)nframes;
-    if (rv->tail_samples < 0) rv->tail_samples = 0;
-  }
-
-  const float fb = 0.78f;
-  const float damp = 0.35f;
-  const float wet = 0.32f;
-  float out_e = 0.0f;
-
-  for (uint32_t i = 0; i < nframes; i++) {
-    float x[2] = { in_l[i] * 0.25f, in_r[i] * 0.25f };
-    float y[2] = { 0.0f, 0.0f };
-
-    for (int ch = 0; ch < 2; ch++) {
-      float sum = 0.0f;
-      for (int c = 0; c < EP_REV_COMBS; c++) {
-        int p = rv->comb_pos[ch][c];
-        float d = rv->comb_buf[ch][c][p];
-        rv->comb_lp[ch][c] = d * (1.0f - damp) + rv->comb_lp[ch][c] * damp;
-        rv->comb_buf[ch][c][p] = x[ch] + rv->comb_lp[ch][c] * fb;
-        if (++p >= rv->comb_len[ch][c]) p = 0;
-        rv->comb_pos[ch][c] = p;
-        sum += d;
-      }
-      for (int a = 0; a < EP_REV_APS; a++) {
-        int p = rv->ap_pos[ch][a];
-        float d = rv->ap_buf[ch][a][p];
-        float v = sum + d * 0.5f;
-        rv->ap_buf[ch][a][p] = v;
-        if (++p >= rv->ap_len[ch][a]) p = 0;
-        rv->ap_pos[ch][a] = p;
-        sum = d - v * 0.5f;
-      }
-      y[ch] = sum * wet;
-      out_e += fabsf(y[ch]);
-    }
-    out_l[i] += y[0];
-    out_r[i] += y[1];
-  }
-  rv->energy = out_e / (float)(nframes > 0 ? nframes : 1);
-}
-
 /* ---------- Pad Defaults & Core Init ---------- */
 
 void ep_pad_defaults(EpPadParams* p, int pad_index) {
@@ -112,13 +33,12 @@ void ep_pad_defaults(EpPadParams* p, int pad_index) {
   p->pan = 0.0f;
   p->vel_sens = 75.0f;
   p->choke = 0;
-  p->send = 15.0f;
+  p->width = 100.0f;
   p->mute = 0;
   p->solo = 0;
   p->midi_note = 36 + (pad_index & 15);
   p->aux1 = 0.0f;
   p->aux2 = 0.0f;
-  p->width = 100.0f;
 }
 
 static void init_scene_ranges(EpScene* sc) {
@@ -156,7 +76,6 @@ void ep_core_init(EpCore* c, double sr) {
   c->seq.bpm = 120.0;
   c->seq.swing = 50.0f;
   c->seq.last_step_fired = -1;
-  reverb_init(&c->rev, c->sr);
 }
 
 void ep_core_reset(EpCore* c) {
@@ -174,7 +93,6 @@ void ep_core_reset(EpCore* c) {
     c->seq.skip_step[i] = -1;
   }
   memset(c->seq.roll_rem, 0, sizeof c->seq.roll_rem);
-  reverb_init(&c->rev, c->sr);
 }
 
 uint32_t ep_core_set_source(EpCore* c, int pad, const EpSource* src) {
@@ -608,11 +526,9 @@ static inline void sample_read_hq(const EpSource* s, double pos, double step, fl
 static void render_voices(EpCore* c, float* out_l, float* out_r,
                           float* aux1_l, float* aux1_r,
                           float* aux2_l, float* aux2_r,
-                          float* send_l, float* send_r, uint32_t nframes, int sel_pad) {
+                          uint32_t nframes, int sel_pad) {
   memset(out_l, 0, nframes * sizeof(float));
   memset(out_r, 0, nframes * sizeof(float));
-  memset(send_l, 0, nframes * sizeof(float));
-  memset(send_r, 0, nframes * sizeof(float));
   if (aux1_l) memset(aux1_l, 0, nframes * sizeof(float));
   if (aux1_r) memset(aux1_r, 0, nframes * sizeof(float));
   if (aux2_l) memset(aux2_l, 0, nframes * sizeof(float));
@@ -642,7 +558,6 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
 
     int audible = solo_active ? p->solo : !p->mute;
     float pad_gain = audible ? (clampf(p->level * 0.01f, 0.0f, 1.5f) * v->vel_gain) : 0.0f;
-    float send_amt = audible ? clampf(p->send * 0.01f, 0.0f, 1.0f) : 0.0f;
     float aux1_amt = (audible && aux1_l && aux1_r) ? clampf(p->aux1 * 0.01f, 0.0f, 1.0f) : 0.0f;
     float aux2_amt = (audible && aux2_l && aux2_r) ? clampf(p->aux2 * 0.01f, 0.0f, 1.0f) : 0.0f;
 
@@ -763,10 +678,6 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
       float or_ = r * amp * gain_r;
       out_l[i] += ol;
       out_r[i] += or_;
-      if (send_amt > 0.005f) {
-        send_l[i] += ol * send_amt;
-        send_r[i] += or_ * send_amt;
-      }
       if (aux1_amt > 0.005f) {
         aux1_l[i] += ol * aux1_amt;
         aux1_r[i] += or_ * aux1_amt;
@@ -802,7 +713,6 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
   }
 
   c->sel_playhead = sel_ph;
-  reverb_process(&c->rev, c->sr, send_l, send_r, out_l, out_r, nframes);
 
   float mg = clampf(c->master_vol * 0.01f, 0.0f, 1.5f);
   float sw = clampf(c->stereo_width * 0.01f, 0.0f, 2.0f);
@@ -852,7 +762,6 @@ void ep_core_process_aux(EpCore* c, float* out_l, float* out_r,
                          float* aux1_l, float* aux1_r,
                          float* aux2_l, float* aux2_r,
                          uint32_t nframes, int sel_pad) {
-  float send_l[256], send_r[256];
   uint32_t done = 0;
 
   while (done < nframes) {
@@ -928,7 +837,7 @@ void ep_core_process_aux(EpCore* c, float* out_l, float* out_r,
           render_voices(c, out_l + off, out_r + off,
                         aux1_l ? aux1_l + off : NULL, aux1_r ? aux1_r + off : NULL,
                         aux2_l ? aux2_l + off : NULL, aux2_r ? aux2_r + off : NULL,
-                        send_l, send_r, adv, sel_pad);
+                        adv, sel_pad);
           double dstep = (double)adv * steps_per_sample;
           double prev_bar = c->seq.bar_phase;
           c->seq.bar_phase = fmod(prev_bar + dstep, 16.0);
@@ -985,7 +894,7 @@ void ep_core_process_aux(EpCore* c, float* out_l, float* out_r,
       render_voices(c, out_l + done, out_r + done,
                     aux1_l ? aux1_l + done : NULL, aux1_r ? aux1_r + done : NULL,
                     aux2_l ? aux2_l + done : NULL, aux2_r ? aux2_r + done : NULL,
-                    send_l, send_r, chunk, sel_pad);
+                    chunk, sel_pad);
     }
 
     done += chunk;

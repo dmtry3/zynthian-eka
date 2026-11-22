@@ -28,13 +28,13 @@
 #define EP_MAX_SECONDS 120.0
 #define EP_RETIRED_MAX 32
 #define EP_SHM_MAGIC   0x45504144u /* "EPAD" */
-#define EP_SHM_VER     6u
+#define EP_SHM_VER     7u
 
 /* Control input ports MUST come first (0..P_END-1) for Zynthian's controller indexing. */
 enum {
   P_PITCH = 0, P_DECAY, P_FILTER, P_LEVEL,        /* Page 1: Pad Sound */
   P_START, P_MODE, P_PUNCH, P_DRIVE,              /* Page 2: Pad Shape */
-  P_PAN, P_VEL, P_CHOKE, P_SEND,                  /* Page 3: Pad Mix */
+  P_PAN, P_VEL, P_CHOKE, P_WIDTH,                 /* Page 3: Pad Mix */
   P_SEQ_MODE, P_SEQ_SCENE, P_SEQ_SWING, P_MASTER, /* Page 4: Seq & Master */
   P_END,
   P_MIDI_IN = P_END,
@@ -55,8 +55,7 @@ enum {
   P_AUX2_L,                                       /* index 46: Aux Send 2 L */
   P_AUX2_R,                                       /* index 47: Aux Send 2 R */
   P_PAD_AUX1,                                     /* index 48: Selected pad Aux 1 send 0..100% */
-  P_PAD_AUX2,                                     /* index 49: Selected pad Aux 2 send 0..100% */
-  P_PAD_WIDTH                                     /* index 50: Selected pad Stereo Width 0..200% */
+  P_PAD_AUX2                                      /* index 49: Selected pad Aux 2 send 0..100% */
 };
 
 #define N_CTL     P_END
@@ -101,9 +100,9 @@ typedef struct {
   EpPadParams pads[EP_PADS];
   EpScene  scenes[EP_SCENES];
 } EpShm;
-_Static_assert(sizeof(EpPadParams) == 76, "EpPadParams size must match Python widget");
+_Static_assert(sizeof(EpPadParams) == 72, "EpPadParams size must match Python widget");
 _Static_assert(sizeof(EpScene) == 1056, "EpScene size must match Python widget");
-_Static_assert(sizeof(EpShm) == 9736, "EpShm size must match Python widget");
+_Static_assert(sizeof(EpShm) == 9672, "EpShm size must match Python widget");
 
 /* Worker messages */
 enum { MSG_LOAD = 1, MSG_FREE };
@@ -132,12 +131,10 @@ typedef struct {
   const float* in_pad_beg;
   const float* in_pad_aux1;
   const float* in_pad_aux2;
-  const float* in_pad_width;
   float prev_pad_steps;
   float prev_pad_beg;
   float prev_pad_aux1;
   float prev_pad_aux2;
-  float prev_pad_width;
   int have_prev_steps;
 
   LV2_URID_Map* map;
@@ -370,20 +367,19 @@ static size_t seq_encode(const EpCore* c, char* buf, size_t cap) {
                 fabsf(cur->pan - def.pan) > 0.2f ||
                 fabsf(cur->vel_sens - def.vel_sens) > 0.2f ||
                 cur->choke != def.choke ||
-                fabsf(cur->send - def.send) > 0.2f ||
+                fabsf(cur->width - def.width) > 0.2f ||
                 cur->mute != def.mute ||
                 cur->solo != def.solo ||
                 cur->midi_note != def.midi_note ||
                 fabsf(cur->aux1 - def.aux1) > 0.2f ||
-                fabsf(cur->aux2 - def.aux2) > 0.2f ||
-                fabsf(cur->width - def.width) > 0.2f);
+                fabsf(cur->aux2 - def.aux2) > 0.2f);
     if (!diff) continue;
     n = snprintf(buf + pos, cap - pos,
-                 "|P%x=%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%.1f,%.1f,%.1f,%.1f,%d,%.1f,%d,%d,%d,%.1f,%.1f,%.1f",
+                 "|P%x=%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%.1f,%.1f,%.1f,%.1f,%d,%.1f,%d,%d,%d,%.1f,%.1f",
                  p & 0xF, cur->pitch, cur->decay, cur->filter, cur->level,
                  cur->start, cur->end, cur->mode, cur->punch, cur->drive,
-                 cur->pan, cur->vel_sens, cur->choke, cur->send,
-                 cur->mute, cur->solo, cur->midi_note, cur->aux1, cur->aux2, cur->width);
+                 cur->pan, cur->vel_sens, cur->choke, cur->width,
+                 cur->mute, cur->solo, cur->midi_note, cur->aux1, cur->aux2);
     if (n < 0 || (size_t)n >= cap - pos) return pos;
     pos += (size_t)n;
   }
@@ -458,13 +454,12 @@ static void seq_decode(EpCore* c, const char* str) {
           d->pitch = v[0]; d->decay = v[1]; d->filter = v[2]; d->level = v[3];
           d->start = v[4]; d->end = v[5]; d->mode = (int)lrintf(v[6]);
           d->punch = v[7]; d->drive = v[8]; d->pan = v[9]; d->vel_sens = v[10];
-          d->choke = (int)lrintf(v[11]); d->send = v[12];
+          d->choke = (int)lrintf(v[11]); d->width = cnt >= 19 ? v[18] : v[12];
           d->mute = v[13] >= 0.5f ? 1 : 0; d->solo = v[14] >= 0.5f ? 1 : 0;
           int mn = (int)lrintf(v[15]);
           if (mn >= 0 && mn <= 127) d->midi_note = mn;
           d->aux1 = cnt >= 17 ? v[16] : 0.0f;
           d->aux2 = cnt >= 18 ? v[17] : 0.0f;
-          d->width = cnt >= 19 ? v[18] : 100.0f;
         }
       }
     } else if (p[0] == 'F' && p[1] == '=') {
@@ -652,7 +647,7 @@ static void apply_pad_control(EpPadParams* p, int idx, float v) {
     case P_PAN:    p->pan = v; break;
     case P_VEL:    p->vel_sens = v; break;
     case P_CHOKE:  p->choke = (int)lrintf(v); if (p->choke < 0) p->choke = 0; if (p->choke > EP_CHOKE_MAX) p->choke = EP_CHOKE_MAX; break;
-    case P_SEND:   p->send = v; break;
+    case P_WIDTH:  p->width = v; break;
     default: break;
   }
 }
@@ -829,7 +824,6 @@ static void connect_port(LV2_Handle h, uint32_t port, void* data) {
     case P_AUX2_R:        P->aux2_r = (float*)data; break;
     case P_PAD_AUX1:      P->in_pad_aux1 = (const float*)data; break;
     case P_PAD_AUX2:      P->in_pad_aux2 = (const float*)data; break;
-    case P_PAD_WIDTH:     P->in_pad_width = (const float*)data; break;
     default:
       if (port >= P_OUT_LVL0 && port < P_OUT_LVL0 + EP_PADS)
         P->out_lvl[port - P_OUT_LVL0] = (float*)data;
@@ -891,22 +885,10 @@ static void run(LV2_Handle h, uint32_t nframes) {
     if (P->in_pad_beg)   P->prev_pad_beg   = *P->in_pad_beg;
     if (P->in_pad_aux1)  P->prev_pad_aux1  = *P->in_pad_aux1;
     if (P->in_pad_aux2)  P->prev_pad_aux2  = *P->in_pad_aux2;
-    if (P->in_pad_width) P->prev_pad_width = *P->in_pad_width;
     P->have_prev_steps = 1;
   } else {
     int sc = P->core.seq.scene;
     int pd = P->sel_pad;
-    if (P->in_pad_width) {
-      float v = *P->in_pad_width;
-      if (fabsf(v - P->prev_pad_width) > 1e-4f) {
-        P->prev_pad_width = v;
-        if (v < 0.0f) v = 0.0f;
-        if (v > 200.0f) v = 200.0f;
-        P->core.pad[pd].width = v;
-        P->shm_dirty = 1;
-        P->seq_notify_dirty = 1;
-      }
-    }
     if (P->in_pad_aux1) {
       float v = *P->in_pad_aux1;
       if (fabsf(v - P->prev_pad_aux1) > 1e-4f) {
