@@ -105,6 +105,13 @@ def nearest_division(ms, bpm):
     return best_lbl, best_ms
 
 
+def _fmt_sync_ms(ms, bpm):
+    lbl, q_ms = nearest_division(ms, bpm)
+    if abs(ms - q_ms) / max(1.0, q_ms) <= 0.025:
+        return lbl
+    return f"{ms:.0f}ms"
+
+
 class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
     def __init__(self, parent):
         super().__init__(parent)
@@ -121,6 +128,7 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         self.fx_view = False   # False = Tap Map, True = dedicated Live Effects screen
         self.handle_pos = {}
         self.hit_rects = {}
+        self._last_ctrl_titles = {}
         self.drag_mode = None  # ("tap", "L"|"R") | ("tone", "hpf"|"lpf") | ("fx", sym) | ("trails", t0)
 
         self.widget_canvas = tkinter.Canvas(
@@ -163,6 +171,34 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         zctrl = self.processor.controllers_dict.get(sym)
         if zctrl is not None:
             zctrl.set_value(value)
+
+    def _sync_encoder_labels(self, st, bpm):
+        if not self.processor:
+            return
+        if st["sync"]:
+            lbl_l, _ = nearest_division(st["time_l"], bpm)
+            lbl_r, _ = nearest_division(st["time_r"], bpm)
+            want = {"time_l": f"Time L {lbl_l}", "time_r": f"Time R {lbl_r}"}
+        else:
+            want = {"time_l": "Time L", "time_r": "Time R"}
+        if want == self._last_ctrl_titles:
+            return
+        self._last_ctrl_titles = dict(want)
+        zgui_ctrls = getattr(getattr(self, "zyngui_control", None), "zgui_controllers", None) or ()
+        for sym, title in want.items():
+            zctrl = self.processor.controllers_dict.get(sym)
+            if zctrl is None:
+                continue
+            try:
+                zctrl.short_name = title
+            except Exception:
+                pass
+            for zgc in zgui_ctrls:
+                if getattr(zgc, "zctrl", None) is zctrl:
+                    try:
+                        zgc.set_title(title)
+                    except Exception:
+                        pass
 
     def _select_group(self, group_sym, group_name=None):
         try:
@@ -250,6 +286,8 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         byp = st["bypass"]
         in_db, out_db, dk_db, bpm, act_l, act_r = self._pull_telemetry(st)
 
+        self._sync_encoder_labels(st, bpm)
+
         cv.delete("all")
         self.hit_rects.clear()
         self.handle_pos.clear()
@@ -298,10 +336,26 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         # 1. Tap Map panel background & time grid
         cv.create_rectangle(gx0, gy0, gx1, gy1, fill=PANEL_BG, outline=LINE_DIM, width=1)
         cv.create_line(gx0, mid_y, gx1, mid_y, fill=ZERO_COL, width=1.4)
-        for ms_tick, lbl in ((100, "100"), (250, "250"), (500, "500"), (1000, "1s"), (1500, "1.5s"), (2000, "2s")):
-            xx = self._ms_to_x(ms_tick, gx0, gx1)
-            cv.create_line(xx, gy0 + 18, xx, gy1 - 14, fill=GRID_COL, width=1)
-            cv.create_text(xx, gy1 - 3, text=lbl, anchor="s", fill=LABEL_DIM, font=("TkDefaultFont", 8))
+        if st["sync"]:
+            q_ms = 60000.0 / bpm
+            ticks = []
+            last_xx = -1e9
+            for lbl, mult in (("1/16", 0.25), ("1/8", 0.5), ("1/4", 1.0), ("1/2", 2.0), ("1 bar", 4.0)):
+                ms_t = q_ms * mult
+                if MIN_MS <= ms_t <= MAX_MS:
+                    xx = self._ms_to_x(ms_t, gx0, gx1)
+                    if xx - last_xx >= 32.0:
+                        ticks.append((xx, lbl))
+                        last_xx = xx
+            for xx, lbl in ticks:
+                cv.create_line(xx, gy0 + 18, xx, gy1 - 14, fill=GRID_COL, width=1)
+                cv.create_text(xx, gy1 - 3, text=lbl, anchor="s", fill=SYNC_COL if not byp else LABEL_DIM,
+                               font=("TkDefaultFont", 8))
+        else:
+            for ms_tick, lbl in ((100, "100"), (250, "250"), (500, "500"), (1000, "1s"), (1500, "1.5s"), (2000, "2s")):
+                xx = self._ms_to_x(ms_tick, gx0, gx1)
+                cv.create_line(xx, gy0 + 18, xx, gy1 - 14, fill=GRID_COL, width=1)
+                cv.create_text(xx, gy1 - 3, text=lbl, anchor="s", fill=LABEL_DIM, font=("TkDefaultFont", 8))
 
         # Live scrolling wet envelope ribbon (L up, R down)
         step_x = (gx1 - gx0) / float(max(1, TRACE_STEPS - 1))
@@ -363,18 +417,26 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         rx = self._ms_to_x(ms_r, gx0, gx1)
         ry = mid_y + (0.18 + fb_norm * 0.72) * half_h
 
-        for key, hx, hy, col, lbl in (("L", lx, ly, l_col, "L"), ("R", rx, ry, r_col, "R")):
+        for key, hx, hy, col, lbl, t_ms in (
+            ("L", lx, ly, l_col, "L", ms_l),
+            ("R", rx, ry, r_col, "R", ms_r),
+        ):
             cv.create_oval(hx - 12, hy - 12, hx + 12, hy + 12,
                            fill=col, outline=BYP_HI if byp else LABEL_HI, width=1.8)
             cv.create_text(hx, hy, text=lbl, fill="#101318", font=("TkDefaultFont", 9, "bold"))
+            if st["sync"]:
+                tag = _fmt_sync_ms(t_ms, bpm)
+                tx = hx + 16 if hx < (gx1 - 46) else hx - 16
+                anc = "w" if hx < (gx1 - 46) else "e"
+                cv.create_text(tx, hy, text=tag, anchor=anc, fill=col, font=("TkDefaultFont", 8, "bold"))
             self.handle_pos[key] = (hx, hy)
 
         # Header info inside Tap Map
         fx_tag = f" · FX {st['time_fx']:+.0f}%" if fx_active else ""
-        if st["sync"] and not fx_active:
-            lbl_l, _ = nearest_division(ms_l, bpm)
-            lbl_r, _ = nearest_division(ms_r, bpm)
-            hdr_l = f"L {lbl_l} ({ms_l:.0f}ms) · R {lbl_r} ({ms_r:.0f}ms) · FB {st['feedback']:.0f}% · MIX {st['mix']:.0f}%"
+        if st["sync"]:
+            lbl_l = _fmt_sync_ms(ms_l, bpm)
+            lbl_r = _fmt_sync_ms(ms_r, bpm)
+            hdr_l = f"L {lbl_l} · R {lbl_r}{fx_tag} · FB {st['feedback']:.0f}% · MIX {st['mix']:.0f}%"
         else:
             hdr_l = f"L {ms_l:.0f}ms · R {ms_r:.0f}ms{fx_tag} · FB {st['feedback']:.0f}% · MIX {st['mix']:.0f}%"
         cv.create_text(gx0 + 6, gy0 + 4, text=hdr_l, anchor="nw",
@@ -474,7 +536,14 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
     def _draw_fx_screen(self, cv, st, byp, bpm, act_l, act_r, x0, y0, x1, y1, mode_name, mode_col):
         cv.create_rectangle(x0, y0, x1, y1, fill=PANEL_BG, outline=LINE_DIM, width=1)
         link_txt = "LINK L+R" if st["time_link"] else "L ONLY"
-        hdr = f"EFFECTS · Base {st['time_l']:.0f}/{st['time_r']:.0f}ms → Now {act_l:.0f}/{act_r:.0f}ms · {link_txt}"
+        if st["sync"]:
+            bl, _ = nearest_division(st["time_l"], bpm)
+            br, _ = nearest_division(st["time_r"], bpm)
+            nl = _fmt_sync_ms(act_l, bpm)
+            nr = _fmt_sync_ms(act_r, bpm)
+            hdr = f"EFFECTS · {bl}/{br} → {nl}/{nr} · {link_txt}"
+        else:
+            hdr = f"EFFECTS · {st['time_l']:.0f}/{st['time_r']:.0f}ms → {act_l:.0f}/{act_r:.0f}ms · {link_txt}"
         cv.create_text(x0 + 8, y0 + 6, text=hdr, anchor="nw",
                        fill=BYP_HI if byp else LABEL_HI, font=("TkDefaultFont", 8, "bold"))
         badge = "BYPASS" if byp else f"{mode_name} · {bpm:.0f} BPM"
