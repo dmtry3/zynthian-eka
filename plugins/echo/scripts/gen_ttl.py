@@ -13,9 +13,10 @@ GROUPS = [
     ("g_tone",   "Tone",        2, 30),
     ("g_motion", "Motion",      3, 20),
     ("g_perf",   "Perform",     4, 10),
+    ("g_fx",     "Effects",     5, 5),
 ]
 
-# Input control ports matching enum in src/eka_echo.c (indices 5..24)
+# Input control ports matching enum in src/eka_echo.c (indices 5..28)
 CONTROL_PORTS = [
     # Page 1: Time
     dict(idx=5,  sym="time_l",      name="Time L",    grp="g_time",   default=375.0,  min=5.0,   max=2500.0,  unit="units:ms", props=["pprops:logarithmic"]),
@@ -58,18 +59,26 @@ CONTROL_PORTS = [
     dict(idx=24, sym="bypass",      name="Bypass",    grp="g_perf",   default=0,      min=0,     max=1,
          props=["lv2:integer", "lv2:toggled", "lv2:enumeration"],
          points=[("Off", 0), ("On", 1)]),
+
+    # Page 6: Effects (Live)
+    dict(idx=25, sym="time_fx",     name="Time FX",   grp="g_fx",     default=100.0,  min=25.0,   max=400.0,  unit="units:pc", props=["pprops:logarithmic"]),
+    dict(idx=26, sym="time_link",   name="Time Link", grp="g_fx",     default=1,      min=0,      max=1,
+         props=["lv2:integer", "lv2:toggled", "lv2:enumeration"],
+         points=[("Off", 0), ("On", 1)]),
+    dict(idx=27, sym="filter_fx",   name="Filter FX", grp="g_fx",     default=0.0,    min=-100.0, max=100.0,  unit="units:pc"),
+    dict(idx=28, sym="wash_fx",     name="Wash FX",   grp="g_fx",     default=0.0,    min=0.0,    max=100.0,  unit="units:pc"),
 ]
 
-# Output telemetry ports (indices 25..32)
+# Output telemetry ports (indices 29..36)
 OUTPUT_PORTS = [
-    (25, "in_peak",     "Input Peak",   -60.0, 12.0,   "units:db"),
-    (26, "out_peak",    "Output Peak",  -60.0, 12.0,   "units:db"),
-    (27, "wet_l_db",    "Wet L",        -60.0, 12.0,   "units:db"),
-    (28, "wet_r_db",    "Wet R",        -60.0, 12.0,   "units:db"),
-    (29, "duck_db",     "Duck GR",        0.0, 24.0,   "units:db"),
-    (30, "actual_ms_l", "Actual L",       5.0, 2500.0, "units:ms"),
-    (31, "actual_ms_r", "Actual R",       5.0, 2500.0, "units:ms"),
-    (32, "host_bpm",    "Host BPM",      20.0, 400.0,  "units:bpm"),
+    (29, "in_peak",     "Input Peak",   -60.0, 12.0,   "units:db"),
+    (30, "out_peak",    "Output Peak",  -60.0, 12.0,   "units:db"),
+    (31, "wet_l_db",    "Wet L",        -60.0, 12.0,   "units:db"),
+    (32, "wet_r_db",    "Wet R",        -60.0, 12.0,   "units:db"),
+    (33, "duck_db",     "Duck GR",        0.0, 24.0,   "units:db"),
+    (34, "actual_ms_l", "Actual L",       5.0, 2500.0, "units:ms"),
+    (35, "actual_ms_r", "Actual R",       5.0, 2500.0, "units:ms"),
+    (36, "host_bpm",    "Host BPM",      20.0, 400.0,  "units:bpm"),
 ]
 
 DEFAULTS = {p["sym"]: p["default"] for p in CONTROL_PORTS}
@@ -172,7 +181,7 @@ def gen_plugin_ttl():
         '    doap:name "Eka Echo" ;',
         "    doap:license <https://spdx.org/licenses/GPL-3.0-or-later.html> ;",
         "    lv2:minorVersion 0 ;",
-        "    lv2:microVersion 1 ;",
+        "    lv2:microVersion 2 ;",
         "    lv2:optionalFeature lv2:hardRTCapable, urid:map ;",
         "    lv2:port",
         '    [ a lv2:InputPort,  lv2:AudioPort ; lv2:index 0 ; lv2:symbol "in_l"  ; lv2:name "Input Left" ] ,',

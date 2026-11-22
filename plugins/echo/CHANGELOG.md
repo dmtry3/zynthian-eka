@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.1 (2026-11-22)
+
+- Added dedicated live **Effects** page (`Time FX`, `Time Link`, `Filter FX`, `Wash FX`):
+  - `Time FX` (`25..400%`, logarithmic center at `100%`) smoothly modulates both `Time L` & `Time R` proportionally when `Time Link` is `On`, or `Time L` alone when `Off`.
+  - `Filter FX` (`-100..+100%`) provides a live bipolar DJ-style LPF/HPF loop sweep; `Wash FX` (`0..100%`) adds a dub-throw feedback/diffusion/warmth boost.
+  - Added `LINK` toggle button to the touch widget (switches encoders to `Effects` and links/unlinks L/R Tap Map dragging).
+- Musical **Tape** time physics: critically-damped capstan motor inertia with bounded playback speed (`0.42x..2.0x`) for smooth, natural pitch glides without backward-playback glitches or aliasing.
+
 ## 0.1.0 (2026-11-21)
 
 - Initial release of **Eka Echo** (`http://dmtry3.github.io/zynthian-eka/echo`):

@@ -48,6 +48,11 @@ typedef struct {
     float output_db;      /* -18..+12 dB */
     int   bypass;         /* 0/1 */
 
+    float time_fx_pct;    /* 25..400 %, default 100 % */
+    int   time_link;      /* 0=Unlinked (L only), 1=Linked (L & R) */
+    float filter_fx_pct;  /* -100..+100 %, default 0 % */
+    float wash_fx_pct;    /* 0..100 %, default 0 % */
+
     float host_bpm;       /* 20..400 BPM */
 } EchoParams;
 
@@ -94,6 +99,8 @@ typedef struct {
 
     double smooth_ms_l;
     double smooth_ms_r;
+    double vel_ms_l;
+    double vel_ms_r;
     double smooth_fb;
     double smooth_mix;
     double smooth_send;

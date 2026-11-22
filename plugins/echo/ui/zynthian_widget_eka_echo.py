@@ -67,6 +67,7 @@ DUCK_COL    = "#ff922b"
 FREEZE_COL  = "#74c0fc"
 TRAILS_COL  = "#ffd43b"
 SYNC_COL    = "#63e6be"
+LINK_COL    = "#da77f2"
 HOT_RED     = "#ff6b6b"
 BAND_FILL   = "#20364a"
 BAND_LINE   = "#4dabf7"
@@ -196,6 +197,10 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
             "trails":      self._get("trails", 0.0) >= 0.5,
             "output_db":   self._get("output_db", 0.0),
             "bypass":      self._get("bypass", 0.0) >= 0.5,
+            "time_fx":     self._get("time_fx", 100.0),
+            "time_link":   self._get("time_link", 1.0) >= 0.5,
+            "filter_fx":   self._get("filter_fx", 0.0),
+            "wash_fx":     self._get("wash_fx", 0.0),
         }
 
     def _ms_to_x(self, ms, x0, x1):
@@ -288,8 +293,9 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
 
         # Echo tap decay impulses (L above midline, R below midline)
         fb = 0.96 if st["freeze"] else _clamp(st["feedback"] * 0.01, 0.0, 1.05)
-        ms_l = act_l if st["sync"] else st["time_l"]
-        ms_r = act_r if st["sync"] else st["time_r"]
+        fx_active = abs(st["time_fx"] - 100.0) >= 0.5
+        ms_l = act_l if (st["sync"] or fx_active) else st["time_l"]
+        ms_r = act_r if (st["sync"] or (fx_active and st["time_link"])) else st["time_r"]
 
         def _draw_taps(t_ms, up, col, start_t=0.0):
             amp = 0.92
@@ -339,12 +345,13 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
             self.handle_pos[key] = (hx, hy)
 
         # Header info inside Tap Map
-        if st["sync"]:
+        fx_tag = f" · FX {st['time_fx']:.0f}%" if fx_active else ""
+        if st["sync"] and not fx_active:
             lbl_l, _ = nearest_division(ms_l, bpm)
             lbl_r, _ = nearest_division(ms_r, bpm)
             hdr_l = f"L {lbl_l} ({ms_l:.0f}ms) · R {lbl_r} ({ms_r:.0f}ms) · FB {st['feedback']:.0f}% · MIX {st['mix']:.0f}%"
         else:
-            hdr_l = f"L {ms_l:.0f}ms · R {ms_r:.0f}ms · FB {st['feedback']:.0f}% · MIX {st['mix']:.0f}%"
+            hdr_l = f"L {ms_l:.0f}ms · R {ms_r:.0f}ms{fx_tag} · FB {st['feedback']:.0f}% · MIX {st['mix']:.0f}%"
         cv.create_text(gx0 + 6, gy0 + 4, text=hdr_l, anchor="nw",
                        fill=BYP_HI if byp else LABEL_HI, font=("TkDefaultFont", 8, "bold"))
 
@@ -409,13 +416,15 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
                 cv.create_line(bx0 + 1, hy, bx1 - 1, hy, fill=BYP_HI if byp else LABEL_HI, width=2)
             cv.create_text((bx0 + bx1) * 0.5, my1 - 5, text=lbl, fill=LABEL_DIM, font=("TkDefaultFont", 7, "bold"))
 
-        # 4. Bottom 5 touch buttons: MODE | ROUTE | SYNC | FREEZE | TRAILS (long press = BYPASS)
+        # 4. Bottom 6 touch buttons: MODE | ROUTE | SYNC | LINK | FREEZE | TRAILS (long press = BYPASS)
         by0 = ty1 + 6
         by1 = h - pad
         buttons = (
             ("mode",   mode_name,                          BYP_MID if byp else mode_col,   False),
             ("route",  route_name,                         BYP_MID if byp else route_col,  False),
             ("sync",   "SYNC" if st["sync"] else "FREE",   BYP_MID if byp else SYNC_COL,   st["sync"] and not byp),
+            ("link",   "LINK" if st["time_link"] else "UNLINK",
+                       BYP_MID if byp else LINK_COL,       st["time_link"] and not byp),
             ("freeze", "FREEZE",                           BYP_MID if byp else FREEZE_COL, st["freeze"] and not byp),
             ("trails", "BYPASS" if byp else ("MUTE IN" if st["trails"] else "TRAILS"),
                        BYP_HI if byp else TRAILS_COL,      byp or st["trails"]),
@@ -435,11 +444,22 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
     def _apply_tap_drag(self, which, x, y):
         gx0, gy0, gx1, gy1 = self.tap_box
         ms = self._x_to_ms(x, gx0, gx1)
-        if self._get("sync", 1.0) >= 0.5:
-            bpm = _clamp(float(self.monitors.get("host_bpm", 120.0)), 20.0, 400.0)
+        synced = self._get("sync", 1.0) >= 0.5
+        bpm = _clamp(float(self.monitors.get("host_bpm", 120.0)), 20.0, 400.0)
+        if synced:
             _, ms = nearest_division(ms, bpm)
         sym = "time_l" if which == "L" else "time_r"
-        self._set(sym, round(_clamp(ms, MIN_MS, MAX_MS), 1))
+        other = "time_r" if which == "L" else "time_l"
+        old_ms = max(MIN_MS, self._get(sym, 375.0))
+        new_ms = round(_clamp(ms, MIN_MS, MAX_MS), 1)
+        self._set(sym, new_ms)
+
+        if self._get("time_link", 1.0) >= 0.5:
+            ratio = new_ms / old_ms
+            other_ms = _clamp(self._get(other, 500.0) * ratio, MIN_MS, MAX_MS)
+            if synced:
+                _, other_ms = nearest_division(other_ms, bpm)
+            self._set(other, round(_clamp(other_ms, MIN_MS, MAX_MS), 1))
 
         mid_y = (gy0 + gy1) * 0.5
         half_h = max(10.0, (gy1 - gy0) * 0.46)
@@ -479,6 +499,12 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
                     cur = self._get("sync", 1.0)
                     self._set("sync", 0 if cur >= 0.5 else 1)
                     self._select_group("g_mode")
+                    self.refresh_gui()
+                    return
+                if key == "link":
+                    cur = self._get("time_link", 1.0)
+                    self._set("time_link", 0 if cur >= 0.5 else 1)
+                    self._select_group("g_fx")
                     self.refresh_gui()
                     return
                 if key == "freeze":

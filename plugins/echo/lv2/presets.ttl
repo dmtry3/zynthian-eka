@@ -28,7 +28,11 @@
         [ lv2:symbol "freeze" ; pset:value 0 ] ,
         [ lv2:symbol "trails" ; pset:value 0 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "time_fx" ; pset:value 100 ] ,
+        [ lv2:symbol "time_link" ; pset:value 1 ] ,
+        [ lv2:symbol "filter_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "wash_fx" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/echo#preset_dotted_eighth_edge>
     a pset:Preset ;
@@ -55,7 +59,11 @@
         [ lv2:symbol "freeze" ; pset:value 0 ] ,
         [ lv2:symbol "trails" ; pset:value 0 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "time_fx" ; pset:value 100 ] ,
+        [ lv2:symbol "time_link" ; pset:value 1 ] ,
+        [ lv2:symbol "filter_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "wash_fx" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/echo#preset_warm_space_tape>
     a pset:Preset ;
@@ -82,7 +90,11 @@
         [ lv2:symbol "freeze" ; pset:value 0 ] ,
         [ lv2:symbol "trails" ; pset:value 0 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "time_fx" ; pset:value 100 ] ,
+        [ lv2:symbol "time_link" ; pset:value 1 ] ,
+        [ lv2:symbol "filter_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "wash_fx" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/echo#preset_analog_bbd_tail>
     a pset:Preset ;
@@ -109,7 +121,11 @@
         [ lv2:symbol "freeze" ; pset:value 0 ] ,
         [ lv2:symbol "trails" ; pset:value 0 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "time_fx" ; pset:value 100 ] ,
+        [ lv2:symbol "time_link" ; pset:value 1 ] ,
+        [ lv2:symbol "filter_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "wash_fx" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/echo#preset_golden_ping_pong>
     a pset:Preset ;
@@ -136,7 +152,11 @@
         [ lv2:symbol "freeze" ; pset:value 0 ] ,
         [ lv2:symbol "trails" ; pset:value 0 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "time_fx" ; pset:value 100 ] ,
+        [ lv2:symbol "time_link" ; pset:value 1 ] ,
+        [ lv2:symbol "filter_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "wash_fx" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/echo#preset_ducking_lead_echo>
     a pset:Preset ;
@@ -163,7 +183,11 @@
         [ lv2:symbol "freeze" ; pset:value 0 ] ,
         [ lv2:symbol "trails" ; pset:value 0 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "time_fx" ; pset:value 100 ] ,
+        [ lv2:symbol "time_link" ; pset:value 1 ] ,
+        [ lv2:symbol "filter_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "wash_fx" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/echo#preset_cloudy_diffused_wash>
     a pset:Preset ;
@@ -190,7 +214,11 @@
         [ lv2:symbol "freeze" ; pset:value 0 ] ,
         [ lv2:symbol "trails" ; pset:value 0 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "time_fx" ; pset:value 100 ] ,
+        [ lv2:symbol "time_link" ; pset:value 1 ] ,
+        [ lv2:symbol "filter_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "wash_fx" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/echo#preset_dub_siren_throw>
     a pset:Preset ;
@@ -217,7 +245,11 @@
         [ lv2:symbol "freeze" ; pset:value 0 ] ,
         [ lv2:symbol "trails" ; pset:value 0 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "time_fx" ; pset:value 100 ] ,
+        [ lv2:symbol "time_link" ; pset:value 1 ] ,
+        [ lv2:symbol "filter_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "wash_fx" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/echo#preset_polyrhythm_3_vs_4>
     a pset:Preset ;
@@ -244,7 +276,11 @@
         [ lv2:symbol "freeze" ; pset:value 0 ] ,
         [ lv2:symbol "trails" ; pset:value 0 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "time_fx" ; pset:value 100 ] ,
+        [ lv2:symbol "time_link" ; pset:value 1 ] ,
+        [ lv2:symbol "filter_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "wash_fx" ; pset:value 0 ] .
 
 <http://dmtry3.github.io/zynthian-eka/echo#preset_infinite_freeze_pad>
     a pset:Preset ;
@@ -271,4 +307,8 @@
         [ lv2:symbol "freeze" ; pset:value 0 ] ,
         [ lv2:symbol "trails" ; pset:value 0 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "time_fx" ; pset:value 100 ] ,
+        [ lv2:symbol "time_link" ; pset:value 1 ] ,
+        [ lv2:symbol "filter_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "wash_fx" ; pset:value 0 ] .

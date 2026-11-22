@@ -52,6 +52,12 @@ enum {
     PORT_OUTPUT_DB,
     PORT_BYPASS,
 
+    /* Page 6: Effects (Live) */
+    PORT_TIME_FX,
+    PORT_TIME_LINK,
+    PORT_FILTER_FX,
+    PORT_WASH_FX,
+
     /* Telemetry outputs */
     PORT_IN_PEAK,
     PORT_OUT_PEAK,
@@ -234,6 +240,11 @@ static void run(LV2_Handle instance, uint32_t nframes) {
     p->trails        = read_port(self->ctrl[PORT_TRAILS],        0.0f) >= 0.5f ? 1 : 0;
     p->output_db     = read_port(self->ctrl[PORT_OUTPUT_DB],     0.0f);
     p->bypass        = read_port(self->ctrl[PORT_BYPASS],        0.0f) >= 0.5f ? 1 : 0;
+
+    p->time_fx_pct   = read_port(self->ctrl[PORT_TIME_FX],     100.0f);
+    p->time_link     = read_port(self->ctrl[PORT_TIME_LINK],     1.0f) >= 0.5f ? 1 : 0;
+    p->filter_fx_pct = read_port(self->ctrl[PORT_FILTER_FX],     0.0f);
+    p->wash_fx_pct   = read_port(self->ctrl[PORT_WASH_FX],       0.0f);
     p->host_bpm      = (float)self->host_bpm;
 
     echo_core_process(&self->core, p, self->in_l, self->in_r, self->out_l, self->out_r, nframes);

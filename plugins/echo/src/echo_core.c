@@ -184,6 +184,10 @@ void echo_params_default(EchoParams *p) {
     p->trails        = 0;
     p->output_db     = 0.0f;
     p->bypass        = 0;
+    p->time_fx_pct   = 100.0f;
+    p->time_link     = 1;
+    p->filter_fx_pct = 0.0f;
+    p->wash_fx_pct   = 0.0f;
     p->host_bpm      = 120.0f;
 }
 
@@ -267,6 +271,8 @@ void echo_core_reset(EchoCore *c) {
     c->lpf.z1_l = c->lpf.z2_l = c->lpf.z1_r = c->lpf.z2_r = 0.0;
     c->bbd_lpf.z1_l = c->bbd_lpf.z2_l = c->bbd_lpf.z1_r = c->bbd_lpf.z2_r = 0.0;
     c->dc_x_l = c->dc_y_l = c->dc_x_r = c->dc_y_r = 0.0;
+    c->vel_ms_l = 0.0;
+    c->vel_ms_r = 0.0;
     c->duck_env = 0.0;
     c->duck_gain = 1.0;
     c->in_pk_lin = c->out_pk_lin = c->wet_l_lin = c->wet_r_lin = 0.0;
@@ -291,6 +297,12 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
         target_ms_r = echo_quantize_ms(target_ms_r, bpm);
     }
 
+    double time_mult = clampd(p->time_fx_pct, 25.0, 400.0) * 0.01;
+    target_ms_l = clampd(target_ms_l * time_mult, ECHO_MIN_MS, ECHO_MAX_MS);
+    if (p->time_link) {
+        target_ms_r = clampd(target_ms_r * time_mult, ECHO_MIN_MS, ECHO_MAX_MS);
+    }
+
     int freeze = p->freeze ? 1 : 0;
     int trails = p->trails ? 1 : 0;
     int mode = p->mode;
@@ -298,22 +310,42 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
     int routing = p->routing;
     if (routing < 0 || routing > ECHO_ROUTE_CROSS) routing = ECHO_ROUTE_STEREO;
 
+    double wash = clampd(p->wash_fx_pct, 0.0, 100.0) * 0.01;
     double target_fb = freeze ? 1.0 : (clampd(p->feedback_pct, 0.0, 110.0) * 0.01);
+    if (!freeze && wash > 1e-4) {
+        double boost_target = fmax(target_fb, 1.02);
+        target_fb = clampd(target_fb + wash * (boost_target - target_fb), 0.0, 1.10);
+    }
     double target_mix = clampd(p->mix_pct, 0.0, 100.0) * 0.01;
     double target_send = (freeze || trails) ? 0.0 : 1.0;
     double target_out = db_to_lin(clampd(p->output_db, -18.0, 12.0));
     double target_byp = p->bypass ? 1.0 : 0.0;
     double width = clampd(p->width_pct, 0.0, 100.0) * 0.01;
 
-    biquad_set_hpf(&c->hpf, c->sr, p->hpf_hz);
-    biquad_set_lpf(&c->lpf, c->sr, p->lpf_hz);
+    double eff_hpf = clampd(p->hpf_hz, 20.0, 1000.0);
+    double eff_lpf = clampd(p->lpf_hz, 500.0, 20000.0);
+    double ffx = clampd(p->filter_fx_pct, -100.0, 100.0) * 0.01;
+    if (ffx < -0.005) {
+        double fx_lpf = 20000.0 * pow(280.0 / 20000.0, -ffx);
+        eff_lpf = fmin(eff_lpf, fx_lpf);
+    } else if (ffx > 0.005) {
+        double fx_hpf = 20.0 * pow(3200.0 / 20.0, ffx);
+        eff_hpf = fmax(eff_hpf, fx_hpf);
+    }
+    if (eff_hpf > eff_lpf * 0.85) {
+        eff_hpf = eff_lpf * 0.85;
+    }
+    biquad_set_hpf(&c->hpf, c->sr, eff_hpf);
+    biquad_set_lpf(&c->lpf, c->sr, eff_lpf);
 
     double drive = clampd(p->drive_pct, 0.0, 100.0) * 0.01;
     if (mode == ECHO_MODE_TAPE) drive = fmax(drive, 0.20);
     if (mode == ECHO_MODE_BBD)  drive = fmax(drive, 0.25);
+    drive = clampd(drive + wash * 0.35 * (1.0 - drive), 0.0, 1.0);
 
     double diff_amt = clampd(p->diffuse_pct, 0.0, 100.0) * 0.01;
     if (mode == ECHO_MODE_DIFF) diff_amt = clampd(0.55 + 0.45 * diff_amt, 0.0, 1.0);
+    diff_amt = clampd(diff_amt + wash * 0.85 * (1.0 - diff_amt), 0.0, 1.0);
     double ap_g = 0.62 * diff_amt;
 
     double mod_rate = clampd(p->mod_rate_hz, 0.05, 8.0);
@@ -326,7 +358,10 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
     double duck_att = 1.0 - exp(-1.0 / (c->sr * 0.004));
     double duck_rel = 1.0 - exp(-1.0 / (c->sr * clampd(p->duck_rel_ms, 50.0, 1000.0) * 0.001));
 
-    const double time_alpha = 1.0 - exp(-1.0 / (c->sr * 0.025)); /* 25 ms smooth tape repitch */
+    const double dt_ms = 1000.0 / c->sr;
+    const double time_alpha = 1.0 - exp(-1.0 / (c->sr * 0.025)); /* 25 ms clean/diff */
+    const double bbd_alpha  = 1.0 - exp(-1.0 / (c->sr * 0.055)); /* 55 ms BBD analog clock */
+    const double tape_vel_alpha = 1.0 - exp(-1.0 / (c->sr * 0.028)); /* 28 ms tape motor inertia */
     const double ctrl_alpha = 1.0 - exp(-1.0 / (c->sr * 0.012)); /* 12 ms smooth controls */
     const double dc_r = 0.995;
 
@@ -343,9 +378,28 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
         double abs_in = fmax(fabs(xl), fabs(xr));
         in_pk = (abs_in > in_pk) ? abs_in : in_pk * c->peak_rel;
 
-        /* Smooth parameters */
-        c->smooth_ms_l     += time_alpha * (target_ms_l - c->smooth_ms_l);
-        c->smooth_ms_r     += time_alpha * (target_ms_r - c->smooth_ms_r);
+        /* Smooth delay times: musical inertia in Tape mode, bounded slew in BBD, fast in Clean/Diff */
+        if (mode == ECHO_MODE_TAPE) {
+            /* Critically-damped capstan motor: dD/dt in [-1.0, +0.58] => speed 0.42x..2.0x */
+            double des_l = clampd((target_ms_l - c->smooth_ms_l) / 120.0, -1.0, 0.58);
+            double des_r = clampd((target_ms_r - c->smooth_ms_r) / 120.0, -1.0, 0.58);
+            c->vel_ms_l += tape_vel_alpha * (des_l - c->vel_ms_l);
+            c->vel_ms_r += tape_vel_alpha * (des_r - c->vel_ms_r);
+            c->smooth_ms_l = clampd(c->smooth_ms_l + c->vel_ms_l * dt_ms, ECHO_MIN_MS, ECHO_MAX_MS);
+            c->smooth_ms_r = clampd(c->smooth_ms_r + c->vel_ms_r * dt_ms, ECHO_MIN_MS, ECHO_MAX_MS);
+        } else if (mode == ECHO_MODE_BBD) {
+            double step_l = clampd(bbd_alpha * (target_ms_l - c->smooth_ms_l), -1.2 * dt_ms, 0.65 * dt_ms);
+            double step_r = clampd(bbd_alpha * (target_ms_r - c->smooth_ms_r), -1.2 * dt_ms, 0.65 * dt_ms);
+            c->smooth_ms_l = clampd(c->smooth_ms_l + step_l, ECHO_MIN_MS, ECHO_MAX_MS);
+            c->smooth_ms_r = clampd(c->smooth_ms_r + step_r, ECHO_MIN_MS, ECHO_MAX_MS);
+            c->vel_ms_l = 0.0;
+            c->vel_ms_r = 0.0;
+        } else {
+            c->smooth_ms_l += time_alpha * (target_ms_l - c->smooth_ms_l);
+            c->smooth_ms_r += time_alpha * (target_ms_r - c->smooth_ms_r);
+            c->vel_ms_l = 0.0;
+            c->vel_ms_r = 0.0;
+        }
         c->smooth_fb       += ctrl_alpha * (target_fb - c->smooth_fb);
         c->smooth_mix      += ctrl_alpha * (target_mix - c->smooth_mix);
         c->smooth_send     += ctrl_alpha * (target_send - c->smooth_send);
@@ -473,6 +527,8 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
     c->bbd_lpf.z1_r = flush_denorm(c->bbd_lpf.z1_r); c->bbd_lpf.z2_r = flush_denorm(c->bbd_lpf.z2_r);
     c->dc_x_l = flush_denorm(c->dc_x_l); c->dc_y_l = flush_denorm(c->dc_y_l);
     c->dc_x_r = flush_denorm(c->dc_x_r); c->dc_y_r = flush_denorm(c->dc_y_r);
+    c->vel_ms_l = flush_denorm(c->vel_ms_l);
+    c->vel_ms_r = flush_denorm(c->vel_ms_r);
     c->duck_env = flush_denorm(c->duck_env);
 
     c->in_pk_lin = flush_denorm(in_pk);
