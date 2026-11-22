@@ -52,6 +52,7 @@ typedef struct {
     int   time_link;      /* 0=Unlinked (L only), 1=Linked (L & R) */
     float filter_fx_pct;  /* -100..+100 %, default 0 % */
     float wash_fx_pct;    /* 0..100 %, default 0 % */
+    int   fx_zero;        /* 0=Off, 1=Zero FX (MIDI-mappable reset) */
 
     float host_bpm;       /* 20..400 BPM */
 } EchoParams;
@@ -113,6 +114,11 @@ typedef struct {
 
     double duck_env;
     double duck_gain;
+
+    int    fx_zero_mask;
+    double fx_latch_time;
+    double fx_latch_filter;
+    double fx_latch_wash;
 
     double peak_rel;
     double in_pk_lin;

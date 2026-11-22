@@ -188,6 +188,7 @@ void echo_params_default(EchoParams *p) {
     p->time_link     = 1;
     p->filter_fx_pct = 0.0f;
     p->wash_fx_pct   = 0.0f;
+    p->fx_zero       = 0;
     p->host_bpm      = 120.0f;
 }
 
@@ -275,6 +276,7 @@ void echo_core_reset(EchoCore *c) {
     c->vel_ms_l = 0.0;
     c->vel_ms_r = 0.0;
     c->smooth_freeze = 0.0;
+    c->fx_zero_mask = 0;
     c->duck_env = 0.0;
     c->duck_gain = 1.0;
     c->in_pk_lin = c->out_pk_lin = c->wet_l_lin = c->wet_r_lin = 0.0;
@@ -299,9 +301,29 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
         target_ms_r = echo_quantize_ms(target_ms_r, bpm);
     }
 
+    double raw_tfx = clampd(p->time_fx_pct, -100.0, 100.0);
+    double raw_ffx = clampd(p->filter_fx_pct, -100.0, 100.0);
+    double raw_wfx = clampd(p->wash_fx_pct, 0.0, 100.0);
+    if (p->fx_zero) {
+        c->fx_zero_mask    = 7;
+        c->fx_latch_time   = raw_tfx;
+        c->fx_latch_filter = raw_ffx;
+        c->fx_latch_wash   = raw_wfx;
+        raw_tfx = 0.0;
+        raw_ffx = 0.0;
+        raw_wfx = 0.0;
+    } else if (c->fx_zero_mask) {
+        if ((c->fx_zero_mask & 1) && fabs(raw_tfx - c->fx_latch_time) > 0.5)   c->fx_zero_mask &= ~1;
+        if ((c->fx_zero_mask & 2) && fabs(raw_ffx - c->fx_latch_filter) > 0.5) c->fx_zero_mask &= ~2;
+        if ((c->fx_zero_mask & 4) && fabs(raw_wfx - c->fx_latch_wash) > 0.5)   c->fx_zero_mask &= ~4;
+        if (c->fx_zero_mask & 1) raw_tfx = 0.0;
+        if (c->fx_zero_mask & 2) raw_ffx = 0.0;
+        if (c->fx_zero_mask & 4) raw_wfx = 0.0;
+    }
+
     /* Bipolar Time FX (-100..+100%, 0% = exact 1.0x original time):
      * -50% = 0.5x (+1 oct), -100% = 0.25x (+2 oct), +50% = 2.0x (-1 oct), +100% = 4.0x (-2 oct). */
-    double tfx = clampd(p->time_fx_pct, -100.0, 100.0);
+    double tfx = raw_tfx;
     double time_mult = (fabs(tfx) < 0.75) ? 1.0 : pow(2.0, 2.0 * (tfx * 0.01));
     target_ms_l = clampd(target_ms_l * time_mult, ECHO_MIN_MS, ECHO_MAX_MS);
     if (p->time_link) {
@@ -315,7 +337,7 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
     int routing = p->routing;
     if (routing < 0 || routing > ECHO_ROUTE_CROSS) routing = ECHO_ROUTE_STEREO;
 
-    double wash = clampd(p->wash_fx_pct, 0.0, 100.0) * 0.01;
+    double wash = raw_wfx * 0.01;
     double target_fb = freeze ? 1.0 : (clampd(p->feedback_pct, 0.0, 110.0) * 0.01);
     if (!freeze && wash > 1e-4) {
         double w_fb = wash * (0.45 + 0.55 * wash);
@@ -331,7 +353,7 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
 
     double eff_hpf = clampd(p->hpf_hz, 20.0, 1000.0);
     double eff_lpf = clampd(p->lpf_hz, 500.0, 20000.0);
-    double ffx = clampd(p->filter_fx_pct, -100.0, 100.0) * 0.01;
+    double ffx = raw_ffx * 0.01;
     if (ffx < -0.005) {
         double fx_lpf = 20000.0 * pow(280.0 / 20000.0, -ffx);
         eff_lpf = fmin(eff_lpf, fx_lpf);

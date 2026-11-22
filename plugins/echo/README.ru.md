@@ -57,7 +57,7 @@ cd /root/zynthian-eka && git pull && sudo make install-echo && systemctl restart
 | Страница | Ручка 1 | Ручка 2 | Ручка 3 | Ручка 4 |
 |---|---|---|---|---|
 | **1. Time** | `Time L` (`5..2500 мс`) | `Time R` (`5..2500 мс`) | `Feedback` (`0..110%`) | `Mix` (`0..100%`) |
-| **2. Effects** | `Time FX` (`-100..+100%`, 0 = исходное) | `Time Link` (`Off / On`) | `Filter FX` (`-100..+100%`) | `Wash FX` (`0..100%`) |
+| **2. Effects** | `Time FX` (`-100..+100%`, 0 = исходное) | `Time Link` (`Off / On`) | `Filter FX` (`-100..+100%`) | `Wash FX` (`0..100%`) + `FX Zero` (MIDI-сброс) |
 | **3. Mode & Sync** | `Mode` (`Clean/Tape/BBD/Diff`) | `Routing` (`Stereo/PingPong/Cross`) | `Sync` (`Free / Sync`) | `Width` (`0..100%`) |
 | **4. Tone** | `HPF` (`20..1000 Гц`) | `LPF` (`500..20000 Гц`) | `Drive` (`0..100%`) | `Diffuse` (`0..100%`) |
 | **5. Motion** | `Mod Rate` (`0.05..8 Гц`) | `Mod Depth` (`0..100%`) | `Duck` (`0..100%`) | `Duck Rel` (`50..1000 мс`) |

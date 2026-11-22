@@ -242,6 +242,7 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
             "time_link":   self._get("time_link", 1.0) >= 0.5,
             "filter_fx":   self._get("filter_fx", 0.0),
             "wash_fx":     self._get("wash_fx", 0.0),
+            "fx_zero":     self._get("fx_zero", 0.0) >= 0.5,
         }
 
     def _ms_to_x(self, ms, x0, x1):
@@ -285,6 +286,15 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         w = max(240, int(self.width or cv.winfo_width() or 640))
         h = max(180, int(self.height or cv.winfo_height() or 380))
         st = self._read_state()
+        if st["fx_zero"]:
+            self._set("time_fx", 0.0)
+            self._set("filter_fx", 0.0)
+            self._set("wash_fx", 0.0)
+            self._set("fx_zero", 0)
+            st["time_fx"] = 0.0
+            st["filter_fx"] = 0.0
+            st["wash_fx"] = 0.0
+            st["fx_zero"] = False
         byp = st["bypass"]
         in_db, out_db, dk_db, bpm, act_l, act_r = self._pull_telemetry(st)
 

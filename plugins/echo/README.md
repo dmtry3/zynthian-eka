@@ -57,7 +57,7 @@ Six pages of 4 encoders:
 | Page | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|---|
 | **1. Time** | `Time L` (`5..2500 ms`) | `Time R` (`5..2500 ms`) | `Feedback` (`0..110%`) | `Mix` (`0..100%`) |
-| **2. Effects** | `Time FX` (`-100..+100%`, 0 = original) | `Time Link` (`Off / On`) | `Filter FX` (`-100..+100%`) | `Wash FX` (`0..100%`) |
+| **2. Effects** | `Time FX` (`-100..+100%`, 0 = original) | `Time Link` (`Off / On`) | `Filter FX` (`-100..+100%`) | `Wash FX` (`0..100%`) + `FX Zero` (MIDI reset) |
 | **3. Mode & Sync** | `Mode` (`Clean/Tape/BBD/Diff`) | `Routing` (`Stereo/PingPong/Cross`) | `Sync` (`Free / Sync`) | `Width` (`0..100%`) |
 | **4. Tone** | `HPF` (`20..1000 Hz`) | `LPF` (`500..20000 Hz`) | `Drive` (`0..100%`) | `Diffuse` (`0..100%`) |
 | **5. Motion** | `Mod Rate` (`0.05..8 Hz`) | `Mod Depth` (`0..100%`) | `Duck` (`0..100%`) | `Duck Rel` (`50..1000 ms`) |

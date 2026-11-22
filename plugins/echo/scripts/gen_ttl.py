@@ -67,18 +67,21 @@ CONTROL_PORTS = [
          points=[("Off", 0), ("On", 1)]),
     dict(idx=27, sym="filter_fx",   name="Filter FX", grp="g_fx",     default=0.0,    min=-100.0, max=100.0,  unit="units:pc"),
     dict(idx=28, sym="wash_fx",     name="Wash FX",   grp="g_fx",     default=0.0,    min=0.0,    max=100.0,  unit="units:pc"),
+    dict(idx=29, sym="fx_zero",     name="FX Zero",   grp="g_fx",     default=0,      min=0,      max=1,
+         props=["lv2:integer", "lv2:toggled", "lv2:enumeration"],
+         points=[("Off", 0), ("Zero", 1)]),
 ]
 
-# Output telemetry ports (indices 29..36)
+# Output telemetry ports (indices 30..37)
 OUTPUT_PORTS = [
-    (29, "in_peak",     "Input Peak",   -60.0, 12.0,   "units:db"),
-    (30, "out_peak",    "Output Peak",  -60.0, 12.0,   "units:db"),
-    (31, "wet_l_db",    "Wet L",        -60.0, 12.0,   "units:db"),
-    (32, "wet_r_db",    "Wet R",        -60.0, 12.0,   "units:db"),
-    (33, "duck_db",     "Duck GR",        0.0, 24.0,   "units:db"),
-    (34, "actual_ms_l", "Actual L",       5.0, 2500.0, "units:ms"),
-    (35, "actual_ms_r", "Actual R",       5.0, 2500.0, "units:ms"),
-    (36, "host_bpm",    "Host BPM",      20.0, 400.0,  "units:bpm"),
+    (30, "in_peak",     "Input Peak",   -60.0, 12.0,   "units:db"),
+    (31, "out_peak",    "Output Peak",  -60.0, 12.0,   "units:db"),
+    (32, "wet_l_db",    "Wet L",        -60.0, 12.0,   "units:db"),
+    (33, "wet_r_db",    "Wet R",        -60.0, 12.0,   "units:db"),
+    (34, "duck_db",     "Duck GR",        0.0, 24.0,   "units:db"),
+    (35, "actual_ms_l", "Actual L",       5.0, 2500.0, "units:ms"),
+    (36, "actual_ms_r", "Actual R",       5.0, 2500.0, "units:ms"),
+    (37, "host_bpm",    "Host BPM",      20.0, 400.0,  "units:bpm"),
 ]
 
 DEFAULTS = {p["sym"]: p["default"] for p in CONTROL_PORTS}
