@@ -118,6 +118,7 @@ void ep_pad_defaults(EpPadParams* p, int pad_index) {
   p->midi_note = 36 + (pad_index & 15);
   p->aux1 = 0.0f;
   p->aux2 = 0.0f;
+  p->width = 100.0f;
 }
 
 static void init_scene_ranges(EpScene* sc) {
@@ -682,6 +683,15 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
     float hold_inc = crush_amt > 0.0f ? 1.0f / (1.0f + crush_amt * 15.0f) : 1.0f;
     float q_steps = crush_amt > 0.0f ? (64.0f - crush_amt * 56.0f) : 0.0f;
 
+    float pw = clampf(p->width * 0.01f, 0.0f, 2.0f);
+    int wid_active = fabsf(pw - 1.0f) > 0.005f;
+    float wid_extra = pw > 1.0f ? (pw - 1.0f) : 0.0f;
+    int wid_delay = (int)(c->sr * 0.0075); /* ~7.5 ms decorrelation tap */
+    if (wid_delay < 32) wid_delay = 32;
+    if (wid_delay > 500) wid_delay = 500;
+    /* 1-pole HP at ~250 Hz so sub-bass stays dead-center in mono */
+    float wid_hp_a = (float)exp(-2.0 * M_PI * 250.0 / c->sr);
+
     float peak_voice = 0.0f;
 
     for (uint32_t i = 0; i < nframes; i++) {
@@ -729,6 +739,23 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
         v->ic1_r = 2.0f * v1r - v->ic1_r;
         v->ic2_r = 2.0f * v2r - v->ic2_r;
         r = (filt_mode < 0) ? v2r : (r - k * v1r - v2r);
+      }
+
+      if (wid_active) {
+        float mid = 0.5f * (l + r);
+        float side = 0.5f * (l - r) * pw;
+        if (wid_extra > 0.005f) {
+          int wp = v->wid_pos;
+          int rp = (wp - wid_delay) & 511;
+          float d = v->wid_buf[rp];
+          v->wid_buf[wp] = mid;
+          v->wid_pos = (wp + 1) & 511;
+          v->wid_hp_z = wid_hp_a * v->wid_hp_z + (1.0f - wid_hp_a) * d;
+          float hp_d = d - v->wid_hp_z;
+          side += hp_d * (wid_extra * 0.65f);
+        }
+        l = mid + side;
+        r = mid - side;
       }
 
       float amp = v->env * v->fade;

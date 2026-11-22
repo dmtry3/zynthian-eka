@@ -54,6 +54,7 @@ typedef struct {
   int midi_note;          /* 0..127 (default 36 + pad) */
   float aux1;             /* 0..100 % (Aux Send 1 stereo out) */
   float aux2;             /* 0..100 % (Aux Send 2 stereo out) */
+  float width;            /* 0..200 % (0=mono, 100=normal, 200=wide) */
 } EpPadParams;
 
 typedef struct {
@@ -91,6 +92,10 @@ typedef struct {
   /* Bitcrush / sample-rate hold state */
   float hold_l, hold_r;
   float hold_phase;
+  /* Per-voice stereo widener micro-delay (mono-compatible side decorrelator) */
+  float wid_buf[512];
+  int   wid_pos;
+  float wid_hp_z;
   uint64_t age;
 } EpVoice;
 
