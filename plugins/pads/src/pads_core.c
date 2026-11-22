@@ -37,8 +37,7 @@ void ep_pad_defaults(EpPadParams* p, int pad_index) {
   p->mute = 0;
   p->solo = 0;
   p->midi_note = 36 + (pad_index & 15);
-  p->aux1 = 0.0f;
-  p->aux2 = 0.0f;
+  for (int a = 0; a < EP_AUX_BUSES; a++) p->aux[a] = 0.0f;
 }
 
 static void init_scene_ranges(EpScene* sc) {
@@ -524,15 +523,23 @@ static inline void sample_read_hq(const EpSource* s, double pos, double step, fl
 
 /* Render a contiguous voice block without sequencer events inside it */
 static void render_voices(EpCore* c, float* out_l, float* out_r,
-                          float* aux1_l, float* aux1_r,
-                          float* aux2_l, float* aux2_r,
-                          uint32_t nframes, int sel_pad) {
-  memset(out_l, 0, nframes * sizeof(float));
-  memset(out_r, 0, nframes * sizeof(float));
-  if (aux1_l) memset(aux1_l, 0, nframes * sizeof(float));
-  if (aux1_r) memset(aux1_r, 0, nframes * sizeof(float));
-  if (aux2_l) memset(aux2_l, 0, nframes * sizeof(float));
-  if (aux2_r) memset(aux2_r, 0, nframes * sizeof(float));
+                          float* const aux_l[EP_AUX_BUSES],
+                          float* const aux_r[EP_AUX_BUSES],
+                          uint32_t off, uint32_t nframes, int sel_pad) {
+  float* ol_buf = out_l + off;
+  float* or_buf = out_r + off;
+  memset(ol_buf, 0, nframes * sizeof(float));
+  memset(or_buf, 0, nframes * sizeof(float));
+  float* al[EP_AUX_BUSES] = { 0 };
+  float* ar[EP_AUX_BUSES] = { 0 };
+  for (int a = 0; a < EP_AUX_BUSES; a++) {
+    if (aux_l && aux_r && aux_l[a] && aux_r[a]) {
+      al[a] = aux_l[a] + off;
+      ar[a] = aux_r[a] + off;
+      memset(al[a], 0, nframes * sizeof(float));
+      memset(ar[a], 0, nframes * sizeof(float));
+    }
+  }
 
   const int solo_active = any_solo(c);
   const float act_decay = (float)exp(-(double)nframes / (0.14 * c->sr));
@@ -558,8 +565,10 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
 
     int audible = solo_active ? p->solo : !p->mute;
     float pad_gain = audible ? (clampf(p->level * 0.01f, 0.0f, 1.5f) * v->vel_gain) : 0.0f;
-    float aux1_amt = (audible && aux1_l && aux1_r) ? clampf(p->aux1 * 0.01f, 0.0f, 1.0f) : 0.0f;
-    float aux2_amt = (audible && aux2_l && aux2_r) ? clampf(p->aux2 * 0.01f, 0.0f, 1.0f) : 0.0f;
+    float aux_amt[EP_AUX_BUSES];
+    for (int a = 0; a < EP_AUX_BUSES; a++) {
+      aux_amt[a] = (audible && al[a] && ar[a]) ? clampf(p->aux[a] * 0.01f, 0.0f, 1.0f) : 0.0f;
+    }
 
     float pan_norm = clampf(p->pan * 0.01f, -1.0f, 1.0f);
     float angle = (pan_norm + 1.0f) * (float)(0.25 * M_PI);
@@ -703,15 +712,13 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
       float amp = v->env * v->fade;
       float ol = l * amp * gain_l;
       float or_ = r * amp * gain_r;
-      out_l[i] += ol;
-      out_r[i] += or_;
-      if (aux1_amt > 0.005f) {
-        aux1_l[i] += ol * aux1_amt;
-        aux1_r[i] += or_ * aux1_amt;
-      }
-      if (aux2_amt > 0.005f) {
-        aux2_l[i] += ol * aux2_amt;
-        aux2_r[i] += or_ * aux2_amt;
+      ol_buf[i] += ol;
+      or_buf[i] += or_;
+      for (int a = 0; a < EP_AUX_BUSES; a++) {
+        if (aux_amt[a] > 0.005f) {
+          al[a][i] += ol * aux_amt[a];
+          ar[a][i] += or_ * aux_amt[a];
+        }
       }
 
       float m = fabsf(ol) > fabsf(or_) ? fabsf(ol) : fabsf(or_);
@@ -744,8 +751,8 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
   float mg = clampf(c->master_vol * 0.01f, 0.0f, 1.5f);
   float sw = clampf(c->stereo_width * 0.01f, 0.0f, 2.0f);
   for (uint32_t i = 0; i < nframes; i++) {
-    float l = out_l[i] * mg;
-    float r = out_r[i] * mg;
+    float l = ol_buf[i] * mg;
+    float r = or_buf[i] * mg;
     if (fabsf(sw - 1.0f) > 0.001f) {
       float mid  = 0.5f * (l + r);
       float side = 0.5f * (l - r) * sw;
@@ -756,38 +763,27 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
     else if (l < -0.75f) l = -0.75f + 0.25f * fast_tanh((l + 0.75f) * 4.0f);
     if (r > 0.75f) r = 0.75f + 0.25f * fast_tanh((r - 0.75f) * 4.0f);
     else if (r < -0.75f) r = -0.75f + 0.25f * fast_tanh((r + 0.75f) * 4.0f);
-    out_l[i] = l;
-    out_r[i] = r;
+    ol_buf[i] = l;
+    or_buf[i] = r;
   }
-  if (aux1_l && aux1_r) {
+  for (int a = 0; a < EP_AUX_BUSES; a++) {
+    if (!al[a] || !ar[a]) continue;
     for (uint32_t i = 0; i < nframes; i++) {
-      float l = aux1_l[i] * mg;
-      float r = aux1_r[i] * mg;
+      float l = al[a][i] * mg;
+      float r = ar[a][i] * mg;
       if (l > 0.75f) l = 0.75f + 0.25f * fast_tanh((l - 0.75f) * 4.0f);
       else if (l < -0.75f) l = -0.75f + 0.25f * fast_tanh((l + 0.75f) * 4.0f);
       if (r > 0.75f) r = 0.75f + 0.25f * fast_tanh((r - 0.75f) * 4.0f);
       else if (r < -0.75f) r = -0.75f + 0.25f * fast_tanh((r + 0.75f) * 4.0f);
-      aux1_l[i] = l;
-      aux1_r[i] = r;
-    }
-  }
-  if (aux2_l && aux2_r) {
-    for (uint32_t i = 0; i < nframes; i++) {
-      float l = aux2_l[i] * mg;
-      float r = aux2_r[i] * mg;
-      if (l > 0.75f) l = 0.75f + 0.25f * fast_tanh((l - 0.75f) * 4.0f);
-      else if (l < -0.75f) l = -0.75f + 0.25f * fast_tanh((l + 0.75f) * 4.0f);
-      if (r > 0.75f) r = 0.75f + 0.25f * fast_tanh((r - 0.75f) * 4.0f);
-      else if (r < -0.75f) r = -0.75f + 0.25f * fast_tanh((r + 0.75f) * 4.0f);
-      aux2_l[i] = l;
-      aux2_r[i] = r;
+      al[a][i] = l;
+      ar[a][i] = r;
     }
   }
 }
 
 void ep_core_process_aux(EpCore* c, float* out_l, float* out_r,
-                         float* aux1_l, float* aux1_r,
-                         float* aux2_l, float* aux2_r,
+                         float* const aux_l[EP_AUX_BUSES],
+                         float* const aux_r[EP_AUX_BUSES],
                          uint32_t nframes, int sel_pad) {
   uint32_t done = 0;
 
@@ -860,11 +856,7 @@ void ep_core_process_aux(EpCore* c, float* out_l, float* out_r,
         }
 
         if (adv > 0) {
-          uint32_t off = done + sub_pos;
-          render_voices(c, out_l + off, out_r + off,
-                        aux1_l ? aux1_l + off : NULL, aux1_r ? aux1_r + off : NULL,
-                        aux2_l ? aux2_l + off : NULL, aux2_r ? aux2_r + off : NULL,
-                        adv, sel_pad);
+          render_voices(c, out_l, out_r, aux_l, aux_r, done + sub_pos, adv, sel_pad);
           double dstep = (double)adv * steps_per_sample;
           double prev_bar = c->seq.bar_phase;
           c->seq.bar_phase = fmod(prev_bar + dstep, 16.0);
@@ -918,10 +910,7 @@ void ep_core_process_aux(EpCore* c, float* out_l, float* out_r,
       }
       c->seq.cur_step = (sel_pad >= 0 && sel_pad < EP_PADS) ? c->seq.pad_cur_step[sel_pad] : -1;
     } else {
-      render_voices(c, out_l + done, out_r + done,
-                    aux1_l ? aux1_l + done : NULL, aux1_r ? aux1_r + done : NULL,
-                    aux2_l ? aux2_l + done : NULL, aux2_r ? aux2_r + done : NULL,
-                    chunk, sel_pad);
+      render_voices(c, out_l, out_r, aux_l, aux_r, done, chunk, sel_pad);
     }
 
     done += chunk;
@@ -929,5 +918,5 @@ void ep_core_process_aux(EpCore* c, float* out_l, float* out_r,
 }
 
 void ep_core_process(EpCore* c, float* out_l, float* out_r, uint32_t nframes, int sel_pad) {
-  ep_core_process_aux(c, out_l, out_r, NULL, NULL, NULL, NULL, nframes, sel_pad);
+  ep_core_process_aux(c, out_l, out_r, NULL, NULL, nframes, sel_pad);
 }

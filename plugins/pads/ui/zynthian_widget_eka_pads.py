@@ -28,8 +28,8 @@ EP_SCENE_SIZE = EP_PADS * EP_STEPS * 2 + EP_PADS * 2   # 1056 bytes
 EP_SHM_MAGIC = 0x45504144
 EP_SHM_HDR_FMT = "<IIIiiiiiiiffiIiiii"
 EP_SHM_HDR_SIZE = struct.calcsize(EP_SHM_HDR_FMT)      # 72 bytes
-EP_PAD_FMT = "<ffffffiffffifiiiff"
-EP_PAD_SIZE = struct.calcsize(EP_PAD_FMT)              # 72 bytes
+EP_PAD_FMT = "<ffffffiffffifiiiffff"
+EP_PAD_SIZE = struct.calcsize(EP_PAD_FMT)              # 80 bytes
 EP_SHM_SIZE = EP_SHM_HDR_SIZE + EP_PADS * EP_PAD_SIZE + EP_SCENES * EP_SCENE_SIZE
 
 # Packed seq_cmd operations matching eka_pads.c
@@ -158,7 +158,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.hit_boxes = []        # list of (x0, y0, x1, y1, action, arg)
         self.drag_info = None      # ("bpm"|"step", arg, start_y, start_val)
         self.last_tap = (None, 0.0)
-        self.aux_targets = [None, None]  # [(target_id, label, (port_l, port_r)) or None, ...]
+        self.aux_targets = [None, None, None, None]  # [(target_id, label, (port_l, port_r)) or None, ...]
         self.next_aux_check = 0.0
         self._own_jclient = None
 
@@ -314,6 +314,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             ("pad_width",  p[12]),
             ("pad_aux1",   p[16] if len(p) > 16 else 0.0),
             ("pad_aux2",   p[17] if len(p) > 17 else 0.0),
+            ("pad_aux3",   p[18] if len(p) > 18 else 0.0),
+            ("pad_aux4",   p[19] if len(p) > 19 else 0.0),
         )
         for sym, val in mapping:
             self._zset(sym, val)
@@ -584,7 +586,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         if now < self.next_aux_check:
             return
         self.next_aux_check = now + 2.0
-        if not self.aux_targets[0] and not self.aux_targets[1]:
+        if not any(self.aux_targets):
             return
         jclient = self._get_jclient()
         if not jclient:
@@ -871,37 +873,32 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
 
         ay0 = iy0 + info_h + 2
         ay1 = ay0 + aux_h
-        aux1_v = pinfo[16] if (pinfo and len(pinfo) > 16) else self._zval("pad_aux1", 0.0)
-        aux2_v = pinfo[17] if (pinfo and len(pinfo) > 17) else self._zval("pad_aux2", 0.0)
-        wid_v  = pinfo[12] if pinfo else self._zval("pad_width", 0.0)
-        aw3 = (rw - 6) / 3.0
-        t1 = self.aux_targets[0][1][:5] if self.aux_targets[0] else "Aux1"
-        t2 = self.aux_targets[1][1][:5] if self.aux_targets[1] else "Aux2"
-        for ai, (sym, val, vmin, vmax, lbl, col_hi, col_fill, active) in enumerate((
-            ("pad_aux1",  aux1_v, 0.0,    100.0, "%s %d%%" % (t1, int(round(aux1_v))), "#66d9e8", "#1c3d47", aux1_v > 0.5),
-            ("pad_aux2",  aux2_v, 0.0,    100.0, "%s %d%%" % (t2, int(round(aux2_v))), "#da77f2", "#3b1f47", aux2_v > 0.5),
-            ("pad_width", wid_v,  -100.0, 100.0, "Wid %+d%%" % int(round(wid_v)),      "#74c0fc", "#1e3a52", abs(wid_v) > 2.0),
-        )):
-            ax0 = rx0 + ai * (aw3 + 3)
-            ax1 = ax0 + aw3
+        aw4 = (rw - 9) / 4.0
+        aux_cols = (
+            ("#66d9e8", "#1c3d47"),
+            ("#da77f2", "#3b1f47"),
+            ("#ffd43b", "#473b19"),
+            ("#63e6be", "#1e453b"),
+        )
+        for ai in range(4):
+            sym = "pad_aux%d" % (ai + 1)
+            val = pinfo[16 + ai] if (pinfo and len(pinfo) > 16 + ai) else self._zval(sym, 0.0)
+            col_hi, col_fill = aux_cols[ai]
+            tgt = self.aux_targets[ai]
+            tname = tgt[1][:4] if tgt else ("A%d" % (ai + 1))
+            lbl = "%s %d" % (tname, int(round(val)))
+            ax0 = rx0 + ai * (aw4 + 3)
+            ax1 = ax0 + aw4
             c.create_rectangle(ax0, ay0, ax1, ay1, fill="#1a1c24",
-                               outline=col_hi if active else "#383844", width=1)
-            if vmin < 0.0:
-                mid_x = (ax0 + ax1) * 0.5
-                c.create_line(mid_x, ay0 + 2, mid_x, ay1 - 2, fill="#404558", width=1)
-                if abs(val) > 1.0:
-                    fx = mid_x + (max(vmin, min(val, vmax)) / vmax) * (max(1.0, ax1 - ax0 - 2) * 0.5)
-                    x_a, x_b = (mid_x, fx) if fx >= mid_x else (fx, mid_x)
-                    c.create_rectangle(x_a, ay0 + 1, x_b, ay1 - 1, fill=col_fill, outline="")
-                    c.create_rectangle(x_a, ay0 + 1, x_b, ay0 + 3, fill=col_hi, width=0)
-            elif val > 0.5:
-                fx = ax0 + 1 + (min(val, vmax) / vmax) * max(1.0, (ax1 - ax0 - 2))
+                               outline=col_hi if val > 0.5 else "#383844", width=1)
+            if val > 0.5:
+                fx = ax0 + 1 + (min(val, 100.0) / 100.0) * max(1.0, (ax1 - ax0 - 2))
                 c.create_rectangle(ax0 + 1, ay0 + 1, fx, ay1 - 1, fill=col_fill, outline="")
                 c.create_rectangle(ax0 + 1, ay0 + 1, fx, ay0 + 3, fill=col_hi, width=0)
             c.create_text((ax0 + ax1) / 2, (ay0 + ay1) / 2,
                           text=lbl,
-                          fill=col_hi if active else "#9090a4", font=(fam, max(7, fsmall - 1), "bold"))
-            self.hit_boxes.append((ax0, ay0, ax1, ay1, "aux_slider", (sym, vmin, vmax, ax0, ax1)))
+                          fill=col_hi if val > 0.5 else "#9090a4", font=(fam, max(6, fsmall - 1), "bold"))
+            self.hit_boxes.append((ax0, ay0, ax1, ay1, "aux_slider", (sym, 0.0, 100.0, ax0, ax1)))
 
         # Quick 5-Scene Launch Bar at bottom right (large A..E buttons)
         sy0 = h - pad_m - max(sc_h, fs * 2 + 12)
@@ -1161,17 +1158,27 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self.hit_boxes.append((sx0, y, sx1, y + bh, "flt_slider", (cmd_op, vmax, step, sx0, sx1)))
         y += bh + 10
 
-        # Row 4: Aux 1 & Aux 2 -> Zynthian Mixbus routing buttons (tap to cycle Mixbuses)
-        for ai, col_hi in enumerate(("#66d9e8", "#da77f2")):
-            bx0 = pad_m + ai * (half + pad_m)
-            bx1 = bx0 + half
-            tgt = self.aux_targets[ai]
-            lbl = "Aux %d -> %s" % (ai + 1, tgt[1] if tgt else "Off")
-            self._add_btn(c, bx0, y, bx1, y + bh, lbl,
-                          "#22343d" if (tgt and ai == 0) else ("#32203d" if tgt else COL_PANEL),
-                          col_hi if tgt else "#b0b0c0", fam, fsmall, "aux_route", ai,
-                          outline=col_hi if tgt else "#444450")
-        y += bh + 12
+        # Row 4 & 5: Aux 1..4 -> Zynthian Mixbus routing buttons (2x2 grid, tap to cycle Mixbuses)
+        aux_styles = (
+            ("#66d9e8", "#22343d"),
+            ("#da77f2", "#32203d"),
+            ("#ffd43b", "#3d3318"),
+            ("#63e6be", "#1c3b32"),
+        )
+        for row_i in range(2):
+            for col_i in range(2):
+                ai = row_i * 2 + col_i
+                col_hi, col_bg = aux_styles[ai]
+                bx0 = pad_m + col_i * (half + pad_m)
+                bx1 = bx0 + half
+                tgt = self.aux_targets[ai]
+                lbl = "Aux %d -> %s" % (ai + 1, tgt[1] if tgt else "Off")
+                self._add_btn(c, bx0, y, bx1, y + bh, lbl,
+                              col_bg if tgt else COL_PANEL,
+                              col_hi if tgt else "#b0b0c0", fam, fsmall, "aux_route", ai,
+                              outline=col_hi if tgt else "#444450")
+            y += bh + 8
+        y += 4
 
         # Helpful M-VAVE SMC-PAD Pocket guide
         guide = (

@@ -300,4 +300,30 @@
         pg:group <http://dmtry3.github.io/zynthian-eka/pads#g_aux> ;
         lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 100.0 ;
         units:unit units:pc ;
+    ] ,
+    # Aux 3 & Aux 4 stereo outputs + per-pad send levels
+    [
+        a lv2:OutputPort , lv2:AudioPort ;
+        lv2:index 50 ; lv2:symbol "aux3_l" ; lv2:name "Aux 3 L" ;
+    ] , [
+        a lv2:OutputPort , lv2:AudioPort ;
+        lv2:index 51 ; lv2:symbol "aux3_r" ; lv2:name "Aux 3 R" ;
+    ] , [
+        a lv2:OutputPort , lv2:AudioPort ;
+        lv2:index 52 ; lv2:symbol "aux4_l" ; lv2:name "Aux 4 L" ;
+    ] , [
+        a lv2:OutputPort , lv2:AudioPort ;
+        lv2:index 53 ; lv2:symbol "aux4_r" ; lv2:name "Aux 4 R" ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 54 ; lv2:symbol "pad_aux3" ; lv2:name "Aux 3" ;
+        pg:group <http://dmtry3.github.io/zynthian-eka/pads#g_aux> ;
+        lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 100.0 ;
+        units:unit units:pc ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 55 ; lv2:symbol "pad_aux4" ; lv2:name "Aux 4" ;
+        pg:group <http://dmtry3.github.io/zynthian-eka/pads#g_aux> ;
+        lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 100.0 ;
+        units:unit units:pc ;
     ] .

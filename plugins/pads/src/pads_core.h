@@ -7,6 +7,7 @@
 #define EP_PADS       16
 #define EP_VOICES     16
 #define EP_CHOKE_MAX  4
+#define EP_AUX_BUSES  4
 #define EP_FADE_MS    2.0f
 #define EP_SCENES     8
 #define EP_STEPS      32
@@ -52,8 +53,7 @@ typedef struct {
   int mute;               /* 0 or 1 */
   int solo;               /* 0 or 1 */
   int midi_note;          /* 0..127 (default 36 + pad) */
-  float aux1;             /* 0..100 % (Aux Send 1 stereo out) */
-  float aux2;             /* 0..100 % (Aux Send 2 stereo out) */
+  float aux[EP_AUX_BUSES];/* 0..100 % (Aux Send 1..4 stereo outs) */
 } EpPadParams;
 
 typedef struct {
@@ -167,10 +167,10 @@ void ep_seq_clear_pad(EpCore* c, int scene, int pad);
 void ep_seq_clear_scene(EpCore* c, int scene);
 void ep_seq_copy_scene(EpCore* c, int src_scene, int dst_scene);
 
-/* Render `nframes` stereo audio (+ optional Aux 1 & Aux 2 stereo send buses). */
+/* Render `nframes` stereo audio (+ optional Aux 1..4 stereo send buses). */
 void ep_core_process_aux(EpCore* c, float* out_l, float* out_r,
-                         float* aux1_l, float* aux1_r,
-                         float* aux2_l, float* aux2_r,
+                         float* const aux_l[EP_AUX_BUSES],
+                         float* const aux_r[EP_AUX_BUSES],
                          uint32_t nframes, int sel_pad);
 void ep_core_process(EpCore* c, float* out_l, float* out_r, uint32_t nframes, int sel_pad);
 

@@ -28,7 +28,7 @@
 #define EP_MAX_SECONDS 120.0
 #define EP_RETIRED_MAX 32
 #define EP_SHM_MAGIC   0x45504144u /* "EPAD" */
-#define EP_SHM_VER     7u
+#define EP_SHM_VER     8u
 
 /* Control input ports MUST come first (0..P_END-1) for Zynthian's controller indexing. */
 enum {
@@ -55,7 +55,13 @@ enum {
   P_AUX2_L,                                       /* index 46: Aux Send 2 L */
   P_AUX2_R,                                       /* index 47: Aux Send 2 R */
   P_PAD_AUX1,                                     /* index 48: Selected pad Aux 1 send 0..100% */
-  P_PAD_AUX2                                      /* index 49: Selected pad Aux 2 send 0..100% */
+  P_PAD_AUX2,                                     /* index 49: Selected pad Aux 2 send 0..100% */
+  P_AUX3_L,                                       /* index 50: Aux Send 3 L */
+  P_AUX3_R,                                       /* index 51: Aux Send 3 R */
+  P_AUX4_L,                                       /* index 52: Aux Send 4 L */
+  P_AUX4_R,                                       /* index 53: Aux Send 4 R */
+  P_PAD_AUX3,                                     /* index 54: Selected pad Aux 3 send 0..100% */
+  P_PAD_AUX4                                      /* index 55: Selected pad Aux 4 send 0..100% */
 };
 
 #define N_CTL     P_END
@@ -100,9 +106,9 @@ typedef struct {
   EpPadParams pads[EP_PADS];
   EpScene  scenes[EP_SCENES];
 } EpShm;
-_Static_assert(sizeof(EpPadParams) == 72, "EpPadParams size must match Python widget");
+_Static_assert(sizeof(EpPadParams) == 80, "EpPadParams size must match Python widget");
 _Static_assert(sizeof(EpScene) == 1056, "EpScene size must match Python widget");
-_Static_assert(sizeof(EpShm) == 9672, "EpShm size must match Python widget");
+_Static_assert(sizeof(EpShm) == 9800, "EpShm size must match Python widget");
 
 /* Worker messages */
 enum { MSG_LOAD = 1, MSG_FREE };
@@ -116,10 +122,8 @@ typedef struct {
   LV2_Atom_Sequence* notify;
   float* out_l;
   float* out_r;
-  float* aux1_l;
-  float* aux1_r;
-  float* aux2_l;
-  float* aux2_r;
+  float* aux_l[EP_AUX_BUSES];
+  float* aux_r[EP_AUX_BUSES];
   float* out_sel_pad;
   float* out_seq_step;
   float* out_seq_scene;
@@ -129,12 +133,10 @@ typedef struct {
   const float* in_stereo_width;
   const float* in_pad_steps;
   const float* in_pad_beg;
-  const float* in_pad_aux1;
-  const float* in_pad_aux2;
+  const float* in_pad_aux[EP_AUX_BUSES];
   float prev_pad_steps;
   float prev_pad_beg;
-  float prev_pad_aux1;
-  float prev_pad_aux2;
+  float prev_pad_aux[EP_AUX_BUSES];
   int have_prev_steps;
 
   LV2_URID_Map* map;
@@ -371,15 +373,18 @@ static size_t seq_encode(const EpCore* c, char* buf, size_t cap) {
                 cur->mute != def.mute ||
                 cur->solo != def.solo ||
                 cur->midi_note != def.midi_note ||
-                fabsf(cur->aux1 - def.aux1) > 0.2f ||
-                fabsf(cur->aux2 - def.aux2) > 0.2f);
+                fabsf(cur->aux[0] - def.aux[0]) > 0.2f ||
+                fabsf(cur->aux[1] - def.aux[1]) > 0.2f ||
+                fabsf(cur->aux[2] - def.aux[2]) > 0.2f ||
+                fabsf(cur->aux[3] - def.aux[3]) > 0.2f);
     if (!diff) continue;
     n = snprintf(buf + pos, cap - pos,
-                 "|P%x=%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%.1f,%.1f,%.1f,%.1f,%d,%.1f,%d,%d,%d,%.1f,%.1f",
+                 "|P%x=%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%.1f,%.1f,%.1f,%.1f,%d,%.1f,%d,%d,%d,%.1f,%.1f,%.1f,%.1f",
                  p & 0xF, cur->pitch, cur->decay, cur->filter, cur->level,
                  cur->start, cur->end, cur->mode, cur->punch, cur->drive,
                  cur->pan, cur->vel_sens, cur->choke, cur->width,
-                 cur->mute, cur->solo, cur->midi_note, cur->aux1, cur->aux2);
+                 cur->mute, cur->solo, cur->midi_note,
+                 cur->aux[0], cur->aux[1], cur->aux[2], cur->aux[3]);
     if (n < 0 || (size_t)n >= cap - pos) return pos;
     pos += (size_t)n;
   }
@@ -444,9 +449,9 @@ static void seq_decode(EpCore* c, const char* str) {
       p += 3;
       if (pad >= 0 && pad < EP_PADS) {
         EpPadParams* d = &c->pad[pad];
-        float v[19];
+        float v[20];
         int cnt = 0;
-        while (cnt < 19 && *p && *p != '|') {
+        while (cnt < 20 && *p && *p != '|') {
           v[cnt++] = strtof(p, (char**)&p);
           if (*p == ',') p++;
         }
@@ -454,12 +459,13 @@ static void seq_decode(EpCore* c, const char* str) {
           d->pitch = v[0]; d->decay = v[1]; d->filter = v[2]; d->level = v[3];
           d->start = v[4]; d->end = v[5]; d->mode = (int)lrintf(v[6]);
           d->punch = v[7]; d->drive = v[8]; d->pan = v[9]; d->vel_sens = v[10];
-          d->choke = (int)lrintf(v[11]); d->width = cnt >= 19 ? v[18] : v[12];
+          d->choke = (int)lrintf(v[11]); d->width = v[12];
           d->mute = v[13] >= 0.5f ? 1 : 0; d->solo = v[14] >= 0.5f ? 1 : 0;
           int mn = (int)lrintf(v[15]);
           if (mn >= 0 && mn <= 127) d->midi_note = mn;
-          d->aux1 = cnt >= 17 ? v[16] : 0.0f;
-          d->aux2 = cnt >= 18 ? v[17] : 0.0f;
+          for (int a = 0; a < EP_AUX_BUSES; a++) {
+            d->aux[a] = (cnt > 16 + a) ? v[16 + a] : 0.0f;
+          }
         }
       }
     } else if (p[0] == 'F' && p[1] == '=') {
@@ -818,12 +824,18 @@ static void connect_port(LV2_Handle h, uint32_t port, void* data) {
     case P_STEREO_WIDTH:  P->in_stereo_width = (const float*)data; break;
     case P_PAD_STEPS:     P->in_pad_steps = (const float*)data; break;
     case P_PAD_BEG:       P->in_pad_beg = (const float*)data; break;
-    case P_AUX1_L:        P->aux1_l = (float*)data; break;
-    case P_AUX1_R:        P->aux1_r = (float*)data; break;
-    case P_AUX2_L:        P->aux2_l = (float*)data; break;
-    case P_AUX2_R:        P->aux2_r = (float*)data; break;
-    case P_PAD_AUX1:      P->in_pad_aux1 = (const float*)data; break;
-    case P_PAD_AUX2:      P->in_pad_aux2 = (const float*)data; break;
+    case P_AUX1_L:        P->aux_l[0] = (float*)data; break;
+    case P_AUX1_R:        P->aux_r[0] = (float*)data; break;
+    case P_AUX2_L:        P->aux_l[1] = (float*)data; break;
+    case P_AUX2_R:        P->aux_r[1] = (float*)data; break;
+    case P_AUX3_L:        P->aux_l[2] = (float*)data; break;
+    case P_AUX3_R:        P->aux_r[2] = (float*)data; break;
+    case P_AUX4_L:        P->aux_l[3] = (float*)data; break;
+    case P_AUX4_R:        P->aux_r[3] = (float*)data; break;
+    case P_PAD_AUX1:      P->in_pad_aux[0] = (const float*)data; break;
+    case P_PAD_AUX2:      P->in_pad_aux[1] = (const float*)data; break;
+    case P_PAD_AUX3:      P->in_pad_aux[2] = (const float*)data; break;
+    case P_PAD_AUX4:      P->in_pad_aux[3] = (const float*)data; break;
     default:
       if (port >= P_OUT_LVL0 && port < P_OUT_LVL0 + EP_PADS)
         P->out_lvl[port - P_OUT_LVL0] = (float*)data;
@@ -879,36 +891,28 @@ static void run(LV2_Handle h, uint32_t nframes) {
   if (P->ctl[P_MASTER])    P->core.master_vol = *P->ctl[P_MASTER];
   if (P->in_stereo_width)  P->core.stereo_width = *P->in_stereo_width;
 
-  /* Encoder control for selected pad's Steps (End), Beg Step, and Aux 1/2 Sends */
+  /* Encoder control for selected pad's Steps (End), Beg Step, and Aux 1..4 Sends */
   if (!P->have_prev_steps) {
     if (P->in_pad_steps) P->prev_pad_steps = *P->in_pad_steps;
     if (P->in_pad_beg)   P->prev_pad_beg   = *P->in_pad_beg;
-    if (P->in_pad_aux1)  P->prev_pad_aux1  = *P->in_pad_aux1;
-    if (P->in_pad_aux2)  P->prev_pad_aux2  = *P->in_pad_aux2;
+    for (int a = 0; a < EP_AUX_BUSES; a++) {
+      if (P->in_pad_aux[a]) P->prev_pad_aux[a] = *P->in_pad_aux[a];
+    }
     P->have_prev_steps = 1;
   } else {
     int sc = P->core.seq.scene;
     int pd = P->sel_pad;
-    if (P->in_pad_aux1) {
-      float v = *P->in_pad_aux1;
-      if (fabsf(v - P->prev_pad_aux1) > 1e-4f) {
-        P->prev_pad_aux1 = v;
-        if (v < 0.0f) v = 0.0f;
-        if (v > 100.0f) v = 100.0f;
-        P->core.pad[pd].aux1 = v;
-        P->shm_dirty = 1;
-        P->seq_notify_dirty = 1;
-      }
-    }
-    if (P->in_pad_aux2) {
-      float v = *P->in_pad_aux2;
-      if (fabsf(v - P->prev_pad_aux2) > 1e-4f) {
-        P->prev_pad_aux2 = v;
-        if (v < 0.0f) v = 0.0f;
-        if (v > 100.0f) v = 100.0f;
-        P->core.pad[pd].aux2 = v;
-        P->shm_dirty = 1;
-        P->seq_notify_dirty = 1;
+    for (int a = 0; a < EP_AUX_BUSES; a++) {
+      if (P->in_pad_aux[a]) {
+        float v = *P->in_pad_aux[a];
+        if (fabsf(v - P->prev_pad_aux[a]) > 1e-4f) {
+          P->prev_pad_aux[a] = v;
+          if (v < 0.0f) v = 0.0f;
+          if (v > 100.0f) v = 100.0f;
+          P->core.pad[pd].aux[a] = v;
+          P->shm_dirty = 1;
+          P->seq_notify_dirty = 1;
+        }
       }
     }
     if (P->in_pad_steps) {
@@ -969,12 +973,13 @@ static void run(LV2_Handle h, uint32_t nframes) {
         }
         if (ev->body.size < 3) continue;
         if (t > pos) {
-          ep_core_process_aux(&P->core, P->out_l + pos, P->out_r + pos,
-                              P->aux1_l ? P->aux1_l + pos : NULL,
-                              P->aux1_r ? P->aux1_r + pos : NULL,
-                              P->aux2_l ? P->aux2_l + pos : NULL,
-                              P->aux2_r ? P->aux2_r + pos : NULL,
-                              t - pos, P->sel_pad);
+          float* al[EP_AUX_BUSES];
+          float* ar[EP_AUX_BUSES];
+          for (int a = 0; a < EP_AUX_BUSES; a++) {
+            al[a] = P->aux_l[a] ? P->aux_l[a] + pos : NULL;
+            ar[a] = P->aux_r[a] ? P->aux_r[a] + pos : NULL;
+          }
+          ep_core_process_aux(&P->core, P->out_l + pos, P->out_r + pos, al, ar, t - pos, P->sel_pad);
           pos = t;
         }
         uint8_t status = msg[0] & 0xF0;
@@ -1053,12 +1058,13 @@ static void run(LV2_Handle h, uint32_t nframes) {
   }
 
   if (pos < nframes) {
-    ep_core_process_aux(&P->core, P->out_l + pos, P->out_r + pos,
-                        P->aux1_l ? P->aux1_l + pos : NULL,
-                        P->aux1_r ? P->aux1_r + pos : NULL,
-                        P->aux2_l ? P->aux2_l + pos : NULL,
-                        P->aux2_r ? P->aux2_r + pos : NULL,
-                        nframes - pos, P->sel_pad);
+    float* al[EP_AUX_BUSES];
+    float* ar[EP_AUX_BUSES];
+    for (int a = 0; a < EP_AUX_BUSES; a++) {
+      al[a] = P->aux_l[a] ? P->aux_l[a] + pos : NULL;
+      ar[a] = P->aux_r[a] ? P->aux_r[a] + pos : NULL;
+    }
+    ep_core_process_aux(&P->core, P->out_l + pos, P->out_r + pos, al, ar, nframes - pos, P->sel_pad);
   }
   P->sample_clock += (uint64_t)nframes;
 
