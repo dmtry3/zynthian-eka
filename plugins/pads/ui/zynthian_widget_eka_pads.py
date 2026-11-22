@@ -982,11 +982,20 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self._add_btn(c, pad_m + 2 * b3w, y, pad_m + ctrl_w - 4, y + r2_h,
                       "%d BPM" % bpm, "#263040", "#ffffff", fam, fsmall, "bpm_drag", bpm)
 
-        # Horizontal Steps Slider (Beg..End 1..32) on the right half of Row 2
-        sl_x0 = pad_m + ctrl_w + 2
-        sl_x1 = w - pad_m
+        # Horizontal Steps Slider with - / + 1-step buttons on the right half of Row 2
+        btn_s = max(24, min(32, int(r2_h * 1.05)))
+        sm_x0 = pad_m + ctrl_w + 2
+        sm_x1 = sm_x0 + btn_s
+        sp_x1 = w - pad_m
+        sp_x0 = sp_x1 - btn_s
+        sl_x0 = sm_x1 + 2
+        sl_x1 = sp_x0 - 2
         sl_w = max(40.0, sl_x1 - sl_x0)
         pad_col = ROW_COLORS[(self.sel_pad // 4) & 3]
+        self._add_btn(c, sm_x0, y, sm_x1, y + r2_h, "-", "#252936", "#f0f6fc", fam, fs,
+                      "steps_nudge", (scene, self.sel_pad, ps, pe, -1))
+        self._add_btn(c, sp_x0, y, sp_x1, y + r2_h, "+", "#252936", "#f0f6fc", fam, fs,
+                      "steps_nudge", (scene, self.sel_pad, ps, pe, +1))
         c.create_rectangle(sl_x0, y, sl_x1, y + r2_h, fill="#1a1c24", outline="#3c4252", width=1)
         # Quarter-note ticks at 4, 8, 12, 16, 20, 24, 28
         for tick in range(4, EP_STEPS, 4):
@@ -1000,7 +1009,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         # Left (Beg) & Right (End) slider thumbs
         c.create_rectangle(rx_a, y + 1, min(sl_x1, rx_a + 4), y + r2_h - 1, fill="#ffd43b", width=0)
         c.create_rectangle(max(sl_x0, rx_b - 4), y + 1, rx_b, y + r2_h - 1, fill="#74c0fc", width=0)
-        sl_txt = "P%d: %d..%d (%d st)" % (self.sel_pad + 1, ps + 1, pe, pe - ps)
+        sl_txt = "P%d: %d..%d (%d)" % (self.sel_pad + 1, ps + 1, pe, pe - ps)
         c.create_text((sl_x0 + sl_x1) / 2, y + r2_h / 2, text=sl_txt,
                       fill="#f0f6fc", font=(fam, fsmall, "bold"))
         self.hit_boxes.append((sl_x0, y, sl_x1, y + r2_h, "steps_slider", (scene, self.sel_pad, ps, pe, sl_x0, sl_x1)))
@@ -1288,6 +1297,15 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 qx0, qx1 = arg
                 self.drag_info = ("quant_slider", (qx0, qx1), y, 0)
                 self._apply_quant_slider(qx0, qx1, x)
+                self.refresh_gui()
+                return
+
+            if action == "steps_nudge":
+                sc, p, ps, pe, delta = arg
+                nend = max(ps + 1, min(EP_STEPS, pe + delta))
+                self._select_group("g_stereo")
+                self._send_cmd(CMD_SET_END, a=sc, b=p, val=nend)
+                self._zset("pad_steps", nend)
                 self.refresh_gui()
                 return
 
