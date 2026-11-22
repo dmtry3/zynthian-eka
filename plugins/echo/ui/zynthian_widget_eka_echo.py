@@ -117,9 +117,11 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
 
         self.tap_box = (0.0, 0.0, 1.0, 1.0)
         self.tone_box = (0.0, 0.0, 1.0, 1.0)
+        self.fx_sliders = {}   # sym -> (x0, y0, x1, y1, bipolar)
+        self.fx_view = False   # False = Tap Map, True = dedicated Live Effects screen
         self.handle_pos = {}
         self.hit_rects = {}
-        self.drag_mode = None  # ("tap", "L"|"R") | ("tone", "hpf"|"lpf") | ("trails", t0)
+        self.drag_mode = None  # ("tap", "L"|"R") | ("tone", "hpf"|"lpf") | ("fx", sym) | ("trails", t0)
 
         self.widget_canvas = tkinter.Canvas(
             self,
@@ -162,18 +164,19 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         if zctrl is not None:
             zctrl.set_value(value)
 
-    def _select_group(self, group_sym):
+    def _select_group(self, group_sym, group_name=None):
         try:
             rows = self.zyngui_control.list_data
         except Exception:
             return
         for i, row in enumerate(rows):
-            if len(row) >= 5 and row[0] == group_sym and row[3] is self.processor:
-                try:
-                    self.zyngui_control.select(i)
-                except Exception:
-                    pass
-                return
+            if len(row) >= 4 and row[3] is self.processor:
+                if row[0] == group_sym or (group_name and (row[0] == group_name or row[2] == group_name)):
+                    try:
+                        self.zyngui_control.select(i)
+                    except Exception:
+                        pass
+                    return
 
     def _read_state(self):
         return {
@@ -197,7 +200,7 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
             "trails":      self._get("trails", 0.0) >= 0.5,
             "output_db":   self._get("output_db", 0.0),
             "bypass":      self._get("bypass", 0.0) >= 0.5,
-            "time_fx":     self._get("time_fx", 100.0),
+            "time_fx":     self._get("time_fx", 0.0),
             "time_link":   self._get("time_link", 1.0) >= 0.5,
             "filter_fx":   self._get("filter_fx", 0.0),
             "wash_fx":     self._get("wash_fx", 0.0),
@@ -250,6 +253,7 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         cv.delete("all")
         self.hit_rects.clear()
         self.handle_pos.clear()
+        self.fx_sliders.clear()
 
         pad = 6
         btn_h = max(36, min(44, int(h * 0.12)))
@@ -260,13 +264,34 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         gy0 = pad
         gx1 = w - pad - meter_w - 6
         gy1 = h - pad - btn_h - tone_h - 12
+        ty1 = gy1 + 5 + tone_h
         self.tap_box = (gx0, gy0, gx1, gy1)
+
+        mode_name, mode_col = MODES[st["mode"]]
+        route_name, route_col = ROUTINGS[st["routing"]]
+
+        if self.fx_view:
+            self._draw_fx_screen(cv, st, byp, bpm, act_l, act_r, gx0, gy0, gx1, ty1, mode_name, mode_col)
+            self._draw_meters(cv, byp, in_db, out_db, dk_db, gx1, gy0, ty1, w, pad)
+            by0 = ty1 + 6
+            by1 = h - pad
+            fx_nonzero = (abs(st["time_fx"]) >= 0.75 or abs(st["filter_fx"]) >= 0.75 or st["wash_fx"] >= 0.75)
+            buttons = (
+                ("fx",     "MAIN",                            BYP_MID if byp else LEFT_COL,   False),
+                ("link",   "LINK" if st["time_link"] else "L ONLY",
+                           BYP_MID if byp else LINK_COL,      st["time_link"] and not byp),
+                ("zero",   "ZERO 0",                          BYP_MID if byp else TRAILS_COL, fx_nonzero and not byp),
+                ("sync",   "SYNC" if st["sync"] else "FREE",  BYP_MID if byp else SYNC_COL,   st["sync"] and not byp),
+                ("freeze", "FREEZE",                          BYP_MID if byp else FREEZE_COL, st["freeze"] and not byp),
+                ("trails", "BYPASS" if byp else ("MUTE IN" if st["trails"] else "TRAILS"),
+                           BYP_HI if byp else TRAILS_COL,     byp or st["trails"]),
+            )
+            self._draw_buttons(cv, buttons, w, pad, by0, by1)
+            return
 
         mid_y = (gy0 + gy1) * 0.5
         half_h = max(10.0, (gy1 - gy0) * 0.46)
 
-        mode_name, mode_col = MODES[st["mode"]]
-        route_name, route_col = ROUTINGS[st["routing"]]
         l_col = BYP_MID if byp else (FREEZE_COL if st["freeze"] else LEFT_COL)
         r_col = BYP_MID if byp else (FREEZE_COL if st["freeze"] else RIGHT_COL)
 
@@ -293,7 +318,7 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
 
         # Echo tap decay impulses (L above midline, R below midline)
         fb = 0.96 if st["freeze"] else _clamp(st["feedback"] * 0.01, 0.0, 1.05)
-        fx_active = abs(st["time_fx"] - 100.0) >= 0.5
+        fx_active = abs(st["time_fx"]) >= 0.75
         ms_l = act_l if (st["sync"] or fx_active) else st["time_l"]
         ms_r = act_r if (st["sync"] or (fx_active and st["time_link"])) else st["time_r"]
 
@@ -345,7 +370,7 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
             self.handle_pos[key] = (hx, hy)
 
         # Header info inside Tap Map
-        fx_tag = f" · FX {st['time_fx']:.0f}%" if fx_active else ""
+        fx_tag = f" · FX {st['time_fx']:+.0f}%" if fx_active else ""
         if st["sync"] and not fx_active:
             lbl_l, _ = nearest_division(ms_l, bpm)
             lbl_r, _ = nearest_division(ms_r, bpm)
@@ -368,7 +393,6 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
 
         # 2. Interactive Loop Filter bar (HPF — LPF)
         ty0 = gy1 + 5
-        ty1 = ty0 + tone_h
         tx0 = gx0
         tx1 = gx1
         self.tone_box = (tx0, ty0, tx1, ty1)
@@ -389,6 +413,24 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
                        fill=BYP_HI if byp else LABEL_HI, font=("TkDefaultFont", 8, "bold"))
 
         # 3. Vertical Meters on the right: IN | DK | OUT
+        self._draw_meters(cv, byp, in_db, out_db, dk_db, gx1, gy0, ty1, w, pad)
+
+        # 4. Bottom 6 touch buttons: MODE | ROUTE | SYNC | FX | FREEZE | TRAILS (long press = BYPASS)
+        by0 = ty1 + 6
+        by1 = h - pad
+        fx_nonzero = (abs(st["time_fx"]) >= 0.75 or abs(st["filter_fx"]) >= 0.75 or st["wash_fx"] >= 0.75)
+        buttons = (
+            ("mode",   mode_name,                          BYP_MID if byp else mode_col,   False),
+            ("route",  route_name,                         BYP_MID if byp else route_col,  False),
+            ("sync",   "SYNC" if st["sync"] else "FREE",   BYP_MID if byp else SYNC_COL,   st["sync"] and not byp),
+            ("fx",     "FX" if not fx_nonzero else "FX *", BYP_MID if byp else LINK_COL,   fx_nonzero and not byp),
+            ("freeze", "FREEZE",                           BYP_MID if byp else FREEZE_COL, st["freeze"] and not byp),
+            ("trails", "BYPASS" if byp else ("MUTE IN" if st["trails"] else "TRAILS"),
+                       BYP_HI if byp else TRAILS_COL,      byp or st["trails"]),
+        )
+        self._draw_buttons(cv, buttons, w, pad, by0, by1)
+
+    def _draw_meters(self, cv, byp, in_db, out_db, dk_db, gx1, gy0, ty1, w, pad):
         mx0 = gx1 + 6
         my1 = ty1
         mw = (w - pad - mx0 - 8) / 3.0
@@ -416,19 +458,7 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
                 cv.create_line(bx0 + 1, hy, bx1 - 1, hy, fill=BYP_HI if byp else LABEL_HI, width=2)
             cv.create_text((bx0 + bx1) * 0.5, my1 - 5, text=lbl, fill=LABEL_DIM, font=("TkDefaultFont", 7, "bold"))
 
-        # 4. Bottom 6 touch buttons: MODE | ROUTE | SYNC | LINK | FREEZE | TRAILS (long press = BYPASS)
-        by0 = ty1 + 6
-        by1 = h - pad
-        buttons = (
-            ("mode",   mode_name,                          BYP_MID if byp else mode_col,   False),
-            ("route",  route_name,                         BYP_MID if byp else route_col,  False),
-            ("sync",   "SYNC" if st["sync"] else "FREE",   BYP_MID if byp else SYNC_COL,   st["sync"] and not byp),
-            ("link",   "LINK" if st["time_link"] else "UNLINK",
-                       BYP_MID if byp else LINK_COL,       st["time_link"] and not byp),
-            ("freeze", "FREEZE",                           BYP_MID if byp else FREEZE_COL, st["freeze"] and not byp),
-            ("trails", "BYPASS" if byp else ("MUTE IN" if st["trails"] else "TRAILS"),
-                       BYP_HI if byp else TRAILS_COL,      byp or st["trails"]),
-        )
+    def _draw_buttons(self, cv, buttons, w, pad, by0, by1):
         gap = 5
         bw = (w - 2 * pad - gap * (len(buttons) - 1)) / float(len(buttons))
         for i, (key, lbl, col, active) in enumerate(buttons):
@@ -440,6 +470,77 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
             cv.create_rectangle(bx0, by0, bx1, by1, fill=fill, outline=col, width=1.6)
             cv.create_text((bx0 + bx1) * 0.5, (by0 + by1) * 0.5, text=lbl,
                            fill=txt_col, font=("TkDefaultFont", 9, "bold"))
+
+    def _draw_fx_screen(self, cv, st, byp, bpm, act_l, act_r, x0, y0, x1, y1, mode_name, mode_col):
+        cv.create_rectangle(x0, y0, x1, y1, fill=PANEL_BG, outline=LINE_DIM, width=1)
+        link_txt = "LINK L+R" if st["time_link"] else "L ONLY"
+        hdr = f"EFFECTS · Base {st['time_l']:.0f}/{st['time_r']:.0f}ms → Now {act_l:.0f}/{act_r:.0f}ms · {link_txt}"
+        cv.create_text(x0 + 8, y0 + 6, text=hdr, anchor="nw",
+                       fill=BYP_HI if byp else LABEL_HI, font=("TkDefaultFont", 8, "bold"))
+        badge = "BYPASS" if byp else f"{mode_name} · {bpm:.0f} BPM"
+        cv.create_text(x1 - 8, y0 + 6, text=badge, anchor="ne",
+                       fill=BYP_HI if byp else mode_col, font=("TkDefaultFont", 8, "bold"))
+
+        inner_x0 = x0 + 8
+        z_btn_w = 42
+        bar_x1 = x1 - 8 - z_btn_w - 6
+        top_y = y0 + 26
+        avail_h = max(90.0, y1 - top_y - 8)
+        row_gap = 8.0
+        row_h = (avail_h - 2.0 * row_gap) / 3.0
+
+        tfx = st["time_fx"]
+        mult = 1.0 if abs(tfx) < 0.75 else (2.0 ** (2.0 * (tfx * 0.01)))
+        ffx = st["filter_fx"]
+        wfx = st["wash_fx"]
+
+        rows = (
+            ("time_fx",   tfx, True,  f"TIME FX   {tfx:+.0f}%  ({mult:.2f}x)",
+             LEFT_COL if tfx < 0 else "#ffa94d"),
+            ("filter_fx", ffx, True,  f"FILTER FX {ffx:+.0f}%  ({'LPF' if ffx < -0.5 else ('HPF' if ffx > 0.5 else 'FLAT')})",
+             BAND_LINE if ffx < 0 else RIGHT_COL),
+            ("wash_fx",   wfx, False, f"WASH FX   {wfx:.0f}%",
+             LINK_COL),
+        )
+
+        for idx, (sym, val, bipolar, title, col) in enumerate(rows):
+            ry0 = top_y + idx * (row_h + row_gap)
+            ry1 = ry0 + row_h
+            self.fx_sliders[sym] = (inner_x0, ry0, bar_x1, ry1, bipolar)
+            c_act = BYP_MID if byp else col
+
+            cv.create_rectangle(inner_x0, ry0, bar_x1, ry1, fill=BUTTON_BG, outline=LINE_DIM, width=1.2)
+            if bipolar:
+                cx = (inner_x0 + bar_x1) * 0.5
+                norm = _clamp(val / 100.0, -1.0, 1.0)
+                vx = cx + norm * (bar_x1 - inner_x0) * 0.5
+                if abs(val) >= 0.75:
+                    cv.create_rectangle(min(cx, vx), ry0 + 2, max(cx, vx), ry1 - 2,
+                                        fill=BYP_FILL if byp else c_act, outline="")
+                cv.create_line(cx, ry0 + 1, cx, ry1 - 1, fill=LABEL_HI, width=1.8)
+                cv.create_line(vx, ry0 + 2, vx, ry1 - 2, fill=LABEL_HI, width=2.4)
+            else:
+                norm = _clamp(val / 100.0, 0.0, 1.0)
+                vx = inner_x0 + norm * (bar_x1 - inner_x0)
+                if norm > 0.005:
+                    cv.create_rectangle(inner_x0 + 1, ry0 + 2, vx, ry1 - 2,
+                                        fill=BYP_FILL if byp else c_act, outline="")
+                cv.create_line(vx, ry0 + 2, vx, ry1 - 2, fill=LABEL_HI, width=2.4)
+
+            cv.create_text((inner_x0 + bar_x1) * 0.5, (ry0 + ry1) * 0.5, text=title,
+                           fill=LABEL_HI, font=("TkDefaultFont", 9, "bold"))
+
+            # Individual "0" reset button on the right of each slider
+            zx0 = bar_x1 + 6
+            zx1 = x1 - 8
+            z_key = f"z_{sym}"
+            self.hit_rects[z_key] = (zx0, ry0, zx1, ry1)
+            active_z = (abs(val) >= 0.75) and not byp
+            cv.create_rectangle(zx0, ry0, zx1, ry1,
+                                fill=c_act if active_z else BUTTON_BG,
+                                outline=c_act, width=1.4)
+            cv.create_text((zx0 + zx1) * 0.5, (ry0 + ry1) * 0.5, text="0",
+                           fill="#101318" if active_z else LABEL_HI, font=("TkDefaultFont", 10, "bold"))
 
     def _apply_tap_drag(self, which, x, y):
         gx0, gy0, gx1, gy1 = self.tap_box
@@ -475,68 +576,114 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         else:
             self._set("lpf_hz", round(_clamp(f, 500.0, 20000.0), 1))
 
+    def _apply_fx_drag(self, sym, x):
+        info = self.fx_sliders.get(sym)
+        if not info:
+            return
+        sx0, _sy0, sx1, _sy1, bipolar = info
+        t = _clamp((x - sx0) / max(1.0, sx1 - sx0), 0.0, 1.0)
+        if bipolar:
+            v = (t * 2.0 - 1.0) * 100.0
+            if abs(v) < 3.0:
+                v = 0.0
+            self._set(sym, round(_clamp(v, -100.0, 100.0), 1))
+        else:
+            v = t * 100.0
+            self._set(sym, round(_clamp(v, 0.0, 100.0), 1))
+
     def _on_press(self, event):
         x, y = event.x, event.y
         now = time.monotonic()
         self.drag_mode = None
 
-        # 1. Bottom buttons
+        # 1. Buttons (bottom bar + FX per-slider "0" reset buttons)
         for key, (x0, y0, x1, y1) in self.hit_rects.items():
             if x0 <= x <= x1 and y0 <= y <= y1:
+                if key == "fx":
+                    self.fx_view = not self.fx_view
+                    if self.fx_view:
+                        self._select_group("g_fx", "Effects")
+                    else:
+                        self._select_group("g_time", "Time")
+                    self.refresh_gui()
+                    return
+                if key == "zero":
+                    self._set("time_fx", 0.0)
+                    self._set("filter_fx", 0.0)
+                    self._set("wash_fx", 0.0)
+                    self._select_group("g_fx", "Effects")
+                    self.refresh_gui()
+                    return
+                if key.startswith("z_"):
+                    self._set(key[2:], 0.0)
+                    self._select_group("g_fx", "Effects")
+                    self.refresh_gui()
+                    return
                 if key == "mode":
                     cur = int(round(self._get("mode", 1.0)))
                     self._set("mode", (cur + 1) % len(MODES))
-                    self._select_group("g_mode")
+                    self._select_group("g_mode", "Mode & Sync")
                     self.refresh_gui()
                     return
                 if key == "route":
                     cur = int(round(self._get("routing", 0.0)))
                     self._set("routing", (cur + 1) % len(ROUTINGS))
-                    self._select_group("g_mode")
+                    self._select_group("g_mode", "Mode & Sync")
                     self.refresh_gui()
                     return
                 if key == "sync":
                     cur = self._get("sync", 1.0)
                     self._set("sync", 0 if cur >= 0.5 else 1)
-                    self._select_group("g_mode")
+                    self._select_group("g_mode", "Mode & Sync")
                     self.refresh_gui()
                     return
                 if key == "link":
                     cur = self._get("time_link", 1.0)
                     self._set("time_link", 0 if cur >= 0.5 else 1)
-                    self._select_group("g_fx")
+                    self._select_group("g_fx", "Effects")
                     self.refresh_gui()
                     return
                 if key == "freeze":
                     cur = self._get("freeze", 0.0)
                     self._set("freeze", 0 if cur >= 0.5 else 1)
-                    self._select_group("g_perf")
+                    self._select_group("g_perf", "Perform")
                     self.refresh_gui()
                     return
                 if key == "trails":
                     self.drag_mode = ("trails", now)
-                    self._select_group("g_perf")
+                    self._select_group("g_perf", "Perform")
                     return
 
-        # 2. Tone filter bar
+        # 2. Dedicated FX screen sliders
+        if self.fx_view:
+            for sym, (sx0, sy0, sx1, sy1, _bip) in self.fx_sliders.items():
+                if sx0 <= x <= sx1 and sy0 <= y <= sy1:
+                    self.drag_mode = ("fx", sym)
+                    self._select_group("g_fx", "Effects")
+                    self._apply_fx_drag(sym, x)
+                    self.refresh_gui()
+                    return
+            return
+
+        # 3. Tone filter bar
         tx0, ty0, tx1, ty1 = self.tone_box
         if tx0 <= x <= tx1 and ty0 <= y <= ty1:
             hx = self.handle_pos.get("hpf", (tx0, 0))[0]
             lx = self.handle_pos.get("lpf", (tx1, 0))[0]
             which = "hpf" if abs(x - hx) <= abs(x - lx) else "lpf"
             self.drag_mode = ("tone", which)
-            self._select_group("g_tone")
+            self._select_group("g_tone", "Tone")
             self._apply_tone_drag(which, x)
             self.refresh_gui()
             return
 
-        # 3. Tap Map
+        # 4. Tap Map
         gx0, gy0, gx1, gy1 = self.tap_box
         if gx0 <= x <= gx1 and gy0 <= y <= gy1:
             mid_y = (gy0 + gy1) * 0.5
             which = "L" if y <= mid_y else "R"
             self.drag_mode = ("tap", which)
-            self._select_group("g_time")
+            self._select_group("g_time", "Time")
             self._apply_tap_drag(which, x, y)
             self.refresh_gui()
 
@@ -549,6 +696,9 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
             self.refresh_gui()
         elif kind == "tone":
             self._apply_tone_drag(self.drag_mode[1], event.x)
+            self.refresh_gui()
+        elif kind == "fx":
+            self._apply_fx_drag(self.drag_mode[1], event.x)
             self.refresh_gui()
 
     def _on_release(self, event):

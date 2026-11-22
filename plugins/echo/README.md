@@ -57,17 +57,18 @@ Six pages of 4 encoders:
 | Page | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|---|
 | **1. Time** | `Time L` (`5..2500 ms`) | `Time R` (`5..2500 ms`) | `Feedback` (`0..110%`) | `Mix` (`0..100%`) |
-| **2. Mode & Sync** | `Mode` (`Clean/Tape/BBD/Diff`) | `Routing` (`Stereo/PingPong/Cross`) | `Sync` (`Free / Sync`) | `Width` (`0..100%`) |
-| **3. Tone** | `HPF` (`20..1000 Hz`) | `LPF` (`500..20000 Hz`) | `Drive` (`0..100%`) | `Diffuse` (`0..100%`) |
-| **4. Motion** | `Mod Rate` (`0.05..8 Hz`) | `Mod Depth` (`0..100%`) | `Duck` (`0..100%`) | `Duck Rel` (`50..1000 ms`) |
-| **5. Perform** | `Freeze` (`Off / On`) | `Trails` (`Send On / Mute In`) | `Output` (`-18..+12 dB`) | `Bypass` (`Off / On`) |
-| **6. Effects** | `Time FX` (`25..400%`) | `Time Link` (`Off / On`) | `Filter FX` (`-100..+100%`) | `Wash FX` (`0..100%`) |
+| **2. Effects** | `Time FX` (`-100..+100%`, 0 = original) | `Time Link` (`Off / On`) | `Filter FX` (`-100..+100%`) | `Wash FX` (`0..100%`) |
+| **3. Mode & Sync** | `Mode` (`Clean/Tape/BBD/Diff`) | `Routing` (`Stereo/PingPong/Cross`) | `Sync` (`Free / Sync`) | `Width` (`0..100%`) |
+| **4. Tone** | `HPF` (`20..1000 Hz`) | `LPF` (`500..20000 Hz`) | `Drive` (`0..100%`) | `Diffuse` (`0..100%`) |
+| **5. Motion** | `Mod Rate` (`0.05..8 Hz`) | `Mod Depth` (`0..100%`) | `Duck` (`0..100%`) | `Duck Rel` (`50..1000 ms`) |
+| **6. Perform** | `Freeze` (`Off / On`) | `Trails` (`Send On / Mute In`) | `Output` (`-18..+12 dB`) | `Bypass` (`Off / On`) |
 
 ## Widget & Gestures
 
 - **Tap Map (top):** drag `L` (upper half) or `R` (lower half) left/right to set delay time (moves both channels proportionally when `LINK` is on; snaps to note divisions when `Sync` is on) and up/down to set `Feedback`; switches encoders to `Time`.
 - **Loop Filter bar (middle):** drag left/right edges to adjust `HPF` / `LPF`; switches encoders to `Tone`.
-- **Bottom 6 buttons:** tap `MODE`, `ROUTE`, `SYNC`, `LINK` (switches encoders to `Effects`), `FREEZE`, `TRAILS` (Mute In); **long press `TRAILS`** toggles full `Bypass` and grays out the UI.
+- **Dedicated `FX` screen:** tap `FX` on the bottom bar to open the live **Effects** touch screen (and switch encoders to `Effects`) with bipolar `TIME FX` (`-100..0..+100%`), `FILTER FX`, `WASH FX`, per-slider `0` reset, `LINK / L ONLY`, and `ZERO 0` (reset all without losing original `Time L`/`Time R`).
+- **Bottom 6 buttons:** tap `MODE`, `ROUTE`, `SYNC`, `FX`, `FREEZE`, `TRAILS` (Mute In); **long press `TRAILS`** toggles full `Bypass` and grays out the UI.
 
 ## Building & Testing on Linux / WSL
 

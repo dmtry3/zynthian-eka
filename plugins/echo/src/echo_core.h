@@ -48,7 +48,7 @@ typedef struct {
     float output_db;      /* -18..+12 dB */
     int   bypass;         /* 0/1 */
 
-    float time_fx_pct;    /* 25..400 %, default 100 % */
+    float time_fx_pct;    /* -100..+100 %, default 0 % (bipolar: 0.25x..4.0x) */
     int   time_link;      /* 0=Unlinked (L only), 1=Linked (L & R) */
     float filter_fx_pct;  /* -100..+100 %, default 0 % */
     float wash_fx_pct;    /* 0..100 %, default 0 % */

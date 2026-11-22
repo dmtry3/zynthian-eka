@@ -9,11 +9,11 @@ URI = "http://dmtry3.github.io/zynthian-eka/echo"
 
 GROUPS = [
     ("g_time",   "Time",        0, 50),
-    ("g_mode",   "Mode & Sync", 1, 40),
-    ("g_tone",   "Tone",        2, 30),
-    ("g_motion", "Motion",      3, 20),
-    ("g_perf",   "Perform",     4, 10),
-    ("g_fx",     "Effects",     5, 5),
+    ("g_fx",     "Effects",     1, 45),
+    ("g_mode",   "Mode & Sync", 2, 40),
+    ("g_tone",   "Tone",        3, 30),
+    ("g_motion", "Motion",      4, 20),
+    ("g_perf",   "Perform",     5, 10),
 ]
 
 # Input control ports matching enum in src/eka_echo.c (indices 5..28)
@@ -60,8 +60,8 @@ CONTROL_PORTS = [
          props=["lv2:integer", "lv2:toggled", "lv2:enumeration"],
          points=[("Off", 0), ("On", 1)]),
 
-    # Page 6: Effects (Live)
-    dict(idx=25, sym="time_fx",     name="Time FX",   grp="g_fx",     default=100.0,  min=25.0,   max=400.0,  unit="units:pc", props=["pprops:logarithmic"]),
+    # Page 2 (Live): Effects
+    dict(idx=25, sym="time_fx",     name="Time FX",   grp="g_fx",     default=0.0,    min=-100.0, max=100.0,  unit="units:pc"),
     dict(idx=26, sym="time_link",   name="Time Link", grp="g_fx",     default=1,      min=0,      max=1,
          props=["lv2:integer", "lv2:toggled", "lv2:enumeration"],
          points=[("Off", 0), ("On", 1)]),
@@ -181,7 +181,7 @@ def gen_plugin_ttl():
         '    doap:name "Eka Echo" ;',
         "    doap:license <https://spdx.org/licenses/GPL-3.0-or-later.html> ;",
         "    lv2:minorVersion 0 ;",
-        "    lv2:microVersion 2 ;",
+        "    lv2:microVersion 3 ;",
         "    lv2:optionalFeature lv2:hardRTCapable, urid:map ;",
         "    lv2:port",
         '    [ a lv2:InputPort,  lv2:AudioPort ; lv2:index 0 ; lv2:symbol "in_l"  ; lv2:name "Input Left" ] ,',

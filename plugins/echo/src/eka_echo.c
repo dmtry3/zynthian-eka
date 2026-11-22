@@ -241,7 +241,7 @@ static void run(LV2_Handle instance, uint32_t nframes) {
     p->output_db     = read_port(self->ctrl[PORT_OUTPUT_DB],     0.0f);
     p->bypass        = read_port(self->ctrl[PORT_BYPASS],        0.0f) >= 0.5f ? 1 : 0;
 
-    p->time_fx_pct   = read_port(self->ctrl[PORT_TIME_FX],     100.0f);
+    p->time_fx_pct   = read_port(self->ctrl[PORT_TIME_FX],       0.0f);
     p->time_link     = read_port(self->ctrl[PORT_TIME_LINK],     1.0f) >= 0.5f ? 1 : 0;
     p->filter_fx_pct = read_port(self->ctrl[PORT_FILTER_FX],     0.0f);
     p->wash_fx_pct   = read_port(self->ctrl[PORT_WASH_FX],       0.0f);

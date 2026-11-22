@@ -57,17 +57,18 @@ cd /root/zynthian-eka && git pull && sudo make install-echo && systemctl restart
 | Страница | Ручка 1 | Ручка 2 | Ручка 3 | Ручка 4 |
 |---|---|---|---|---|
 | **1. Time** | `Time L` (`5..2500 мс`) | `Time R` (`5..2500 мс`) | `Feedback` (`0..110%`) | `Mix` (`0..100%`) |
-| **2. Mode & Sync** | `Mode` (`Clean/Tape/BBD/Diff`) | `Routing` (`Stereo/PingPong/Cross`) | `Sync` (`Free / Sync`) | `Width` (`0..100%`) |
-| **3. Tone** | `HPF` (`20..1000 Гц`) | `LPF` (`500..20000 Гц`) | `Drive` (`0..100%`) | `Diffuse` (`0..100%`) |
-| **4. Motion** | `Mod Rate` (`0.05..8 Гц`) | `Mod Depth` (`0..100%`) | `Duck` (`0..100%`) | `Duck Rel` (`50..1000 мс`) |
-| **5. Perform** | `Freeze` (`Off / On`) | `Trails` (`Send On / Mute In`) | `Output` (`-18..+12 дБ`) | `Bypass` (`Off / On`) |
-| **6. Effects** | `Time FX` (`25..400%`) | `Time Link` (`Off / On`) | `Filter FX` (`-100..+100%`) | `Wash FX` (`0..100%`) |
+| **2. Effects** | `Time FX` (`-100..+100%`, 0 = исходное) | `Time Link` (`Off / On`) | `Filter FX` (`-100..+100%`) | `Wash FX` (`0..100%`) |
+| **3. Mode & Sync** | `Mode` (`Clean/Tape/BBD/Diff`) | `Routing` (`Stereo/PingPong/Cross`) | `Sync` (`Free / Sync`) | `Width` (`0..100%`) |
+| **4. Tone** | `HPF` (`20..1000 Гц`) | `LPF` (`500..20000 Гц`) | `Drive` (`0..100%`) | `Diffuse` (`0..100%`) |
+| **5. Motion** | `Mod Rate` (`0.05..8 Гц`) | `Mod Depth` (`0..100%`) | `Duck` (`0..100%`) | `Duck Rel` (`50..1000 мс`) |
+| **6. Perform** | `Freeze` (`Off / On`) | `Trails` (`Send On / Mute In`) | `Output` (`-18..+12 дБ`) | `Bypass` (`Off / On`) |
 
 ## Виджет и жесты
 
 - **Шкала повторов (сверху):** тяните маркер `L` (верхняя половина) или `R` (нижняя) влево/вправо для времени (при включённом `LINK` оба канала двигаются пропорционально; при включённом `Sync` притягивается к нотным длительностям) и вверх/вниз для `Feedback`; переключает энкодеры на `Time`.
 - **Полоса фильтра петли (в центре):** тяните левый/правый край для `HPF` / `LPF`; переключает энкодеры на `Tone`.
-- **6 нижних кнопок:** `MODE`, `ROUTE`, `SYNC`, `LINK` (переключает энкодеры на `Effects`), `FREEZE`, `TRAILS` (Mute In); **долгий тап по `TRAILS`** включает общий `Bypass` — весь виджет становится серым.
+- **Отдельный экран `FX`:** тап по кнопке `FX` открывает концертный тач-экран **Effects** (и переключает энкодеры на `Effects`): биполярный `TIME FX` (`-100..0..+100%`), `FILTER FX`, `WASH FX`, кнопки сброса в `0` на каждой полосе, `LINK / L ONLY` и `ZERO 0` (возврат в ноль без потери исходных `Time L`/`Time R`).
+- **6 нижних кнопок:** `MODE`, `ROUTE`, `SYNC`, `FX`, `FREEZE`, `TRAILS` (Mute In); **долгий тап по `TRAILS`** включает общий `Bypass` — весь виджет становится серым.
 
 ## Сборка и тесты на Linux / WSL
 

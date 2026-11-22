@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2 (2026-11-22)
+
+- Made **Time FX** bipolar (`-100..+100%`, default `0%` with zero deadzone) so original `Time L`/`Time R` are never lost and returning to `0%` restores the exact base times (`-50%` = `0.5x`, `+50%` = `2.0x`).
+- Moved **Effects** to Page 2 (right after `Time`) and added a dedicated **LIVE EFFECTS** touch screen in the widget (`FX` button) with bipolar `TIME FX`, `FILTER FX`, `WASH FX` sliders, per-slider `0` reset, `LINK / L ONLY`, and `ZERO 0` buttons.
+
 ## 0.1.1 (2026-11-22)
 
 - Added dedicated live **Effects** page (`Time FX`, `Time Link`, `Filter FX`, `Wash FX`):

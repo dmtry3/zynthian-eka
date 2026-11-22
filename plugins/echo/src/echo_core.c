@@ -184,7 +184,7 @@ void echo_params_default(EchoParams *p) {
     p->trails        = 0;
     p->output_db     = 0.0f;
     p->bypass        = 0;
-    p->time_fx_pct   = 100.0f;
+    p->time_fx_pct   = 0.0f;
     p->time_link     = 1;
     p->filter_fx_pct = 0.0f;
     p->wash_fx_pct   = 0.0f;
@@ -297,7 +297,10 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
         target_ms_r = echo_quantize_ms(target_ms_r, bpm);
     }
 
-    double time_mult = clampd(p->time_fx_pct, 25.0, 400.0) * 0.01;
+    /* Bipolar Time FX (-100..+100%, 0% = exact 1.0x original time):
+     * -50% = 0.5x (+1 oct), -100% = 0.25x (+2 oct), +50% = 2.0x (-1 oct), +100% = 4.0x (-2 oct). */
+    double tfx = clampd(p->time_fx_pct, -100.0, 100.0);
+    double time_mult = (fabs(tfx) < 0.75) ? 1.0 : pow(2.0, 2.0 * (tfx * 0.01));
     target_ms_l = clampd(target_ms_l * time_mult, ECHO_MIN_MS, ECHO_MAX_MS);
     if (p->time_link) {
         target_ms_r = clampd(target_ms_r * time_mult, ECHO_MIN_MS, ECHO_MAX_MS);
