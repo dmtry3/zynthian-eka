@@ -67,7 +67,7 @@ Six pages of 4 encoders:
 
 - **Tap Map (top):** drag `L` (upper half) or `R` (lower half) left/right to set delay time (moves both channels proportionally when `LINK` is on; snaps to note divisions when `Sync` is on) and up/down to set `Feedback`; switches encoders to `Time`.
 - **Loop Filter bar (middle):** drag left/right edges to adjust `HPF` / `LPF`; switches encoders to `Tone`.
-- **Dedicated `FX` screen:** tap `FX` on the bottom bar to open the live **Effects** touch screen (and switch encoders to `Effects`) with bipolar `TIME FX` (`-100..0..+100%`), `FILTER FX`, `WASH FX`, per-slider `0` reset, `LINK / L ONLY`, and `ZERO 0` (reset all without losing original `Time L`/`Time R`).
+- **Dedicated `FX` screen:** tap `FX` on the bottom bar to open the live **Effects** touch screen (and switch encoders to `Effects`) with a large **X-Y pad** (`X = TIME FX`, `-100..0..+100%`; `Y = FILTER FX`, down LPF / up HPF), bottom `WASH FX` slider with `0` reset, `HOLD / SNAP 0` toggle (spring-return to zero on release), `LINK / L ONLY`, and `ZERO 0` (reset all without losing original `Time L`/`Time R`).
 - **Bottom 6 buttons:** tap `MODE`, `ROUTE`, `SYNC`, `FX`, `FREEZE`, `TRAILS` (Mute In); **long press `TRAILS`** toggles full `Bypass` and grays out the UI.
 
 ## Building & Testing on Linux / WSL

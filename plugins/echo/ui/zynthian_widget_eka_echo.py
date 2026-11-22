@@ -124,12 +124,14 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
 
         self.tap_box = (0.0, 0.0, 1.0, 1.0)
         self.tone_box = (0.0, 0.0, 1.0, 1.0)
+        self.xy_box = (0.0, 0.0, 1.0, 1.0)
         self.fx_sliders = {}   # sym -> (x0, y0, x1, y1, bipolar)
         self.fx_view = False   # False = Tap Map, True = dedicated Live Effects screen
+        self.fx_snap = False   # False = HOLD, True = SNAP 0 (spring-return on release)
         self.handle_pos = {}
         self.hit_rects = {}
         self._last_ctrl_titles = {}
-        self.drag_mode = None  # ("tap", "L"|"R") | ("tone", "hpf"|"lpf") | ("fx", sym) | ("trails", t0)
+        self.drag_mode = None  # ("tap", "L"|"R", ratio) | ("tone", "hpf"|"lpf") | ("xy",) | ("fx", sym) | ("trails", t0)
 
         self.widget_canvas = tkinter.Canvas(
             self,
@@ -318,8 +320,9 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
                 ("fx",     "MAIN",                            BYP_MID if byp else LEFT_COL,   False),
                 ("link",   "LINK" if st["time_link"] else "L ONLY",
                            BYP_MID if byp else LINK_COL,      st["time_link"] and not byp),
+                ("snap",   "SNAP 0" if self.fx_snap else "HOLD",
+                           BYP_MID if byp else SYNC_COL,      self.fx_snap and not byp),
                 ("zero",   "ZERO 0",                          BYP_MID if byp else TRAILS_COL, fx_nonzero and not byp),
-                ("sync",   "SYNC" if st["sync"] else "FREE",  BYP_MID if byp else SYNC_COL,   st["sync"] and not byp),
                 ("freeze", "FREEZE",                          BYP_MID if byp else FREEZE_COL, st["freeze"] and not byp),
                 ("trails", "BYPASS" if byp else ("MUTE IN" if st["trails"] else "TRAILS"),
                            BYP_HI if byp else TRAILS_COL,     byp or st["trails"]),
@@ -556,16 +559,16 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
 
     def _draw_fx_screen(self, cv, st, byp, bpm, act_l, act_r, x0, y0, x1, y1, mode_name, mode_col):
         cv.create_rectangle(x0, y0, x1, y1, fill=PANEL_BG, outline=LINE_DIM, width=1)
-        link_txt = "LINK L+R" if st["time_link"] else "L ONLY"
+        link_txt = "LINK" if st["time_link"] else "L ONLY"
         if st["sync"]:
             bl, _ = nearest_division(st["time_l"], bpm)
             br, _ = nearest_division(st["time_r"], bpm)
             nl = _fmt_sync_ms(act_l, bpm)
             nr = _fmt_sync_ms(act_r, bpm)
-            hdr = f"EFFECTS · {bl}/{br} → {nl}/{nr} · {link_txt}"
+            hdr = f"FX · {bl}/{br} → {nl}/{nr} · {link_txt}"
         else:
-            hdr = f"EFFECTS · {st['time_l']:.0f}/{st['time_r']:.0f}ms → {act_l:.0f}/{act_r:.0f}ms · {link_txt}"
-        cv.create_text(x0 + 8, y0 + 6, text=hdr, anchor="nw",
+            hdr = f"FX · {st['time_l']:.0f}/{st['time_r']:.0f}ms → {act_l:.0f}/{act_r:.0f}ms · {link_txt}"
+        cv.create_text(x0 + 8, y0 + 5, text=hdr, anchor="nw",
                        fill=BYP_HI if byp else LABEL_HI, font=("TkDefaultFont", 8, "bold"))
         if byp:
             badge, badge_col = "BYPASS", BYP_HI
@@ -575,69 +578,119 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
             badge, badge_col = "TRAILS (MUTE IN)", TRAILS_COL
         else:
             badge, badge_col = f"{mode_name} · {bpm:.0f} BPM", mode_col
-        cv.create_text(x1 - 8, y0 + 6, text=badge, anchor="ne",
+        cv.create_text(x1 - 8, y0 + 5, text=badge, anchor="ne",
                        fill=badge_col, font=("TkDefaultFont", 8, "bold"))
 
         inner_x0 = x0 + 8
-        z_btn_w = 42
-        bar_x1 = x1 - 8 - z_btn_w - 6
-        top_y = y0 + 26
-        avail_h = max(90.0, y1 - top_y - 8)
-        row_gap = 8.0
-        row_h = (avail_h - 2.0 * row_gap) / 3.0
+        inner_x1 = x1 - 8
+        wash_h = max(30.0, min(38.0, (y1 - y0) * 0.17))
+        pad_y0 = y0 + 22
+        pad_y1 = y1 - wash_h - 14
+        self.xy_box = (inner_x0, pad_y0, inner_x1, pad_y1)
+
+        # 1. X-Y Pad: X = TIME FX (-100..+100%), Y = FILTER FX (down=LPF -100%, up=HPF +100%)
+        cv.create_rectangle(inner_x0, pad_y0, inner_x1, pad_y1, fill=BUTTON_BG, outline=LINE_DIM, width=1.2)
+        cx = (inner_x0 + inner_x1) * 0.5
+        cy = (pad_y0 + pad_y1) * 0.5
+        pw = max(1.0, inner_x1 - inner_x0)
+        ph = max(1.0, pad_y1 - pad_y0)
+
+        # Subtle live wet envelope ribbon in the background of the X-Y pad
+        step_x = pw / float(max(1, TRACE_STEPS - 1))
+        for i in range(TRACE_STEPS):
+            xx = inner_x0 + i * step_x
+            nl = _clamp((self.wet_l_ring[i] - FLOOR_DB) / (0.0 - FLOOR_DB), 0.0, 1.0)
+            nr = _clamp((self.wet_r_ring[i] - FLOOR_DB) / (0.0 - FLOOR_DB), 0.0, 1.0)
+            if nl > 0.04:
+                cv.create_line(xx, cy, xx, cy - nl * ph * 0.34,
+                               fill=BYP_FILL if byp else "#1c3044", width=2)
+            if nr > 0.04:
+                cv.create_line(xx, cy, xx, cy + nr * ph * 0.34,
+                               fill=BYP_FILL if byp else "#19352f", width=2)
+
+        # Reference grid lines: 0.5x (-50%), 1x (0%), 2x (+50%) and FLAT (0%)
+        for frac, lbl in ((-0.5, "0.5x"), (0.0, "1x"), (0.5, "2x")):
+            gx = cx + frac * pw * 0.5
+            cv.create_line(gx, pad_y0 + 1, gx, pad_y1 - 1,
+                           fill=ZERO_COL if frac == 0.0 else GRID_COL,
+                           width=1.4 if frac == 0.0 else 1.0)
+            cv.create_text(gx, pad_y1 - 3, text=lbl, anchor="s",
+                           fill=LABEL_DIM, font=("TkDefaultFont", 7, "bold"))
+        cv.create_line(inner_x0 + 1, cy, inner_x1 - 1, cy, fill=ZERO_COL, width=1.4)
+
+        # Axis direction hints
+        cv.create_text(cx, pad_y0 + 3, text="▲ HPF", anchor="n",
+                       fill=BYP_DIM if byp else RIGHT_COL, font=("TkDefaultFont", 7, "bold"))
+        cv.create_text(cx, pad_y1 - 14, text="▼ LPF", anchor="s",
+                       fill=BYP_DIM if byp else BAND_LINE, font=("TkDefaultFont", 7, "bold"))
+        cv.create_text(inner_x0 + 5, cy - 3, text="0.25x", anchor="sw",
+                       fill=LABEL_DIM, font=("TkDefaultFont", 7))
+        cv.create_text(inner_x1 - 5, cy - 3, text="4x", anchor="se",
+                       fill=LABEL_DIM, font=("TkDefaultFont", 7))
 
         tfx = st["time_fx"]
         mult = 1.0 if abs(tfx) < 0.75 else (2.0 ** (2.0 * (tfx * 0.01)))
         ffx = st["filter_fx"]
+        px = cx + _clamp(tfx / 100.0, -1.0, 1.0) * (pw * 0.5)
+        py = cy - _clamp(ffx / 100.0, -1.0, 1.0) * (ph * 0.5)
+
+        xy_active = (abs(tfx) >= 0.75 or abs(ffx) >= 0.75)
+        if byp:
+            p_col = BYP_MID
+        elif abs(tfx) >= abs(ffx) and abs(tfx) >= 0.75:
+            p_col = LEFT_COL if tfx < 0 else "#ffa94d"
+        elif abs(ffx) >= 0.75:
+            p_col = RIGHT_COL if ffx > 0 else BAND_LINE
+        else:
+            p_col = LABEL_HI
+
+        if xy_active:
+            cv.create_line(px, pad_y0 + 2, px, pad_y1 - 2, fill=GRID_COL, width=1.2)
+            cv.create_line(inner_x0 + 2, py, inner_x1 - 2, py, fill=GRID_COL, width=1.2)
+            cv.create_line(cx, cy, px, py, fill=p_col, width=2.2)
+
+        r = 12.0
+        cv.create_oval(px - r, py - r, px + r, py + r,
+                       fill=p_col, outline=BYP_HI if byp else LABEL_HI, width=2.0)
+        cv.create_oval(px - 3, py - 3, px + 3, py + 3, fill="#101318", outline="")
+
+        flt_txt = f"HPF {ffx:+.0f}%" if ffx > 0.5 else (f"LPF {ffx:+.0f}%" if ffx < -0.5 else "FLAT")
+        xy_readout = f"TIME {tfx:+.0f}% ({mult:.2f}x) · {flt_txt}"
+        cv.create_text(inner_x0 + 6, pad_y0 + 4, text=xy_readout, anchor="nw",
+                       fill=BYP_HI if byp else LABEL_HI, font=("TkDefaultFont", 8, "bold"))
+        if self.fx_snap:
+            cv.create_text(inner_x1 - 6, pad_y0 + 4, text="SPRING", anchor="ne",
+                           fill=BYP_MID if byp else SYNC_COL, font=("TkDefaultFont", 7, "bold"))
+
+        # 2. Bottom horizontal slider: WASH FX (0..100%) + individual "0" button
+        wy0 = pad_y1 + 6
+        wy1 = y1 - 8
+        z_btn_w = 42
+        bar_x1 = inner_x1 - z_btn_w - 6
         wfx = st["wash_fx"]
+        self.fx_sliders["wash_fx"] = (inner_x0, wy0, bar_x1, wy1, False)
+        c_act = BYP_MID if byp else LINK_COL
 
-        rows = (
-            ("time_fx",   tfx, True,  f"TIME FX   {tfx:+.0f}%  ({mult:.2f}x)",
-             LEFT_COL if tfx < 0 else "#ffa94d"),
-            ("filter_fx", ffx, True,  f"FILTER FX {ffx:+.0f}%  ({'LPF' if ffx < -0.5 else ('HPF' if ffx > 0.5 else 'FLAT')})",
-             BAND_LINE if ffx < 0 else RIGHT_COL),
-            ("wash_fx",   wfx, False, f"WASH FX   {wfx:.0f}%",
-             LINK_COL),
-        )
+        cv.create_rectangle(inner_x0, wy0, bar_x1, wy1, fill=BUTTON_BG, outline=LINE_DIM, width=1.2)
+        norm = _clamp(wfx / 100.0, 0.0, 1.0)
+        vx = inner_x0 + norm * (bar_x1 - inner_x0)
+        if norm > 0.005:
+            cv.create_rectangle(inner_x0 + 1, wy0 + 2, vx, wy1 - 2,
+                                fill=BYP_FILL if byp else c_act, outline="")
+        cv.create_line(vx, wy0 + 2, vx, wy1 - 2, fill=LABEL_HI, width=2.4)
+        cv.create_text((inner_x0 + bar_x1) * 0.5, (wy0 + wy1) * 0.5,
+                       text=f"WASH FX  {wfx:.0f}%",
+                       fill=LABEL_HI, font=("TkDefaultFont", 9, "bold"))
 
-        for idx, (sym, val, bipolar, title, col) in enumerate(rows):
-            ry0 = top_y + idx * (row_h + row_gap)
-            ry1 = ry0 + row_h
-            self.fx_sliders[sym] = (inner_x0, ry0, bar_x1, ry1, bipolar)
-            c_act = BYP_MID if byp else col
-
-            cv.create_rectangle(inner_x0, ry0, bar_x1, ry1, fill=BUTTON_BG, outline=LINE_DIM, width=1.2)
-            if bipolar:
-                cx = (inner_x0 + bar_x1) * 0.5
-                norm = _clamp(val / 100.0, -1.0, 1.0)
-                vx = cx + norm * (bar_x1 - inner_x0) * 0.5
-                if abs(val) >= 0.75:
-                    cv.create_rectangle(min(cx, vx), ry0 + 2, max(cx, vx), ry1 - 2,
-                                        fill=BYP_FILL if byp else c_act, outline="")
-                cv.create_line(cx, ry0 + 1, cx, ry1 - 1, fill=LABEL_HI, width=1.8)
-                cv.create_line(vx, ry0 + 2, vx, ry1 - 2, fill=LABEL_HI, width=2.4)
-            else:
-                norm = _clamp(val / 100.0, 0.0, 1.0)
-                vx = inner_x0 + norm * (bar_x1 - inner_x0)
-                if norm > 0.005:
-                    cv.create_rectangle(inner_x0 + 1, ry0 + 2, vx, ry1 - 2,
-                                        fill=BYP_FILL if byp else c_act, outline="")
-                cv.create_line(vx, ry0 + 2, vx, ry1 - 2, fill=LABEL_HI, width=2.4)
-
-            cv.create_text((inner_x0 + bar_x1) * 0.5, (ry0 + ry1) * 0.5, text=title,
-                           fill=LABEL_HI, font=("TkDefaultFont", 9, "bold"))
-
-            # Individual "0" reset button on the right of each slider
-            zx0 = bar_x1 + 6
-            zx1 = x1 - 8
-            z_key = f"z_{sym}"
-            self.hit_rects[z_key] = (zx0, ry0, zx1, ry1)
-            active_z = (abs(val) >= 0.75) and not byp
-            cv.create_rectangle(zx0, ry0, zx1, ry1,
-                                fill=c_act if active_z else BUTTON_BG,
-                                outline=c_act, width=1.4)
-            cv.create_text((zx0 + zx1) * 0.5, (ry0 + ry1) * 0.5, text="0",
-                           fill="#101318" if active_z else LABEL_HI, font=("TkDefaultFont", 10, "bold"))
+        zx0 = bar_x1 + 6
+        zx1 = inner_x1
+        self.hit_rects["z_wash_fx"] = (zx0, wy0, zx1, wy1)
+        active_z = (wfx >= 0.75) and not byp
+        cv.create_rectangle(zx0, wy0, zx1, wy1,
+                            fill=c_act if active_z else BUTTON_BG,
+                            outline=c_act, width=1.4)
+        cv.create_text((zx0 + zx1) * 0.5, (wy0 + wy1) * 0.5, text="0",
+                       fill="#101318" if active_z else LABEL_HI, font=("TkDefaultFont", 10, "bold"))
 
     def _apply_tap_drag(self, which, x, y, link_ratio=None):
         gx0, gy0, gx1, gy1 = self.tap_box
@@ -672,6 +725,19 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
             self._set("hpf_hz", round(_clamp(f, 20.0, 1000.0), 1))
         else:
             self._set("lpf_hz", round(_clamp(f, 500.0, 20000.0), 1))
+
+    def _apply_xy_drag(self, x, y):
+        px0, py0, px1, py1 = self.xy_box
+        tx = _clamp((x - px0) / max(1.0, px1 - px0), 0.0, 1.0)
+        ty = _clamp((y - py0) / max(1.0, py1 - py0), 0.0, 1.0)
+        tfx = (tx * 2.0 - 1.0) * 100.0
+        ffx = (1.0 - ty * 2.0) * 100.0
+        if abs(tfx) < 4.0:
+            tfx = 0.0
+        if abs(ffx) < 4.0:
+            ffx = 0.0
+        self._set("time_fx", round(_clamp(tfx, -100.0, 100.0), 1))
+        self._set("filter_fx", round(_clamp(ffx, -100.0, 100.0), 1))
 
     def _apply_fx_drag(self, sym, x):
         info = self.fx_sliders.get(sym)
@@ -740,6 +806,11 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
                     self._select_group("g_fx", "Effects")
                     self.refresh_gui()
                     return
+                if key == "snap":
+                    self.fx_snap = not self.fx_snap
+                    self._select_group("g_fx", "Effects")
+                    self.refresh_gui()
+                    return
                 if key == "freeze":
                     cur = self._get("freeze", 0.0)
                     self._set("freeze", 0 if cur >= 0.5 else 1)
@@ -751,8 +822,15 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
                     self._select_group("g_perf", "Perform")
                     return
 
-        # 2. Dedicated FX screen sliders
+        # 2. Dedicated FX screen (X-Y pad + bottom Wash slider)
         if self.fx_view:
+            px0, py0, px1, py1 = self.xy_box
+            if px0 <= x <= px1 and py0 <= y <= py1:
+                self.drag_mode = ("xy",)
+                self._select_group("g_fx", "Effects")
+                self._apply_xy_drag(x, y)
+                self.refresh_gui()
+                return
             for sym, (sx0, sy0, sx1, sy1, _bip) in self.fx_sliders.items():
                 if sx0 <= x <= sx1 and sy0 <= y <= sy1:
                     self.drag_mode = ("fx", sym)
@@ -797,18 +875,30 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         elif kind == "tone":
             self._apply_tone_drag(self.drag_mode[1], event.x)
             self.refresh_gui()
+        elif kind == "xy":
+            self._apply_xy_drag(event.x, event.y)
+            self.refresh_gui()
         elif kind == "fx":
             self._apply_fx_drag(self.drag_mode[1], event.x)
             self.refresh_gui()
 
     def _on_release(self, event):
-        if self.drag_mode and self.drag_mode[0] == "trails":
-            _, t0 = self.drag_mode
-            if (time.monotonic() - t0) >= LONG_PRESS_SEC:
-                cur_byp = self._get("bypass", 0.0)
-                self._set("bypass", 0 if cur_byp >= 0.5 else 1)
-            else:
-                cur_tr = self._get("trails", 0.0)
-                self._set("trails", 0 if cur_tr >= 0.5 else 1)
-            self.refresh_gui()
+        if self.drag_mode:
+            kind = self.drag_mode[0]
+            if kind == "trails":
+                _, t0 = self.drag_mode
+                if (time.monotonic() - t0) >= LONG_PRESS_SEC:
+                    cur_byp = self._get("bypass", 0.0)
+                    self._set("bypass", 0 if cur_byp >= 0.5 else 1)
+                else:
+                    cur_tr = self._get("trails", 0.0)
+                    self._set("trails", 0 if cur_tr >= 0.5 else 1)
+                self.refresh_gui()
+            elif kind == "xy" and self.fx_snap:
+                self._set("time_fx", 0.0)
+                self._set("filter_fx", 0.0)
+                self.refresh_gui()
+            elif kind == "fx" and self.fx_snap:
+                self._set(self.drag_mode[1], 0.0)
+                self.refresh_gui()
         self.drag_mode = None
