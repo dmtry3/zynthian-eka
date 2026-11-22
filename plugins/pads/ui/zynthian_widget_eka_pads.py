@@ -982,20 +982,11 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self._add_btn(c, pad_m + 2 * b3w, y, pad_m + ctrl_w - 4, y + r2_h,
                       "%d BPM" % bpm, "#263040", "#ffffff", fam, fsmall, "bpm_drag", bpm)
 
-        # Horizontal Steps Slider with - / + 1-step buttons on the right half of Row 2
-        btn_s = max(24, min(32, int(r2_h * 1.05)))
-        sm_x0 = pad_m + ctrl_w + 2
-        sm_x1 = sm_x0 + btn_s
-        sp_x1 = w - pad_m
-        sp_x0 = sp_x1 - btn_s
-        sl_x0 = sm_x1 + 2
-        sl_x1 = sp_x0 - 2
+        # Horizontal Steps Slider (Beg..End 1..32) on the right half of Row 2
+        sl_x0 = pad_m + ctrl_w + 2
+        sl_x1 = w - pad_m
         sl_w = max(40.0, sl_x1 - sl_x0)
         pad_col = ROW_COLORS[(self.sel_pad // 4) & 3]
-        self._add_btn(c, sm_x0, y, sm_x1, y + r2_h, "-", "#252936", "#f0f6fc", fam, fs,
-                      "steps_nudge", (scene, self.sel_pad, ps, pe, -1))
-        self._add_btn(c, sp_x0, y, sp_x1, y + r2_h, "+", "#252936", "#f0f6fc", fam, fs,
-                      "steps_nudge", (scene, self.sel_pad, ps, pe, +1))
         c.create_rectangle(sl_x0, y, sl_x1, y + r2_h, fill="#1a1c24", outline="#3c4252", width=1)
         # Quarter-note ticks at 4, 8, 12, 16, 20, 24, 28
         for tick in range(4, EP_STEPS, 4):
@@ -1009,7 +1000,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         # Left (Beg) & Right (End) slider thumbs
         c.create_rectangle(rx_a, y + 1, min(sl_x1, rx_a + 4), y + r2_h - 1, fill="#ffd43b", width=0)
         c.create_rectangle(max(sl_x0, rx_b - 4), y + 1, rx_b, y + r2_h - 1, fill="#74c0fc", width=0)
-        sl_txt = "P%d: %d..%d (%d)" % (self.sel_pad + 1, ps + 1, pe, pe - ps)
+        sl_txt = "P%d: %d..%d (%d st)" % (self.sel_pad + 1, ps + 1, pe, pe - ps)
         c.create_text((sl_x0 + sl_x1) / 2, y + r2_h / 2, text=sl_txt,
                       fill="#f0f6fc", font=(fam, fsmall, "bold"))
         self.hit_boxes.append((sl_x0, y, sl_x1, y + r2_h, "steps_slider", (scene, self.sel_pad, ps, pe, sl_x0, sl_x1)))
@@ -1300,15 +1291,6 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.refresh_gui()
                 return
 
-            if action == "steps_nudge":
-                sc, p, ps, pe, delta = arg
-                nend = max(ps + 1, min(EP_STEPS, pe + delta))
-                self._select_group("g_stereo")
-                self._send_cmd(CMD_SET_END, a=sc, b=p, val=nend)
-                self._zset("pad_steps", nend)
-                self.refresh_gui()
-                return
-
             if action == "steps_slider":
                 sc, p, ps, pe, sl_x0, sl_x1 = arg
                 sl_w = max(1.0, sl_x1 - sl_x0)
@@ -1316,10 +1298,18 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 rx_b = sl_x0 + (pe / float(EP_STEPS)) * sl_w
                 # Drag Beg if finger lands near left thumb; otherwise drag End (steps count)
                 which = "beg" if (abs(x - rx_a) < 22 and abs(x - rx_a) < abs(x - rx_b)) else "end"
-                self.drag_info = ("steps_slider", (sc, p, which, sl_x0, sl_x1), y, 0)
+                cur_val = ps if which == "beg" else pe
+                thumb_x = rx_a if which == "beg" else rx_b
                 self._select_group("g_stereo")
-                self._apply_steps_slider(sc, p, which, sl_x0, sl_x1, x)
-                self.refresh_gui()
+                if abs(x - thumb_x) < 22:
+                    # Grabbed thumb: relative fine drag from current step (no sudden jump!)
+                    self.drag_info = ("steps_slider", [sc, p, which, sl_x0, sl_x1, x, cur_val, cur_val], y, 0)
+                else:
+                    # Tapped elsewhere on bar: jump there, then fine-drag from that point
+                    nv = self._calc_steps_val(which, sl_x0, sl_x1, x)
+                    self._commit_steps_val(sc, p, which, nv)
+                    self.drag_info = ("steps_slider", [sc, p, which, sl_x0, sl_x1, x, nv, nv], y, 0)
+                    self.refresh_gui()
                 return
 
             if action == "bpm_drag":
@@ -1410,16 +1400,19 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         val = max(0, min(vmax, val))
         self._send_cmd(cmd_op, val=val)
 
-    def _apply_steps_slider(self, sc, p, which, sl_x0, sl_x1, x):
+    def _calc_steps_val(self, which, sl_x0, sl_x1, x):
         t = max(0.0, min(1.0, (x - sl_x0) / max(1.0, sl_x1 - sl_x0)))
         if which == "beg":
-            nbeg = max(0, min(EP_STEPS - 1, int(round(t * EP_STEPS))))
-            self._send_cmd(CMD_SET_START, a=sc, b=p, val=nbeg)
-            self._zset("pad_beg", nbeg + 1)
+            return max(0, min(EP_STEPS - 1, int(round(t * (EP_STEPS - 1)))))
+        return max(1, min(EP_STEPS, 1 + int(round(t * (EP_STEPS - 1)))))
+
+    def _commit_steps_val(self, sc, p, which, val):
+        if which == "beg":
+            self._send_cmd(CMD_SET_START, a=sc, b=p, val=val)
+            self._zset("pad_beg", val + 1)
         else:
-            nend = max(1, min(EP_STEPS, int(round(t * EP_STEPS))))
-            self._send_cmd(CMD_SET_END, a=sc, b=p, val=nend)
-            self._zset("pad_steps", nend)
+            self._send_cmd(CMD_SET_END, a=sc, b=p, val=val)
+            self._zset("pad_steps", val)
 
     def _apply_wave_trim(self, which, wx0, wx1, x):
         pct = max(0.0, min(100.0, ((x - wx0) / max(1.0, wx1 - wx0)) * 100.0))
@@ -1453,9 +1446,17 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self.refresh_gui()
             return
         if kind == "steps_slider":
-            sc, p, which, sl_x0, sl_x1 = arg
-            self._apply_steps_slider(sc, p, which, sl_x0, sl_x1, event.x)
-            self.refresh_gui()
+            sc, p, which, sl_x0, sl_x1, x0, start_st, last_st = arg
+            px_per_step = max(8.0, (sl_x1 - sl_x0) / float(EP_STEPS - 1))
+            delta = int(round((event.x - x0) / px_per_step))
+            if which == "beg":
+                nv = max(0, min(EP_STEPS - 1, start_st + delta))
+            else:
+                nv = max(1, min(EP_STEPS, start_st + delta))
+            if nv != last_st:
+                arg[7] = nv
+                self._commit_steps_val(sc, p, which, nv)
+                self.refresh_gui()
             return
         if kind == "wave_trim":
             _pad_i, which, wx0, wx1 = arg
