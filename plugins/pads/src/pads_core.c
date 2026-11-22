@@ -116,6 +116,8 @@ void ep_pad_defaults(EpPadParams* p, int pad_index) {
   p->mute = 0;
   p->solo = 0;
   p->midi_note = 36 + (pad_index & 15);
+  p->aux1 = 0.0f;
+  p->aux2 = 0.0f;
 }
 
 static void init_scene_ranges(EpScene* sc) {
@@ -603,11 +605,17 @@ static inline void sample_read_hq(const EpSource* s, double pos, double step, fl
 
 /* Render a contiguous voice block without sequencer events inside it */
 static void render_voices(EpCore* c, float* out_l, float* out_r,
+                          float* aux1_l, float* aux1_r,
+                          float* aux2_l, float* aux2_r,
                           float* send_l, float* send_r, uint32_t nframes, int sel_pad) {
   memset(out_l, 0, nframes * sizeof(float));
   memset(out_r, 0, nframes * sizeof(float));
   memset(send_l, 0, nframes * sizeof(float));
   memset(send_r, 0, nframes * sizeof(float));
+  if (aux1_l) memset(aux1_l, 0, nframes * sizeof(float));
+  if (aux1_r) memset(aux1_r, 0, nframes * sizeof(float));
+  if (aux2_l) memset(aux2_l, 0, nframes * sizeof(float));
+  if (aux2_r) memset(aux2_r, 0, nframes * sizeof(float));
 
   const int solo_active = any_solo(c);
   const float act_decay = (float)exp(-(double)nframes / (0.14 * c->sr));
@@ -634,6 +642,8 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
     int audible = solo_active ? p->solo : !p->mute;
     float pad_gain = audible ? (clampf(p->level * 0.01f, 0.0f, 1.5f) * v->vel_gain) : 0.0f;
     float send_amt = audible ? clampf(p->send * 0.01f, 0.0f, 1.0f) : 0.0f;
+    float aux1_amt = (audible && aux1_l && aux1_r) ? clampf(p->aux1 * 0.01f, 0.0f, 1.0f) : 0.0f;
+    float aux2_amt = (audible && aux2_l && aux2_r) ? clampf(p->aux2 * 0.01f, 0.0f, 1.0f) : 0.0f;
 
     float pan_norm = clampf(p->pan * 0.01f, -1.0f, 1.0f);
     float angle = (pan_norm + 1.0f) * (float)(0.25 * M_PI);
@@ -730,6 +740,14 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
         send_l[i] += ol * send_amt;
         send_r[i] += or_ * send_amt;
       }
+      if (aux1_amt > 0.005f) {
+        aux1_l[i] += ol * aux1_amt;
+        aux1_r[i] += or_ * aux1_amt;
+      }
+      if (aux2_amt > 0.005f) {
+        aux2_l[i] += ol * aux2_amt;
+        aux2_r[i] += or_ * aux2_amt;
+      }
 
       float m = fabsf(ol) > fabsf(or_) ? fabsf(ol) : fabsf(or_);
       if (m > peak_voice) peak_voice = m;
@@ -777,9 +795,36 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
     out_l[i] = l;
     out_r[i] = r;
   }
+  if (aux1_l && aux1_r) {
+    for (uint32_t i = 0; i < nframes; i++) {
+      float l = aux1_l[i] * mg;
+      float r = aux1_r[i] * mg;
+      if (l > 0.75f) l = 0.75f + 0.25f * fast_tanh((l - 0.75f) * 4.0f);
+      else if (l < -0.75f) l = -0.75f + 0.25f * fast_tanh((l + 0.75f) * 4.0f);
+      if (r > 0.75f) r = 0.75f + 0.25f * fast_tanh((r - 0.75f) * 4.0f);
+      else if (r < -0.75f) r = -0.75f + 0.25f * fast_tanh((r + 0.75f) * 4.0f);
+      aux1_l[i] = l;
+      aux1_r[i] = r;
+    }
+  }
+  if (aux2_l && aux2_r) {
+    for (uint32_t i = 0; i < nframes; i++) {
+      float l = aux2_l[i] * mg;
+      float r = aux2_r[i] * mg;
+      if (l > 0.75f) l = 0.75f + 0.25f * fast_tanh((l - 0.75f) * 4.0f);
+      else if (l < -0.75f) l = -0.75f + 0.25f * fast_tanh((l + 0.75f) * 4.0f);
+      if (r > 0.75f) r = 0.75f + 0.25f * fast_tanh((r - 0.75f) * 4.0f);
+      else if (r < -0.75f) r = -0.75f + 0.25f * fast_tanh((r + 0.75f) * 4.0f);
+      aux2_l[i] = l;
+      aux2_r[i] = r;
+    }
+  }
 }
 
-void ep_core_process(EpCore* c, float* out_l, float* out_r, uint32_t nframes, int sel_pad) {
+void ep_core_process_aux(EpCore* c, float* out_l, float* out_r,
+                         float* aux1_l, float* aux1_r,
+                         float* aux2_l, float* aux2_r,
+                         uint32_t nframes, int sel_pad) {
   float send_l[256], send_r[256];
   uint32_t done = 0;
 
@@ -852,7 +897,10 @@ void ep_core_process(EpCore* c, float* out_l, float* out_r, uint32_t nframes, in
         }
 
         if (adv > 0) {
-          render_voices(c, out_l + done + sub_pos, out_r + done + sub_pos,
+          uint32_t off = done + sub_pos;
+          render_voices(c, out_l + off, out_r + off,
+                        aux1_l ? aux1_l + off : NULL, aux1_r ? aux1_r + off : NULL,
+                        aux2_l ? aux2_l + off : NULL, aux2_r ? aux2_r + off : NULL,
                         send_l, send_r, adv, sel_pad);
           double dstep = (double)adv * steps_per_sample;
           double prev_bar = c->seq.bar_phase;
@@ -907,9 +955,16 @@ void ep_core_process(EpCore* c, float* out_l, float* out_r, uint32_t nframes, in
       }
       c->seq.cur_step = (sel_pad >= 0 && sel_pad < EP_PADS) ? c->seq.pad_cur_step[sel_pad] : -1;
     } else {
-      render_voices(c, out_l + done, out_r + done, send_l, send_r, chunk, sel_pad);
+      render_voices(c, out_l + done, out_r + done,
+                    aux1_l ? aux1_l + done : NULL, aux1_r ? aux1_r + done : NULL,
+                    aux2_l ? aux2_l + done : NULL, aux2_r ? aux2_r + done : NULL,
+                    send_l, send_r, chunk, sel_pad);
     }
 
     done += chunk;
   }
+}
+
+void ep_core_process(EpCore* c, float* out_l, float* out_r, uint32_t nframes, int sel_pad) {
+  ep_core_process_aux(c, out_l, out_r, NULL, NULL, NULL, NULL, nframes, sel_pad);
 }

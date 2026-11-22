@@ -52,6 +52,8 @@ typedef struct {
   int mute;               /* 0 or 1 */
   int solo;               /* 0 or 1 */
   int midi_note;          /* 0..127 (default 36 + pad) */
+  float aux1;             /* 0..100 % (Aux Send 1 stereo out) */
+  float aux2;             /* 0..100 % (Aux Send 2 stereo out) */
 } EpPadParams;
 
 typedef struct {
@@ -177,7 +179,11 @@ void ep_seq_clear_pad(EpCore* c, int scene, int pad);
 void ep_seq_clear_scene(EpCore* c, int scene);
 void ep_seq_copy_scene(EpCore* c, int src_scene, int dst_scene);
 
-/* Render `nframes` stereo audio. `sel_pad` (0..15) is used to update `c->sel_playhead`. */
+/* Render `nframes` stereo audio (+ optional Aux 1 & Aux 2 stereo send buses). */
+void ep_core_process_aux(EpCore* c, float* out_l, float* out_r,
+                         float* aux1_l, float* aux1_r,
+                         float* aux2_l, float* aux2_r,
+                         uint32_t nframes, int sel_pad);
 void ep_core_process(EpCore* c, float* out_l, float* out_r, uint32_t nframes, int sel_pad);
 
 #endif

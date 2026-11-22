@@ -28,8 +28,8 @@ EP_SCENE_SIZE = EP_PADS * EP_STEPS * 2 + EP_PADS * 2   # 1056 bytes
 EP_SHM_MAGIC = 0x45504144
 EP_SHM_HDR_FMT = "<IIIiiiiiiiffiIiiii"
 EP_SHM_HDR_SIZE = struct.calcsize(EP_SHM_HDR_FMT)      # 72 bytes
-EP_PAD_FMT = "<ffffffiffffifiii"
-EP_PAD_SIZE = struct.calcsize(EP_PAD_FMT)              # 64 bytes
+EP_PAD_FMT = "<ffffffiffffifiiiff"
+EP_PAD_SIZE = struct.calcsize(EP_PAD_FMT)              # 72 bytes
 EP_SHM_SIZE = EP_SHM_HDR_SIZE + EP_PADS * EP_PAD_SIZE + EP_SCENES * EP_SCENE_SIZE
 
 # Packed seq_cmd operations matching eka_pads.c
@@ -158,6 +158,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.hit_boxes = []        # list of (x0, y0, x1, y1, action, arg)
         self.drag_info = None      # ("bpm"|"step", arg, start_y, start_val)
         self.last_tap = (None, 0.0)
+        self.aux_targets = [None, None]  # [(target_id, label, (port_l, port_r)) or None, ...]
+        self.next_aux_check = 0.0
 
         self.widget_canvas = tkinter.Canvas(
             self, highlightthickness=0, relief="flat",
@@ -309,6 +311,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             ("pad_vel",    p[10]),
             ("pad_choke",  p[11]),
             ("pad_send",   p[12]),
+            ("pad_aux1",   p[16] if len(p) > 16 else 0.0),
+            ("pad_aux2",   p[17] if len(p) > 17 else 0.0),
         )
         for sym, val in mapping:
             self._zset(sym, val)
@@ -316,6 +320,182 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         ps, pe = self._pad_range_get(scene, pad_idx)
         self._zset("pad_steps", pe)
         self._zset("pad_beg", ps + 1)
+
+    # ---------- JACK Aux Send -> Zynthian Mixbus Routing ----------
+
+    def _get_jclient(self):
+        try:
+            from zyngine import zynautoconnect
+            return getattr(zynautoconnect, "jclient", None)
+        except Exception:
+            return None
+
+    def _get_aux_out_ports(self, jclient, aux_idx):
+        if not jclient:
+            return None
+        tag = "aux%d_" % (aux_idx + 1)
+        jn = None
+        try:
+            jn = self.processor.get_jackname()
+        except Exception:
+            try:
+                jn = self.processor.engine.jackname
+            except Exception:
+                jn = None
+        ports = []
+        if jn:
+            try:
+                ports = jclient.get_ports("%s:%s" % (jn, tag), is_audio=True, is_output=True)
+            except Exception:
+                ports = []
+        if len(ports) < 2:
+            try:
+                ports = jclient.get_ports(".*:%s[lr]$" % tag, is_audio=True, is_output=True)
+            except Exception:
+                ports = []
+        if len(ports) >= 2:
+            return ports[0], ports[1]
+        return None
+
+    def _resolve_chain_audio_in(self, jclient, chain):
+        # Try chain.get_audio_in() first (Zynthian Oram standard)
+        try:
+            ain = chain.get_audio_in() if callable(getattr(chain, "get_audio_in", None)) else getattr(chain, "audio_in", None)
+            if isinstance(ain, str):
+                ain = [ain]
+            if ain:
+                found = []
+                for pat in ain:
+                    if not pat:
+                        continue
+                    ps = jclient.get_ports(str(pat), is_audio=True, is_input=True)
+                    for p in ps:
+                        if p not in found:
+                            found.append(p)
+                    if len(found) >= 2:
+                        return found[0], found[1]
+                if len(found) == 1:
+                    return found[0], found[0]
+        except Exception:
+            pass
+        # Fallback: first audio processor in chain
+        try:
+            slots = getattr(chain, "audio_slots", None) or []
+            for slot in slots:
+                for proc in (slot if isinstance(slot, (list, tuple)) else [slot]):
+                    jn = proc.get_jackname() if callable(getattr(proc, "get_jackname", None)) else None
+                    if jn:
+                        ps = jclient.get_ports("%s:" % jn, is_audio=True, is_input=True)
+                        if len(ps) >= 2:
+                            return ps[0], ps[1]
+                        if len(ps) == 1:
+                            return ps[0], ps[0]
+        except Exception:
+            pass
+        # Fallback: ZynMixer strip input for mixer_chan
+        try:
+            mc = getattr(chain, "mixer_chan", None)
+            if mc is not None and mc >= 0:
+                ps = jclient.get_ports("ZynMixer:input_%02d" % (int(mc) + 1), is_audio=True, is_input=True)
+                if len(ps) >= 2:
+                    return ps[0], ps[1]
+        except Exception:
+            pass
+        return None
+
+    def _list_mixbus_targets(self):
+        targets = [("", "Off", None)]
+        jclient = self._get_jclient()
+        if not jclient:
+            return targets
+        seen_ports = set()
+        own_cid = getattr(self.processor, "chain_id", None)
+        try:
+            cm = self.zyngui.chain_manager
+            for cid, chain in cm.chains.items():
+                if cid == own_cid:
+                    continue
+                is_aud = False
+                try:
+                    is_aud = bool(chain.is_audio())
+                except Exception:
+                    is_aud = bool(getattr(chain, "audio_in", None) or getattr(chain, "mixer_chan", None) is not None)
+                if not is_aud and cid != 0:
+                    continue
+                pair = self._resolve_chain_audio_in(jclient, chain)
+                if not pair:
+                    continue
+                key = (pair[0].name, pair[1].name)
+                if key in seen_ports:
+                    continue
+                seen_ports.add(key)
+                try:
+                    title = chain.get_title() or ("Chain %s" % cid)
+                except Exception:
+                    title = "Main" if cid == 0 else ("Bus %s" % cid)
+                targets.append(("chain:%s" % cid, title[:18], key))
+        except Exception:
+            pass
+        return targets
+
+    def _apply_aux_route(self, aux_idx, target):
+        self.aux_targets[aux_idx] = target if (target and target[2]) else None
+        jclient = self._get_jclient()
+        if not jclient:
+            return
+        outs = self._get_aux_out_ports(jclient, aux_idx)
+        if not outs:
+            return
+        for p in outs:
+            try:
+                for dst in jclient.get_all_connections(p):
+                    jclient.disconnect(p, dst)
+            except Exception:
+                pass
+        if target and target[2]:
+            dst_l, dst_r = target[2]
+            try:
+                jclient.connect(outs[0], dst_l)
+                jclient.connect(outs[1], dst_r)
+            except Exception as e:
+                logging.debug("Eka Pads widget: aux%d connect failed => %s", aux_idx + 1, e)
+
+    def _cycle_aux_target(self, aux_idx):
+        targets = self._list_mixbus_targets()
+        cur = self.aux_targets[aux_idx]
+        cur_id = cur[0] if cur else ""
+        idx = 0
+        for i, t in enumerate(targets):
+            if t[0] == cur_id:
+                idx = i
+                break
+        nxt = targets[(idx + 1) % len(targets)]
+        self._apply_aux_route(aux_idx, nxt)
+
+    def _ensure_aux_routes(self):
+        now = time.monotonic()
+        if now < self.next_aux_check:
+            return
+        self.next_aux_check = now + 2.0
+        if not self.aux_targets[0] and not self.aux_targets[1]:
+            return
+        jclient = self._get_jclient()
+        if not jclient:
+            return
+        for aux_idx, target in enumerate(self.aux_targets):
+            if not target or not target[2]:
+                continue
+            outs = self._get_aux_out_ports(jclient, aux_idx)
+            if not outs:
+                continue
+            dst_l, dst_r = target[2]
+            try:
+                conns_l = [c.name for c in jclient.get_all_connections(outs[0])]
+                if dst_l not in conns_l:
+                    jclient.connect(outs[0], dst_l)
+                    jclient.connect(outs[1], dst_r)
+            except Exception:
+                pass
 
     def _send_cmd(self, op, a=0, b=0, c=0, val=0):
         self._zset("seq_cmd", pack_cmd(op, a, b, c, val))
@@ -379,6 +559,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             return
         self._follow_page()
         self._read_shm()
+        self._ensure_aux_routes()
 
         # Sync seq_mode zctrl whenever host Transport Start/Stop changes plugin sequencer mode
         if self.shm_hdr:
@@ -536,8 +717,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         # Waveform box
         wy0 = y0 + bh + 5
         sc_h = max(24, fs * 2 + 4)
-        info_h = max(32, fs * 3 + 4)
-        wy1 = max(wy0 + 30, h - pad_m - sc_h - info_h - 8)
+        aux_h = max(18, fs + 8)
+        info_h = max(16, fs + 6)
+        wy1 = max(wy0 + 28, h - pad_m - sc_h - aux_h - info_h - 12)
         c.create_rectangle(rx0, wy0, rx1, wy1, fill="#111116", outline="#383844")
         path = self._pad_path(self.sel_pad)
         if path:
@@ -571,17 +753,38 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             c.create_text((rx0 + rx1) / 2, (wy0 + wy1) / 2, text="Tap to Load WAV", fill=COL_DIM, font=(fam, fs))
             self.hit_boxes.append((rx0, wy0, rx1, wy1, "load", self.sel_pad))
 
-        # Parameter summary readout
-        iy0 = wy1 + 4
+        # Parameter summary readout + compact Aux 1 / Aux 2 send sliders for selected pad
+        iy0 = wy1 + 3
         if pinfo:
-            line1 = "P%d  Pitch %+.1f  Dec %d%%  Filt %+d  Lvl %d%%" % (
-                self.sel_pad + 1, pinfo[0], int(round(pinfo[1])), int(round(pinfo[2])), int(round(pinfo[3]))
-            )
-            line2 = "Start %d%%  Punch %+d  Drv %d%%  Spc %d%%" % (
-                int(round(pinfo[4])), int(round(pinfo[7])), int(round(pinfo[8])), int(round(pinfo[12]))
+            line1 = "P%d  Pt %+.0f  Dec %d%%  Flt %+d  Lvl %d%%  Spc %d%%" % (
+                self.sel_pad + 1, pinfo[0], int(round(pinfo[1])), int(round(pinfo[2])),
+                int(round(pinfo[3])), int(round(pinfo[12]))
             )
             c.create_text(rx0 + 2, iy0, anchor="nw", text=line1, fill="#d0d0dc", font=(fam, fsmall))
-            c.create_text(rx0 + 2, iy0 + fs + 4, anchor="nw", text=line2, fill="#9090a4", font=(fam, fsmall))
+
+        ay0 = iy0 + info_h + 2
+        ay1 = ay0 + aux_h
+        aux1_v = pinfo[16] if (pinfo and len(pinfo) > 16) else self._zval("pad_aux1", 0.0)
+        aux2_v = pinfo[17] if (pinfo and len(pinfo) > 17) else self._zval("pad_aux2", 0.0)
+        aw2 = (rw - 4) / 2.0
+        for ai, (sym, val, col_hi, col_fill) in enumerate((
+            ("pad_aux1", aux1_v, "#66d9e8", "#1c3d47"),
+            ("pad_aux2", aux2_v, "#da77f2", "#3b1f47"),
+        )):
+            ax0 = rx0 + ai * (aw2 + 4)
+            ax1 = ax0 + aw2
+            c.create_rectangle(ax0, ay0, ax1, ay1, fill="#1a1c24",
+                               outline=col_hi if val > 0.5 else "#383844", width=1)
+            if val > 0.5:
+                fx = ax0 + 1 + (min(val, 100.0) / 100.0) * max(1.0, (ax1 - ax0 - 2))
+                c.create_rectangle(ax0 + 1, ay0 + 1, fx, ay1 - 1, fill=col_fill, outline="")
+                c.create_rectangle(ax0 + 1, ay0 + 1, fx, ay0 + 3, fill=col_hi, width=0)
+            tgt = self.aux_targets[ai]
+            tname = tgt[1][:7] if tgt else ("Aux%d" % (ai + 1))
+            c.create_text((ax0 + ax1) / 2, (ay0 + ay1) / 2,
+                          text="%s %d%%" % (tname, int(round(val))),
+                          fill=col_hi if val > 0.5 else "#9090a4", font=(fam, max(7, fsmall - 1), "bold"))
+            self.hit_boxes.append((ax0, ay0, ax1, ay1, "aux_slider", (sym, ax0, ax1)))
 
         # Quick 5-Scene Launch Bar at bottom right (large A..E buttons)
         sy0 = h - pad_m - max(sc_h, fs * 2 + 12)
@@ -839,6 +1042,18 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             c.create_text((sx0 + sx1) / 2, y + bh / 2, text=lbl,
                           fill=col_hi if val > 0 else "#9a9aaa", font=(fam, fsmall, "bold"))
             self.hit_boxes.append((sx0, y, sx1, y + bh, "flt_slider", (cmd_op, vmax, step, sx0, sx1)))
+        y += bh + 10
+
+        # Row 4: Aux 1 & Aux 2 -> Zynthian Mixbus routing buttons (tap to cycle Mixbuses)
+        for ai, col_hi in enumerate(("#66d9e8", "#da77f2")):
+            bx0 = pad_m + ai * (half + pad_m)
+            bx1 = bx0 + half
+            tgt = self.aux_targets[ai]
+            lbl = "Aux %d -> %s" % (ai + 1, tgt[1] if tgt else "Off")
+            self._add_btn(c, bx0, y, bx1, y + bh, lbl,
+                          "#22343d" if (tgt and ai == 0) else ("#32203d" if tgt else COL_PANEL),
+                          col_hi if tgt else "#b0b0c0", fam, fsmall, "aux_route", ai,
+                          outline=col_hi if tgt else "#444450")
         y += bh + 12
 
         # Helpful M-VAVE SMC-PAD Pocket guide
@@ -1026,6 +1241,23 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.refresh_gui()
                 return
 
+            if action == "aux_slider":
+                sym, ax0, ax1 = arg
+                self.drag_info = ("aux_slider", arg, y, 0)
+                self._apply_aux_slider(sym, ax0, ax1, x)
+                self.refresh_gui()
+                return
+
+            if action == "aux_route":
+                self._cycle_aux_target(arg)
+                self.refresh_gui()
+                return
+
+    def _apply_aux_slider(self, sym, ax0, ax1, x):
+        t = max(0.0, min(1.0, (x - ax0) / max(1.0, ax1 - ax0)))
+        val = float(int(round(t * 20.0)) * 5)
+        self._zset(sym, val)
+
     def _apply_flt_slider(self, cmd_op, vmax, step, sx0, sx1, x):
         t = max(0.0, min(1.0, (x - sx0) / max(1.0, sx1 - sx0)))
         nsteps = max(1, vmax // step)
@@ -1068,6 +1300,11 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         if kind == "flt_slider":
             cmd_op, vmax, step, sx0, sx1 = arg
             self._apply_flt_slider(cmd_op, vmax, step, sx0, sx1, event.x)
+            self.refresh_gui()
+            return
+        if kind == "aux_slider":
+            sym, ax0, ax1 = arg
+            self._apply_aux_slider(sym, ax0, ax1, event.x)
             self.refresh_gui()
             return
         if kind == "steps_slider":
