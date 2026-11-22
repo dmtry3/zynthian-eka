@@ -957,7 +957,25 @@ static void run(LV2_Handle h, uint32_t nframes) {
         const uint8_t* msg = (const uint8_t*)(ev + 1);
         if (msg[0] == 0xFA || msg[0] == 0xFB) {
           /* MIDI Real-Time Start (0xFA) / Continue (0xFB) */
-          if (msg[0] == 0xFA) P->core.seq.bar_phase = 0.0;
+          if (t > pos) {
+            float* al[EP_AUX_BUSES];
+            float* ar[EP_AUX_BUSES];
+            for (int a = 0; a < EP_AUX_BUSES; a++) {
+              al[a] = P->aux_l[a] ? P->aux_l[a] + pos : NULL;
+              ar[a] = P->aux_r[a] ? P->aux_r[a] + pos : NULL;
+            }
+            ep_core_process_aux(&P->core, P->out_l + pos, P->out_r + pos, al, ar, t - pos, P->sel_pad);
+            pos = t;
+          }
+          if (msg[0] == 0xFA) {
+            P->core.seq.bar_phase = 0.0;
+            for (int p = 0; p < EP_PADS; p++) {
+              P->core.seq.pad_phase[p] = 0.0;
+              P->core.seq.pad_last_step[p] = -1;
+              P->core.seq.pad_cur_step[p] = -1;
+              P->core.seq.roll_rem[p] = 0;
+            }
+          }
           if (P->core.seq.mode == EP_SEQ_STOP) {
             ep_seq_set_mode(&P->core, EP_SEQ_PLAY);
             P->shm_dirty = 1;

@@ -339,7 +339,8 @@ void ep_seq_sync_host(EpCore* c, double bpm, int playing, double bar_beat, int b
     ep_seq_set_mode(c, EP_SEQ_STOP);
     return;
   }
-  if (!was_host && c->seq.host_playing && c->seq.mode == EP_SEQ_STOP) {
+  int just_started = (!was_host && c->seq.host_playing);
+  if (just_started && c->seq.mode == EP_SEQ_STOP) {
     ep_seq_set_mode(c, EP_SEQ_PLAY);
   }
   int nsteps = c->seq.num_steps;
@@ -349,17 +350,36 @@ void ep_seq_sync_host(EpCore* c, double bpm, int playing, double bar_beat, int b
     /* Map host barBeat (0..bpb) onto 0..len 16th-note phase */
     double ph = fmod(bar_beat * 4.0, len);
     if (ph < 0.0) ph += len;
-    /* Only hard-sync if drift > 0.15 steps so internal sample-accurate stepping stays jitter-free */
-    double diff = fabs(ph - c->seq.bar_phase);
-    if (diff > len * 0.5) diff = len - diff;
-    if (diff > 0.15) {
+    /* Signed shortest phase error in [-len/2, +len/2] */
+    double err = ph - c->seq.bar_phase;
+    if (err >  len * 0.5) err -= len;
+    if (err < -len * 0.5) err += len;
+
+    const EpScene* sc = &c->scenes[c->seq.scene];
+    if (just_started || fabs(err) > 1.0) {
+      /* Transport Start or Seek: hard-lock bar_phase and all pad lanes to exact host phase */
       c->seq.bar_phase = ph;
-      const EpScene* sc = &c->scenes[c->seq.scene];
       for (int p = 0; p < EP_PADS; p++) {
         int ps, pe;
         get_pad_range(sc, p, &ps, &pe);
         double plen = (double)(pe - ps);
-        c->seq.pad_phase[p] = fmod(ph, plen);
+        double pp = fmod(ph, plen);
+        if (pp < 0.0) pp += plen;
+        c->seq.pad_phase[p] = pp;
+        /* If right on beat 1 (< 0.08 step), leave pad_last_step = -1 so step 0 fires on frame 0 */
+        c->seq.pad_last_step[p] = (pp < 0.08) ? -1 : (int)floor(pp);
+        c->seq.roll_rem[p] = 0;
+      }
+    } else if (fabs(err) > 0.002) {
+      /* Tight phase-lock (< 0.25 ms @ 120 BPM) while preserving polyrhythmic pad offsets */
+      c->seq.bar_phase = ph;
+      for (int p = 0; p < EP_PADS; p++) {
+        int ps, pe;
+        get_pad_range(sc, p, &ps, &pe);
+        double plen = (double)(pe - ps);
+        double pp = fmod(c->seq.pad_phase[p] + err, plen);
+        if (pp < 0.0) pp += plen;
+        c->seq.pad_phase[p] = pp;
       }
     }
   }
@@ -804,7 +824,7 @@ void ep_core_process_aux(EpCore* c, float* out_l, float* out_r,
 
         /* Fire initial step immediately for any pad starting from idle */
         for (int p = 0; p < EP_PADS; p++) {
-          if (c->seq.pad_last_step[p] < 0 && c->seq.pad_phase[p] < 0.05) {
+          if (c->seq.pad_last_step[p] < 0 && c->seq.pad_phase[p] < 0.08) {
             int ps, pe;
             get_pad_range(sc, p, &ps, &pe);
             c->seq.pad_last_step[p] = 0;
@@ -833,7 +853,8 @@ void ep_core_process_aux(EpCore* c, float* out_l, float* out_r,
           double dph = target_ph - c->seq.pad_phase[p];
           if (dph < -len * 0.5) dph += len;
           else if (dph < 0.0) dph = 0.0;
-          uint32_t to_st = (uint32_t)ceil(dph * samples_per_step);
+          long long ts = llround(dph * samples_per_step);
+          uint32_t to_st = ts <= 0 ? 0u : (uint32_t)ts;
           if (to_st <= adv) {
             adv = to_st;
             ev_kind = 1;
