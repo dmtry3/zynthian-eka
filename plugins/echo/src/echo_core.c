@@ -230,6 +230,7 @@ int echo_core_init(EchoCore *c, double sr) {
     c->smooth_fb = 0.42;
     c->smooth_mix = 0.35;
     c->smooth_send = 1.0;
+    c->smooth_freeze = 0.0;
     c->smooth_out_gain = 1.0;
     c->smooth_bypass = 0.0;
     c->duck_gain = 1.0;
@@ -273,6 +274,7 @@ void echo_core_reset(EchoCore *c) {
     c->dc_x_l = c->dc_y_l = c->dc_x_r = c->dc_y_r = 0.0;
     c->vel_ms_l = 0.0;
     c->vel_ms_r = 0.0;
+    c->smooth_freeze = 0.0;
     c->duck_env = 0.0;
     c->duck_gain = 1.0;
     c->in_pk_lin = c->out_pk_lin = c->wet_l_lin = c->wet_r_lin = 0.0;
@@ -316,11 +318,13 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
     double wash = clampd(p->wash_fx_pct, 0.0, 100.0) * 0.01;
     double target_fb = freeze ? 1.0 : (clampd(p->feedback_pct, 0.0, 110.0) * 0.01);
     if (!freeze && wash > 1e-4) {
-        double boost_target = fmax(target_fb, 1.02);
-        target_fb = clampd(target_fb + wash * (boost_target - target_fb), 0.0, 1.10);
+        double w_fb = wash * (0.45 + 0.55 * wash);
+        double boost_target = fmax(target_fb, 0.94);
+        target_fb = clampd(target_fb + w_fb * (boost_target - target_fb), 0.0, 1.10);
     }
     double target_mix = clampd(p->mix_pct, 0.0, 100.0) * 0.01;
     double target_send = (freeze || trails) ? 0.0 : 1.0;
+    double target_freeze = freeze ? 1.0 : 0.0;
     double target_out = db_to_lin(clampd(p->output_db, -18.0, 12.0));
     double target_byp = p->bypass ? 1.0 : 0.0;
     double width = clampd(p->width_pct, 0.0, 100.0) * 0.01;
@@ -344,11 +348,11 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
     double drive = clampd(p->drive_pct, 0.0, 100.0) * 0.01;
     if (mode == ECHO_MODE_TAPE) drive = fmax(drive, 0.20);
     if (mode == ECHO_MODE_BBD)  drive = fmax(drive, 0.25);
-    drive = clampd(drive + wash * 0.35 * (1.0 - drive), 0.0, 1.0);
+    drive = clampd(drive + (wash * wash) * 0.14 * (1.0 - drive), 0.0, 1.0);
 
     double diff_amt = clampd(p->diffuse_pct, 0.0, 100.0) * 0.01;
     if (mode == ECHO_MODE_DIFF) diff_amt = clampd(0.55 + 0.45 * diff_amt, 0.0, 1.0);
-    diff_amt = clampd(diff_amt + wash * 0.85 * (1.0 - diff_amt), 0.0, 1.0);
+    diff_amt = clampd(diff_amt + wash * 0.72 * (1.0 - diff_amt), 0.0, 1.0);
     double ap_g = 0.62 * diff_amt;
 
     double mod_rate = clampd(p->mod_rate_hz, 0.05, 8.0);
@@ -366,7 +370,7 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
     const double bbd_alpha  = 1.0 - exp(-1.0 / (c->sr * 0.055)); /* 55 ms BBD analog clock */
     const double tape_vel_alpha = 1.0 - exp(-1.0 / (c->sr * 0.028)); /* 28 ms tape motor inertia */
     const double ctrl_alpha = 1.0 - exp(-1.0 / (c->sr * 0.012)); /* 12 ms smooth controls */
-    const double dc_r = 0.995;
+    const double dc_r = 0.9985;
 
     double max_samps = (double)(c->buf_size - 8u);
     double in_pk = c->in_pk_lin;
@@ -406,6 +410,7 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
         c->smooth_fb       += ctrl_alpha * (target_fb - c->smooth_fb);
         c->smooth_mix      += ctrl_alpha * (target_mix - c->smooth_mix);
         c->smooth_send     += ctrl_alpha * (target_send - c->smooth_send);
+        c->smooth_freeze   += ctrl_alpha * (target_freeze - c->smooth_freeze);
         c->smooth_out_gain += ctrl_alpha * (target_out - c->smooth_out_gain);
         c->smooth_bypass   += ctrl_alpha * (target_byp - c->smooth_bypass);
 
@@ -431,30 +436,41 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
         double tap_l = read_hermite(c->buf_l, c->buf_mask, c->write_pos, d_samps_l);
         double tap_r = read_hermite(c->buf_r, c->buf_mask, c->write_pos, d_samps_r);
 
-        /* Loop tone + character processing (skipped while frozen so loop stays lossless) */
+        /* Loop tone + character processing (smoothly bypassed while frozen so loop stays lossless) */
         double fb_l = tap_l;
         double fb_r = tap_r;
-        if (!freeze) {
-            biquad_process(&c->hpf, &fb_l, &fb_r);
-            biquad_process(&c->lpf, &fb_l, &fb_r);
+        if (c->smooth_freeze < 0.9999) {
+            double proc_l = tap_l;
+            double proc_r = tap_r;
+            biquad_process(&c->hpf, &proc_l, &proc_r);
+            biquad_process(&c->lpf, &proc_l, &proc_r);
             if (mode == ECHO_MODE_BBD) {
-                biquad_process(&c->bbd_lpf, &fb_l, &fb_r);
+                biquad_process(&c->bbd_lpf, &proc_l, &proc_r);
             }
             if (ap_g > 0.01) {
                 for (int s = 0; s < ECHO_AP_STAGES; ++s) {
-                    fb_l = allpass_process(&c->ap_l[s], fb_l, ap_g);
-                    fb_r = allpass_process(&c->ap_r[s], fb_r, ap_g);
+                    proc_l = allpass_process(&c->ap_l[s], proc_l, ap_g);
+                    proc_r = allpass_process(&c->ap_r[s], proc_r, ap_g);
                 }
             }
-            fb_l = soft_sat(fb_l, drive, mode == ECHO_MODE_TAPE);
-            fb_r = soft_sat(fb_r, drive, mode == ECHO_MODE_TAPE);
+            proc_l = soft_sat(proc_l, drive, mode == ECHO_MODE_TAPE);
+            proc_r = soft_sat(proc_r, drive, mode == ECHO_MODE_TAPE);
 
-            /* DC blocker in feedback loop */
-            double dc_l = fb_l - c->dc_x_l + dc_r * c->dc_y_l;
-            c->dc_x_l = fb_l; c->dc_y_l = dc_l; fb_l = dc_l;
-            double dc_r_out = fb_r - c->dc_x_r + dc_r * c->dc_y_r;
-            c->dc_x_r = fb_r; c->dc_y_r = dc_r_out; fb_r = dc_r_out;
+            double fm = c->smooth_freeze;
+            fb_l = proc_l + fm * (tap_l - proc_l);
+            fb_r = proc_r + fm * (tap_r - proc_r);
+        } else {
+            /* Keep filter states clean while frozen so unfreezing is click-free */
+            c->hpf.z1_l = c->hpf.z2_l = c->hpf.z1_r = c->hpf.z2_r = 0.0;
+            c->lpf.z1_l = c->lpf.z2_l = c->lpf.z1_r = c->lpf.z2_r = 0.0;
+            c->bbd_lpf.z1_l = c->bbd_lpf.z2_l = c->bbd_lpf.z1_r = c->bbd_lpf.z2_r = 0.0;
         }
+
+        /* Gentle DC blocker always active in feedback loop */
+        double dc_l = fb_l - c->dc_x_l + dc_r * c->dc_y_l;
+        c->dc_x_l = fb_l; c->dc_y_l = dc_l; fb_l = dc_l;
+        double dc_r_out = fb_r - c->dc_x_r + dc_r * c->dc_y_r;
+        c->dc_x_r = fb_r; c->dc_y_r = dc_r_out; fb_r = dc_r_out;
 
         /* Feedback routing */
         double in_send_l = xl * c->smooth_send;
@@ -465,8 +481,9 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
             write_r = in_send_r + fb_r * c->smooth_fb;
         } else if (routing == ECHO_ROUTE_PINGPONG) {
             double mono_in = 0.5 * (in_send_l + in_send_r);
+            double pp_lr = 0.70 + 0.30 * c->smooth_fb;
             write_l = mono_in + fb_r * c->smooth_fb;
-            write_r = fb_l * c->smooth_fb;
+            write_r = fb_l * pp_lr;
         } else { /* ECHO_ROUTE_CROSS */
             write_l = in_send_l + (0.62 * fb_l + 0.38 * fb_r) * c->smooth_fb;
             write_r = in_send_r + (0.62 * fb_r + 0.38 * fb_l) * c->smooth_fb;

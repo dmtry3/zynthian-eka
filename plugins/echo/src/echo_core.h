@@ -104,6 +104,7 @@ typedef struct {
     double smooth_fb;
     double smooth_mix;
     double smooth_send;
+    double smooth_freeze;
     double smooth_out_gain;
     double smooth_bypass;
 

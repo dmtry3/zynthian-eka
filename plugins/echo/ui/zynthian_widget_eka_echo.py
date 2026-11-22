@@ -371,7 +371,14 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
                                fill=BYP_FILL if byp else "#1a3c35", width=2)
 
         # Echo tap decay impulses (L above midline, R below midline)
-        fb = 0.96 if st["freeze"] else _clamp(st["feedback"] * 0.01, 0.0, 1.05)
+        wash = _clamp(st["wash_fx"], 0.0, 100.0) * 0.01
+        if st["freeze"]:
+            fb = 0.96
+        else:
+            fb = _clamp(st["feedback"] * 0.01, 0.0, 1.05)
+            if wash > 1e-4:
+                w_fb = wash * (0.45 + 0.55 * wash)
+                fb = _clamp(fb + w_fb * (max(fb, 0.94) - fb), 0.0, 1.05)
         fx_active = abs(st["time_fx"]) >= 0.75
         ms_l = act_l if (st["sync"] or fx_active) else st["time_l"]
         ms_r = act_r if (st["sync"] or (fx_active and st["time_link"])) else st["time_r"]
@@ -394,6 +401,8 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
             amp = 0.92
             t = ms_l
             is_left = True
+            pp_lr = min(0.70 + 0.30 * fb, 0.94)
+            pp_rl = min(fb, 0.94)
             for _ in range(18):
                 if t > MAX_MS or amp < 0.05:
                     break
@@ -403,7 +412,7 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
                 col = l_col if is_left else r_col
                 cv.create_line(xx, mid_y, xx, y2, fill=col, width=2.4)
                 cv.create_oval(xx - 2.5, y2 - 2.5, xx + 2.5, y2 + 2.5, fill=col, outline="")
-                amp *= min(fb, 0.94)
+                amp *= (pp_lr if is_left else pp_rl)
                 t += (ms_r if is_left else ms_l)
                 is_left = not is_left
         else:
@@ -453,24 +462,36 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         cv.create_text(gx1 - 6, gy0 + 4, text=badge_txt, anchor="ne",
                        fill=badge_col, font=("TkDefaultFont", 8, "bold"))
 
-        # 2. Interactive Loop Filter bar (HPF — LPF)
+        # 2. Interactive Loop Filter bar (HPF — LPF, reflecting active Filter FX)
         ty0 = gy1 + 5
         tx0 = gx0
         tx1 = gx1
         self.tone_box = (tx0, ty0, tx1, ty1)
         cv.create_rectangle(tx0, ty0, tx1, ty1, fill=PANEL_BG, outline=LINE_DIM, width=1)
-        hx = self._freq_to_x(st["hpf_hz"], tx0 + 8, tx1 - 8)
-        lx_f = self._freq_to_x(st["lpf_hz"], tx0 + 8, tx1 - 8)
+        base_hx = self._freq_to_x(st["hpf_hz"], tx0 + 8, tx1 - 8)
+        base_lx = self._freq_to_x(st["lpf_hz"], tx0 + 8, tx1 - 8)
+        eff_hpf = _clamp(st["hpf_hz"], 20.0, 1000.0)
+        eff_lpf = _clamp(st["lpf_hz"], 500.0, 20000.0)
+        ffx = _clamp(st["filter_fx"], -100.0, 100.0) * 0.01
+        if ffx < -0.005:
+            eff_lpf = min(eff_lpf, 20000.0 * ((280.0 / 20000.0) ** (-ffx)))
+        elif ffx > 0.005:
+            eff_hpf = max(eff_hpf, 20.0 * ((3200.0 / 20.0) ** ffx))
+        if eff_hpf > eff_lpf * 0.85:
+            eff_hpf = eff_lpf * 0.85
+        hx = self._freq_to_x(eff_hpf, tx0 + 8, tx1 - 8)
+        lx_f = self._freq_to_x(eff_lpf, tx0 + 8, tx1 - 8)
         if lx_f < hx + 4:
             lx_f = hx + 4
         cv.create_rectangle(hx, ty0 + 2, lx_f, ty1 - 2,
                             fill=BYP_FILL if byp else BAND_FILL, outline="")
         cv.create_line(hx, ty0 + 2, hx, ty1 - 2, fill=BYP_MID if byp else BAND_LINE, width=2.2)
         cv.create_line(lx_f, ty0 + 2, lx_f, ty1 - 2, fill=BYP_MID if byp else RIGHT_COL, width=2.2)
-        self.handle_pos["hpf"] = (hx, (ty0 + ty1) * 0.5)
-        self.handle_pos["lpf"] = (lx_f, (ty0 + ty1) * 0.5)
+        self.handle_pos["hpf"] = (base_hx, (ty0 + ty1) * 0.5)
+        self.handle_pos["lpf"] = (base_lx, (ty0 + ty1) * 0.5)
 
-        tone_lbl = f"LOOP HPF {_fmt_freq(st['hpf_hz'])} — LPF {_fmt_freq(st['lpf_hz'])}  ·  DRV {st['drive_pct']:.0f}%  ·  MOD {st['mod_depth']:.0f}%"
+        fx_flt_tag = " [FX]" if abs(ffx) > 0.005 else ""
+        tone_lbl = f"LOOP HPF {_fmt_freq(eff_hpf)} — LPF {_fmt_freq(eff_lpf)}{fx_flt_tag}  ·  DRV {st['drive_pct']:.0f}%  ·  MOD {st['mod_depth']:.0f}%"
         cv.create_text((tx0 + tx1) * 0.5, (ty0 + ty1) * 0.5, text=tone_lbl,
                        fill=BYP_HI if byp else LABEL_HI, font=("TkDefaultFont", 8, "bold"))
 
@@ -546,9 +567,16 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
             hdr = f"EFFECTS · {st['time_l']:.0f}/{st['time_r']:.0f}ms → {act_l:.0f}/{act_r:.0f}ms · {link_txt}"
         cv.create_text(x0 + 8, y0 + 6, text=hdr, anchor="nw",
                        fill=BYP_HI if byp else LABEL_HI, font=("TkDefaultFont", 8, "bold"))
-        badge = "BYPASS" if byp else f"{mode_name} · {bpm:.0f} BPM"
+        if byp:
+            badge, badge_col = "BYPASS", BYP_HI
+        elif st["freeze"]:
+            badge, badge_col = "FREEZE", FREEZE_COL
+        elif st["trails"]:
+            badge, badge_col = "TRAILS (MUTE IN)", TRAILS_COL
+        else:
+            badge, badge_col = f"{mode_name} · {bpm:.0f} BPM", mode_col
         cv.create_text(x1 - 8, y0 + 6, text=badge, anchor="ne",
-                       fill=BYP_HI if byp else mode_col, font=("TkDefaultFont", 8, "bold"))
+                       fill=badge_col, font=("TkDefaultFont", 8, "bold"))
 
         inner_x0 = x0 + 8
         z_btn_w = 42
@@ -611,7 +639,7 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
             cv.create_text((zx0 + zx1) * 0.5, (ry0 + ry1) * 0.5, text="0",
                            fill="#101318" if active_z else LABEL_HI, font=("TkDefaultFont", 10, "bold"))
 
-    def _apply_tap_drag(self, which, x, y):
+    def _apply_tap_drag(self, which, x, y, link_ratio=None):
         gx0, gy0, gx1, gy1 = self.tap_box
         ms = self._x_to_ms(x, gx0, gx1)
         synced = self._get("sync", 1.0) >= 0.5
@@ -625,8 +653,8 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         self._set(sym, new_ms)
 
         if self._get("time_link", 1.0) >= 0.5:
-            ratio = new_ms / old_ms
-            other_ms = _clamp(self._get(other, 500.0) * ratio, MIN_MS, MAX_MS)
+            ratio = link_ratio if link_ratio is not None else (self._get(other, 500.0) / old_ms)
+            other_ms = _clamp(new_ms * ratio, MIN_MS, MAX_MS)
             if synced:
                 _, other_ms = nearest_division(other_ms, bpm)
             self._set(other, round(_clamp(other_ms, MIN_MS, MAX_MS), 1))
@@ -751,9 +779,12 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         if gx0 <= x <= gx1 and gy0 <= y <= gy1:
             mid_y = (gy0 + gy1) * 0.5
             which = "L" if y <= mid_y else "R"
-            self.drag_mode = ("tap", which)
+            tl = max(MIN_MS, self._get("time_l", 375.0))
+            tr = max(MIN_MS, self._get("time_r", 500.0))
+            ratio = (tr / tl) if which == "L" else (tl / tr)
+            self.drag_mode = ("tap", which, ratio)
             self._select_group("g_time", "Time")
-            self._apply_tap_drag(which, x, y)
+            self._apply_tap_drag(which, x, y, ratio)
             self.refresh_gui()
 
     def _on_motion(self, event):
@@ -761,7 +792,7 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
             return
         kind = self.drag_mode[0]
         if kind == "tap":
-            self._apply_tap_drag(self.drag_mode[1], event.x, event.y)
+            self._apply_tap_drag(self.drag_mode[1], event.x, event.y, self.drag_mode[2])
             self.refresh_gui()
         elif kind == "tone":
             self._apply_tone_drag(self.drag_mode[1], event.x)
