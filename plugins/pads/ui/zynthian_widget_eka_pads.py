@@ -160,6 +160,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.last_tap = (None, 0.0)
         self.aux_targets = [None, None]  # [(target_id, label, (port_l, port_r)) or None, ...]
         self.next_aux_check = 0.0
+        self._own_jclient = None
 
         self.widget_canvas = tkinter.Canvas(
             self, highlightthickness=0, relief="flat",
@@ -323,17 +324,45 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
 
     # ---------- JACK Aux Send -> Zynthian Mixbus Routing ----------
 
+    def _get_zyngui(self):
+        zg = getattr(self, "zyngui", None)
+        if zg is not None:
+            return zg
+        return getattr(zynthian_gui_config, "zyngui", None)
+
     def _get_jclient(self):
+        # 1. Try Zynthian's existing JACK client in zynautoconnect
+        for mod_name in ("zynautoconnect.zynthian_autoconnect", "zynautoconnect", "zyngine.zynautoconnect"):
+            try:
+                mod = __import__(mod_name, fromlist=["jclient"])
+                jc = getattr(mod, "jclient", None)
+                if jc is not None:
+                    return jc
+            except Exception:
+                pass
+        # 2. Try zyngui / state_manager
         try:
-            from zyngine import zynautoconnect
-            return getattr(zynautoconnect, "jclient", None)
+            zg = self._get_zyngui()
+            if zg is not None:
+                jc = getattr(zg, "jclient", None) or getattr(getattr(zg, "state_manager", None), "jclient", None)
+                if jc is not None:
+                    return jc
         except Exception:
-            return None
+            pass
+        # 3. Fallback: open a lightweight non-audio JACK client directly
+        if self._own_jclient is None:
+            try:
+                import jack
+                self._own_jclient = jack.Client("eka_pads_aux", no_start_server=True)
+            except Exception:
+                self._own_jclient = None
+        return self._own_jclient
 
     def _get_aux_out_ports(self, jclient, aux_idx):
         if not jclient:
             return None
-        tag = "aux%d_" % (aux_idx + 1)
+        suf_l = ":aux%d_l" % (aux_idx + 1)
+        suf_r = ":aux%d_r" % (aux_idx + 1)
         jn = None
         try:
             jn = self.processor.get_jackname()
@@ -342,63 +371,82 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 jn = self.processor.engine.jackname
             except Exception:
                 jn = None
-        ports = []
-        if jn:
-            try:
-                ports = jclient.get_ports("%s:%s" % (jn, tag), is_audio=True, is_output=True)
-            except Exception:
-                ports = []
-        if len(ports) < 2:
-            try:
-                ports = jclient.get_ports(".*:%s[lr]$" % tag, is_audio=True, is_output=True)
-            except Exception:
-                ports = []
-        if len(ports) >= 2:
-            return ports[0], ports[1]
+        try:
+            all_outs = jclient.get_ports(is_audio=True, is_output=True)
+        except Exception:
+            return None
+        pl = pr = None
+        for p in all_outs:
+            nm = p.name
+            if jn and not nm.startswith(jn + ":"):
+                continue
+            if nm.endswith(suf_l):
+                pl = p
+            elif nm.endswith(suf_r):
+                pr = p
+        if pl and pr:
+            return pl, pr
+        # Retry without jackname filter if jackname differed
+        pl = pr = None
+        for p in all_outs:
+            nm = p.name
+            if nm.endswith(suf_l):
+                pl = p
+            elif nm.endswith(suf_r):
+                pr = p
+        if pl and pr:
+            return pl, pr
         return None
 
-    def _resolve_chain_audio_in(self, jclient, chain):
-        # Try chain.get_audio_in() first (Zynthian Oram standard)
+    def _find_ports_by_prefix(self, all_ins, prefix):
+        pref_l = prefix.lower()
+        found = [p for p in all_ins if p.name.lower().startswith(pref_l)]
+        if len(found) >= 2:
+            return found[0], found[1]
+        if len(found) == 1:
+            return found[0], found[0]
+        return None
+
+    def _resolve_chain_audio_in(self, all_ins, chain):
+        # 1. Try first audio FX processor in chain (so Aux sends hit the Mixbus FX!)
+        try:
+            slots = getattr(chain, "audio_slots", None) or []
+            for slot in slots:
+                for proc in (slot if isinstance(slot, (list, tuple)) else [slot]):
+                    jn = None
+                    if callable(getattr(proc, "get_jackname", None)):
+                        jn = proc.get_jackname()
+                    elif getattr(proc, "engine", None) is not None:
+                        jn = getattr(proc.engine, "jackname", None)
+                    if jn:
+                        pair = self._find_ports_by_prefix(all_ins, jn + ":")
+                        if pair:
+                            return pair
+        except Exception:
+            pass
+        # 2. Try chain.get_audio_in() / chain.audio_in
         try:
             ain = chain.get_audio_in() if callable(getattr(chain, "get_audio_in", None)) else getattr(chain, "audio_in", None)
             if isinstance(ain, str):
                 ain = [ain]
             if ain:
-                found = []
                 for pat in ain:
                     if not pat:
                         continue
-                    ps = jclient.get_ports(str(pat), is_audio=True, is_input=True)
-                    for p in ps:
-                        if p not in found:
-                            found.append(p)
-                    if len(found) >= 2:
-                        return found[0], found[1]
-                if len(found) == 1:
-                    return found[0], found[0]
+                    pair = self._find_ports_by_prefix(all_ins, str(pat))
+                    if pair:
+                        return pair
         except Exception:
             pass
-        # Fallback: first audio processor in chain
-        try:
-            slots = getattr(chain, "audio_slots", None) or []
-            for slot in slots:
-                for proc in (slot if isinstance(slot, (list, tuple)) else [slot]):
-                    jn = proc.get_jackname() if callable(getattr(proc, "get_jackname", None)) else None
-                    if jn:
-                        ps = jclient.get_ports("%s:" % jn, is_audio=True, is_input=True)
-                        if len(ps) >= 2:
-                            return ps[0], ps[1]
-                        if len(ps) == 1:
-                            return ps[0], ps[0]
-        except Exception:
-            pass
-        # Fallback: ZynMixer strip input for mixer_chan
+        # 3. Try zynmixer strip input (zynmixer:input_01a / input_01b, or return_...)
         try:
             mc = getattr(chain, "mixer_chan", None)
-            if mc is not None and mc >= 0:
-                ps = jclient.get_ports("ZynMixer:input_%02d" % (int(mc) + 1), is_audio=True, is_input=True)
-                if len(ps) >= 2:
-                    return ps[0], ps[1]
+            if mc is not None and int(mc) >= 0:
+                idx = int(mc) + 1
+                for fmt in ("zynmixer:input_%02d", "ZynMixer:input_%02d", "zynmixer_bus:input_%02d"):
+                    pair = self._find_ports_by_prefix(all_ins, fmt % idx)
+                    if pair:
+                        return pair
         except Exception:
             pass
         return None
@@ -408,34 +456,91 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         jclient = self._get_jclient()
         if not jclient:
             return targets
+        try:
+            all_ins = list(jclient.get_ports(is_audio=True, is_input=True, is_physical=False))
+        except Exception:
+            try:
+                all_ins = list(jclient.get_ports(is_audio=True, is_input=True))
+            except Exception:
+                return targets
+
         seen_ports = set()
         own_cid = getattr(self.processor, "chain_id", None)
+        own_jn = None
         try:
-            cm = self.zyngui.chain_manager
-            for cid, chain in cm.chains.items():
-                if cid == own_cid:
-                    continue
-                is_aud = False
-                try:
-                    is_aud = bool(chain.is_audio())
-                except Exception:
-                    is_aud = bool(getattr(chain, "audio_in", None) or getattr(chain, "mixer_chan", None) is not None)
-                if not is_aud and cid != 0:
-                    continue
-                pair = self._resolve_chain_audio_in(jclient, chain)
-                if not pair:
-                    continue
-                key = (pair[0].name, pair[1].name)
-                if key in seen_ports:
-                    continue
-                seen_ports.add(key)
-                try:
-                    title = chain.get_title() or ("Chain %s" % cid)
-                except Exception:
-                    title = "Main" if cid == 0 else ("Bus %s" % cid)
-                targets.append(("chain:%s" % cid, title[:18], key))
+            own_jn = self.processor.get_jackname()
         except Exception:
             pass
+
+        # 1. Discover Zynthian chains (Mixbuses & Audio FX chains) via chain_manager
+        try:
+            zg = self._get_zyngui()
+            cm = getattr(zg, "chain_manager", None) if zg else None
+            chains = getattr(cm, "chains", None) if cm else None
+            if chains:
+                for cid, chain in chains.items():
+                    if own_cid is not None and cid == own_cid:
+                        continue
+                    is_aud = False
+                    try:
+                        is_aud = bool(chain.is_audio())
+                    except Exception:
+                        pass
+                    if not is_aud:
+                        is_aud = bool(getattr(chain, "audio_slots", None) or
+                                      getattr(chain, "audio_in", None) or
+                                      getattr(chain, "mixer_chan", None) is not None or
+                                      cid == 0)
+                    if not is_aud:
+                        continue
+                    pair = self._resolve_chain_audio_in(all_ins, chain)
+                    if not pair:
+                        continue
+                    key = (pair[0].name, pair[1].name)
+                    if key in seen_ports:
+                        continue
+                    seen_ports.add(key)
+                    try:
+                        title = chain.get_title() or ("Main" if cid == 0 else ("Bus %s" % cid))
+                    except Exception:
+                        title = "Main" if cid == 0 else ("Bus %s" % cid)
+                    targets.append(("chain:%s" % cid, title[:18], key))
+        except Exception as e:
+            logging.debug("Eka Pads widget: chain_manager scan error => %s", e)
+
+        # 2. Direct JACK fallback: add any zynmixer / FX stereo input pairs not yet listed
+        by_group = {}
+        for p in all_ins:
+            nm = p.name
+            if own_jn and nm.startswith(own_jn + ":"):
+                continue
+            if ":" not in nm:
+                continue
+            cli, port = nm.split(":", 1)
+            cli_l = cli.lower()
+            if cli_l in ("system", "mod-monitor", "zynthian_gui", "jack_capture"):
+                continue
+            # Group zynmixer:input_01a & input_01b under "zynmixer:input_01"
+            if cli_l.startswith("zynmixer") and len(port) > 1 and port[-1] in ("a", "b", "L", "R"):
+                grp = "%s:%s" % (cli, port[:-1])
+                label = port[:-1].replace("input_", "Mix ").replace("return_", "Ret ")
+            else:
+                grp = cli
+                label = cli
+            by_group.setdefault(grp, [label, []])[1].append(p)
+
+        for grp, (label, plist) in by_group.items():
+            if len(plist) >= 2:
+                key = (plist[0].name, plist[1].name)
+            elif len(plist) == 1:
+                key = (plist[0].name, plist[0].name)
+            else:
+                continue
+            if key in seen_ports:
+                continue
+            seen_ports.add(key)
+            targets.append(("jack:%s" % grp, label[:18], key))
+
         return targets
 
     def _apply_aux_route(self, aux_idx, target):
@@ -445,6 +550,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             return
         outs = self._get_aux_out_ports(jclient, aux_idx)
         if not outs:
+            logging.warning("Eka Pads widget: aux%d output ports not found in JACK", aux_idx + 1)
             return
         for p in outs:
             try:
@@ -457,8 +563,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             try:
                 jclient.connect(outs[0], dst_l)
                 jclient.connect(outs[1], dst_r)
+                logging.info("Eka Pads widget: Aux %d -> %s (%s, %s)", aux_idx + 1, target[1], dst_l, dst_r)
             except Exception as e:
-                logging.debug("Eka Pads widget: aux%d connect failed => %s", aux_idx + 1, e)
+                logging.warning("Eka Pads widget: aux%d connect failed => %s", aux_idx + 1, e)
 
     def _cycle_aux_target(self, aux_idx):
         targets = self._list_mixbus_targets()
