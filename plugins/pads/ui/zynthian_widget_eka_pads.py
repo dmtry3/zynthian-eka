@@ -6,6 +6,7 @@
 
 import glob
 import logging
+import math
 import mmap
 import os
 import struct
@@ -16,6 +17,11 @@ import tkinter.font
 
 from zyngui import zynthian_gui_config
 from zyngui import zynthian_widget_base
+
+try:
+    from zynlibs.zynseq import zynseq as zynseq_mod
+except Exception:
+    zynseq_mod = None
 
 MULTI_INSTANCE = True
 
@@ -161,6 +167,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.aux_targets = [None, None, None, None]  # [(target_id, label, (port_l, port_r)) or None, ...]
         self.next_aux_check = 0.0
         self._own_jclient = None
+        self.toast = ""
+        self.toast_until = 0.0
 
         self.widget_canvas = tkinter.Canvas(
             self, highlightthickness=0, relief="flat",
@@ -236,13 +244,17 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             logging.debug("Eka Pads widget: shm read error => %s", e)
             return False
 
-    def _step_get(self, scene, pad, step):
+    def _step_get_raw(self, scene, pad, step):
         if not self.scenes_data:
             return 0, 0
         idx = scene * EP_SCENE_SIZE + (pad * EP_STEPS + step) * 2
         if idx + 1 >= len(self.scenes_data):
             return 0, 0
-        return self.scenes_data[idx], self.scenes_data[idx + 1] & 3
+        return self.scenes_data[idx], self.scenes_data[idx + 1]
+
+    def _step_get(self, scene, pad, step):
+        vel, rb = self._step_get_raw(scene, pad, step)
+        return vel, rb & 3
 
     def _pad_range_get(self, scene, pad):
         if not self.scenes_data:
@@ -606,6 +618,181 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             except Exception:
                 pass
 
+    # ---------- Export Active Scene -> ZynSeq (polyrhythm LCM-aligned) ----------
+
+    def _toast(self, text, secs=3.5):
+        self.toast = text
+        self.toast_until = time.monotonic() + secs
+
+    @staticmethod
+    def _is_zynseq_playing(state):
+        names = []
+        if zynseq_mod:
+            for n in ("SEQ_PLAYING", "SEQ_STARTING", "SEQ_STOPPING", "SEQ_RESTARTING"):
+                v = getattr(zynseq_mod, n, None)
+                if v is not None:
+                    names.append(v)
+        if names:
+            return state in names
+        stopped = getattr(zynseq_mod, "SEQ_STOPPED", 0) if zynseq_mod else 0
+        return state != stopped
+
+    @staticmethod
+    def _lcm(a, b):
+        if a <= 0 or b <= 0:
+            return max(1, a, b)
+        return (a // math.gcd(a, b)) * b
+
+    def _build_export_events(self, scene, max_steps=256):
+        """Collect all audible active pads in `scene`, compute polyrhythmic LCM length
+        (aligned to whole beats = multiples of 4 steps, capped at `max_steps`),
+        and unroll all hits including swing, micro-timing and ratchet rolls."""
+        if not self.scenes_data:
+            return 0, [], False
+        swing = float(self.shm_hdr[11]) if (self.shm_hdr and len(self.shm_hdr) > 11) else 50.0
+        swing = max(50.0, min(75.0, swing))
+        swing_shift = (swing - 50.0) / 50.0
+
+        any_solo = bool(self.pads_data and any(p[14] for p in self.pads_data))
+        active_pads = []
+        for p in range(EP_PADS):
+            pinfo = self.pads_data[p] if self.pads_data else None
+            mute = pinfo[13] if pinfo else 0
+            solo = pinfo[14] if pinfo else 0
+            if any_solo:
+                if not solo:
+                    continue
+            elif mute:
+                continue
+            ps, pe = self._pad_range_get(scene, p)
+            plen = max(1, pe - ps)
+            has_hit = any(self._step_get_raw(scene, p, st)[0] > 0 for st in range(ps, pe))
+            if not has_hit:
+                continue
+            midi_note = int(pinfo[15]) if pinfo else (36 + p)
+            active_pads.append((p, midi_note & 127, ps, plen))
+
+        if not active_pads:
+            return 0, [], False
+
+        total = 4  # ZynSeq works in integer beats (4 steps per beat)
+        capped = False
+        for (_p, _mn, _ps, plen) in active_pads:
+            nxt = self._lcm(total, plen)
+            if nxt > max_steps:
+                capped = True
+                total = max_steps
+                break
+            total = nxt
+
+        events = []  # list of (pos_in_steps, midi_note, vel, dur_steps)
+        for (p, midi_note, ps, plen) in active_pads:
+            for g in range(total):
+                rel = g % plen
+                vel, rb = self._step_get_raw(scene, p, ps + rel)
+                if vel <= 0:
+                    continue
+                roll = rb & 3
+                m6 = (rb >> 2) & 0x3F
+                if m6 >= 32:
+                    m6 -= 64
+                micro = m6 / 64.0
+                sw = swing_shift if (rel & 1) else 0.0
+                base_pos = (g + sw + micro) % float(total)
+                if roll > 0:
+                    sub = roll + 1
+                    dur = max(0.15, 0.8 / float(sub))
+                    for k in range(sub):
+                        pos = (base_pos + k / float(sub)) % float(total)
+                        events.append((pos, midi_note, max(1, min(127, vel)), dur))
+                else:
+                    events.append((base_pos, midi_note, max(1, min(127, vel)), 0.5))
+
+        return total, events, capped
+
+    def _export_to_zynseq(self, scene):
+        self._read_shm()
+        total_steps, events, capped = self._build_export_events(scene)
+        if total_steps <= 0 or not events:
+            self._toast("Export: Scene %s is empty" % SCENE_NAMES[scene & 7])
+            return
+        try:
+            zg = self._get_zyngui()
+            zs = zg.state_manager.zynseq
+            lib = zs.libseq
+        except Exception as e:
+            logging.error("Eka Pads: ZynSeq unavailable => %s", e)
+            self._toast("ZynSeq unavailable")
+            return
+
+        try:
+            chan = int(self.processor.midi_chan)
+        except Exception:
+            chan = 0
+
+        try:
+            zscene, zphrase = zs.scene, zs.phrase
+            try:
+                cell_pat = int(lib.getPattern(zscene, zphrase, chan, 0, 0))
+            except Exception:
+                cell_pat = -1
+            try:
+                playing = self._is_zynseq_playing(lib.getPlayState(zscene, zphrase, chan))
+            except Exception:
+                playing = False
+
+            assign = False
+            if playing and cell_pat >= 1:
+                target = cell_pat
+            else:
+                target = None
+                for n in range(1, 1000):
+                    try:
+                        empty = zs.is_pattern_empty(n)
+                    except Exception:
+                        empty = lib.isPatternEmpty(n)
+                    if empty:
+                        target = n
+                        break
+                if target is None:
+                    raise RuntimeError("no free pattern")
+                assign = not (cell_pat >= 1)
+
+            spb = 4
+            beats = max(1, total_steps // spb)
+            nsteps = beats * spb
+            lib.selectPattern(target)
+            lib.clearPattern(target)
+            lib.setStepsPerBeat(spb)
+            lib.setBeatsInPattern(target, beats)
+
+            for (pos, note, vel, dur) in events:
+                step = int(pos)
+                off = pos - step
+                if off < 0.02:
+                    off = 0.0
+                elif off > 0.98:
+                    step += 1
+                    off = 0.0
+                lib.addNote(step % nsteps, note, vel, dur, off)
+
+            if assign:
+                try:
+                    lib.setChannel(zscene, zphrase, chan, 0, chan)
+                except Exception:
+                    pass
+                lib.addPattern(zscene, zphrase, chan, 0, 0, target)
+
+            bars_f = beats / 4.0
+            bars_s = ("%d bar%s" % (int(bars_f), "s" if int(bars_f) != 1 else "")) if (beats % 4 == 0) else ("%d beats" % beats)
+            cap_s = " (max)" if capped else ""
+            msg = "ZynSeq Pat %d: %s (%d st)%s" % (target, bars_s, nsteps, cap_s)
+            logging.info("Eka Pads: exported Sc %s -> %s", SCENE_NAMES[scene & 7], msg)
+            self._toast(msg)
+        except Exception as e:
+            logging.error("Eka Pads: ZynSeq export failed => %s", e)
+            self._toast("ZynSeq export failed")
+
     def _send_cmd(self, op, a=0, b=0, c=0, val=0):
         self._zset("seq_cmd", pack_cmd(op, a, b, c, val))
 
@@ -714,6 +901,13 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self._draw_seq_tab(c, w, h, top_h, fam, fs)
         else:
             self._draw_kit_tab(c, w, h, top_h, fam, fs)
+
+        if self.toast and time.monotonic() < self.toast_until:
+            tw = min(w - 16, max(180, len(self.toast) * (fs - 1) + 24))
+            tx0 = (w - tw) / 2
+            ty0 = h - max(28, fs * 2 + 10)
+            c.create_rectangle(tx0, ty0, tx0 + tw, h - 4, fill="#1b3a2b", outline="#40c057", width=2)
+            c.create_text(w / 2, (ty0 + h - 4) / 2, text=self.toast, fill="#e6fcf5", font=(fam, fs, "bold"))
 
     def _add_btn(self, c, x0, y0, x1, y1, text, fill, fg, fam, fs, action, arg=None, outline="#444450"):
         c.create_rectangle(x0, y0, x1, y1, fill=fill, outline=outline)
@@ -930,9 +1124,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             quant = 100
         ps, pe = self._pad_range_get(scene, self.sel_pad)
 
-        # Row 1: 5 Large Scene buttons (A..E) + Quantize + Copy + Clear
+        # Row 1: 5 Scene buttons (A..E) + Quantize + Copy + Clear + ->ZSeq
         r1_h = max(28, fs * 2 + 8)
-        scenes_w = (w - 2 * pad_m) * 0.56
+        scenes_w = (w - 2 * pad_m) * 0.48
         sc_w = scenes_w / float(EP_UI_SCENES)
         for s in range(EP_UI_SCENES):
             x0 = pad_m + s * sc_w
@@ -945,26 +1139,28 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 bg, fg = COL_PEND, "#000000"
             else:
                 bg, fg = COL_PANEL, "#f0f0f5"
-            self._add_btn(c, x0, y, x1, y + r1_h, "Sc " + SCENE_NAMES[s], bg, fg, fam, fs, "seq_scene", s)
+            self._add_btn(c, x0, y, x1, y + r1_h, SCENE_NAMES[s], bg, fg, fam, fs, "seq_scene", s)
 
         tools_x = pad_m + scenes_w + 2
-        tw3 = (w - pad_m - tools_x) / 3.0
+        tw4 = (w - pad_m - tools_x) / 4.0
         # Horizontal Quantize strength slider (0..100%)
-        qx0, qx1 = tools_x, tools_x + tw3 - 3
+        qx0, qx1 = tools_x, tools_x + tw4 - 3
         c.create_rectangle(qx0, y, qx1, y + r1_h, fill="#1a1c24", outline="#3c4a46" if quant > 0 else "#383844", width=1)
         if quant > 0:
             q_fill_x = qx0 + 1 + (quant / 100.0) * max(1.0, (qx1 - qx0 - 2))
             c.create_rectangle(qx0 + 1, y + 1, q_fill_x, y + r1_h - 1, fill="#24483d", outline="")
             c.create_rectangle(qx0 + 1, y + 1, q_fill_x, y + 4, fill="#63e6be", width=0)
-        q_lbl = "Q %d%%" % quant if quant > 0 else "Q Off"
+        q_lbl = "Q%d" % quant if quant > 0 else "Q Off"
         c.create_text((qx0 + qx1) / 2, y + r1_h / 2, text=q_lbl,
                       fill="#63e6be" if quant > 0 else "#9a9aaa", font=(fam, fsmall, "bold"))
         self.hit_boxes.append((qx0, y, qx1, y + r1_h, "quant_slider", (qx0, qx1)))
-        self._add_btn(c, tools_x + tw3, y, tools_x + 2 * tw3 - 3, y + r1_h,
+        self._add_btn(c, tools_x + tw4, y, tools_x + 2 * tw4 - 3, y + r1_h,
                       "Pick" if self.copy_src >= 0 else "Copy",
                       "#e64980" if self.copy_src >= 0 else COL_PANEL, "#ffffff", fam, fsmall, "seq_copy", scene)
-        self._add_btn(c, tools_x + 2 * tw3, y, w - pad_m, y + r1_h,
-                      "Clr P%d" % (self.sel_pad + 1), COL_PANEL, "#ff8787", fam, fsmall, "seq_clr_pad", (scene, self.sel_pad))
+        self._add_btn(c, tools_x + 2 * tw4, y, tools_x + 3 * tw4 - 3, y + r1_h,
+                      "Clr", COL_PANEL, "#ff8787", fam, fsmall, "seq_clr_pad", (scene, self.sel_pad))
+        self._add_btn(c, tools_x + 3 * tw4, y, w - pad_m, y + r1_h,
+                      "->ZSeq", "#1d4034", "#63e6be", fam, fsmall, "export_zseq", scene, outline="#38d9a9")
         y += r1_h + 4
 
         # Row 2: Play/Stop + Overdub + BPM + Horizontal Steps Slider (Beg..End 1..32)
@@ -1281,6 +1477,11 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             if action == "seq_clr_pad":
                 sc, p = arg
                 self._send_cmd(CMD_CLEAR_PAD, a=sc, b=p)
+                self.refresh_gui()
+                return
+
+            if action == "export_zseq":
+                self._export_to_zynseq(arg)
                 self.refresh_gui()
                 return
 
