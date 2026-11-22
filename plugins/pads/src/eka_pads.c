@@ -162,7 +162,7 @@ typedef struct {
 
   LV2_URID p_sample[EP_PADS];
   LV2_URID p_sel_pad, p_follow, p_learn, p_mute_mask, p_solo_mask, p_pad_end;
-  LV2_URID p_seq_bpm, p_seq_cmd, p_seq_len, p_seq_data;
+  LV2_URID p_seq_bpm, p_seq_cmd, p_seq_len, p_seq_data, p_aux_routes;
   LV2_URID st_pad_params, st_scenes;
 
   EpSample* samples[EP_PADS];
@@ -181,6 +181,7 @@ typedef struct {
   int seq_notify_dirty;
   uint32_t seq_notify_cd;
   char seq_buf[8192];
+  char aux_routes[256];
 
   float prev_ctl[N_CTL];
   int have_prev_ctl;
@@ -436,6 +437,10 @@ static int hex_nibble(char ch) {
 static void seq_decode(EpCore* c, const char* str) {
   if (!str || str[0] != 'V' || str[1] != '1') return;
   for (int s = 0; s < EP_SCENES; s++) ep_seq_clear_scene(c, s);
+  for (int i = 0; i < EP_PADS; i++) ep_pad_defaults(&c->pad[i], i);
+  c->retrig_ms = 25;
+  c->min_vel = 0;
+  c->xtalk = 0;
 
   const char* p = str + 2;
   if (*p == ',') {
@@ -665,7 +670,14 @@ static void handle_patch_set(EkaPads* P, const LV2_Atom_Object* obj) {
   if (u == P->p_seq_data && (val->type == P->atom_String || val->type == P->atom_Path)) {
     const char* s = (const char*)LV2_ATOM_BODY_CONST(val);
     seq_decode(&P->core, s);
+    P->have_prev_ctl = 0;
+    P->have_prev_steps = 0;
     P->shm_dirty = 1;
+    return;
+  }
+  if (u == P->p_aux_routes && (val->type == P->atom_String || val->type == P->atom_Path)) {
+    const char* s = (const char*)LV2_ATOM_BODY_CONST(val);
+    snprintf(P->aux_routes, sizeof P->aux_routes, "%s", s ? s : "");
     return;
   }
 
@@ -773,6 +785,21 @@ static void forge_notify_reports(EkaPads* P) {
         else if (k == 4) { u = P->p_solo_mask; val = get_solo_mask(P); }
         else if (k == 5) { u = P->p_pad_end; val = (int)lrintf(P->core.pad[P->sel_pad].end); }
         else if (k == 6) { u = P->p_seq_bpm; val = (int)lrint(P->core.seq.bpm); }
+        else if (k == 7) {
+          lv2_atom_forge_frame_time(&P->forge, 0);
+          lv2_atom_forge_object(&P->forge, &obj, 0, P->patch_Set);
+          lv2_atom_forge_key(&P->forge, P->patch_property);
+          lv2_atom_forge_urid(&P->forge, P->p_aux_routes);
+          lv2_atom_forge_key(&P->forge, P->patch_value);
+          lv2_atom_forge_string(&P->forge, P->aux_routes, (uint32_t)strlen(P->aux_routes));
+          lv2_atom_forge_pop(&P->forge, &obj);
+          P->report_next++;
+          if (P->report_next >= EP_PADS + 8) {
+            P->report_next = -1;
+            P->seq_notify_dirty = 1;
+          }
+          continue;
+        }
         else { P->report_next = -1; break; }
         lv2_atom_forge_frame_time(&P->forge, 0);
         lv2_atom_forge_object(&P->forge, &obj, 0, P->patch_Set);
@@ -783,7 +810,7 @@ static void forge_notify_reports(EkaPads* P) {
         lv2_atom_forge_pop(&P->forge, &obj);
       }
       P->report_next++;
-      if (P->report_next >= EP_PADS + 7) {
+      if (P->report_next >= EP_PADS + 8) {
         P->report_next = -1;
         P->seq_notify_dirty = 1;
       }
@@ -871,6 +898,7 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double sr, const char* bu
   P->p_seq_cmd     = P->map->map(P->map->handle, EP_URI "#seq_cmd");
   P->p_seq_len     = P->map->map(P->map->handle, EP_URI "#seq_len");
   P->p_seq_data    = P->map->map(P->map->handle, EP_URI "#seq_data");
+  P->p_aux_routes  = P->map->map(P->map->handle, EP_URI "#aux_routes");
   P->st_pad_params = P->map->map(P->map->handle, EP_URI "#state_pads");
   P->st_scenes     = P->map->map(P->map->handle, EP_URI "#state_scenes");
 
@@ -1306,6 +1334,10 @@ static LV2_State_Status state_save(LV2_Handle h, LV2_State_Store_Function store,
     store(handle, P->p_seq_data, P->seq_buf, slen + 1, P->atom_String,
           LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
   }
+  if (P->aux_routes[0]) {
+    store(handle, P->p_aux_routes, P->aux_routes, strlen(P->aux_routes) + 1, P->atom_String,
+          LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+  }
   return LV2_STATE_SUCCESS;
 }
 
@@ -1365,6 +1397,15 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
     if (b >= 40 && b <= 240) P->core.seq.bpm = (double)b;
   }
 
+  const void* ar = retrieve(handle, P->p_aux_routes, &sz, &type, &fl);
+  if (ar && (type == P->atom_String || type == P->atom_Path) && sz > 0) {
+    size_t n = sz < sizeof(P->aux_routes) - 1 ? sz : sizeof(P->aux_routes) - 1;
+    memcpy(P->aux_routes, ar, n);
+    P->aux_routes[n] = '\0';
+  } else {
+    P->aux_routes[0] = '\0';
+  }
+
   for (int i = 0; i < EP_PADS; i++) {
     const void* pv = retrieve(handle, P->p_sample[i], &sz, &type, &fl);
     if (pv && (type == P->atom_Path || type == P->atom_String) && sz > 0 && sz < EP_PATH_MAX) {
@@ -1381,6 +1422,8 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
       }
     }
   }
+  P->have_prev_ctl = 0;
+  P->have_prev_steps = 0;
   P->shm_dirty = 1;
   shm_publish(P);
   P->report_next = 0;

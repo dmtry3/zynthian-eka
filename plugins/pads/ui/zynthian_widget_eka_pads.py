@@ -173,6 +173,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.drag_info = None      # ("bpm"|"step", arg, start_y, start_val)
         self.last_tap = (None, 0.0)
         self.aux_targets = [None, None, None, None]  # [(target_id, label, (port_l, port_r)) or None, ...]
+        self.last_aux_routes_str = None
         self.next_aux_check = 0.0
         self._own_jclient = None
         self.toast = ""
@@ -569,8 +570,12 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
 
         return targets
 
-    def _apply_aux_route(self, aux_idx, target):
+    def _apply_aux_route(self, aux_idx, target, persist=True):
         self.aux_targets[aux_idx] = target if (target and target[2]) else None
+        if persist:
+            rstr = ";".join(t[0] if t else "" for t in self.aux_targets)
+            self.last_aux_routes_str = rstr
+            self._zset("aux_routes", rstr)
         jclient = self._get_jclient()
         if not jclient:
             return
@@ -605,7 +610,27 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         nxt = targets[(idx + 1) % len(targets)]
         self._apply_aux_route(aux_idx, nxt)
 
+    def _sync_saved_aux_routes(self):
+        try:
+            z = self.processor.controllers_dict.get("aux_routes")
+            val = str(z.value) if (z and z.value is not None) else ""
+        except Exception:
+            return
+        if val == self.last_aux_routes_str:
+            return
+        self.last_aux_routes_str = val
+        if not val or val == "_":
+            return
+        parts = val.split(";")
+        targets = self._list_mixbus_targets()
+        by_id = {t[0]: t for t in targets}
+        for ai in range(4):
+            tid = parts[ai] if ai < len(parts) else ""
+            if tid and tid in by_id:
+                self._apply_aux_route(ai, by_id[tid], persist=False)
+
     def _ensure_aux_routes(self):
+        self._sync_saved_aux_routes()
         now = time.monotonic()
         if now < self.next_aux_check:
             return
@@ -1529,6 +1554,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self._zset("sel_pad", arg)
                 self._send_cmd(CMD_TRIG_PAD, b=arg, val=110)
                 self.last_synced_pad = -1
+                self.drag_info = ("pad_hold", arg, now, 0)
                 self.refresh_gui()
                 return
 
@@ -1859,7 +1885,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self._apply_wave_trim(which, wx0, wx1, event.x)
             self.refresh_gui()
             return
-        if kind == "seq_pad_hold":
+        if kind in ("seq_pad_hold", "pad_hold"):
             return
         dy = y0 - event.y
         if abs(dy) < 4:
@@ -1876,7 +1902,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self.refresh_gui()
 
     def _on_release(self, event):
-        if self.drag_info and self.drag_info[0] == "seq_pad_hold":
+        if self.drag_info and self.drag_info[0] in ("seq_pad_hold", "pad_hold"):
             _, pad_i, t0, _ = self.drag_info
             if (time.monotonic() - t0) >= 0.40:
                 mask = int(round(self._zval("mute_mask", 0)))

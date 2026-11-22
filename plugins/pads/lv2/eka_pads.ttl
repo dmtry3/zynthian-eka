@@ -52,6 +52,7 @@
 <http://dmtry3.github.io/zynthian-eka/pads#seq_bpm>   a lv2:Parameter ; lv2:symbol "seq_bpm"   ; rdfs:label "Seq BPM"      ; rdfs:range atom:Int ; lv2:default 120 ; lv2:minimum 40 ; lv2:maximum 240 ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
 <http://dmtry3.github.io/zynthian-eka/pads#seq_cmd>   a lv2:Parameter ; lv2:symbol "seq_cmd"   ; rdfs:label "Seq Cmd"      ; rdfs:range atom:Int ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 67108863 ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
 <http://dmtry3.github.io/zynthian-eka/pads#seq_data>  a lv2:Parameter ; lv2:symbol "seq_data"  ; rdfs:label "Seq Data"     ; rdfs:range atom:String ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
+<http://dmtry3.github.io/zynthian-eka/pads#aux_routes> a lv2:Parameter ; lv2:symbol "aux_routes" ; rdfs:label "Aux Routes" ; rdfs:range atom:String ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
 
 <http://dmtry3.github.io/zynthian-eka/pads>
     a lv2:Plugin , lv2:InstrumentPlugin ;
@@ -87,7 +88,8 @@
         <http://dmtry3.github.io/zynthian-eka/pads#pad_end> ,
         <http://dmtry3.github.io/zynthian-eka/pads#seq_bpm> ,
         <http://dmtry3.github.io/zynthian-eka/pads#seq_cmd> ,
-        <http://dmtry3.github.io/zynthian-eka/pads#seq_data> ;
+        <http://dmtry3.github.io/zynthian-eka/pads#seq_data> ,
+        <http://dmtry3.github.io/zynthian-eka/pads#aux_routes> ;
 
     lv2:port
     # Page 1: Pad Sound
