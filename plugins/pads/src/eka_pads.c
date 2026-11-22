@@ -30,38 +30,39 @@
 #define EP_SHM_MAGIC   0x45504144u /* "EPAD" */
 #define EP_SHM_VER     8u
 
-/* Control input ports MUST come first (0..P_END-1) for Zynthian's controller indexing. */
+/* Control input ports MUST come first (contiguous 0..22) so Zynthian's synthetic
+ * patch:writable parameter indices never collide with Input ControlPorts! */
 enum {
   P_PITCH = 0, P_DECAY, P_FILTER, P_LEVEL,        /* Page 1: Pad Sound */
   P_START, P_MODE, P_PUNCH, P_DRIVE,              /* Page 2: Pad Shape */
   P_PAN, P_VEL, P_CHOKE, P_WIDTH,                 /* Page 3: Pad Mix */
   P_SEQ_MODE, P_SEQ_SCENE, P_SEQ_SWING, P_MASTER, /* Page 4: Seq & Master */
   P_END,
-  P_MIDI_IN = P_END,
-  P_OUT_L,
-  P_OUT_R,
-  P_NOTIFY,
-  P_OUT_SEL_PAD,
-  P_OUT_SEQ_STEP,
-  P_OUT_SEQ_SCENE,
-  P_OUT_SEQ_PEND,
-  P_OUT_LVL0,                                     /* 16 ports: P_OUT_LVL0 .. P_OUT_LVL0+15 */
-  P_OUT_PLAYHEAD = P_OUT_LVL0 + EP_PADS,
-  P_STEREO_WIDTH,                                 /* index 41: Stereo Width 0..200% */
-  P_PAD_STEPS,                                    /* index 42: End / Steps 1..32 for selected pad */
-  P_PAD_BEG,                                      /* index 43: Begin step 1..32 for selected pad */
-  P_AUX1_L,                                       /* index 44: Aux Send 1 L */
-  P_AUX1_R,                                       /* index 45: Aux Send 1 R */
-  P_AUX2_L,                                       /* index 46: Aux Send 2 L */
-  P_AUX2_R,                                       /* index 47: Aux Send 2 R */
-  P_PAD_AUX1,                                     /* index 48: Selected pad Aux 1 send 0..100% */
-  P_PAD_AUX2,                                     /* index 49: Selected pad Aux 2 send 0..100% */
-  P_AUX3_L,                                       /* index 50: Aux Send 3 L */
-  P_AUX3_R,                                       /* index 51: Aux Send 3 R */
-  P_AUX4_L,                                       /* index 52: Aux Send 4 L */
-  P_AUX4_R,                                       /* index 53: Aux Send 4 R */
-  P_PAD_AUX3,                                     /* index 54: Selected pad Aux 3 send 0..100% */
-  P_PAD_AUX4                                      /* index 55: Selected pad Aux 4 send 0..100% */
+  P_PAD_AUX1 = P_END,                             /* index 16: Selected pad Aux 1 send 0..100% */
+  P_PAD_AUX2,                                     /* index 17: Selected pad Aux 2 send 0..100% */
+  P_PAD_AUX3,                                     /* index 18: Selected pad Aux 3 send 0..100% */
+  P_PAD_AUX4,                                     /* index 19: Selected pad Aux 4 send 0..100% */
+  P_STEREO_WIDTH,                                 /* index 20: Stereo Width 0..200% */
+  P_PAD_STEPS,                                    /* index 21: End / Steps 1..32 for selected pad */
+  P_PAD_BEG,                                      /* index 22: Begin step 1..32 for selected pad */
+  P_MIDI_IN,                                      /* index 23 */
+  P_OUT_L,                                        /* index 24 */
+  P_OUT_R,                                        /* index 25 */
+  P_AUX1_L,                                       /* index 26 */
+  P_AUX1_R,                                       /* index 27 */
+  P_AUX2_L,                                       /* index 28 */
+  P_AUX2_R,                                       /* index 29 */
+  P_AUX3_L,                                       /* index 30 */
+  P_AUX3_R,                                       /* index 31 */
+  P_AUX4_L,                                       /* index 32 */
+  P_AUX4_R,                                       /* index 33 */
+  P_NOTIFY,                                       /* index 34 */
+  P_OUT_SEL_PAD,                                  /* index 35 */
+  P_OUT_SEQ_STEP,                                 /* index 36 */
+  P_OUT_SEQ_SCENE,                                /* index 37 */
+  P_OUT_SEQ_PEND,                                 /* index 38 */
+  P_OUT_LVL0,                                     /* index 39..54 (16 ports) */
+  P_OUT_PLAYHEAD = P_OUT_LVL0 + EP_PADS           /* index 55 */
 };
 
 #define N_CTL     P_END
