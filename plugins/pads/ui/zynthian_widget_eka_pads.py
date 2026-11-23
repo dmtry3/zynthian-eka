@@ -63,8 +63,8 @@ LFO_SYNC_DIVS = ("4/1", "2/1", "1/1", "1/2", "1/4", "1/8", "1/16", "1/8T", "1/16
 LEN_PRESETS = (4, 8, 12, 16, 24, 32)
 QUANT_NAMES = ("Off", "1/16", "1/8", "1/4")
 
-TABS = ["Pads", "Seq", "Mod", "Kit"]
-TAB_GROUPS = ["g_sound", "g_seq", "g_mod", "g_mix"]
+TABS = ["Pads", "Mod", "Seq", "Kit"]
+TAB_GROUPS = ["g_sound", "g_mod", "g_seq", "g_mix"]
 SCENE_NAMES = ["A", "B", "C", "D", "E", "F", "G", "H"]
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
@@ -880,9 +880,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         if group == self.last_group:
             return
         self.last_group = group
-        if group == "g_seq" and self.tab != 1:
+        if group == "g_mod" and self.tab != 1:
             self.tab = 1
-        elif group == "g_mod" and self.tab != 2:
+        elif group == "g_seq" and self.tab != 2:
             self.tab = 2
         elif group in ("g_sound", "g_shape", "g_mix") and self.tab in (1, 2):
             self.tab = 0
@@ -940,9 +940,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         if self.tab == 0:
             self._draw_pads_tab(c, w, h, top_h, fam, fs)
         elif self.tab == 1:
-            self._draw_seq_tab(c, w, h, top_h, fam, fs)
-        elif self.tab == 2:
             self._draw_mod_tab(c, w, h, top_h, fam, fs)
+        elif self.tab == 2:
+            self._draw_seq_tab(c, w, h, top_h, fam, fs)
         else:
             self._draw_kit_tab(c, w, h, top_h, fam, fs)
 
