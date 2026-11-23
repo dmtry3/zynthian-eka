@@ -660,6 +660,25 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
   }
 }
 
+static void snapshot_prev_controls(EkaPads* P) {
+  for (int i = 0; i < N_CTL; i++) {
+    if (P->ctl[i]) P->prev_ctl[i] = *P->ctl[i];
+  }
+  if (P->in_pad_steps) P->prev_pad_steps = *P->in_pad_steps;
+  if (P->in_pad_beg)   P->prev_pad_beg   = *P->in_pad_beg;
+  for (int a = 0; a < EP_AUX_BUSES; a++) {
+    if (P->in_pad_aux[a]) P->prev_pad_aux[a] = *P->in_pad_aux[a];
+  }
+  for (int k = 0; k < EP_LFOS; k++) {
+    if (P->in_pad_lfo_rate[k]) P->prev_pad_lfo_rate[k] = *P->in_pad_lfo_rate[k];
+  }
+  for (int k = 0; k < 2; k++) {
+    if (P->in_pad_mod_amt[k]) P->prev_pad_mod_amt[k] = *P->in_pad_mod_amt[k];
+  }
+  P->have_prev_ctl = 1;
+  P->have_prev_steps = 1;
+}
+
 static void handle_patch_set(EkaPads* P, const LV2_Atom_Object* obj) {
   const LV2_Atom* prop = NULL;
   const LV2_Atom* val = NULL;
@@ -692,7 +711,10 @@ static void handle_patch_set(EkaPads* P, const LV2_Atom_Object* obj) {
   if (!atom_to_int(P, val, &iv)) return;
 
   if (u == P->p_sel_pad) {
-    if (iv >= 0 && iv < EP_PADS) P->sel_pad = iv;
+    if (iv >= 0 && iv < EP_PADS && iv != P->sel_pad) {
+      P->sel_pad = iv;
+      snapshot_prev_controls(P);
+    }
   } else if (u == P->p_follow) {
     P->follow = iv ? 1 : 0;
   } else if (u == P->p_learn) {
@@ -980,6 +1002,23 @@ static void run(LV2_Handle h, uint32_t nframes) {
 
   collect_retired(P);
 
+  /* Pass 1: process patch:Set / patch:Get / time:Position BEFORE reading control ports
+   * so switching sel_pad or loading seq_data never lets stale encoder values overwrite the old pad! */
+  if (P->in) {
+    LV2_ATOM_SEQUENCE_FOREACH(P->in, ev) {
+      if (ev->body.type == P->atom_Object) {
+        const LV2_Atom_Object* obj = (const LV2_Atom_Object*)&ev->body;
+        if (obj->body.otype == P->patch_Set) {
+          handle_patch_set(P, obj);
+        } else if (obj->body.otype == P->patch_Get) {
+          P->report_next = 0;
+        } else if (obj->body.otype == P->time_Position) {
+          handle_time_position(P, obj);
+        }
+      }
+    }
+  }
+
   /* Sync control inputs: only apply pad knobs (0..11) when they actually move */
   if (!P->have_prev_ctl) {
     for (int i = 0; i < N_CTL; i++) P->prev_ctl[i] = P->ctl[i] ? *P->ctl[i] : 0.0f;
@@ -1196,7 +1235,10 @@ static void run(LV2_Handle h, uint32_t nframes) {
                 }
                 P->last_hit_pad = p;
                 P->hit_seq++;
-                if (P->follow) P->sel_pad = p;
+                if (P->follow && P->sel_pad != p) {
+                  P->sel_pad = p;
+                  snapshot_prev_controls(P);
+                }
                 ep_core_trigger(&P->core, p, vel);
                 if (P->core.seq.mode == EP_SEQ_REC) {
                   ep_seq_record_hit(&P->core, p, vel);
@@ -1216,15 +1258,6 @@ static void run(LV2_Handle h, uint32_t nframes) {
               ep_core_release(&P->core, p);
             }
           }
-        }
-      } else if (ev->body.type == P->atom_Object) {
-        const LV2_Atom_Object* obj = (const LV2_Atom_Object*)&ev->body;
-        if (obj->body.otype == P->patch_Set) {
-          handle_patch_set(P, obj);
-        } else if (obj->body.otype == P->patch_Get) {
-          P->report_next = 0;
-        } else if (obj->body.otype == P->time_Position) {
-          handle_time_position(P, obj);
         }
       }
     }

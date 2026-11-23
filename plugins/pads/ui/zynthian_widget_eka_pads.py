@@ -621,16 +621,23 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             return
         if val == self.last_aux_routes_str:
             return
-        self.last_aux_routes_str = val
         if not val or val == "_":
+            self.last_aux_routes_str = val
             return
         parts = val.split(";")
         targets = self._list_mixbus_targets()
         by_id = {t[0]: t for t in targets}
+        all_matched = True
         for ai in range(4):
             tid = parts[ai].replace("%20", " ") if ai < len(parts) else ""
-            if tid and tid in by_id:
-                self._apply_aux_route(ai, by_id[tid], persist=False)
+            if tid:
+                if tid in by_id:
+                    self._apply_aux_route(ai, by_id[tid], persist=False)
+                else:
+                    all_matched = False
+        # Only mark as synced once all saved Mixbus targets exist in JACK (retry if chains still loading)
+        if all_matched:
+            self.last_aux_routes_str = val
 
     def _ensure_aux_routes(self):
         self._sync_saved_aux_routes()
