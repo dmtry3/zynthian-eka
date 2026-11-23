@@ -178,6 +178,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self._own_jclient = None
         self.toast = ""
         self.toast_until = 0.0
+        self.lfo_popup = None      # None, 0 (LFO 1), or 1 (LFO 2)
 
         self.widget_canvas = tkinter.Canvas(
             self, highlightthickness=0, relief="flat",
@@ -903,12 +904,12 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self._zset("seq_mode", cur_mode)
                 self.last_shm_mode = cur_mode
 
-            # In Seq tab, hitting any physical MIDI pad switches the sequencer lane to that pad
+            # In Pads / Seq / Mod tabs, hitting any physical MIDI pad switches to that pad for editing
             hit_seq = self.shm_hdr[13]
             last_hit = self.shm_hdr[14]
             if hit_seq != self.last_hit_seq:
                 self.last_hit_seq = hit_seq
-                if self.tab == 1 and 0 <= last_hit < EP_PADS and last_hit != self.sel_pad:
+                if self.tab in (0, 1, 2) and 0 <= last_hit < EP_PADS and last_hit != self.sel_pad:
                     self.sel_pad = last_hit
                     self._zset("sel_pad", last_hit)
                     self.last_synced_pad = -1
@@ -1347,8 +1348,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         p = self.sel_pad
         pinfo = self.pads_data[p] if (self.pads_data and len(self.pads_data[p]) >= 36) else None
 
-        # Row 1: LFO 1 & LFO 2 controls (Wave button + Log Rate slider)
-        r1_h = max(26, fs * 2 + 6)
+        # Row 1: 2 Large LFO 1 & LFO 2 buttons (tap to open LFO popup settings)
+        r1_h = max(34, fs * 2 + 12)
         half = (w - 3 * pad_m) / 2.0
         lfo_cols = (("#66d9e8", "#1c3d47"), ("#da77f2", "#3b1f47"))
         for li in range(2):
@@ -1357,21 +1358,13 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             wave_i = int(pinfo[20 + li]) if pinfo else (0 if li == 0 else 1)
             rate_v = float(pinfo[22 + li]) if pinfo else (1.5 if li == 0 else 4.0)
             col_hi, col_fill = lfo_cols[li]
-            wb_w = max(54.0, half * 0.40)
-            self._add_btn(c, lx0, y, lx0 + wb_w - 3, y + r1_h,
-                          "L%d:%s" % (li + 1, LFO_WAVES[wave_i % len(LFO_WAVES)]),
-                          col_fill, col_hi, fam, fsmall, "lfo_wave", (li, p, (wave_i + 1) % len(LFO_WAVES)),
-                          outline=col_hi)
-            rx0, rx1 = lx0 + wb_w, lx1
-            c.create_rectangle(rx0, y, rx1, y + r1_h, fill="#1a1c24", outline=col_hi, width=1)
-            t = max(0.0, min(1.0, math.log(max(0.05, rate_v) / 0.05) / math.log(400.0)))
-            fx = rx0 + 1 + t * max(1.0, rx1 - rx0 - 2)
-            c.create_rectangle(rx0 + 1, y + 1, fx, y + r1_h - 1, fill=col_fill, outline="")
-            c.create_rectangle(rx0 + 1, y + 1, fx, y + 4, fill=col_hi, width=0)
             rlbl = "%.2fHz" % rate_v if rate_v < 1.0 else ("%.1fHz" % rate_v)
-            c.create_text((rx0 + rx1) / 2, y + r1_h / 2, text=rlbl,
-                          fill="#f0f6fc", font=(fam, fsmall, "bold"))
-            self.hit_boxes.append((rx0, y, rx1, y + r1_h, "lfo_rate", (li, p, rx0, rx1)))
+            lbl = "LFO %d: %s  %s" % (li + 1, LFO_WAVES[wave_i % len(LFO_WAVES)], rlbl)
+            c.create_rectangle(lx0, y, lx1, y + r1_h, fill=col_fill, outline=col_hi, width=2)
+            c.create_rectangle(lx0 + 1, y + 1, lx1 - 1, y + 5, fill=col_hi, width=0)
+            c.create_text((lx0 + lx1) / 2, y + r1_h / 2 + 2, text=lbl,
+                          fill="#f0f6fc", font=(fam, fs, "bold"))
+            self.hit_boxes.append((lx0, y, lx1, y + r1_h, "lfo_open", li))
         y += r1_h + 6
 
         # Middle: 4 Modulation Matrix rows (Source | Dest | Bipolar Amount slider)
@@ -1443,6 +1436,86 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             c.create_text((px0 + px1) / 2, py0 + strip_h / 2 + 2, text=lbl,
                           fill=fg, font=(fam, max(6, fsmall - 1), "bold" if (is_sel or has_mod) else "normal"))
             self.hit_boxes.append((px0, py0, px1, py0 + strip_h, "seq_sel_pad", pi))
+
+        # Popup overlay when LFO 1 or LFO 2 button is tapped
+        if self.lfo_popup in (0, 1):
+            self._draw_lfo_popup(c, w, h, top_h, fam, fs, self.lfo_popup, p, pinfo)
+
+    def _draw_lfo_popup(self, c, w, h, top_h, fam, fs, li, p, pinfo):
+        # Modal backdrop: replace hit_boxes so taps go strictly to popup or close
+        self.hit_boxes = []
+        col_hi, col_fill = ("#66d9e8", "#1c3d47") if li == 0 else ("#da77f2", "#3b1f47")
+        wave_i = int(pinfo[20 + li]) if pinfo else (0 if li == 0 else 1)
+        rate_v = float(pinfo[22 + li]) if pinfo else (1.5 if li == 0 else 4.0)
+
+        mx = max(12, int(w * 0.06))
+        my = max(top_h + 8, int(h * 0.14))
+        px0, py0, px1, py1 = mx, my, w - mx, h - max(12, int(h * 0.08))
+        pw = max(120, px1 - px0)
+        ph = max(100, py1 - py0)
+
+        # Dimmed border + popup panel
+        c.create_rectangle(0, top_h, w, h, fill="#0b0b0f", stipple="gray50", outline="")
+        c.create_rectangle(px0, py0, px1, py1, fill="#1b1d26", outline=col_hi, width=2)
+
+        pad_i = 10
+        ix0, ix1 = px0 + pad_i, px1 - pad_i
+        iw = ix1 - ix0
+
+        # Header + Close button
+        hdr_h = max(28, fs * 2 + 8)
+        c.create_rectangle(px0 + 1, py0 + 1, px1 - 1, py0 + hdr_h, fill=col_fill, outline="")
+        c.create_text(ix0 + 2, py0 + hdr_h / 2, anchor="w",
+                      text="LFO %d  —  Pad %d" % (li + 1, p + 1),
+                      fill=col_hi, font=(fam, fs + 1, "bold"))
+        cw = max(56, int(iw * 0.20))
+        self._add_btn(c, ix1 - cw, py0 + 3, ix1, py0 + hdr_h - 3, "Close",
+                      "#2b2e3b", "#ffffff", fam, fs, "lfo_close", None, outline=col_hi)
+
+        # Wave selector row (5 big buttons)
+        wy0 = py0 + hdr_h + 10
+        wh = max(30, min(42, int((ph - hdr_h - 36) * 0.32)))
+        nw = len(LFO_WAVES)
+        ww = (iw - (nw - 1) * 4) / float(nw)
+        for wi, wname in enumerate(LFO_WAVES):
+            bx0 = ix0 + wi * (ww + 4)
+            bx1 = bx0 + ww
+            sel = (wi == wave_i % nw)
+            self._add_btn(c, bx0, wy0, bx1, wy0 + wh, wname,
+                          col_hi if sel else "#252836",
+                          "#000000" if sel else "#e0e0ec",
+                          fam, fs, "lfo_wave", (li, p, wi),
+                          outline="#ffffff" if sel else "#44485a")
+
+        # Big full-width logarithmic Rate slider
+        ry0 = wy0 + wh + 10
+        rh = max(32, min(46, int((ph - hdr_h - 36) * 0.34)))
+        c.create_rectangle(ix0, ry0, ix1, ry0 + rh, fill="#12141c", outline=col_hi, width=2)
+        t = max(0.0, min(1.0, math.log(max(0.05, rate_v) / 0.05) / math.log(400.0)))
+        fx = ix0 + 2 + t * max(1.0, iw - 4)
+        c.create_rectangle(ix0 + 2, ry0 + 2, fx, ry0 + rh - 2, fill=col_fill, outline="")
+        c.create_rectangle(ix0 + 2, ry0 + 2, fx, ry0 + 6, fill=col_hi, width=0)
+        rlbl = "Rate: %.2f Hz" % rate_v if rate_v < 1.0 else ("Rate: %.1f Hz" % rate_v)
+        c.create_text((ix0 + ix1) / 2, ry0 + rh / 2, text=rlbl,
+                      fill="#ffffff", font=(fam, fs + 1, "bold"))
+        self.hit_boxes.append((ix0, ry0, ix1, ry0 + rh, "lfo_rate", (li, p, ix0, ix1)))
+
+        # Quick Rate preset buttons
+        qy0 = ry0 + rh + 8
+        qh = max(24, py1 - qy0 - 8)
+        presets = (0.2, 0.5, 1.5, 4.0, 10.0)
+        qw = (iw - (len(presets) - 1) * 4) / float(len(presets))
+        for qi, hz in enumerate(presets):
+            bx0 = ix0 + qi * (qw + 4)
+            bx1 = bx0 + qw
+            plbl = "%.1fHz" % hz if hz < 10.0 else "%dHz" % int(hz)
+            self._add_btn(c, bx0, qy0, bx1, qy0 + qh, plbl,
+                          "#242836", "#d0d4e4", fam, max(7, fs - 1),
+                          "lfo_rate_preset", (li, p, hz), outline="#3c4054")
+
+        # Absorb taps inside popup background; tapping outside closes popup
+        self.hit_boxes.append((px0, py0, px1, py1, "lfo_nop", None))
+        self.hit_boxes.append((0, 0, w, h, "lfo_close", None))
 
     def _draw_kit_tab(self, c, w, h, top_h, fam, fs):
         pad_m = 8
@@ -1545,6 +1618,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             if action == "tab":
                 self.tab = arg
                 self.copy_src = -1
+                self.lfo_popup = None
                 self._select_page(arg)
                 self.refresh_gui()
                 return
@@ -1732,9 +1806,31 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.refresh_gui()
                 return
 
+            if action == "lfo_open":
+                self.lfo_popup = arg
+                self.refresh_gui()
+                return
+
+            if action == "lfo_nop":
+                return
+
+            if action == "lfo_close":
+                self.lfo_popup = None
+                self.refresh_gui()
+                return
+
             if action == "lfo_wave":
                 li, p_i, nw = arg
                 self._send_cmd(CMD_SET_LFO, a=li, b=p_i, c=0, val=nw)
+                self.refresh_gui()
+                return
+
+            if action == "lfo_rate_preset":
+                li, p_i, hz = arg
+                t = max(0.0, min(1.0, math.log(max(0.05, hz) / 0.05) / math.log(400.0)))
+                v200 = int(round(t * 200.0))
+                self._send_cmd(CMD_SET_LFO, a=li, b=p_i, c=1, val=v200)
+                self._zset("pad_lfo%d_rate" % (li + 1), round(hz, 3))
                 self.refresh_gui()
                 return
 
