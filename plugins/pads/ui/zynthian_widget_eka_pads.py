@@ -1208,17 +1208,17 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         y += r1_h + 4
 
         # Row 2: Play/Stop + Overdub + BPM + Horizontal Steps Slider (Beg..End 1..32)
-        r2_h = max(26, fs * 2 + 6)
+        r2_h = max(38, fs * 3 + 10)
         ctrl_w = (w - 2 * pad_m) * 0.44
         b3w = ctrl_w / 3.0
         self._add_btn(c, pad_m, y, pad_m + b3w - 3, y + r2_h,
                       "Stop" if smode >= 1 else "Play",
                       COL_PLAY if smode == 1 else COL_PANEL,
-                      "#000000" if smode == 1 else "#e0e0e0", fam, fsmall, "seq_play", 0 if smode >= 1 else 1)
+                      "#000000" if smode == 1 else "#e0e0e0", fam, fs, "seq_play", 0 if smode >= 1 else 1)
         self._add_btn(c, pad_m + b3w, y, pad_m + 2 * b3w - 3, y + r2_h,
                       "Rec" if smode == 2 else "Dub",
                       COL_REC if smode == 2 else COL_PANEL,
-                      "#ffffff" if smode == 2 else "#e0e0e0", fam, fsmall, "seq_rec", 1 if smode == 2 else 2)
+                      "#ffffff" if smode == 2 else "#e0e0e0", fam, fs, "seq_rec", 1 if smode == 2 else 2)
         self._add_btn(c, pad_m + 2 * b3w, y, pad_m + ctrl_w - 4, y + r2_h,
                       "%d BPM" % bpm, "#263040", "#ffffff", fam, fsmall, "bpm_drag", bpm)
 
