@@ -72,7 +72,7 @@ enum {
 #define N_CTL     P_END
 #define N_PAD_CTL 12
 
-/* Packed seq_cmd operations: (op << 21) | (a << 17) | (b << 13) | (c << 8) | val */
+/* Packed seq_cmd (24-bit, exact in 32-bit float): (op << 20) | (a << 17) | (b << 13) | (c << 8) | val */
 enum {
   CMD_SET_VEL = 1,    /* a=scene, b=pad, c=step(0..31), val=vel(0..127) */
   CMD_SET_ROLL,       /* a=scene, b=pad, c=step(0..31), val=roll(0..3) */
@@ -549,8 +549,8 @@ static void seq_decode(EpCore* c, const char* str) {
 }
 
 static void handle_seq_cmd(EkaPads* P, int cmd) {
-  int op  = (cmd >> 21) & 0xF;
-  int a   = (cmd >> 17) & 0xF;
+  int op  = (cmd >> 20) & 0xF;
+  int a   = (cmd >> 17) & 0x7;
   int b   = (cmd >> 13) & 0xF;
   int c   = (cmd >> 8)  & 0x1F;
   int val = cmd & 0xFF;

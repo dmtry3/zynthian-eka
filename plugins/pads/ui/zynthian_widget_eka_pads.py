@@ -101,7 +101,7 @@ def short_sample_name(path, pad_idx):
 
 
 def pack_cmd(op, a=0, b=0, c=0, val=0):
-    return ((op & 0xF) << 21) | ((a & 0xF) << 17) | ((b & 0xF) << 13) | ((c & 0x1F) << 8) | (val & 0xFF)
+    return ((op & 0xF) << 20) | ((a & 0x7) << 17) | ((b & 0xF) << 13) | ((c & 0x1F) << 8) | (val & 0xFF)
 
 
 def read_peaks(path, npeaks=NPEAKS):
