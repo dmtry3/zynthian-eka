@@ -1072,10 +1072,10 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
 
         # Waveform box
         wy0 = y0 + bh + 5
-        sc_h = max(24, fs * 2 + 4)
+        sc_h = max(44, fs * 3 + 16)
         aux_h = max(18, fs + 8)
         info_h = max(16, fs + 6)
-        wy1 = max(wy0 + 28, h - pad_m - sc_h - aux_h - info_h - 12)
+        wy1 = max(wy0 + 28, h - pad_m - sc_h - aux_h - info_h - 14)
         c.create_rectangle(rx0, wy0, rx1, wy1, fill="#111116", outline="#383844")
         path = self._pad_path(self.sel_pad)
         if path:
@@ -1148,7 +1148,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self.hit_boxes.append((ax0, ay0, ax1, ay1, "aux_slider", (sym, 0.0, 100.0, ax0, ax1)))
 
         # Quick 5-Scene Launch Bar at bottom right (large A..E buttons)
-        sy0 = h - pad_m - max(sc_h, fs * 2 + 12)
+        sy0 = h - pad_m - sc_h
         sc_btn_h = h - pad_m - sy0
         scene = int(round(self._mon("out_seq_scene", 0)))
         pend = int(round(self._mon("out_seq_pend", -1)))
@@ -1159,7 +1159,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             bg = COL_ACCENT if s == scene else (COL_PEND if s == pend else COL_PANEL)
             fg = "#000000" if (s == scene or s == pend) else "#f0f0f5"
             self._add_btn(c, sx0, sy0, sx1, sy0 + sc_btn_h, "Sc " + SCENE_NAMES[s],
-                          bg, fg, fam, fs, "scene", s)
+                          bg, fg, fam, fs + 1, "scene", s)
 
     def _draw_seq_tab(self, c, w, h, top_h, fam, fs):
         pad_m = 4
@@ -1177,9 +1177,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             quant = 100
         ps, pe = self._pad_range_get(scene, self.sel_pad)
 
-        # Row 1: 5 Scene buttons (A..E) + Vel + Quantize + Copy + Clear + ->ZSeq
-        r1_h = max(28, fs * 2 + 8)
-        scenes_w = (w - 2 * pad_m) * 0.40
+        # Row 1: 5 Large Scene buttons (A..E) + Vel + Quantize + Copy + Clear + ->ZSeq
+        r1_h = max(40, fs * 3 + 12)
+        scenes_w = (w - 2 * pad_m) * 0.46
         sc_w = scenes_w / float(EP_UI_SCENES)
         for s in range(EP_UI_SCENES):
             x0 = pad_m + s * sc_w
@@ -1192,7 +1192,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 bg, fg = COL_PEND, "#000000"
             else:
                 bg, fg = COL_PANEL, "#f0f0f5"
-            self._add_btn(c, x0, y, x1, y + r1_h, SCENE_NAMES[s], bg, fg, fam, fs, "seq_scene", s)
+            self._add_btn(c, x0, y, x1, y + r1_h, SCENE_NAMES[s], bg, fg, fam, fs + 1, "seq_scene", s)
 
         tools_x = pad_m + scenes_w + 2
         tw5 = (w - pad_m - tools_x) / 5.0
