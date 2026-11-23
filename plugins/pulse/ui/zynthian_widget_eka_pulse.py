@@ -472,7 +472,7 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
 
     def _steps_rect(self):
         x0, y0, x1, y1 = self._main_area()
-        shape_h = max(20, min(28, int((y1 - y0) * 0.105)))
+        shape_h = max(28, min(44, int((y1 - y0) * 0.17)))
         return x0, y0, x1, y1 - shape_h - 3, y1 - shape_h, y1
 
     def _flow_rects(self):
@@ -892,8 +892,8 @@ class zynthian_widget_eka_pulse(zynthian_widget_base.zynthian_widget_base):
             self.shape_boxes = []
             sw = w / float(nst)
             pad = 2 if sw > 14 else 1
-            sh_h = max(sy1 - sy0, 16)
-            f_shp = self._fit_font("1/16" if is_chop else "2x", sw - 2 * pad, sh_h, max_pt=10, min_pt=6, bold=True)
+            sh_h = max(sy1 - sy0, 24)
+            f_shp = self._fit_font("1/16" if is_chop else "2x", sw - 2 * pad, sh_h, max_pt=12, min_pt=6, bold=True)
             for k in range(MAX_STEPS):
                 if k < nst:
                     bx0 = x0 + k * sw + pad
