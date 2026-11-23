@@ -574,7 +574,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
     def _apply_aux_route(self, aux_idx, target, persist=True):
         self.aux_targets[aux_idx] = target if (target and target[2]) else None
         if persist:
-            rstr = ";".join(t[0] if t else "" for t in self.aux_targets)
+            parts = [t[0].replace(" ", "%20").replace("=", "") if t else "" for t in self.aux_targets]
+            rstr = ";".join(parts) if any(parts) else "_"
             self.last_aux_routes_str = rstr
             self._zset("aux_routes", rstr)
         jclient = self._get_jclient()
@@ -626,7 +627,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         targets = self._list_mixbus_targets()
         by_id = {t[0]: t for t in targets}
         for ai in range(4):
-            tid = parts[ai] if ai < len(parts) else ""
+            tid = parts[ai].replace("%20", " ") if ai < len(parts) else ""
             if tid and tid in by_id:
                 self._apply_aux_route(ai, by_id[tid], persist=False)
 

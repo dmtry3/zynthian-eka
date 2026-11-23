@@ -392,7 +392,7 @@ static size_t seq_encode(const EpCore* c, char* buf, size_t cap) {
                 fabsf(cur->aux[3] - def.aux[3]) > 0.2f);
     if (!diff) continue;
     n = snprintf(buf + pos, cap - pos,
-                 "|P%x=%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%.1f,%.1f,%.1f,%.1f,%d,%.1f,%d,%d,%d,%.1f,%.1f,%.1f,%.1f",
+                 "|P%x:%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%.1f,%.1f,%.1f,%.1f,%d,%.1f,%d,%d,%d,%.1f,%.1f,%.1f,%.1f",
                  p & 0xF, cur->pitch, cur->decay, cur->filter, cur->level,
                  cur->start, cur->end, cur->mode, cur->punch, cur->drive,
                  cur->pan, cur->vel_sens, cur->choke, cur->width,
@@ -402,7 +402,7 @@ static size_t seq_encode(const EpCore* c, char* buf, size_t cap) {
     pos += (size_t)n;
   }
   if (c->retrig_ms != 25 || c->min_vel != 0 || c->xtalk != 0) {
-    n = snprintf(buf + pos, cap - pos, "|F=%d,%d,%d", c->retrig_ms, c->min_vel, c->xtalk);
+    n = snprintf(buf + pos, cap - pos, "|F:%d,%d,%d", c->retrig_ms, c->min_vel, c->xtalk);
     if (n > 0 && (size_t)n < cap - pos) pos += (size_t)n;
   }
   for (int p = 0; p < EP_PADS; p++) {
@@ -416,7 +416,7 @@ static size_t seq_encode(const EpCore* c, char* buf, size_t cap) {
     }
     if (!mdiff) continue;
     n = snprintf(buf + pos, cap - pos,
-                 "|M%x=%d,%.2f,%d,%.2f,%d,%d,%.0f,%d,%d,%.0f,%d,%d,%.0f,%d,%d,%.0f",
+                 "|M%x:%d,%.2f,%d,%.2f,%d,%d,%.0f,%d,%d,%.0f,%d,%d,%.0f,%d,%d,%.0f",
                  p & 0xF, cur->lfo_wave[0], cur->lfo_rate[0], cur->lfo_wave[1], cur->lfo_rate[1],
                  cur->mod_src[0], cur->mod_dst[0], cur->mod_amt[0],
                  cur->mod_src[1], cur->mod_dst[1], cur->mod_amt[1],
@@ -477,10 +477,10 @@ static void seq_decode(EpCore* c, const char* str) {
       }
     }
   }
-  /* Parse optional |P<hex>=... per-pad parameter overrides */
+  /* Parse optional |P<hex>:... / |F:... / |M<hex>:... (also accepts legacy '=' separator) */
   while (*p == '|') {
     p++;
-    if (p[0] == 'P' && p[1] && p[2] == '=') {
+    if (p[0] == 'P' && p[1] && (p[2] == ':' || p[2] == '=')) {
       int pad = hex_nibble(p[1]);
       p += 3;
       if (pad >= 0 && pad < EP_PADS) {
@@ -504,7 +504,7 @@ static void seq_decode(EpCore* c, const char* str) {
           }
         }
       }
-    } else if (p[0] == 'F' && p[1] == '=') {
+    } else if (p[0] == 'F' && (p[1] == ':' || p[1] == '=')) {
       p += 2;
       int fv[3] = { 25, 0, 0 };
       int cnt = 0;
@@ -515,7 +515,7 @@ static void seq_decode(EpCore* c, const char* str) {
       if (cnt >= 1) c->retrig_ms = fv[0] < 0 ? 0 : (fv[0] > 80 ? 80 : fv[0]);
       if (cnt >= 2) c->min_vel   = fv[1] < 0 ? 0 : (fv[1] > 40 ? 40 : fv[1]);
       if (cnt >= 3) c->xtalk     = fv[2] < 0 ? 0 : (fv[2] > 60 ? 60 : fv[2]);
-    } else if (p[0] == 'M' && p[1] && p[2] == '=') {
+    } else if (p[0] == 'M' && p[1] && (p[2] == ':' || p[2] == '=')) {
       int pad = hex_nibble(p[1]);
       p += 3;
       if (pad >= 0 && pad < EP_PADS) {
@@ -786,12 +786,13 @@ static void forge_notify_reports(EkaPads* P) {
         else if (k == 5) { u = P->p_pad_end; val = (int)lrintf(P->core.pad[P->sel_pad].end); }
         else if (k == 6) { u = P->p_seq_bpm; val = (int)lrint(P->core.seq.bpm); }
         else if (k == 7) {
+          const char* ar = P->aux_routes[0] ? P->aux_routes : "_";
           lv2_atom_forge_frame_time(&P->forge, 0);
           lv2_atom_forge_object(&P->forge, &obj, 0, P->patch_Set);
           lv2_atom_forge_key(&P->forge, P->patch_property);
           lv2_atom_forge_urid(&P->forge, P->p_aux_routes);
           lv2_atom_forge_key(&P->forge, P->patch_value);
-          lv2_atom_forge_string(&P->forge, P->aux_routes, (uint32_t)strlen(P->aux_routes));
+          lv2_atom_forge_path(&P->forge, ar, (uint32_t)strlen(ar));
           lv2_atom_forge_pop(&P->forge, &obj);
           P->report_next++;
           if (P->report_next >= EP_PADS + 8) {
@@ -829,7 +830,7 @@ static void forge_notify_reports(EkaPads* P) {
         lv2_atom_forge_key(&P->forge, P->patch_property);
         lv2_atom_forge_urid(&P->forge, P->p_seq_data);
         lv2_atom_forge_key(&P->forge, P->patch_value);
-        lv2_atom_forge_string(&P->forge, P->seq_buf, (uint32_t)slen);
+        lv2_atom_forge_path(&P->forge, P->seq_buf, (uint32_t)slen);
         lv2_atom_forge_pop(&P->forge, &obj);
       }
     }
@@ -1331,11 +1332,11 @@ static LV2_State_Status state_save(LV2_Handle h, LV2_State_Store_Function store,
         LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
   size_t slen = seq_encode(&P->core, P->seq_buf, sizeof P->seq_buf);
   if (slen > 0) {
-    store(handle, P->p_seq_data, P->seq_buf, slen + 1, P->atom_String,
+    store(handle, P->p_seq_data, P->seq_buf, slen + 1, P->atom_Path,
           LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
   }
-  if (P->aux_routes[0]) {
-    store(handle, P->p_aux_routes, P->aux_routes, strlen(P->aux_routes) + 1, P->atom_String,
+  if (P->aux_routes[0] && strcmp(P->aux_routes, "_") != 0) {
+    store(handle, P->p_aux_routes, P->aux_routes, strlen(P->aux_routes) + 1, P->atom_Path,
           LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
   }
   return LV2_STATE_SUCCESS;

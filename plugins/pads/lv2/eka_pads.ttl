@@ -51,8 +51,8 @@
 <http://dmtry3.github.io/zynthian-eka/pads#pad_end>   a lv2:Parameter ; lv2:symbol "pad_end"   ; rdfs:label "Pad End"      ; rdfs:range atom:Int ; lv2:default 100 ; lv2:minimum 5 ; lv2:maximum 100 ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
 <http://dmtry3.github.io/zynthian-eka/pads#seq_bpm>   a lv2:Parameter ; lv2:symbol "seq_bpm"   ; rdfs:label "Seq BPM"      ; rdfs:range atom:Int ; lv2:default 120 ; lv2:minimum 40 ; lv2:maximum 240 ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
 <http://dmtry3.github.io/zynthian-eka/pads#seq_cmd>   a lv2:Parameter ; lv2:symbol "seq_cmd"   ; rdfs:label "Seq Cmd"      ; rdfs:range atom:Int ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 67108863 ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
-<http://dmtry3.github.io/zynthian-eka/pads#seq_data>  a lv2:Parameter ; lv2:symbol "seq_data"  ; rdfs:label "Seq Data"     ; rdfs:range atom:String ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
-<http://dmtry3.github.io/zynthian-eka/pads#aux_routes> a lv2:Parameter ; lv2:symbol "aux_routes" ; rdfs:label "Aux Routes" ; rdfs:range atom:String ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
+<http://dmtry3.github.io/zynthian-eka/pads#seq_data>  a lv2:Parameter ; lv2:symbol "seq_data"  ; rdfs:label "Seq Data"     ; rdfs:range atom:Path ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
+<http://dmtry3.github.io/zynthian-eka/pads#aux_routes> a lv2:Parameter ; lv2:symbol "aux_routes" ; rdfs:label "Aux Routes" ; rdfs:range atom:Path ; pprops:notOnGUI true ; lv2:portProperty pprops:notOnGUI .
 
 <http://dmtry3.github.io/zynthian-eka/pads>
     a lv2:Plugin , lv2:InstrumentPlugin ;
