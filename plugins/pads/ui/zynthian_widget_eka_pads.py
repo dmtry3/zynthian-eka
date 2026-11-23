@@ -163,6 +163,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.scenes_data = None    # bytes of length 8*16*16*2
 
         self.sel_pad = 0
+        self.sel_step = 0
+        self.vel_mode = False
         self.last_synced_pad = -1
         self.last_synced_scene = -1
         self.copy_src = -1         # >=0 when waiting for user to tap destination scene
@@ -1175,9 +1177,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             quant = 100
         ps, pe = self._pad_range_get(scene, self.sel_pad)
 
-        # Row 1: 5 Scene buttons (A..E) + Quantize + Copy + Clear + ->ZSeq
+        # Row 1: 5 Scene buttons (A..E) + Vel + Quantize + Copy + Clear + ->ZSeq
         r1_h = max(28, fs * 2 + 8)
-        scenes_w = (w - 2 * pad_m) * 0.48
+        scenes_w = (w - 2 * pad_m) * 0.40
         sc_w = scenes_w / float(EP_UI_SCENES)
         for s in range(EP_UI_SCENES):
             x0 = pad_m + s * sc_w
@@ -1193,9 +1195,16 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self._add_btn(c, x0, y, x1, y + r1_h, SCENE_NAMES[s], bg, fg, fam, fs, "seq_scene", s)
 
         tools_x = pad_m + scenes_w + 2
-        tw4 = (w - pad_m - tools_x) / 4.0
+        tw5 = (w - pad_m - tools_x) / 5.0
+        # Vel mode toggle button
+        self._add_btn(c, tools_x, y, tools_x + tw5 - 3, y + r1_h,
+                      "Vel",
+                      "#ff922b" if self.vel_mode else COL_PANEL,
+                      "#000000" if self.vel_mode else "#f0f0f5",
+                      fam, fsmall, "seq_vel_mode", (scene, self.sel_pad, ps, pe),
+                      outline="#ffd43b" if self.vel_mode else "#3a3a44")
         # Horizontal Quantize strength slider (0..100%)
-        qx0, qx1 = tools_x, tools_x + tw4 - 3
+        qx0, qx1 = tools_x + tw5, tools_x + 2 * tw5 - 3
         c.create_rectangle(qx0, y, qx1, y + r1_h, fill="#1a1c24", outline="#3c4a46" if quant > 0 else "#383844", width=1)
         if quant > 0:
             q_fill_x = qx0 + 1 + (quant / 100.0) * max(1.0, (qx1 - qx0 - 2))
@@ -1205,12 +1214,12 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         c.create_text((qx0 + qx1) / 2, y + r1_h / 2, text=q_lbl,
                       fill="#63e6be" if quant > 0 else "#9a9aaa", font=(fam, fsmall, "bold"))
         self.hit_boxes.append((qx0, y, qx1, y + r1_h, "quant_slider", (qx0, qx1)))
-        self._add_btn(c, tools_x + tw4, y, tools_x + 2 * tw4 - 3, y + r1_h,
+        self._add_btn(c, tools_x + 2 * tw5, y, tools_x + 3 * tw5 - 3, y + r1_h,
                       "Pick" if self.copy_src >= 0 else "Copy",
                       "#e64980" if self.copy_src >= 0 else COL_PANEL, "#ffffff", fam, fsmall, "seq_copy", scene)
-        self._add_btn(c, tools_x + 2 * tw4, y, tools_x + 3 * tw4 - 3, y + r1_h,
+        self._add_btn(c, tools_x + 3 * tw5, y, tools_x + 4 * tw5 - 3, y + r1_h,
                       "Clr", COL_PANEL, "#ff8787", fam, fsmall, "seq_clr_pad", (scene, self.sel_pad))
-        self._add_btn(c, tools_x + 3 * tw4, y, w - pad_m, y + r1_h,
+        self._add_btn(c, tools_x + 4 * tw5, y, w - pad_m, y + r1_h,
                       "->ZSeq", "#1d4034", "#63e6be", fam, fsmall, "export_zseq", scene, outline="#38d9a9")
         y += r1_h + 4
 
@@ -1253,26 +1262,69 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.hit_boxes.append((sl_x0, y, sl_x1, y + r2_h, "steps_slider", (scene, self.sel_pad, ps, pe, sl_x0, sl_x1)))
         y += r2_h + 6
 
-        # Middle: 32 Styled LED Step Tiles (4 rows of 8, grouped 4 + 4) for selected pad
+        # Optional Row 3 (when Vel mode is active): Horizontal Velocity (0..127) + Roll (1x..4x) sliders
+        if self.vel_mode:
+            if self.sel_step < ps or self.sel_step >= pe:
+                self.sel_step = ps
+            s_vel, s_roll = self._step_get(scene, self.sel_pad, self.sel_step)
+            vel_h = max(32, fs * 2 + 12)
+            full_w = w - 2 * pad_m
+            vx0 = pad_m
+            vx1 = pad_m + full_w * 0.72 - 4
+            v_col = "#ff922b" if s_vel >= 120 else pad_col
+            c.create_rectangle(vx0, y, vx1, y + vel_h, fill="#1a1c24",
+                               outline="#ff922b" if s_vel >= 120 else "#4a5568", width=1)
+            if s_vel > 0:
+                vf_x = vx0 + 1 + (s_vel / 127.0) * max(1.0, (vx1 - vx0 - 2))
+                c.create_rectangle(vx0 + 1, y + 1, vf_x, y + vel_h - 1,
+                                   fill="#4a2c14" if s_vel >= 120 else "#22384c", outline="")
+                c.create_rectangle(vx0 + 1, y + 1, vf_x, y + 4, fill=v_col, width=0)
+            v_txt = "Step %d   Vel: %d" % (self.sel_step + 1, s_vel) if s_vel > 0 else "Step %d   Off" % (self.sel_step + 1)
+            c.create_text((vx0 + vx1) / 2, y + vel_h / 2, text=v_txt,
+                          fill="#ffffff" if s_vel > 0 else "#9a9aaa", font=(fam, fs, "bold"))
+            self.hit_boxes.append((vx0, y, vx1, y + vel_h, "seq_vel_slider",
+                                   (scene, self.sel_pad, self.sel_step, vx0, vx1)))
+
+            # Horizontal Roll segmented slider (1x | 2x | 3x | 4x)
+            rx0 = vx1 + 4
+            rx1 = w - pad_m
+            rw = max(1.0, (rx1 - rx0) / 4.0)
+            c.create_rectangle(rx0, y, rx1, y + vel_h, fill="#1a1c24", outline="#4a5568", width=1)
+            for ri in range(4):
+                seg_x0 = rx0 + ri * rw
+                seg_x1 = rx0 + (ri + 1) * rw
+                is_r = (s_vel > 0 and s_roll == ri)
+                if is_r:
+                    c.create_rectangle(seg_x0 + 1, y + 1, seg_x1 - 1, y + vel_h - 1, fill="#3b3218", outline="")
+                    c.create_rectangle(seg_x0 + 1, y + 1, seg_x1 - 1, y + 4, fill="#ffd43b", width=0)
+                if ri > 0:
+                    c.create_line(seg_x0, y + 3, seg_x0, y + vel_h - 3, fill="#2e3240", width=1)
+                c.create_text((seg_x0 + seg_x1) / 2, y + vel_h / 2 + 1, text="%dx" % (ri + 1),
+                              fill="#ffd43b" if is_r else "#8c92a4",
+                              font=(fam, fsmall, "bold" if is_r else "normal"))
+            self.hit_boxes.append((rx0, y, rx1, y + vel_h, "seq_roll_slider",
+                                   (scene, self.sel_pad, self.sel_step, rx0, rx1)))
+            y += vel_h + 5
+
+        # Middle: 32 Styled LED Step Tiles (4 rows of 8, uniform spacing) for selected pad
         strip_h = max(24, fs * 2 + 4)
         grid_h = max(72, h - y - strip_h - pad_m - 6)
-        mid_gap = 6.0
-        sw = (w - 2 * pad_m - mid_gap) / 8.0
+        sw = (w - 2 * pad_m) / 8.0
         sh = grid_h / 4.0
 
         for st in range(EP_STEPS):
             col_i = st % 8
             row_i = st // 8
-            gx_off = mid_gap if col_i >= 4 else 0.0
-            sx0 = pad_m + col_i * sw + gx_off + 2
+            sx0 = pad_m + col_i * sw + 2
             sy0 = y + row_i * sh + 2
-            sx1 = pad_m + (col_i + 1) * sw + gx_off - 2
+            sx1 = pad_m + (col_i + 1) * sw - 2
             sy1 = y + (row_i + 1) * sh - 2
             th = max(8.0, sy1 - sy0)
 
             in_len = (ps <= st < pe)
             vel, roll = self._step_get(scene, self.sel_pad, st)
             is_cur = (in_len and st == cur_step)
+            is_sel_st = (self.vel_mode and in_len and st == self.sel_step)
             is_beat = ((st - ps) % 4 == 0)
 
             if not in_len:
@@ -1281,8 +1333,12 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                               fill="#343744", font=(fam, max(7, fsmall - 1)))
                 continue
 
-            # Tile body with subtle beat shading & bright cursor highlight
-            if is_cur:
+            # Tile body with subtle beat shading & bright cursor/selection highlight
+            if is_sel_st:
+                bg = "#2d3a4d" if is_cur else "#2b2f3d"
+                out_c = "#ffd43b"
+                out_w = 2
+            elif is_cur:
                 bg = "#2d3a4d"
                 out_c = "#ffffff"
                 out_w = 2
@@ -1304,10 +1360,14 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             led_col = "#ffffff" if is_cur else (step_col if vel > 0 else ("#4a5064" if is_beat else "#2b2f3d"))
             c.create_rectangle(sx0 + 3, sy0 + 2, sx1 - 3, sy0 + 5, fill=led_col, width=0)
 
-            # Step number (top-left) + Ratchet badge (bottom-right)
+            # Step number (top-left) + Velocity value in Vel mode + Ratchet badge (bottom-right)
             c.create_text(sx0 + 5, sy0 + 7, anchor="nw", text="%d" % (st + 1),
-                          fill="#ffffff" if (vel > 0 or is_cur) else "#8d94a6",
-                          font=(fam, max(7, fsmall - 1), "bold" if (vel > 0 or is_cur) else "normal"))
+                          fill="#ffd43b" if is_sel_st else ("#ffffff" if (vel > 0 or is_cur) else "#8d94a6"),
+                          font=(fam, max(7, fsmall - 1), "bold" if (vel > 0 or is_cur or is_sel_st) else "normal"))
+            if self.vel_mode and vel > 0:
+                c.create_text(sx0 + 5, sy1 - 3, anchor="sw", text="%d" % vel,
+                              fill="#ffd43b" if is_sel_st else "#c8d0e0",
+                              font=(fam, max(7, fsmall - 1), "bold" if is_sel_st else "normal"))
             if vel > 0 and roll > 0:
                 c.create_text(sx1 - 4, sy1 - 3, anchor="se", text="x%d" % (roll + 1),
                               fill="#ffd43b", font=(fam, max(7, fsmall - 1), "bold"))
@@ -1810,25 +1870,45 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.refresh_gui()
                 return
 
+            if action == "seq_vel_mode":
+                sc, p, ps, pe = arg
+                self.vel_mode = not self.vel_mode
+                if self.vel_mode:
+                    if self.sel_step < ps or self.sel_step >= pe or self._step_get(sc, p, self.sel_step)[0] == 0:
+                        for st in range(ps, pe):
+                            if self._step_get(sc, p, st)[0] > 0:
+                                self.sel_step = st
+                                break
+                        else:
+                            self.sel_step = ps
+                self.refresh_gui()
+                return
+
+            if action == "seq_vel_slider":
+                sc, p, st, vx0, vx1 = arg
+                nv = self._apply_seq_vel_slider(sc, p, st, vx0, vx1, x)
+                self.drag_info = ("seq_vel_slider", [sc, p, st, vx0, vx1, nv], y, 0)
+                self.refresh_gui()
+                return
+
+            if action == "seq_roll_slider":
+                sc, p, st, rx0, rx1 = arg
+                nr = self._apply_seq_roll_slider(sc, p, st, rx0, rx1, x)
+                self.drag_info = ("seq_roll_slider", [sc, p, st, rx0, rx1, nr], y, 0)
+                self.refresh_gui()
+                return
+
             if action == "step":
                 sc, p, st = arg
-                vel, roll = self._step_get(sc, p, st)
-                tap_key = ("step", sc, p, st)
-                if self.last_tap[0] == tap_key and (now - self.last_tap[1]) < 0.35:
-                    # Double-tap cycles ratchet roll (1x -> 2x -> 3x -> 4x -> 1x)
-                    if vel == 0:
-                        self._send_cmd(CMD_SET_VEL, a=sc, b=p, c=st, val=100)
-                    self._send_cmd(CMD_SET_ROLL, a=sc, b=p, c=st, val=(roll + 1) % 4)
-                    self.last_tap = (None, 0.0)
+                self.sel_step = st
+                if self.vel_mode:
                     self.refresh_gui()
                     return
-                self.last_tap = (tap_key, now)
-                # Cycle Off -> Normal (100) -> Accent (127) -> Off
-                new_vel = 100 if vel == 0 else (127 if vel < 120 else 0)
+                vel, _roll = self._step_get(sc, p, st)
+                new_vel = 100 if vel == 0 else 0
                 self._send_cmd(CMD_SET_VEL, a=sc, b=p, c=st, val=new_vel)
                 if new_vel == 0:
                     self._send_cmd(CMD_SET_ROLL, a=sc, b=p, c=st, val=0)
-                self.drag_info = ("step", (sc, p, st), y, new_vel if new_vel > 0 else 100)
                 self.refresh_gui()
                 return
 
@@ -2006,10 +2086,50 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         q = int(round(t * 20.0)) * 5  # clean 5% steps: 0, 5, 10 .. 100%
         self._send_cmd(CMD_SET_QUANT, val=q)
 
+    def _calc_seq_vel(self, vx0, vx1, x):
+        t = max(0.0, min(1.0, (x - vx0) / max(1.0, vx1 - vx0)))
+        v = int(round(t * 127.0))
+        return 0 if v <= 2 else min(127, v)
+
+    def _apply_seq_vel_slider(self, sc, p, st, vx0, vx1, x):
+        v = self._calc_seq_vel(vx0, vx1, x)
+        self._send_cmd(CMD_SET_VEL, a=sc, b=p, c=st, val=v)
+        if v == 0:
+            self._send_cmd(CMD_SET_ROLL, a=sc, b=p, c=st, val=0)
+        return v
+
+    def _calc_seq_roll(self, rx0, rx1, x):
+        t = max(0.0, min(0.9999, (x - rx0) / max(1.0, rx1 - rx0)))
+        return int(t * 4)
+
+    def _apply_seq_roll_slider(self, sc, p, st, rx0, rx1, x):
+        r = self._calc_seq_roll(rx0, rx1, x)
+        vel, _ = self._step_get(sc, p, st)
+        if vel == 0:
+            self._send_cmd(CMD_SET_VEL, a=sc, b=p, c=st, val=100)
+        self._send_cmd(CMD_SET_ROLL, a=sc, b=p, c=st, val=r)
+        return r
+
     def _on_motion(self, event):
         if not self.drag_info or event is None:
             return
         kind, arg, y0, start_val = self.drag_info
+        if kind == "seq_vel_slider":
+            sc, p, st, vx0, vx1, last_v = arg
+            nv = self._calc_seq_vel(vx0, vx1, event.x)
+            if nv != last_v:
+                arg[5] = nv
+                self._apply_seq_vel_slider(sc, p, st, vx0, vx1, event.x)
+                self.refresh_gui()
+            return
+        if kind == "seq_roll_slider":
+            sc, p, st, rx0, rx1, last_r = arg
+            nr = self._calc_seq_roll(rx0, rx1, event.x)
+            if nr != last_r:
+                arg[5] = nr
+                self._apply_seq_roll_slider(sc, p, st, rx0, rx1, event.x)
+                self.refresh_gui()
+            return
         if kind == "quant_slider":
             qx0, qx1 = arg
             self._apply_quant_slider(qx0, qx1, event.x)
@@ -2076,11 +2196,6 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         if kind == "bpm":
             nbpm = max(40, min(240, int(round(start_val + dy * 0.5))))
             self._zset("seq_bpm", nbpm)
-            self.refresh_gui()
-        elif kind == "step":
-            sc, p, st = arg
-            nvel = max(1, min(127, int(round(start_val + dy * 1.2))))
-            self._send_cmd(CMD_SET_VEL, a=sc, b=p, c=st, val=nvel)
             self.refresh_gui()
 
     def _on_release(self, event):
