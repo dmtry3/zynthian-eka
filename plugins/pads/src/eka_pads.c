@@ -527,9 +527,11 @@ static void seq_decode(EpCore* c, const char* str) {
           if (*p == ',') p++;
         }
         if (cnt >= 16) {
-          d->lfo_wave[0] = (int)lrintf(mv[0]) % EP_LFO_NWAVES;
+          int w0 = (int)lrintf(mv[0]);
+          int w1 = (int)lrintf(mv[2]);
+          d->lfo_wave[0] = ((w0 & 7) % EP_LFO_NWAVES) | (w0 & 16);
           d->lfo_rate[0] = mv[1] < 0.05f ? 0.05f : (mv[1] > 20.0f ? 20.0f : mv[1]);
-          d->lfo_wave[1] = (int)lrintf(mv[2]) % EP_LFO_NWAVES;
+          d->lfo_wave[1] = ((w1 & 7) % EP_LFO_NWAVES) | (w1 & 16);
           d->lfo_rate[1] = mv[3] < 0.05f ? 0.05f : (mv[3] > 20.0f ? 20.0f : mv[3]);
           for (int s = 0; s < EP_MOD_SLOTS; s++) {
             int src = (int)lrintf(mv[4 + s * 3]);
@@ -622,7 +624,12 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
     case CMD_SET_LFO:
       if (a < EP_LFOS && b < EP_PADS) {
         if (c == 0) {
-          P->core.pad[b].lfo_wave[a] = val % EP_LFO_NWAVES;
+          /* Set wave 0..4 while preserving sync flag in bit 4 */
+          P->core.pad[b].lfo_wave[a] = (P->core.pad[b].lfo_wave[a] & 16) | (val % EP_LFO_NWAVES);
+        } else if (c == 2) {
+          /* Toggle/set BPM Sync flag in bit 4 */
+          if (val) P->core.pad[b].lfo_wave[a] |= 16;
+          else     P->core.pad[b].lfo_wave[a] &= ~16;
         } else {
           /* Logarithmic mapping val 0..200 -> 0.05..20.0 Hz */
           double t = (double)(val > 200 ? 200 : val) / 200.0;

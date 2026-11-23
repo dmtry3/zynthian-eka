@@ -27,7 +27,7 @@ static inline float rng_bipolar(uint32_t* st) {
 }
 
 static inline float lfo_eval(int wave, double ph, float sh) {
-  switch (wave) {
+  switch (wave & 7) {
     case EP_LFO_TRI:  return 1.0f - 4.0f * fabsf((float)ph - 0.5f);
     case EP_LFO_SAW:  return 2.0f * (float)ph - 1.0f;
     case EP_LFO_SQR:  return ph < 0.5 ? 1.0f : -1.0f;
@@ -35,6 +35,22 @@ static inline float lfo_eval(int wave, double ph, float sh) {
     case EP_LFO_SINE:
     default:          return sinf((float)(ph * 2.0 * M_PI));
   }
+}
+
+/* Effective LFO frequency in Hz: Free (0.05..20 Hz) or BPM-Synced (4/1 .. 1/16T) */
+static inline double lfo_effective_hz(int wave_flags, float rate, double bpm) {
+  float r = clampf(rate, 0.05f, 20.0f);
+  if ((wave_flags & 16) == 0) return (double)r;
+  /* 9 musical divisions in beats per LFO cycle: 4/1, 2/1, 1/1, 1/2, 1/4, 1/8, 1/16, 1/8T, 1/16T */
+  static const double div_beats[9] = {
+    16.0, 8.0, 4.0, 2.0, 1.0, 0.5, 0.25, 1.0 / 3.0, 1.0 / 6.0
+  };
+  double t = log((double)r / 0.05) / log(400.0);
+  int idx = (int)llround(t * 8.0);
+  if (idx < 0) idx = 0;
+  if (idx > 8) idx = 8;
+  double b = bpm < 40.0 ? 40.0 : (bpm > 240.0 ? 240.0 : bpm);
+  return (b / 60.0) / div_beats[idx];
 }
 
 static inline float pad_mod_sum(const EpCore* c, const EpVoice* v, int pad, int dst) {
@@ -628,8 +644,8 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
     c->activity[i] *= act_decay;
     if (c->activity[i] < 0.002f) c->activity[i] = 0.0f;
     for (int k = 0; k < EP_LFOS; k++) {
-      float rate = clampf(c->pad[i].lfo_rate[k], 0.05f, 20.0f);
-      c->lfo_phase[i][k] += ((double)rate * (double)nframes) / c->sr;
+      double hz = lfo_effective_hz(c->pad[i].lfo_wave[k], c->pad[i].lfo_rate[k], c->seq.bpm);
+      c->lfo_phase[i][k] += (hz * (double)nframes) / c->sr;
       if (c->lfo_phase[i][k] >= 1.0) {
         c->lfo_phase[i][k] -= floor(c->lfo_phase[i][k]);
         c->lfo_sh[i][k] = rng_bipolar(&c->rng_state);
