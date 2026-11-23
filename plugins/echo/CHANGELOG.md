@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3 (2026-11-22)
+
+- Redesigned the dedicated **FX** touch screen with a large `Time FX` / `Filter FX` X-Y pad, horizontal `Wash FX` slider with `0` reset, and `HOLD / SNAP 0` spring-return mode.
+- Added a MIDI-mappable **FX Zero** LV2 control port with DSP latch and UI auto-reset.
+- Displayed musical note divisions everywhere in the widget when `Sync` is enabled.
+- Tuned softer `Wash FX`, smoother `Freeze`, PingPong first-bounce timing, and widget FX/Link sync fixes.
+
 ## 0.1.2 (2026-11-22)
 
 - Made **Time FX** bipolar (`-100..+100%`, default `0%` with zero deadzone) so original `Time L`/`Time R` are never lost and returning to `0%` restores the exact base times (`-50%` = `0.5x`, `+50%` = `2.0x`).

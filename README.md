@@ -2,8 +2,8 @@
 
 **English** · [Русский](README.ru.md)
 
-Ten LV2 plugins for [Zynthian](https://zynthian.org), each with its own touch widget: an audio looper, a MIDI
-looper, a generative arpeggiator, a granular sampler, a West Coast synth, a live granular effect, a four-voice pitch harmonizer, a rhythmic multi-effect shaper, a single-band live compressor and a 4-band parametric equalizer. They are made to play live on a
+Twelve LV2 plugins for [Zynthian](https://zynthian.org), each with its own touch widget: an audio looper, a MIDI
+looper, a generative arpeggiator, a granular sampler, a West Coast synth, a live granular effect, a four-voice pitch harmonizer, a rhythmic multi-effect shaper, a single-band live compressor, a 4-band parametric equalizer, a stereo/polyrhythmic live delay and a 16-pad drum sampler & sequencer. They are made to play live on a
 Raspberry Pi 5 and to work together in one setup.
 
 > Tested on: Zynthian **Vangelis** (stable 2610), Raspberry Pi 5, V5 kit, 800x480 touch screen.
@@ -79,14 +79,17 @@ Four 64-bit parametric bands (`Shelf`, `Bell`, `Pultec`, `Notch`, `Air`, `Off`),
 
 ![Eka Q-4](plugins/q4/docs/1-main.png)
 
-### [Eka Pads](plugins/pads): 16-pad drum sampler & scene sequencer
+### [Eka Echo](plugins/echo): stereo & polyrhythmic live delay
 
-Bitwig Drum Machine-style 4×4 drum sampler built for Bluetooth pad controllers (like M-VAVE SMC-PAD Pocket): 16 independent pads with async WAV/FLAC loading, per-pad pitch, decay, bipolar DJ filter, punch, drive/crush, choke groups, Room Space reverb, Auto-Select syncing Zynthian's 4 encoders to the last hit pad, and an 8-scene 16-step sequencer with live Overdub and ratchets.
+Independent L/R Hermite-interpolated delay (`5..2500 ms`) with BPM sync (`1/64..1 bar`), four characters (`Clean`, `Tape` with capstan motor inertia, `BBD`, `Diff`), three stereo routings (`Stereo`, `PingPong`, `Cross`), loop `HPF`/`LPF`, `Drive`, `Diffuse`, LFO modulation, `Duck`, `Freeze`, `Trails`, a dedicated live **FX** X-Y screen (`Time FX`, `Filter FX`, `Wash FX`, `SNAP 0` spring mode, MIDI-mappable `FX Zero`), and 10 factory presets.
+
+### [Eka Pads](plugins/pads): 16-pad drum sampler & polyrhythmic scene sequencer
+
+Bitwig Drum Machine-style 4×4 drum sampler built for pad controllers (like M-VAVE SMC-PAD Pocket): 16 independent pads with async WAV/FLAC loading, anti-aliased sinc pitch, decay, bipolar DJ filter, punch, drive/crush, choke groups, bipolar `Width`, 4 stereo `Aux` sends to Zynthian Mixbuses, a 4-slot per-pad modulation matrix (2 LFOs + Env Follower), Auto-Select syncing Zynthian's 4 encoders to the last hit pad, and a polyrhythmic 32-step scene sequencer with live Overdub, ratchets, and one-tap export to ZynSeq.
 
 ## A setup
 
-A typical chain: **Roll** records the chords, **Bloom** turns them into a moving arpeggio, **Fold** or **Mist**
-plays it, **Weave-4** adds four-voice harmony to your live instrument (or follows the chords from **Roll**), **Grain Flow** reshapes the audio, **Tape** loops the sound together with your instrument, **Q-4** sculpts the tone and clears resonances, and **Press** shapes the live input or glues the mix. Each plugin also works on its own.
+A typical chain: **Pads** drives the beat (with per-pad Aux sends into **Echo** or **Pulse**), **Roll** records the chords, **Bloom** turns them into a moving arpeggio, **Fold** or **Mist** plays it, **Weave-4** adds four-voice harmony to your live instrument (or follows the chords from **Roll**), **Grain Flow** and **Echo** reshape the audio, **Tape** loops the sound together with your instrument, **Q-4** sculpts the tone and clears resonances, and **Press** shapes the live input or glues the mix. Each plugin also works on its own.
 
 ## Installation
 
@@ -95,7 +98,7 @@ On the Zynthian (SSH as root):
 ```bash
 git clone https://github.com/dmtry3/zynthian-eka.git
 cd zynthian-eka
-sudo make install-bloom          # one plugin: tape, roll, bloom, mist, fold, grainflow, weave4, pulse, press or q4
+sudo make install-bloom          # one plugin: tape, roll, bloom, mist, fold, grainflow, weave4, pulse, press, q4, echo or pads
 sudo make install                # or all of them
 systemctl restart zynthian
 ```
