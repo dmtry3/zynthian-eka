@@ -166,6 +166,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.sel_step = 0
         self.step_popup = None     # None or (scene, pad, step)
         self.step_popup_vals = None  # [vel, chance, roll] optimistic UI state while popup open
+        self.step_drag_override = None  # None or (scene, pad, step, vel) during vertical step drag
         self._step_hold_after = None
         self.last_synced_pad = -1
         self.last_synced_scene = -1
@@ -1267,7 +1268,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         y += r2_h + 6
 
         # Middle: 32 Styled LED Step Tiles (4 rows of 8, uniform spacing) for selected pad
-        # Short tap = toggle on/off, Long tap = open Velocity / Chance / Roll popup
+        # Short tap = toggle on/off, Drag up/down = Velocity, Long tap = Velocity / Chance / Roll popup
         strip_h = max(24, fs * 2 + 4)
         grid_h = max(72, h - y - strip_h - pad_m - 6)
         sw = (w - 2 * pad_m) / 8.0
@@ -1284,6 +1285,13 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
 
             in_len = (ps <= st < pe)
             vel, roll, chance = self._step_get(scene, self.sel_pad, st)
+            is_dragging_step = bool(
+                self.step_drag_override and self.step_drag_override[:3] == (scene, self.sel_pad, st)
+            )
+            if is_dragging_step:
+                vel = self.step_drag_override[3]
+                if vel == 0:
+                    roll = 0
             is_cur = (in_len and st == cur_step)
             is_beat = ((st - ps) % 4 == 0)
 
@@ -1294,7 +1302,11 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 continue
 
             # Tile body with subtle beat shading & bright cursor highlight
-            if is_cur:
+            if is_dragging_step:
+                bg = "#2b3648"
+                out_c = "#ffffff"
+                out_w = 2
+            elif is_cur:
                 bg = "#2d3a4d"
                 out_c = "#ffffff"
                 out_w = 2
@@ -1320,6 +1332,10 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             c.create_text(sx0 + 5, sy0 + 7, anchor="nw", text="%d" % (st + 1),
                           fill="#ffffff" if (vel > 0 or is_cur) else "#8d94a6",
                           font=(fam, max(7, fsmall - 1), "bold" if (vel > 0 or is_cur) else "normal"))
+            if is_dragging_step:
+                c.create_text((sx0 + sx1) / 2, (sy0 + sy1) / 2 + 2,
+                              text="%d" % vel if vel > 0 else "Off",
+                              fill="#ffffff", font=(fam, fs, "bold"))
             if vel > 0 and chance < 100:
                 c.create_text(sx0 + 4, sy1 - 3, anchor="sw", text="%d%%" % chance,
                               fill="#63e6be", font=(fam, max(6, fsmall - 1), "bold"))
@@ -1798,6 +1814,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self._cancel_step_hold()
                 self.step_popup = None
                 self.step_popup_vals = None
+                self.step_drag_override = None
                 self._select_page(arg)
                 self.refresh_gui()
                 return
@@ -2155,6 +2172,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self._send_cmd(CMD_SET_VEL, a=sc, b=p, c=st, val=vel)
         self.step_popup = (sc, p, st)
         self.step_popup_vals = [vel, chance, roll]
+        self.step_drag_override = None
         self.drag_info = None
         self.refresh_gui()
 
@@ -2217,10 +2235,30 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             return
         kind, arg, y0, start_val = self.drag_info
         if kind == "step_hold":
-            _sc, _p, _st, x0, hy0 = arg
-            if abs(event.x - x0) > 18 or abs(event.y - hy0) > 18:
+            sc, p, st, x0, hy0 = arg
+            dx = abs(event.x - x0)
+            dy = abs(event.y - hy0)
+            if dy >= 10 and dy >= dx:
+                self._cancel_step_hold()
+                cur_vel, _r, _ch = self._step_get(sc, p, st)
+                self.drag_info = ("step_vel_drag", [sc, p, st, cur_vel], event.y, cur_vel)
+                self.step_drag_override = (sc, p, st, cur_vel)
+                self.refresh_gui()
+            elif dx > 18:
                 self._cancel_step_hold()
                 self.drag_info = None
+            return
+        if kind == "step_vel_drag":
+            sc, p, st, last_v = arg
+            dy = y0 - event.y
+            nv = max(0, min(127, int(round(start_val + dy * 1.5))))
+            if nv != last_v:
+                arg[3] = nv
+                self.step_drag_override = (sc, p, st, nv)
+                self._send_cmd(CMD_SET_VEL, a=sc, b=p, c=st, val=nv)
+                if nv == 0:
+                    self._send_cmd(CMD_SET_ROLL, a=sc, b=p, c=st, val=0)
+                self.refresh_gui()
             return
         if kind == "step_vel_slider":
             sc, p, st, vx0, vx1, last_v = arg
@@ -2318,6 +2356,11 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self._cancel_step_hold()
         if self.drag_info:
             kind = self.drag_info[0]
+            if kind == "step_vel_drag":
+                self.drag_info = None
+                self.step_drag_override = None
+                self.refresh_gui()
+                return
             if kind == "step_hold":
                 _, (sc, p, st, _x0, _y0), t0, _ = self.drag_info
                 self.drag_info = None

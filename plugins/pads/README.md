@@ -85,7 +85,7 @@ Four tabs along the top bar (`Pads | Mod | Seq | Kit`):
 - **`Seq` tab:**
   - **Top bar:** large scene buttons `A..E`, horizontal `Q` quantize slider (`Off / 1..100%`), `Copy` scene, `Clr` pad lane, and `->ZSeq` export.
   - **Second bar:** `Play/Stop`, `Dub/Rec`, draggable `BPM`, and horizontal `Beg..End` steps range slider (`1..32`) for polyrhythms.
-  - **4×8 LED step grid:** short tap toggles a step; **long press** opens the step popup with `Velocity` (`0..127`), `Chance` (`10..100%`), and `Roll` (`1x..4x`) sliders.
+  - **4×8 LED step grid:** short tap toggles a step; drag up/down adjusts `Velocity`; **long press** opens the step popup with `Velocity` (`0..127`), `Chance` (`10..100%`), and `Roll` (`1x..4x`) sliders.
   - **Bottom 16-pad strip:** tap to select lane, long press to `Mute / Unmute`.
 - **`Kit` tab:**
   - `Load Factory 16-Pad Kit`, `MIDI Learn` for the selected pad, `Clear Scene`, `Unload Pad Sample`.
