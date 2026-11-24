@@ -12,6 +12,33 @@ void ep_sample_free(EpSample* s) {
   free(s);
 }
 
+static int hex_val(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+  if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+  return -1;
+}
+
+static int decode_uri_path(const char* src, char* dst, size_t cap) {
+  if (!src || cap < 2) return 0;
+  if (strncmp(src, "file://", 7) == 0) src += 7;
+  size_t w = 0;
+  while (*src && w + 1 < cap) {
+    if (src[0] == '%' && src[1] && src[2]) {
+      int hi = hex_val(src[1]), lo = hex_val(src[2]);
+      if (hi >= 0 && lo >= 0) {
+        dst[w++] = (char)((hi << 4) | lo);
+        src += 3;
+        continue;
+      }
+    }
+    dst[w++] = *src++;
+  }
+  while (w > 0 && (dst[w - 1] == '\n' || dst[w - 1] == '\r')) w--;
+  dst[w] = '\0';
+  return w > 0;
+}
+
 EpSample* ep_sample_load(const char* path, double max_seconds, int* err) {
   int e = EP_LOAD_OK;
   EpSample* s = NULL;
@@ -22,6 +49,13 @@ EpSample* ep_sample_load(const char* path, double max_seconds, int* err) {
 
   if (!path || !*path || strlen(path) >= EP_PATH_MAX) { e = EP_LOAD_PATH; goto out; }
   f = sf_open(path, SFM_READ, &info);
+  if (!f) {
+    char alt[EP_PATH_MAX];
+    if (decode_uri_path(path, alt, sizeof alt) && strcmp(alt, path) != 0) {
+      memset(&info, 0, sizeof info);
+      f = sf_open(alt, SFM_READ, &info);
+    }
+  }
   if (!f) { e = EP_LOAD_OPEN; goto out; }
   if (info.frames <= 0 || info.channels <= 0 || info.samplerate <= 0) { e = EP_LOAD_EMPTY; goto out; }
   if ((double)info.frames > max_seconds * info.samplerate) { e = EP_LOAD_TOO_LONG; goto out; }

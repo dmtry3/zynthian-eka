@@ -887,7 +887,11 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         wavs = sorted(f for f in os.listdir(kit_dir) if f.lower().endswith(".wav"))
         for i, fn in enumerate(wavs[:EP_PADS]):
             full = os.path.join(kit_dir, fn)
-            self._zset("sample%d" % (i + 1), full)
+            try:
+                z = self.processor.controllers_dict["sample%d" % (i + 1)]
+                z.set_value(full)
+            except Exception:
+                pass
 
     @staticmethod
     def _default_pad_tuple(pad_idx):

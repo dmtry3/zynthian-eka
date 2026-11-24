@@ -168,6 +168,8 @@ typedef struct {
   EpSample* samples[EP_PADS];
   char paths[EP_PADS][EP_PATH_MAX];
   atomic_uint req_seq[EP_PADS];
+  uint16_t pending_load_mask;
+  uint32_t pending_load_seq[EP_PADS];
 
   struct { EpSample* s; int pad; uint32_t gen; } retired[EP_RETIRED_MAX];
   int nretired;
@@ -227,13 +229,14 @@ static void shm_publish(EkaPads* P) {
   }
 }
 
-static void free_in_worker(EkaPads* P, EpSample* s) {
-  if (!s) return;
+static int free_in_worker(EkaPads* P, EpSample* s) {
+  if (!s) return 1;
   if (P->sched) {
     MsgFree fm = { MSG_FREE, s };
-    P->sched->schedule_work(P->sched->handle, sizeof fm, &fm);
+    return P->sched->schedule_work(P->sched->handle, sizeof fm, &fm) == LV2_WORKER_SUCCESS;
   } else {
     ep_sample_free(s);
+    return 1;
   }
 }
 
@@ -250,14 +253,22 @@ static void swap_sample(EkaPads* P, int pad, EpSample* s) {
   P->samples[pad] = s;
   if (!old) return;
 
-  if (!ep_core_gen_in_use(&P->core, pad, old_gen)) {
-    free_in_worker(P, old);
+  if (!ep_core_gen_in_use(&P->core, pad, old_gen) && free_in_worker(P, old)) {
     return;
   }
   if (P->nretired >= EP_RETIRED_MAX) {
     ep_core_all_off(&P->core);
-    for (int i = 0; i < P->nretired; i++) free_in_worker(P, P->retired[i].s);
-    P->nretired = 0;
+    int w = 0;
+    for (int i = 0; i < P->nretired; i++) {
+      if (!free_in_worker(P, P->retired[i].s)) {
+        P->retired[w++] = P->retired[i];
+      }
+    }
+    P->nretired = w;
+    if (P->nretired >= EP_RETIRED_MAX) {
+      ep_sample_free(old);
+      return;
+    }
   }
   P->retired[P->nretired].s = old;
   P->retired[P->nretired].pad = pad;
@@ -268,35 +279,61 @@ static void swap_sample(EkaPads* P, int pad, EpSample* s) {
 static void collect_retired(EkaPads* P) {
   int w = 0;
   for (int i = 0; i < P->nretired; i++) {
-    if (!ep_core_gen_in_use(&P->core, P->retired[i].pad, P->retired[i].gen)) {
-      free_in_worker(P, P->retired[i].s);
-    } else {
-      P->retired[w++] = P->retired[i];
+    if (!ep_core_gen_in_use(&P->core, P->retired[i].pad, P->retired[i].gen) &&
+        free_in_worker(P, P->retired[i].s)) {
+      continue;
     }
+    P->retired[w++] = P->retired[i];
   }
   P->nretired = w;
+}
+
+static void pump_pending_loads(EkaPads* P) {
+  if (!P->sched || !P->pending_load_mask) return;
+  for (int pad = 0; pad < EP_PADS; pad++) {
+    if (!(P->pending_load_mask & (1u << pad))) continue;
+    const char* path = P->paths[pad];
+    size_t len = strlen(path);
+    if (len == 0 || len >= EP_PATH_MAX) {
+      P->pending_load_mask &= (uint16_t)~(1u << pad);
+      continue;
+    }
+    MsgLoad m;
+    m.type = MSG_LOAD;
+    m.pad = pad;
+    m.seq = P->pending_load_seq[pad];
+    memcpy(m.path, path, len + 1);
+    uint32_t msz = (uint32_t)(offsetof(MsgLoad, path) + len + 1);
+    if (P->sched->schedule_work(P->sched->handle, msz, &m) == LV2_WORKER_SUCCESS) {
+      P->pending_load_mask &= (uint16_t)~(1u << pad);
+    } else {
+      /* Host worker ringbuffer is full right now; keep pending bit set and retry next block */
+      break;
+    }
+  }
 }
 
 static void request_load(EkaPads* P, int pad, const char* path) {
   if (pad < 0 || pad >= EP_PADS) return;
   if (!path || !*path || strcmp(path, "_") == 0) {
     P->paths[pad][0] = '\0';
+    P->pending_load_mask &= (uint16_t)~(1u << pad);
     atomic_fetch_add_explicit(&P->req_seq[pad], 1, memory_order_relaxed);
     swap_sample(P, pad, NULL);
     return;
   }
   size_t len = strlen(path);
   if (len >= EP_PATH_MAX) return;
+  /* Skip redundant reload if this exact sample is already loaded and idle */
+  if (P->samples[pad] != NULL && !(P->pending_load_mask & (1u << pad)) &&
+      strcmp(P->paths[pad], path) == 0) {
+    return;
+  }
   memcpy(P->paths[pad], path, len + 1);
   uint32_t seq = atomic_fetch_add_explicit(&P->req_seq[pad], 1, memory_order_relaxed) + 1;
-  if (P->sched) {
-    MsgLoad m;
-    m.type = MSG_LOAD;
-    m.pad = pad;
-    m.seq = seq;
-    memcpy(m.path, path, len + 1);
-    P->sched->schedule_work(P->sched->handle, sizeof m, &m);
-  }
+  P->pending_load_seq[pad] = seq;
+  P->pending_load_mask |= (uint16_t)(1u << pad);
+  pump_pending_loads(P);
 }
 
 static int get_mute_mask(const EkaPads* P) {
@@ -771,8 +808,11 @@ static void handle_patch_set(EkaPads* P, const LV2_Atom_Object* obj) {
 
   for (int i = 0; i < EP_PADS; i++) {
     if (u == P->p_sample[i] && (val->type == P->atom_Path || val->type == P->atom_String)) {
-      const char* s = (const char*)LV2_ATOM_BODY_CONST(val);
-      request_load(P, i, s);
+      char buf[EP_PATH_MAX];
+      size_t n = val->size < EP_PATH_MAX - 1 ? val->size : EP_PATH_MAX - 1;
+      if (n > 0) memcpy(buf, LV2_ATOM_BODY_CONST(val), n);
+      buf[n] = '\0';
+      request_load(P, i, buf);
       return;
     }
   }
@@ -1083,6 +1123,7 @@ static void run(LV2_Handle h, uint32_t nframes) {
   EkaPads* P = (EkaPads*)h;
   if (!P->out_l || !P->out_r) return;
 
+  pump_pending_loads(P);
   collect_retired(P);
 
   /* Pass 1: process patch:Set / patch:Get / time:Position BEFORE reading control ports
@@ -1392,13 +1433,18 @@ static LV2_Worker_Status work(LV2_Handle h, LV2_Worker_Respond_Function respond,
     ep_sample_free(m->s);
     return LV2_WORKER_SUCCESS;
   }
-  if (type == MSG_LOAD && size == sizeof(MsgLoad)) {
+  if (type == MSG_LOAD && size > offsetof(MsgLoad, path) && size <= sizeof(MsgLoad)) {
     const MsgLoad* m = (const MsgLoad*)data;
     if (m->pad < 0 || m->pad >= EP_PADS) return LV2_WORKER_SUCCESS;
     if (m->seq != atomic_load_explicit(&P->req_seq[m->pad], memory_order_relaxed))
       return LV2_WORKER_SUCCESS;
+    char path_buf[EP_PATH_MAX];
+    size_t plen = size - offsetof(MsgLoad, path);
+    if (plen >= EP_PATH_MAX) plen = EP_PATH_MAX - 1;
+    memcpy(path_buf, m->path, plen);
+    path_buf[plen] = '\0';
     int err = EP_LOAD_OK;
-    EpSample* s = ep_sample_load(m->path, EP_MAX_SECONDS, &err);
+    EpSample* s = ep_sample_load(path_buf, EP_MAX_SECONDS, &err);
     MsgDone done = { m->pad, m->seq, err, s };
     respond(handle, sizeof done, &done);
     return LV2_WORKER_SUCCESS;
@@ -1411,15 +1457,19 @@ static LV2_Worker_Status work_response(LV2_Handle h, uint32_t size, const void* 
   if (size != sizeof(MsgDone)) return LV2_WORKER_ERR_UNKNOWN;
   const MsgDone* d = (const MsgDone*)data;
   if (d->pad < 0 || d->pad >= EP_PADS) {
-    free_in_worker(P, d->s);
+    if (d->s && !free_in_worker(P, d->s)) ep_sample_free(d->s);
     return LV2_WORKER_SUCCESS;
   }
   if (d->seq != atomic_load_explicit(&P->req_seq[d->pad], memory_order_relaxed)) {
-    free_in_worker(P, d->s);
+    if (d->s && !free_in_worker(P, d->s)) ep_sample_free(d->s);
     return LV2_WORKER_SUCCESS;
   }
   if (d->err == EP_LOAD_OK && d->s) {
     swap_sample(P, d->pad, d->s);
+  } else {
+    P->paths[d->pad][0] = '\0';
+    swap_sample(P, d->pad, NULL);
+    P->report_next = 0;
   }
   return LV2_WORKER_SUCCESS;
 }
@@ -1476,6 +1526,7 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
   size_t sz; uint32_t type, fl;
 
   /* Start from clean defaults so nothing from a previously loaded kit leaks through */
+  P->pending_load_mask = 0;
   ep_core_all_off(&P->core);
   for (int s = 0; s < EP_SCENES; s++) ep_seq_clear_scene(&P->core, s);
   for (int i = 0; i < EP_PADS; i++) ep_pad_defaults(&P->core.pad[i], i);
