@@ -26,6 +26,15 @@ static inline float rng_bipolar(uint32_t* st) {
   return ((float)(x & 0xFFFFu) / 32767.5f) - 1.0f;
 }
 
+static inline int rng_pct(uint32_t* st) {
+  uint32_t x = *st ? *st : 0x12345678u;
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+  *st = x;
+  return (int)(((x & 0xFFFFu) * 100u) >> 16); /* uniform 0..99 */
+}
+
 static inline float lfo_eval(int wave, double ph, float sh) {
   switch (wave & 7) {
     case EP_LFO_TRI:  return 1.0f - 4.0f * fabsf((float)ph - 0.5f);
@@ -534,6 +543,11 @@ static void fire_pad_step(EpCore* c, int p, int abs_step, double samples_per_ste
   }
   EpStep st = sc->steps[p][abs_step];
   if (st.vel > 0) {
+    int ch = (st.chance == 0 || st.chance > 100) ? 100 : (int)st.chance;
+    if (!skip && ch < 100 && rng_pct(&c->rng_state) >= ch) {
+      c->seq.roll_rem[p] = 0;
+      return;
+    }
     if (!skip) {
       ep_core_trigger(c, p, st.vel);
     }

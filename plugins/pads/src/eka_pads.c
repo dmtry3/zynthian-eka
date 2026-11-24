@@ -28,7 +28,7 @@
 #define EP_MAX_SECONDS 120.0
 #define EP_RETIRED_MAX 32
 #define EP_SHM_MAGIC   0x45504144u /* "EPAD" */
-#define EP_SHM_VER     9u
+#define EP_SHM_VER     10u
 
 /* Control input ports MUST come first (contiguous 0..26) so Zynthian's synthetic
  * patch:writable parameter indices never collide with Input ControlPorts! */
@@ -115,8 +115,8 @@ typedef struct {
   EpScene  scenes[EP_SCENES];
 } EpShm;
 _Static_assert(sizeof(EpPadParams) == 144, "EpPadParams size must match Python widget");
-_Static_assert(sizeof(EpScene) == 1056, "EpScene size must match Python widget");
-_Static_assert(sizeof(EpShm) == 10824, "EpShm size must match Python widget");
+_Static_assert(sizeof(EpScene) == 1568, "EpScene size must match Python widget");
+_Static_assert(sizeof(EpShm) == 14920, "EpShm size must match Python widget");
 
 /* Worker messages */
 enum { MSG_LOAD = 1, MSG_FREE };
@@ -355,7 +355,10 @@ static size_t seq_encode(const EpCore* c, char* buf, size_t cap) {
       for (int st = 0; st < EP_STEPS; st++) {
         EpStep step = sc->steps[p][st];
         if (step.vel == 0) continue;
-        if (step.roll > 0) {
+        int ch = (step.chance == 0 || step.chance > 100) ? 100 : (int)step.chance;
+        if (ch < 100) {
+          n = snprintf(buf + pos, cap - pos, ":%d.%d.%d.%d", st, (int)step.vel, (int)step.roll, ch);
+        } else if (step.roll > 0) {
           n = snprintf(buf + pos, cap - pos, ":%d.%d.%d", st, (int)step.vel, (int)step.roll);
         } else {
           n = snprintf(buf + pos, cap - pos, ":%d.%d", st, (int)step.vel);
@@ -468,12 +471,14 @@ static void seq_decode(EpCore* c, const char* str) {
     while (*p == ':') {
       p++;
       int st = (int)strtol(p, (char**)&p, 10);
-      int vel = 0, roll = 0;
+      int vel = 0, roll = 0, chance = 0;
       if (*p == '.') { p++; vel = (int)strtol(p, (char**)&p, 10); }
       if (*p == '.') { p++; roll = (int)strtol(p, (char**)&p, 10); }
+      if (*p == '.') { p++; chance = (int)strtol(p, (char**)&p, 10); }
       if (st >= 0 && st < EP_STEPS && vel > 0) {
         c->scenes[sc].steps[pad][st].vel = (uint8_t)(vel > 127 ? 127 : vel);
         c->scenes[sc].steps[pad][st].roll = (uint8_t)(roll & 0xFF);
+        c->scenes[sc].steps[pad][st].chance = (uint8_t)((chance > 0 && chance < 100) ? chance : 0);
       }
     }
   }
@@ -564,8 +569,14 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
       break;
     case CMD_SET_ROLL:
       if (a < EP_SCENES && b < EP_PADS && c < EP_STEPS) {
-        uint8_t prev = P->core.scenes[a].steps[b][c].roll;
-        P->core.scenes[a].steps[b][c].roll = (uint8_t)((prev & 0xFCu) | (uint8_t)(val > 3 ? 3 : val));
+        if (val & 0x80) {
+          /* High bit set: val = 0x80 | chance (1..100%; 0 or >=100 -> 100% default stored as 0) */
+          int ch = val & 0x7F;
+          P->core.scenes[a].steps[b][c].chance = (uint8_t)((ch > 0 && ch < 100) ? ch : 0);
+        } else {
+          uint8_t prev = P->core.scenes[a].steps[b][c].roll;
+          P->core.scenes[a].steps[b][c].roll = (uint8_t)((prev & 0xFCu) | (uint8_t)(val > 3 ? 3 : val));
+        }
         P->shm_dirty = 1;
       }
       break;
@@ -1412,13 +1423,36 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
     const void* sc = retrieve(handle, P->st_scenes, &sz, &type, &fl);
     if (sc && sz == sizeof P->core.scenes) {
       memcpy(P->core.scenes, sc, sz);
-    } else if (sc && sz == (size_t)(EP_SCENES * EP_PADS * 16 * sizeof(EpStep))) {
-      /* Legacy 16-step snapshot migration */
-      const EpStep* old = (const EpStep*)sc;
+    } else if (sc && sz == (size_t)(EP_SCENES * (EP_PADS * EP_STEPS * 2 + EP_PADS * 2))) {
+      /* Legacy 32-step 2-byte EpStep snapshot migration */
+      const uint8_t* raw = (const uint8_t*)sc;
+      size_t old_sc_sz = EP_PADS * EP_STEPS * 2 + EP_PADS * 2;
+      for (int s = 0; s < EP_SCENES; s++) {
+        ep_seq_clear_scene(&P->core, s);
+        const uint8_t* sbase = raw + s * old_sc_sz;
+        for (int p = 0; p < EP_PADS; p++) {
+          for (int st = 0; st < EP_STEPS; st++) {
+            size_t off = (size_t)(p * EP_STEPS + st) * 2;
+            P->core.scenes[s].steps[p][st].vel = sbase[off];
+            P->core.scenes[s].steps[p][st].roll = sbase[off + 1];
+            P->core.scenes[s].steps[p][st].chance = 0;
+          }
+          P->core.scenes[s].pad_start[p] = sbase[EP_PADS * EP_STEPS * 2 + p];
+          P->core.scenes[s].pad_end[p] = sbase[EP_PADS * EP_STEPS * 2 + EP_PADS + p];
+        }
+      }
+    } else if (sc && sz == (size_t)(EP_SCENES * EP_PADS * 16 * 2)) {
+      /* Legacy 16-step 2-byte EpStep snapshot migration */
+      const uint8_t* raw = (const uint8_t*)sc;
       for (int s = 0; s < EP_SCENES; s++) {
         ep_seq_clear_scene(&P->core, s);
         for (int p = 0; p < EP_PADS; p++) {
-          memcpy(P->core.scenes[s].steps[p], old + (s * EP_PADS + p) * 16, 16 * sizeof(EpStep));
+          for (int st = 0; st < 16; st++) {
+            size_t off = (size_t)((s * EP_PADS + p) * 16 + st) * 2;
+            P->core.scenes[s].steps[p][st].vel = raw[off];
+            P->core.scenes[s].steps[p][st].roll = raw[off + 1];
+            P->core.scenes[s].steps[p][st].chance = 0;
+          }
         }
       }
     }

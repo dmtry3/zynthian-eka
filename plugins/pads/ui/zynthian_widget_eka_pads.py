@@ -30,7 +30,7 @@ EP_SCENES = 8
 EP_UI_SCENES = 5
 EP_STEPS = 32
 EP_STEPS_MIN = 4
-EP_SCENE_SIZE = EP_PADS * EP_STEPS * 2 + EP_PADS * 2   # 1056 bytes
+EP_SCENE_SIZE = EP_PADS * EP_STEPS * 3 + EP_PADS * 2   # 1568 bytes
 EP_SHM_MAGIC = 0x45504144
 EP_SHM_HDR_FMT = "<IIIiiiiiiiffiIiiii"
 EP_SHM_HDR_SIZE = struct.calcsize(EP_SHM_HDR_FMT)      # 72 bytes
@@ -164,7 +164,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
 
         self.sel_pad = 0
         self.sel_step = 0
-        self.vel_mode = False
+        self.step_popup = None     # None or (scene, pad, step)
+        self.step_popup_vals = None  # [vel, chance, roll] optimistic UI state while popup open
+        self._step_hold_after = None
         self.last_synced_pad = -1
         self.last_synced_scene = -1
         self.copy_src = -1         # >=0 when waiting for user to tap destination scene
@@ -259,20 +261,25 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
 
     def _step_get_raw(self, scene, pad, step):
         if not self.scenes_data:
-            return 0, 0
-        idx = scene * EP_SCENE_SIZE + (pad * EP_STEPS + step) * 2
-        if idx + 1 >= len(self.scenes_data):
-            return 0, 0
-        return self.scenes_data[idx], self.scenes_data[idx + 1]
+            return 0, 0, 100
+        idx = scene * EP_SCENE_SIZE + (pad * EP_STEPS + step) * 3
+        if idx + 2 >= len(self.scenes_data):
+            return 0, 0, 100
+        vel = self.scenes_data[idx]
+        rb = self.scenes_data[idx + 1]
+        ch = self.scenes_data[idx + 2]
+        if ch == 0 or ch > 100:
+            ch = 100
+        return vel, rb, ch
 
     def _step_get(self, scene, pad, step):
-        vel, rb = self._step_get_raw(scene, pad, step)
-        return vel, rb & 3
+        vel, rb, ch = self._step_get_raw(scene, pad, step)
+        return vel, rb & 3, ch
 
     def _pad_range_get(self, scene, pad):
         if not self.scenes_data:
             return 0, 16
-        base = scene * EP_SCENE_SIZE + EP_PADS * EP_STEPS * 2
+        base = scene * EP_SCENE_SIZE + EP_PADS * EP_STEPS * 3
         if base + EP_PADS + pad >= len(self.scenes_data):
             return 0, 16
         ps = self.scenes_data[base + pad]
@@ -738,7 +745,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         for (p, midi_note, ps, plen) in active_pads:
             for g in range(total):
                 rel = g % plen
-                vel, rb = self._step_get_raw(scene, p, ps + rel)
+                vel, rb, _ch = self._step_get_raw(scene, p, ps + rel)
                 if vel <= 0:
                     continue
                 roll = rb & 3
@@ -843,7 +850,11 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self._toast("ZynSeq export failed")
 
     def _send_cmd(self, op, a=0, b=0, c=0, val=0):
-        self._zset("seq_cmd", pack_cmd(op, a, b, c, val))
+        try:
+            z = self.processor.controllers_dict["seq_cmd"]
+            z.set_value(pack_cmd(op, a, b, c, val))
+        except Exception:
+            pass
 
     def _load_factory_kit(self):
         kit_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "samples")
@@ -1195,16 +1206,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self._add_btn(c, x0, y, x1, y + r1_h, SCENE_NAMES[s], bg, fg, fam, fs + 1, "seq_scene", s)
 
         tools_x = pad_m + scenes_w + 2
-        tw5 = (w - pad_m - tools_x) / 5.0
-        # Vel mode toggle button
-        self._add_btn(c, tools_x, y, tools_x + tw5 - 3, y + r1_h,
-                      "Vel",
-                      "#ff922b" if self.vel_mode else COL_PANEL,
-                      "#000000" if self.vel_mode else "#f0f0f5",
-                      fam, fsmall, "seq_vel_mode", (scene, self.sel_pad, ps, pe),
-                      outline="#ffd43b" if self.vel_mode else "#3a3a44")
+        tw4 = (w - pad_m - tools_x) / 4.0
         # Horizontal Quantize strength slider (0..100%)
-        qx0, qx1 = tools_x + tw5, tools_x + 2 * tw5 - 3
+        qx0, qx1 = tools_x, tools_x + tw4 - 3
         c.create_rectangle(qx0, y, qx1, y + r1_h, fill="#1a1c24", outline="#3c4a46" if quant > 0 else "#383844", width=1)
         if quant > 0:
             q_fill_x = qx0 + 1 + (quant / 100.0) * max(1.0, (qx1 - qx0 - 2))
@@ -1214,12 +1218,12 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         c.create_text((qx0 + qx1) / 2, y + r1_h / 2, text=q_lbl,
                       fill="#63e6be" if quant > 0 else "#9a9aaa", font=(fam, fsmall, "bold"))
         self.hit_boxes.append((qx0, y, qx1, y + r1_h, "quant_slider", (qx0, qx1)))
-        self._add_btn(c, tools_x + 2 * tw5, y, tools_x + 3 * tw5 - 3, y + r1_h,
+        self._add_btn(c, tools_x + tw4, y, tools_x + 2 * tw4 - 3, y + r1_h,
                       "Pick" if self.copy_src >= 0 else "Copy",
                       "#e64980" if self.copy_src >= 0 else COL_PANEL, "#ffffff", fam, fsmall, "seq_copy", scene)
-        self._add_btn(c, tools_x + 3 * tw5, y, tools_x + 4 * tw5 - 3, y + r1_h,
+        self._add_btn(c, tools_x + 2 * tw4, y, tools_x + 3 * tw4 - 3, y + r1_h,
                       "Clr", COL_PANEL, "#ff8787", fam, fsmall, "seq_clr_pad", (scene, self.sel_pad))
-        self._add_btn(c, tools_x + 4 * tw5, y, w - pad_m, y + r1_h,
+        self._add_btn(c, tools_x + 3 * tw4, y, w - pad_m, y + r1_h,
                       "->ZSeq", "#1d4034", "#63e6be", fam, fsmall, "export_zseq", scene, outline="#38d9a9")
         y += r1_h + 4
 
@@ -1262,51 +1266,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.hit_boxes.append((sl_x0, y, sl_x1, y + r2_h, "steps_slider", (scene, self.sel_pad, ps, pe, sl_x0, sl_x1)))
         y += r2_h + 6
 
-        # Optional Row 3 (when Vel mode is active): Horizontal Velocity (0..127) + Roll (1x..4x) sliders
-        if self.vel_mode:
-            if self.sel_step < ps or self.sel_step >= pe:
-                self.sel_step = ps
-            s_vel, s_roll = self._step_get(scene, self.sel_pad, self.sel_step)
-            vel_h = max(32, fs * 2 + 12)
-            full_w = w - 2 * pad_m
-            vx0 = pad_m
-            vx1 = pad_m + full_w * 0.72 - 4
-            v_col = "#ff922b" if s_vel >= 120 else pad_col
-            c.create_rectangle(vx0, y, vx1, y + vel_h, fill="#1a1c24",
-                               outline="#ff922b" if s_vel >= 120 else "#4a5568", width=1)
-            if s_vel > 0:
-                vf_x = vx0 + 1 + (s_vel / 127.0) * max(1.0, (vx1 - vx0 - 2))
-                c.create_rectangle(vx0 + 1, y + 1, vf_x, y + vel_h - 1,
-                                   fill="#4a2c14" if s_vel >= 120 else "#22384c", outline="")
-                c.create_rectangle(vx0 + 1, y + 1, vf_x, y + 4, fill=v_col, width=0)
-            v_txt = "Step %d   Vel: %d" % (self.sel_step + 1, s_vel) if s_vel > 0 else "Step %d   Off" % (self.sel_step + 1)
-            c.create_text((vx0 + vx1) / 2, y + vel_h / 2, text=v_txt,
-                          fill="#ffffff" if s_vel > 0 else "#9a9aaa", font=(fam, fs, "bold"))
-            self.hit_boxes.append((vx0, y, vx1, y + vel_h, "seq_vel_slider",
-                                   (scene, self.sel_pad, self.sel_step, vx0, vx1)))
-
-            # Horizontal Roll segmented slider (1x | 2x | 3x | 4x)
-            rx0 = vx1 + 4
-            rx1 = w - pad_m
-            rw = max(1.0, (rx1 - rx0) / 4.0)
-            c.create_rectangle(rx0, y, rx1, y + vel_h, fill="#1a1c24", outline="#4a5568", width=1)
-            for ri in range(4):
-                seg_x0 = rx0 + ri * rw
-                seg_x1 = rx0 + (ri + 1) * rw
-                is_r = (s_vel > 0 and s_roll == ri)
-                if is_r:
-                    c.create_rectangle(seg_x0 + 1, y + 1, seg_x1 - 1, y + vel_h - 1, fill="#3b3218", outline="")
-                    c.create_rectangle(seg_x0 + 1, y + 1, seg_x1 - 1, y + 4, fill="#ffd43b", width=0)
-                if ri > 0:
-                    c.create_line(seg_x0, y + 3, seg_x0, y + vel_h - 3, fill="#2e3240", width=1)
-                c.create_text((seg_x0 + seg_x1) / 2, y + vel_h / 2 + 1, text="%dx" % (ri + 1),
-                              fill="#ffd43b" if is_r else "#8c92a4",
-                              font=(fam, fsmall, "bold" if is_r else "normal"))
-            self.hit_boxes.append((rx0, y, rx1, y + vel_h, "seq_roll_slider",
-                                   (scene, self.sel_pad, self.sel_step, rx0, rx1)))
-            y += vel_h + 5
-
         # Middle: 32 Styled LED Step Tiles (4 rows of 8, uniform spacing) for selected pad
+        # Short tap = toggle on/off, Long tap = open Velocity / Chance / Roll popup
         strip_h = max(24, fs * 2 + 4)
         grid_h = max(72, h - y - strip_h - pad_m - 6)
         sw = (w - 2 * pad_m) / 8.0
@@ -1322,9 +1283,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             th = max(8.0, sy1 - sy0)
 
             in_len = (ps <= st < pe)
-            vel, roll = self._step_get(scene, self.sel_pad, st)
+            vel, roll, chance = self._step_get(scene, self.sel_pad, st)
             is_cur = (in_len and st == cur_step)
-            is_sel_st = (self.vel_mode and in_len and st == self.sel_step)
             is_beat = ((st - ps) % 4 == 0)
 
             if not in_len:
@@ -1333,12 +1293,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                               fill="#343744", font=(fam, max(7, fsmall - 1)))
                 continue
 
-            # Tile body with subtle beat shading & bright cursor/selection highlight
-            if is_sel_st:
-                bg = "#2d3a4d" if is_cur else "#2b2f3d"
-                out_c = "#ffd43b"
-                out_w = 2
-            elif is_cur:
+            # Tile body with subtle beat shading & bright cursor highlight
+            if is_cur:
                 bg = "#2d3a4d"
                 out_c = "#ffffff"
                 out_w = 2
@@ -1360,14 +1316,13 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             led_col = "#ffffff" if is_cur else (step_col if vel > 0 else ("#4a5064" if is_beat else "#2b2f3d"))
             c.create_rectangle(sx0 + 3, sy0 + 2, sx1 - 3, sy0 + 5, fill=led_col, width=0)
 
-            # Step number (top-left) + Velocity value in Vel mode + Ratchet badge (bottom-right)
+            # Step number (top-left) + Chance badge (bottom-left) + Ratchet badge (bottom-right)
             c.create_text(sx0 + 5, sy0 + 7, anchor="nw", text="%d" % (st + 1),
-                          fill="#ffd43b" if is_sel_st else ("#ffffff" if (vel > 0 or is_cur) else "#8d94a6"),
-                          font=(fam, max(7, fsmall - 1), "bold" if (vel > 0 or is_cur or is_sel_st) else "normal"))
-            if self.vel_mode and vel > 0:
-                c.create_text(sx0 + 5, sy1 - 3, anchor="sw", text="%d" % vel,
-                              fill="#ffd43b" if is_sel_st else "#c8d0e0",
-                              font=(fam, max(7, fsmall - 1), "bold" if is_sel_st else "normal"))
+                          fill="#ffffff" if (vel > 0 or is_cur) else "#8d94a6",
+                          font=(fam, max(7, fsmall - 1), "bold" if (vel > 0 or is_cur) else "normal"))
+            if vel > 0 and chance < 100:
+                c.create_text(sx0 + 4, sy1 - 3, anchor="sw", text="%d%%" % chance,
+                              fill="#63e6be", font=(fam, max(6, fsmall - 1), "bold"))
             if vel > 0 and roll > 0:
                 c.create_text(sx1 - 4, sy1 - 3, anchor="se", text="x%d" % (roll + 1),
                               fill="#ffd43b", font=(fam, max(7, fsmall - 1), "bold"))
@@ -1409,6 +1364,102 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             c.create_text((px0 + px1) / 2, py0 + strip_h / 2 + 2, text=lbl,
                           fill=fg, font=(fam, max(6, fsmall - 1), "bold" if (is_sel or mute or solo) else "normal"))
             self.hit_boxes.append((px0, py0, px1, py0 + strip_h, "seq_sel_pad", p))
+
+        # Popup overlay when a step tile is long-pressed
+        if self.step_popup is not None:
+            self._draw_step_popup(c, w, h, top_h, fam, fs)
+
+    def _draw_step_popup(self, c, w, h, top_h, fam, fs):
+        self.hit_boxes = []
+        sc, p, st = self.step_popup
+        if self.step_popup_vals is not None:
+            s_vel, s_chance, s_roll = self.step_popup_vals
+        else:
+            s_vel, s_roll, s_chance = self._step_get(sc, p, st)
+        pad_col = ROW_COLORS[(p // 4) & 3]
+        fsmall = max(8, fs - 1)
+
+        mx = max(14, int(w * 0.07))
+        my = max(top_h + 10, int(h * 0.14))
+        px0, py0, px1, py1 = mx, my, w - mx, h - max(14, int(h * 0.10))
+        ph = max(160, py1 - py0)
+
+        # Dimmed backdrop + Eka Pads modal panel
+        c.create_rectangle(0, top_h, w, h, fill="#0b0b0f", stipple="gray50", outline="")
+        c.create_rectangle(px0, py0, px1, py1, fill=COL_BG, outline=pad_col, width=2)
+
+        pad_i = 10
+        ix0, ix1 = px0 + pad_i, px1 - pad_i
+        iw = max(80, ix1 - ix0)
+
+        # Header bar
+        hdr_h = max(30, fs * 2 + 10)
+        c.create_rectangle(px0 + 1, py0 + 1, px1 - 1, py0 + hdr_h, fill=COL_PANEL, outline="")
+        c.create_rectangle(px0 + 1, py0 + 1, px1 - 1, py0 + 4, fill=pad_col, width=0)
+        pname = short_sample_name(self._pad_path(p), p)
+        c.create_text(ix0 + 2, py0 + hdr_h / 2 + 1, anchor="w",
+                      text="Step %d  —  P%d %s" % (st + 1, p + 1, pname),
+                      fill=pad_col, font=(fam, fs + 1, "bold"))
+        cw = max(58, int(iw * 0.18))
+        self._add_btn(c, ix1 - cw, py0 + 5, ix1, py0 + hdr_h - 4, "Close",
+                      "#2a2a34", "#f0f0f5", fam, fsmall, "step_popup_close", None, outline="#444452")
+
+        # 3 spacious horizontal rows inside popup: Velocity, Chance, Roll
+        body_y = py0 + hdr_h + 10
+        body_h = max(110, py1 - body_y - 10)
+        gap = 10
+        sl_h = max(32, (body_h - 2 * gap) / 3.0)
+
+        # Row 1: Velocity (0..127)
+        y1 = body_y
+        v_col = "#ff922b" if s_vel >= 120 else pad_col
+        c.create_rectangle(ix0, y1, ix1, y1 + sl_h, fill="#1a1c24",
+                           outline=v_col if s_vel > 0 else "#4a5568", width=1)
+        if s_vel > 0:
+            vf_x = ix0 + 1 + (s_vel / 127.0) * max(1.0, (iw - 2))
+            c.create_rectangle(ix0 + 1, y1 + 1, vf_x, y1 + sl_h - 1,
+                               fill="#4a2c14" if s_vel >= 120 else "#22384c", outline="")
+            c.create_rectangle(ix0 + 1, y1 + 1, vf_x, y1 + 4, fill=v_col, width=0)
+        v_txt = "Velocity:  %d" % s_vel if s_vel > 0 else "Velocity:  Off"
+        c.create_text((ix0 + ix1) / 2, y1 + sl_h / 2 + 1, text=v_txt,
+                      fill="#ffffff" if s_vel > 0 else "#9a9aaa", font=(fam, fs + 1, "bold"))
+        self.hit_boxes.append((ix0, y1, ix1, y1 + sl_h, "step_vel_slider", (sc, p, st, ix0, ix1)))
+
+        # Row 2: Chance (10..100%)
+        y2 = y1 + sl_h + gap
+        c.create_rectangle(ix0, y2, ix1, y2 + sl_h, fill="#1a1c24", outline="#63e6be", width=1)
+        for tick in (25, 50, 75):
+            tx = ix0 + ((tick - 10.0) / 90.0) * iw
+            c.create_line(tx, y2 + 3, tx, y2 + sl_h - 3, fill="#2b3634", width=1)
+        cf_x = ix0 + 1 + (max(0.0, min(1.0, (s_chance - 10.0) / 90.0))) * max(1.0, (iw - 2))
+        c.create_rectangle(ix0 + 1, y2 + 1, cf_x, y2 + sl_h - 1, fill="#1e453b", outline="")
+        c.create_rectangle(ix0 + 1, y2 + 1, cf_x, y2 + 4, fill="#63e6be", width=0)
+        c.create_text((ix0 + ix1) / 2, y2 + sl_h / 2 + 1, text="Chance:  %d%%" % s_chance,
+                      fill="#e6fcf5", font=(fam, fs + 1, "bold"))
+        self.hit_boxes.append((ix0, y2, ix1, y2 + sl_h, "step_chance_slider", (sc, p, st, ix0, ix1)))
+
+        # Row 3: Roll (1x | 2x | 3x | 4x)
+        y3 = y2 + sl_h + gap
+        rw = max(1.0, iw / 4.0)
+        c.create_rectangle(ix0, y3, ix1, y3 + sl_h, fill="#1a1c24", outline="#4a5568", width=1)
+        for ri in range(4):
+            seg_x0 = ix0 + ri * rw
+            seg_x1 = ix0 + (ri + 1) * rw
+            is_r = (s_vel > 0 and s_roll == ri)
+            if is_r:
+                c.create_rectangle(seg_x0 + 1, y3 + 1, seg_x1 - 1, y3 + sl_h - 1, fill="#3b3218", outline="")
+                c.create_rectangle(seg_x0 + 1, y3 + 1, seg_x1 - 1, y3 + 4, fill="#ffd43b", width=0)
+            if ri > 0:
+                c.create_line(seg_x0, y3 + 3, seg_x0, y3 + sl_h - 3, fill="#2e3240", width=1)
+            c.create_text((seg_x0 + seg_x1) / 2, y3 + sl_h / 2 + 1,
+                          text=("Roll 1x" if ri == 0 else "%dx" % (ri + 1)),
+                          fill="#ffd43b" if is_r else "#8c92a4",
+                          font=(fam, fs, "bold" if is_r else "normal"))
+        self.hit_boxes.append((ix0, y3, ix1, y3 + sl_h, "step_roll_slider", (sc, p, st, ix0, ix1)))
+
+        # Absorb taps inside popup background; tapping outside closes popup
+        self.hit_boxes.append((px0, py0, px1, py1, "step_popup_nop", None))
+        self.hit_boxes.append((0, 0, w, h, "step_popup_close", None))
 
     def _draw_mod_tab(self, c, w, h, top_h, fam, fs):
         pad_m = 4
@@ -1744,6 +1795,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.tab = arg
                 self.copy_src = -1
                 self.lfo_popup = None
+                self._cancel_step_hold()
+                self.step_popup = None
+                self.step_popup_vals = None
                 self._select_page(arg)
                 self.refresh_gui()
                 return
@@ -1870,46 +1924,45 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.refresh_gui()
                 return
 
-            if action == "seq_vel_mode":
-                sc, p, ps, pe = arg
-                self.vel_mode = not self.vel_mode
-                if self.vel_mode:
-                    if self.sel_step < ps or self.sel_step >= pe or self._step_get(sc, p, self.sel_step)[0] == 0:
-                        for st in range(ps, pe):
-                            if self._step_get(sc, p, st)[0] > 0:
-                                self.sel_step = st
-                                break
-                        else:
-                            self.sel_step = ps
+            if action == "step_popup_nop":
+                return
+
+            if action == "step_popup_close":
+                self.step_popup = None
+                self.step_popup_vals = None
                 self.refresh_gui()
                 return
 
-            if action == "seq_vel_slider":
+            if action == "step_vel_slider":
                 sc, p, st, vx0, vx1 = arg
                 nv = self._apply_seq_vel_slider(sc, p, st, vx0, vx1, x)
-                self.drag_info = ("seq_vel_slider", [sc, p, st, vx0, vx1, nv], y, 0)
+                self.drag_info = ("step_vel_slider", [sc, p, st, vx0, vx1, nv], y, 0)
                 self.refresh_gui()
                 return
 
-            if action == "seq_roll_slider":
+            if action == "step_chance_slider":
+                sc, p, st, cx0, cx1 = arg
+                nc = self._apply_step_chance_slider(sc, p, st, cx0, cx1, x)
+                self.drag_info = ("step_chance_slider", [sc, p, st, cx0, cx1, nc], y, 0)
+                self.refresh_gui()
+                return
+
+            if action == "step_roll_slider":
                 sc, p, st, rx0, rx1 = arg
                 nr = self._apply_seq_roll_slider(sc, p, st, rx0, rx1, x)
-                self.drag_info = ("seq_roll_slider", [sc, p, st, rx0, rx1, nr], y, 0)
+                self.drag_info = ("step_roll_slider", [sc, p, st, rx0, rx1, nr], y, 0)
                 self.refresh_gui()
                 return
 
             if action == "step":
                 sc, p, st = arg
                 self.sel_step = st
-                if self.vel_mode:
-                    self.refresh_gui()
-                    return
-                vel, _roll = self._step_get(sc, p, st)
-                new_vel = 100 if vel == 0 else 0
-                self._send_cmd(CMD_SET_VEL, a=sc, b=p, c=st, val=new_vel)
-                if new_vel == 0:
-                    self._send_cmd(CMD_SET_ROLL, a=sc, b=p, c=st, val=0)
-                self.refresh_gui()
+                self._cancel_step_hold()
+                self.drag_info = ("step_hold", (sc, p, st, x, y), now, 0)
+                try:
+                    self._step_hold_after = self.after(380, lambda s=sc, pi=p, ti=st: self._on_step_hold_timeout(s, pi, ti))
+                except Exception:
+                    self._step_hold_after = None
                 return
 
             if action == "factory_kit":
@@ -2086,6 +2139,32 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         q = int(round(t * 20.0)) * 5  # clean 5% steps: 0, 5, 10 .. 100%
         self._send_cmd(CMD_SET_QUANT, val=q)
 
+    def _cancel_step_hold(self):
+        if self._step_hold_after is not None:
+            try:
+                self.after_cancel(self._step_hold_after)
+            except Exception:
+                pass
+            self._step_hold_after = None
+
+    def _open_step_popup(self, sc, p, st):
+        self._cancel_step_hold()
+        vel, roll, chance = self._step_get(sc, p, st)
+        if vel == 0:
+            vel = 100
+            self._send_cmd(CMD_SET_VEL, a=sc, b=p, c=st, val=vel)
+        self.step_popup = (sc, p, st)
+        self.step_popup_vals = [vel, chance, roll]
+        self.drag_info = None
+        self.refresh_gui()
+
+    def _on_step_hold_timeout(self, sc, p, st):
+        self._step_hold_after = None
+        if self.drag_info and self.drag_info[0] == "step_hold":
+            d_sc, d_p, d_st, _x0, _y0 = self.drag_info[1]
+            if (d_sc, d_p, d_st) == (sc, p, st):
+                self._open_step_popup(sc, p, st)
+
     def _calc_seq_vel(self, vx0, vx1, x):
         t = max(0.0, min(1.0, (x - vx0) / max(1.0, vx1 - vx0)))
         v = int(round(t * 127.0))
@@ -2096,7 +2175,26 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self._send_cmd(CMD_SET_VEL, a=sc, b=p, c=st, val=v)
         if v == 0:
             self._send_cmd(CMD_SET_ROLL, a=sc, b=p, c=st, val=0)
+        if self.step_popup_vals is not None:
+            self.step_popup_vals[0] = v
+            if v == 0:
+                self.step_popup_vals[2] = 0
         return v
+
+    def _calc_step_chance(self, cx0, cx1, x):
+        t = max(0.0, min(1.0, (x - cx0) / max(1.0, cx1 - cx0)))
+        ch = 10 + int(round(t * 18.0)) * 5  # 10..100% in 5% steps
+        return max(10, min(100, ch))
+
+    def _apply_step_chance_slider(self, sc, p, st, cx0, cx1, x):
+        ch = self._calc_step_chance(cx0, cx1, x)
+        if self.step_popup_vals is not None and self.step_popup_vals[0] == 0:
+            self.step_popup_vals[0] = 100
+            self._send_cmd(CMD_SET_VEL, a=sc, b=p, c=st, val=100)
+        self._send_cmd(CMD_SET_ROLL, a=sc, b=p, c=st, val=0x80 | ch)
+        if self.step_popup_vals is not None:
+            self.step_popup_vals[1] = ch
+        return ch
 
     def _calc_seq_roll(self, rx0, rx1, x):
         t = max(0.0, min(0.9999, (x - rx0) / max(1.0, rx1 - rx0)))
@@ -2104,17 +2202,27 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
 
     def _apply_seq_roll_slider(self, sc, p, st, rx0, rx1, x):
         r = self._calc_seq_roll(rx0, rx1, x)
-        vel, _ = self._step_get(sc, p, st)
+        vel = self.step_popup_vals[0] if self.step_popup_vals is not None else self._step_get(sc, p, st)[0]
         if vel == 0:
             self._send_cmd(CMD_SET_VEL, a=sc, b=p, c=st, val=100)
+            if self.step_popup_vals is not None:
+                self.step_popup_vals[0] = 100
         self._send_cmd(CMD_SET_ROLL, a=sc, b=p, c=st, val=r)
+        if self.step_popup_vals is not None:
+            self.step_popup_vals[2] = r
         return r
 
     def _on_motion(self, event):
         if not self.drag_info or event is None:
             return
         kind, arg, y0, start_val = self.drag_info
-        if kind == "seq_vel_slider":
+        if kind == "step_hold":
+            _sc, _p, _st, x0, hy0 = arg
+            if abs(event.x - x0) > 18 or abs(event.y - hy0) > 18:
+                self._cancel_step_hold()
+                self.drag_info = None
+            return
+        if kind == "step_vel_slider":
             sc, p, st, vx0, vx1, last_v = arg
             nv = self._calc_seq_vel(vx0, vx1, event.x)
             if nv != last_v:
@@ -2122,7 +2230,15 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self._apply_seq_vel_slider(sc, p, st, vx0, vx1, event.x)
                 self.refresh_gui()
             return
-        if kind == "seq_roll_slider":
+        if kind == "step_chance_slider":
+            sc, p, st, cx0, cx1, last_c = arg
+            nc = self._calc_step_chance(cx0, cx1, event.x)
+            if nc != last_c:
+                arg[5] = nc
+                self._apply_step_chance_slider(sc, p, st, cx0, cx1, event.x)
+                self.refresh_gui()
+            return
+        if kind == "step_roll_slider":
             sc, p, st, rx0, rx1, last_r = arg
             nr = self._calc_seq_roll(rx0, rx1, event.x)
             if nr != last_r:
@@ -2199,10 +2315,27 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self.refresh_gui()
 
     def _on_release(self, event):
-        if self.drag_info and self.drag_info[0] in ("seq_pad_hold", "pad_hold"):
-            _, pad_i, t0, _ = self.drag_info
-            if (time.monotonic() - t0) >= 0.40:
-                mask = int(round(self._zval("mute_mask", 0)))
-                self._zset("mute_mask", mask ^ (1 << pad_i))
-                self.refresh_gui()
+        self._cancel_step_hold()
+        if self.drag_info:
+            kind = self.drag_info[0]
+            if kind == "step_hold":
+                _, (sc, p, st, _x0, _y0), t0, _ = self.drag_info
+                self.drag_info = None
+                if (time.monotonic() - t0) >= 0.38:
+                    self._open_step_popup(sc, p, st)
+                else:
+                    vel, _roll, _ch = self._step_get(sc, p, st)
+                    new_vel = 100 if vel == 0 else 0
+                    self._send_cmd(CMD_SET_VEL, a=sc, b=p, c=st, val=new_vel)
+                    if new_vel == 0:
+                        self._send_cmd(CMD_SET_ROLL, a=sc, b=p, c=st, val=0)
+                        self._send_cmd(CMD_SET_ROLL, a=sc, b=p, c=st, val=0x80 | 100)
+                    self.refresh_gui()
+                return
+            if kind in ("seq_pad_hold", "pad_hold"):
+                _, pad_i, t0, _ = self.drag_info
+                if (time.monotonic() - t0) >= 0.40:
+                    mask = int(round(self._zval("mute_mask", 0)))
+                    self._zset("mute_mask", mask ^ (1 << pad_i))
+                    self.refresh_gui()
         self.drag_info = None

@@ -101,6 +101,7 @@ typedef struct {
 typedef struct {
   uint8_t vel;            /* 0 = off, 1..127 = trigger velocity */
   uint8_t roll;           /* bits 0..1: ratchet 0..3 (1x..4x); bits 2..7: signed micro-timing (-32..+31 / 64 step) */
+  uint8_t chance;         /* 0 = 100% (default), 1..100 = trigger probability % */
 } EpStep;
 
 typedef struct {
