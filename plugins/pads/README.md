@@ -77,7 +77,7 @@ Four tabs along the top bar (`Pads | Mod | Seq | Kit`):
 
 - **`Pads` tab:**
   - **Left 4×4 pad grid:** tap a pad to trigger and select it; **long press** toggles `Mute`.
-  - **Right inspector:** `Load`, `Mute`, `Solo`, `Auto/Lock` (Auto-Select); interactive waveform box (drag left/right edges to trim `Start`/`End`, or tap empty slot to load WAV/FLAC); compact `Aux 1..4` horizontal send sliders; large `Sc A..E` scene launch bar at the bottom.
+  - **Right inspector:** `Load`, `Mute`, `Solo`, `Auto/Lock` (Auto-Select); interactive waveform box (drag left/right edges to trim `Start`/`End`, **long press** opens the Sample Settings popup with `Pitch / Level / Decay / Filter / Start / End / Punch / Drive / Pan / Width / Mode / Choke`, or tap empty slot to load WAV/FLAC); compact `Aux 1..4` horizontal send sliders; large `Sc A..E` scene launch bar at the bottom.
 - **`Mod` tab:**
   - **Top `LFO 1` & `LFO 2` buttons:** tap to open the LFO popup with live waveform preview, `Free / Sync` toggle, wave selector (`Sine..S&H`), and `Rate` slider.
   - **4 Matrix rows:** tap source/destination buttons to cycle, drag the bipolar slider (`-100..+100%`) for modulation depth.
@@ -88,7 +88,7 @@ Four tabs along the top bar (`Pads | Mod | Seq | Kit`):
   - **4×8 LED step grid:** short tap toggles a step; drag up/down adjusts `Velocity`; **long press** opens the step popup with `Velocity` (`0..127`), `Chance` (`10..100%`), and `Roll` (`1x..4x`) sliders.
   - **Bottom 16-pad strip:** tap to select lane, long press to `Mute / Unmute`.
 - **`Kit` tab:**
-  - `Load Factory 16-Pad Kit`, `MIDI Learn` for the selected pad, `Clear Scene`, `Unload Pad Sample`.
+  - `Load Factory 16-Pad Kit`, `MIDI Learn` for the selected pad, `Clear Scene`, `Unload Pad`, `Reset All` (two-tap confirmation to reset all settings, scenes, and samples to default).
   - Hardware pad filter sliders: `Retrig` (`0..80 ms`), `MinVel` (`0..40`), `XTalk` (`0..60%`).
   - `Aux 1..4 -> Mixbus` routing buttons (tap to cycle available Zynthian Mixbuses).
 

@@ -585,8 +585,32 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
       P->shm_dirty = 1;
       break;
     case CMD_CLEAR_SCENE:
-      ep_seq_clear_scene(&P->core, a);
-      P->shm_dirty = 1;
+      if (val == 0xFF) {
+        ep_core_all_off(&P->core);
+        for (int s = 0; s < EP_SCENES; s++) ep_seq_clear_scene(&P->core, s);
+        for (int i = 0; i < EP_PADS; i++) ep_pad_defaults(&P->core.pad[i], i);
+        P->core.retrig_ms = 25;
+        P->core.min_vel = 0;
+        P->core.xtalk = 0;
+        P->core.master_vol = 85.0f;
+        P->core.stereo_width = 100.0f;
+        ep_seq_set_mode(&P->core, EP_SEQ_STOP);
+        P->core.seq.scene = 0;
+        P->core.seq.pend_scene = -1;
+        P->core.seq.bpm = 120.0;
+        P->core.seq.swing = 50.0f;
+        ep_seq_set_quantize(&P->core, 100);
+        P->sel_pad = 0;
+        P->follow = 1;
+        P->learn = 0;
+        P->aux_routes[0] = '\0';
+        P->have_prev_ctl = 0;
+        P->have_prev_steps = 0;
+        P->shm_dirty = 1;
+      } else {
+        ep_seq_clear_scene(&P->core, a);
+        P->shm_dirty = 1;
+      }
       break;
     case CMD_COPY_SCENE:
       ep_seq_copy_scene(&P->core, a, b);

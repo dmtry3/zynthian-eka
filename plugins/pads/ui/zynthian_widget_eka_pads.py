@@ -168,6 +168,10 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.step_popup_vals = None  # [vel, chance, roll] optimistic UI state while popup open
         self.step_drag_override = None  # None or (scene, pad, step, vel) during vertical step drag
         self._step_hold_after = None
+        self.sample_popup = None   # None or pad_idx (0..15)
+        self.sample_popup_vals = None  # dict of optimistic control values while sample popup open
+        self._wave_hold_after = None
+        self.reset_confirm_until = 0.0
         self.last_synced_pad = -1
         self.last_synced_scene = -1
         self.copy_src = -1         # >=0 when waiting for user to tap destination scene
@@ -866,6 +870,77 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             full = os.path.join(kit_dir, fn)
             self._zset("sample%d" % (i + 1), full)
 
+    def _reset_all_defaults(self):
+        """Clear all samples, scenes, pad params, modulation, filters, and Aux routes to factory defaults."""
+        self._cancel_step_hold()
+        self._cancel_wave_hold()
+        self.step_popup = None
+        self.step_popup_vals = None
+        self.step_drag_override = None
+        self.sample_popup = None
+        self.sample_popup_vals = None
+        self.lfo_popup = None
+        self.copy_src = -1
+
+        # 1. Reset C DSP core (all 8 scenes, all 16 pad params + mod/LFOs, filters, quantize, seq)
+        self._send_cmd(CMD_CLEAR_SCENE, val=0xFF)
+
+        # 2. Unload all 16 samples
+        for i in range(EP_PADS):
+            self._zset("sample%d" % (i + 1), "_")
+
+        # 3. Disconnect & clear all 4 Aux routes
+        for ai in range(4):
+            self._apply_aux_route(ai, None, persist=False)
+        self.last_aux_routes_str = "_"
+        self._zset("aux_routes", "_")
+
+        # 4. Reset Zynthian control ports to defaults
+        defaults = (
+            ("sel_pad", 0),
+            ("follow", 1),
+            ("learn", 0),
+            ("mute_mask", 0),
+            ("solo_mask", 0),
+            ("pad_end", 100),
+            ("seq_bpm", 120),
+            ("seq_mode", 0),
+            ("seq_scene", 1),
+            ("seq_swing", 50.0),
+            ("master_vol", 85.0),
+            ("stereo_width", 100.0),
+            ("pad_steps", 16),
+            ("pad_beg", 1),
+            ("pad_pitch", 0.0),
+            ("pad_decay", 100.0),
+            ("pad_filter", 0.0),
+            ("pad_level", 80.0),
+            ("pad_start", 0.0),
+            ("pad_mode", 0),
+            ("pad_punch", 0.0),
+            ("pad_drive", 0.0),
+            ("pad_pan", 0.0),
+            ("pad_vel", 75.0),
+            ("pad_choke", 0),
+            ("pad_width", 0.0),
+            ("pad_aux1", 0.0),
+            ("pad_aux2", 0.0),
+            ("pad_aux3", 0.0),
+            ("pad_aux4", 0.0),
+            ("pad_lfo1_rate", 1.5),
+            ("pad_lfo2_rate", 4.0),
+            ("pad_mod1_amt", 0.0),
+            ("pad_mod2_amt", 0.0),
+        )
+        for sym, val in defaults:
+            self._zset(sym, val)
+
+        self.sel_pad = 0
+        self.last_synced_pad = -1
+        self.last_synced_scene = -1
+        self.peak_cache.clear()
+        self._toast("All reset to default")
+
     def _ensure_peaks(self, path):
         if not path or path in self.peak_cache or path in self.peak_loading:
             return
@@ -1173,6 +1248,164 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self._add_btn(c, sx0, sy0, sx1, sy0 + sc_btn_h, "Sc " + SCENE_NAMES[s],
                           bg, fg, fam, fs + 1, "scene", s)
 
+        # Sample Settings popup overlay when waveform is long-pressed
+        if self.sample_popup is not None:
+            self._draw_sample_popup(c, w, h, top_h, fam, fs)
+
+    def _draw_sample_popup(self, c, w, h, top_h, fam, fs):
+        self.hit_boxes = []
+        p = self.sample_popup
+        pinfo = self.pads_data[p] if (self.pads_data and 0 <= p < len(self.pads_data)) else None
+        pad_col = ROW_COLORS[(p // 4) & 3]
+        fsmall = max(7, fs - 1)
+        vals = self.sample_popup_vals or {}
+
+        def _val(sym, idx, default):
+            if sym in vals:
+                return float(vals[sym])
+            if pinfo and idx is not None and idx < len(pinfo):
+                return float(pinfo[idx])
+            return float(self._zval(sym, default))
+
+        pw = max(280, min(int(w * 0.86), 680))
+        ph = max(210, min(int((h - top_h) * 0.86), 340))
+        px0 = (w - pw) // 2
+        py0 = top_h + max(4, (h - top_h - ph) // 2)
+        px1, py1 = px0 + pw, py0 + ph
+
+        # Dimmed backdrop + modal card
+        c.create_rectangle(0, top_h, w, h, fill="#0b0b0f", stipple="gray50", outline="")
+        c.create_rectangle(px0, py0, px1, py1, fill=COL_BG, outline=pad_col, width=2)
+
+        pad_i = 8
+        ix0, ix1 = px0 + pad_i, px1 - pad_i
+        iw = max(120, ix1 - ix0)
+
+        # Header bar: Pad name + Play + Load + Close
+        hdr_h = max(26, fs * 2 + 6)
+        c.create_rectangle(px0 + 1, py0 + 1, px1 - 1, py0 + hdr_h, fill=COL_PANEL, outline="")
+        c.create_rectangle(px0 + 1, py0 + 1, px1 - 1, py0 + 4, fill=pad_col, width=0)
+        pname = short_sample_name(self._pad_path(p), p)
+        c.create_text(ix0 + 2, py0 + hdr_h / 2 + 1, anchor="w",
+                      text="P%d — %s" % (p + 1, pname),
+                      fill=pad_col, font=(fam, fs, "bold"))
+        bw_h = max(46, int(iw * 0.13))
+        bx_close = ix1 - bw_h
+        bx_load = bx_close - bw_h - 4
+        bx_play = bx_load - bw_h - 4
+        self._add_btn(c, bx_play, py0 + 4, bx_play + bw_h, py0 + hdr_h - 3, "Play",
+                      "#1f3d2b", "#63e6be", fam, fsmall, "sample_popup_play", p, outline="#40c057")
+        self._add_btn(c, bx_load, py0 + 4, bx_load + bw_h, py0 + hdr_h - 3, "Load",
+                      COL_ACCENT, "#000000", fam, fsmall, "sample_popup_load", p, outline=COL_ACCENT)
+        self._add_btn(c, bx_close, py0 + 4, ix1, py0 + hdr_h - 3, "Close",
+                      "#2a2a34", "#f0f0f5", fam, fsmall, "sample_popup_close", None, outline="#444452")
+
+        # 6 rows: 5 rows of 2 sliders + 1 bottom row of Mode & Choke segmented selectors
+        body_y = py0 + hdr_h + 6
+        body_h = max(150, py1 - body_y - 6)
+        gap = 5
+        row_h = max(22.0, (body_h - 5 * gap) / 6.0)
+        col_gap = 6
+        col_w = (iw - col_gap) / 2.0
+
+        # (sym, pinfo_idx, label, vmin, vmax, step, default, bipolar, fmt_fn, col_hi, col_fill)
+        slider_rows = (
+            (
+                ("pad_pitch",  0, "Pitch",  -24.0,  24.0, 1.0,   0.0, True,  lambda v: "%+.0fst" % v, "#74c0fc", "#1e3a52"),
+                ("pad_level",  3, "Level",    0.0, 100.0, 2.0,  80.0, False, lambda v: "%d%%" % round(v), "#63e6be", "#1e453b"),
+            ),
+            (
+                ("pad_decay",  1, "Decay",    0.0, 100.0, 2.0, 100.0, False, lambda v: "Full" if v >= 99.5 else ("%d%%" % round(v)), "#ffd43b", "#473b19"),
+                ("pad_filter", 2, "Filter", -100.0, 100.0, 5.0,  0.0, True,  lambda v: "Open" if abs(v) < 2 else (("LP %d" % abs(round(v))) if v < 0 else ("HP %d" % round(v))), "#da77f2", "#3b1f47"),
+            ),
+            (
+                ("pad_start",  4, "Start",    0.0,  95.0, 1.0,   0.0, False, lambda v: "%d%%" % round(v), "#ffd43b", "#3d3318"),
+                ("pad_end",    5, "End",      5.0, 100.0, 1.0, 100.0, False, lambda v: "%d%%" % round(v), "#ffd43b", "#3d3318"),
+            ),
+            (
+                ("pad_punch",  7, "Punch", -100.0, 100.0, 5.0,   0.0, True,  lambda v: "%+d%%" % round(v), "#ff922b", "#4a2c14"),
+                ("pad_drive",  8, "Drive",    0.0, 100.0, 2.0,   0.0, False, lambda v: "%d%%" % round(v), "#ff6b6b", "#4a1e24"),
+            ),
+            (
+                ("pad_pan",    9, "Pan",   -100.0, 100.0, 5.0,   0.0, True,  lambda v: "C" if abs(v) < 2 else (("L%d" % abs(round(v))) if v < 0 else ("R%d" % round(v))), "#66d9e8", "#1c3d47"),
+                ("pad_width", 12, "Width", -100.0, 100.0, 5.0,   0.0, True,  lambda v: "%+d%%" % round(v), "#9775fa", "#2f224f"),
+            ),
+        )
+
+        for r_i, pair in enumerate(slider_rows):
+            ry0 = body_y + r_i * (row_h + gap)
+            ry1 = ry0 + row_h
+            for c_i, (sym, idx, lbl, vmin, vmax, step, dflt, bip, fmt_fn, col_hi, col_fill) in enumerate(pair):
+                sx0 = ix0 + c_i * (col_w + col_gap)
+                sx1 = sx0 + col_w
+                v = _val(sym, idx, dflt)
+                active = (abs(v) > 0.5) if bip else (v > vmin + 0.5)
+                c.create_rectangle(sx0, ry0, sx1, ry1, fill="#1a1c24",
+                                   outline=col_hi if active else "#383844", width=1)
+                if bip:
+                    mid_x = (sx0 + sx1) * 0.5
+                    c.create_line(mid_x, ry0 + 2, mid_x, ry1 - 2, fill="#3a3f50", width=1)
+                    if abs(v) > 0.5:
+                        frac = max(-1.0, min(1.0, v / max(1.0, vmax)))
+                        fx = mid_x + frac * (max(1.0, sx1 - sx0 - 2) * 0.5)
+                        xa, xb = (mid_x, fx) if fx >= mid_x else (fx, mid_x)
+                        c.create_rectangle(xa, ry0 + 1, xb, ry1 - 1, fill=col_fill, outline="")
+                        c.create_rectangle(xa, ry0 + 1, xb, ry0 + 4, fill=col_hi, width=0)
+                else:
+                    frac = max(0.0, min(1.0, (v - vmin) / max(1.0, vmax - vmin)))
+                    if frac > 0.005:
+                        fx = sx0 + 1 + frac * max(1.0, sx1 - sx0 - 2)
+                        c.create_rectangle(sx0 + 1, ry0 + 1, fx, ry1 - 1, fill=col_fill, outline="")
+                        c.create_rectangle(sx0 + 1, ry0 + 1, fx, ry0 + 4, fill=col_hi, width=0)
+                c.create_text((sx0 + sx1) / 2, (ry0 + ry1) / 2 + 1,
+                              text="%s: %s" % (lbl, fmt_fn(v)),
+                              fill="#f0f6fc" if active else "#9a9aaa", font=(fam, fsmall, "bold"))
+                self.hit_boxes.append((sx0, ry0, sx1, ry1, "sample_slider", (sym, vmin, vmax, step, bip, sx0, sx1)))
+
+        # Row 6: Mode (1-Shot | Gate | Rev | RevG) + Choke (Off | 1 | 2 | 3 | 4)
+        r6y0 = body_y + 5 * (row_h + gap)
+        r6y1 = r6y0 + row_h
+        mode_w = iw * 0.56
+        mx0, mx1 = ix0, ix0 + mode_w
+        mode_v = int(round(_val("pad_mode", 6, 0.0))) & 3
+        mode_names = ("1-Shot", "Gate", "Rev", "RevG")
+        mw_seg = (mx1 - mx0) / 4.0
+        c.create_rectangle(mx0, r6y0, mx1, r6y1, fill="#1a1c24", outline=pad_col, width=1)
+        for mi, mname in enumerate(mode_names):
+            ax0 = mx0 + mi * mw_seg
+            ax1 = ax0 + mw_seg
+            if mi == mode_v:
+                c.create_rectangle(ax0 + 1, r6y0 + 1, ax1 - 1, r6y1 - 1, fill="#22384c", outline="")
+                c.create_rectangle(ax0 + 1, r6y0 + 1, ax1 - 1, r6y0 + 4, fill=pad_col, width=0)
+            if mi > 0:
+                c.create_line(ax0, r6y0 + 3, ax0, r6y1 - 3, fill="#2e3240", width=1)
+            c.create_text((ax0 + ax1) / 2, (r6y0 + r6y1) / 2 + 1, text=mname,
+                          fill="#ffffff" if mi == mode_v else "#8c92a4",
+                          font=(fam, max(7, fsmall - 1), "bold" if mi == mode_v else "normal"))
+        self.hit_boxes.append((mx0, r6y0, mx1, r6y1, "sample_mode_slider", (mx0, mx1)))
+
+        kx0, kx1 = mx1 + col_gap, ix1
+        choke_v = max(0, min(4, int(round(_val("pad_choke", 11, 0.0)))))
+        choke_names = ("Ch:Off", "1", "2", "3", "4")
+        kw_seg = (kx1 - kx0) / 5.0
+        c.create_rectangle(kx0, r6y0, kx1, r6y1, fill="#1a1c24", outline="#66d9e8" if choke_v > 0 else "#383844", width=1)
+        for ki, kname in enumerate(choke_names):
+            ax0 = kx0 + ki * kw_seg
+            ax1 = ax0 + kw_seg
+            if ki == choke_v:
+                c.create_rectangle(ax0 + 1, r6y0 + 1, ax1 - 1, r6y1 - 1, fill="#1c3d47", outline="")
+                c.create_rectangle(ax0 + 1, r6y0 + 1, ax1 - 1, r6y0 + 4, fill="#66d9e8", width=0)
+            if ki > 0:
+                c.create_line(ax0, r6y0 + 3, ax0, r6y1 - 3, fill="#2e3240", width=1)
+            c.create_text((ax0 + ax1) / 2, (r6y0 + r6y1) / 2 + 1, text=kname,
+                          fill="#66d9e8" if (ki == choke_v and ki > 0) else ("#ffffff" if ki == choke_v else "#8c92a4"),
+                          font=(fam, max(7, fsmall - 1), "bold" if ki == choke_v else "normal"))
+        self.hit_boxes.append((kx0, r6y0, kx1, r6y1, "sample_choke_slider", (kx0, kx1)))
+
+        # Absorb taps inside popup; tapping outside closes popup
+        self.hit_boxes.append((px0, py0, px1, py1, "sample_popup_nop", None))
+        self.hit_boxes.append((0, 0, w, h, "sample_popup_close", None))
+
     def _draw_seq_tab(self, c, w, h, top_h, fam, fs):
         pad_m = 4
         y = top_h + pad_m
@@ -1393,38 +1626,39 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         else:
             s_vel, s_roll, s_chance = self._step_get(sc, p, st)
         pad_col = ROW_COLORS[(p // 4) & 3]
-        fsmall = max(8, fs - 1)
+        fsmall = max(7, fs - 1)
 
-        mx = max(14, int(w * 0.07))
-        my = max(top_h + 10, int(h * 0.14))
-        px0, py0, px1, py1 = mx, my, w - mx, h - max(14, int(h * 0.10))
-        ph = max(160, py1 - py0)
+        pw = max(240, min(int(w * 0.60), 440))
+        ph = max(142, min(int((h - top_h) * 0.52), 196))
+        px0 = (w - pw) // 2
+        py0 = top_h + max(8, (h - top_h - ph) // 2)
+        px1, py1 = px0 + pw, py0 + ph
 
-        # Dimmed backdrop + Eka Pads modal panel
+        # Dimmed backdrop + compact Eka Pads modal panel
         c.create_rectangle(0, top_h, w, h, fill="#0b0b0f", stipple="gray50", outline="")
         c.create_rectangle(px0, py0, px1, py1, fill=COL_BG, outline=pad_col, width=2)
 
-        pad_i = 10
+        pad_i = 8
         ix0, ix1 = px0 + pad_i, px1 - pad_i
         iw = max(80, ix1 - ix0)
 
         # Header bar
-        hdr_h = max(30, fs * 2 + 10)
+        hdr_h = max(24, fs * 2 + 4)
         c.create_rectangle(px0 + 1, py0 + 1, px1 - 1, py0 + hdr_h, fill=COL_PANEL, outline="")
         c.create_rectangle(px0 + 1, py0 + 1, px1 - 1, py0 + 4, fill=pad_col, width=0)
         pname = short_sample_name(self._pad_path(p), p)
         c.create_text(ix0 + 2, py0 + hdr_h / 2 + 1, anchor="w",
-                      text="Step %d  —  P%d %s" % (st + 1, p + 1, pname),
-                      fill=pad_col, font=(fam, fs + 1, "bold"))
-        cw = max(58, int(iw * 0.18))
-        self._add_btn(c, ix1 - cw, py0 + 5, ix1, py0 + hdr_h - 4, "Close",
+                      text="Step %d — P%d %s" % (st + 1, p + 1, pname),
+                      fill=pad_col, font=(fam, fs, "bold"))
+        cw = max(48, int(iw * 0.18))
+        self._add_btn(c, ix1 - cw, py0 + 4, ix1, py0 + hdr_h - 3, "Close",
                       "#2a2a34", "#f0f0f5", fam, fsmall, "step_popup_close", None, outline="#444452")
 
-        # 3 spacious horizontal rows inside popup: Velocity, Chance, Roll
-        body_y = py0 + hdr_h + 10
-        body_h = max(110, py1 - body_y - 10)
-        gap = 10
-        sl_h = max(32, (body_h - 2 * gap) / 3.0)
+        # 3 compact horizontal rows inside popup: Velocity, Chance, Roll
+        body_y = py0 + hdr_h + 7
+        body_h = max(90, py1 - body_y - 7)
+        gap = 6
+        sl_h = max(26, (body_h - 2 * gap) / 3.0)
 
         # Row 1: Velocity (0..127)
         y1 = body_y
@@ -1436,9 +1670,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             c.create_rectangle(ix0 + 1, y1 + 1, vf_x, y1 + sl_h - 1,
                                fill="#4a2c14" if s_vel >= 120 else "#22384c", outline="")
             c.create_rectangle(ix0 + 1, y1 + 1, vf_x, y1 + 4, fill=v_col, width=0)
-        v_txt = "Velocity:  %d" % s_vel if s_vel > 0 else "Velocity:  Off"
+        v_txt = "Velocity: %d" % s_vel if s_vel > 0 else "Velocity: Off"
         c.create_text((ix0 + ix1) / 2, y1 + sl_h / 2 + 1, text=v_txt,
-                      fill="#ffffff" if s_vel > 0 else "#9a9aaa", font=(fam, fs + 1, "bold"))
+                      fill="#ffffff" if s_vel > 0 else "#9a9aaa", font=(fam, fs, "bold"))
         self.hit_boxes.append((ix0, y1, ix1, y1 + sl_h, "step_vel_slider", (sc, p, st, ix0, ix1)))
 
         # Row 2: Chance (10..100%)
@@ -1450,8 +1684,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         cf_x = ix0 + 1 + (max(0.0, min(1.0, (s_chance - 10.0) / 90.0))) * max(1.0, (iw - 2))
         c.create_rectangle(ix0 + 1, y2 + 1, cf_x, y2 + sl_h - 1, fill="#1e453b", outline="")
         c.create_rectangle(ix0 + 1, y2 + 1, cf_x, y2 + 4, fill="#63e6be", width=0)
-        c.create_text((ix0 + ix1) / 2, y2 + sl_h / 2 + 1, text="Chance:  %d%%" % s_chance,
-                      fill="#e6fcf5", font=(fam, fs + 1, "bold"))
+        c.create_text((ix0 + ix1) / 2, y2 + sl_h / 2 + 1, text="Chance: %d%%" % s_chance,
+                      fill="#e6fcf5", font=(fam, fs, "bold"))
         self.hit_boxes.append((ix0, y2, ix1, y2 + sl_h, "step_chance_slider", (sc, p, st, ix0, ix1)))
 
         # Row 3: Roll (1x | 2x | 3x | 4x)
@@ -1470,7 +1704,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             c.create_text((seg_x0 + seg_x1) / 2, y3 + sl_h / 2 + 1,
                           text=("Roll 1x" if ri == 0 else "%dx" % (ri + 1)),
                           fill="#ffd43b" if is_r else "#8c92a4",
-                          font=(fam, fs, "bold" if is_r else "normal"))
+                          font=(fam, fsmall, "bold" if is_r else "normal"))
         self.hit_boxes.append((ix0, y3, ix1, y3 + sl_h, "step_roll_slider", (sc, p, st, ix0, ix1)))
 
         # Absorb taps inside popup background; tapping outside closes popup
@@ -1729,11 +1963,18 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                       COL_REC if learn else COL_PANEL, "#ffffff", fam, fsmall, "learn", 1 - learn)
         y += bh + 10
 
-        # Row 2: Clear Active Scene + Clear Pad Sample
-        self._add_btn(c, pad_m, y, pad_m + half, y + bh,
+        # Row 2: Clear Active Scene + Unload Pad Sample + Reset All to Default
+        third = (w - 4 * pad_m) / 3.0
+        self._add_btn(c, pad_m, y, pad_m + third, y + bh,
                       "Clear Scene %s" % SCENE_NAMES[scene & 7], COL_PANEL, "#ff8787", fam, fsmall, "clr_scene", scene)
-        self._add_btn(c, pad_m * 2 + half, y, w - pad_m, y + bh,
-                      "Unload Pad %d Sample" % (self.sel_pad + 1), COL_PANEL, "#ffd43b", fam, fsmall, "unload", self.sel_pad)
+        self._add_btn(c, pad_m * 2 + third, y, pad_m * 2 + 2 * third, y + bh,
+                      "Unload Pad %d" % (self.sel_pad + 1), COL_PANEL, "#ffd43b", fam, fsmall, "unload", self.sel_pad)
+        confirming = time.monotonic() < self.reset_confirm_until
+        self._add_btn(c, pad_m * 3 + 2 * third, y, w - pad_m, y + bh,
+                      "Confirm Reset?" if confirming else "Reset All",
+                      COL_REC if confirming else "#3b1d22",
+                      "#ffffff" if confirming else "#ff8787", fam, fsmall, "reset_all", None,
+                      outline="#ff6b6b")
         y += bh + 10
 
         # Row 3: Hardware Pad Filter (Retrigger mask, Min Velocity, Crosstalk)
@@ -1741,7 +1982,6 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         minvel = int(self.shm_hdr[16]) if (self.shm_hdr and len(self.shm_hdr) > 17) else 0
         xtalk  = int(self.shm_hdr[17]) if (self.shm_hdr and len(self.shm_hdr) > 17) else 0
 
-        third = (w - 4 * pad_m) / 3.0
         sliders = (
             ("retrig", CMD_SET_RETRIG, retrig, 80, 5,
              "Retrig %dms" % retrig if retrig > 0 else "Retrig Off", "#74c0fc", "#1e3a52"),
@@ -1812,9 +2052,13 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.copy_src = -1
                 self.lfo_popup = None
                 self._cancel_step_hold()
+                self._cancel_wave_hold()
                 self.step_popup = None
                 self.step_popup_vals = None
                 self.step_drag_override = None
+                self.sample_popup = None
+                self.sample_popup_vals = None
+                self.reset_confirm_until = 0.0
                 self._select_page(arg)
                 self.refresh_gui()
                 return
@@ -1838,8 +2082,61 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 sx = wx0 + (st_pct / 100.0) * ww
                 ex = wx0 + (en_pct / 100.0) * ww
                 which = "start" if abs(x - sx) <= abs(x - ex) else "end"
-                self.drag_info = ("wave_trim", (pad_i, which, wx0, wx1), y, 0)
-                self._apply_wave_trim(which, wx0, wx1, x)
+                self._cancel_wave_hold()
+                self.drag_info = ("wave_hold", (pad_i, which, wx0, wx1, x, y), now, 0)
+                try:
+                    self._wave_hold_after = self.after(380, lambda pi=pad_i: self._on_wave_hold_timeout(pi))
+                except Exception:
+                    self._wave_hold_after = None
+                return
+
+            if action == "sample_popup_nop":
+                return
+
+            if action == "sample_popup_close":
+                self.sample_popup = None
+                self.sample_popup_vals = None
+                self.refresh_gui()
+                return
+
+            if action == "sample_popup_play":
+                self._send_cmd(CMD_TRIG_PAD, b=arg, val=110)
+                return
+
+            if action == "sample_popup_load":
+                self.sample_popup = None
+                self.sample_popup_vals = None
+                self._open_file_selector(arg)
+                self.refresh_gui()
+                return
+
+            if action == "sample_slider":
+                sym, vmin, vmax, step, bip, sx0, sx1 = arg
+                tap_key = ("sample_slider", sym)
+                if bip and self.last_tap[0] == tap_key and (now - self.last_tap[1]) < 0.35:
+                    self._zset(sym, 0.0)
+                    if self.sample_popup_vals is not None:
+                        self.sample_popup_vals[sym] = 0.0
+                    self.last_tap = (None, 0.0)
+                    self.refresh_gui()
+                    return
+                self.last_tap = (tap_key, now)
+                nv = self._apply_sample_slider(sym, vmin, vmax, step, sx0, sx1, x)
+                self.drag_info = ("sample_slider", [sym, vmin, vmax, step, sx0, sx1, nv], y, 0)
+                self.refresh_gui()
+                return
+
+            if action == "sample_mode_slider":
+                mx0, mx1 = arg
+                nv = self._apply_sample_seg("pad_mode", 4, mx0, mx1, x)
+                self.drag_info = ("sample_mode_slider", [mx0, mx1, nv], y, 0)
+                self.refresh_gui()
+                return
+
+            if action == "sample_choke_slider":
+                kx0, kx1 = arg
+                nv = self._apply_sample_seg("pad_choke", 5, kx0, kx1, x)
+                self.drag_info = ("sample_choke_slider", [kx0, kx1, nv], y, 0)
                 self.refresh_gui()
                 return
 
@@ -2002,6 +2299,16 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.refresh_gui()
                 return
 
+            if action == "reset_all":
+                if now < self.reset_confirm_until:
+                    self.reset_confirm_until = 0.0
+                    self._reset_all_defaults()
+                else:
+                    self.reset_confirm_until = now + 3.0
+                    self._toast("Tap Reset All again to confirm", secs=3.0)
+                self.refresh_gui()
+                return
+
             if action == "flt_slider":
                 cmd_op, vmax, step, sx0, sx1 = arg
                 self.drag_info = ("flt_slider", arg, y, 0)
@@ -2150,6 +2457,52 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self._zset("pad_start", round(min(95.0, pct), 1))
         else:
             self._zset("pad_end", int(round(max(5.0, pct))))
+
+    def _cancel_wave_hold(self):
+        if self._wave_hold_after is not None:
+            try:
+                self.after_cancel(self._wave_hold_after)
+            except Exception:
+                pass
+            self._wave_hold_after = None
+
+    def _open_sample_popup(self, pad_i):
+        self._cancel_wave_hold()
+        self.sel_pad = pad_i
+        self._zset("sel_pad", pad_i)
+        self.sample_popup = pad_i
+        self.sample_popup_vals = {}
+        self.drag_info = None
+        self.refresh_gui()
+
+    def _on_wave_hold_timeout(self, pad_i):
+        self._wave_hold_after = None
+        if self.drag_info and self.drag_info[0] == "wave_hold":
+            if self.drag_info[1][0] == pad_i:
+                self._open_sample_popup(pad_i)
+
+    def _calc_sample_slider(self, vmin, vmax, step, sx0, sx1, x):
+        t = max(0.0, min(1.0, (x - sx0) / max(1.0, sx1 - sx0)))
+        raw = vmin + t * (vmax - vmin)
+        val = round(raw / step) * step
+        return max(vmin, min(vmax, val))
+
+    def _apply_sample_slider(self, sym, vmin, vmax, step, sx0, sx1, x):
+        val = self._calc_sample_slider(vmin, vmax, step, sx0, sx1, x)
+        if sym == "pad_end":
+            val = int(round(val))
+        self._zset(sym, val)
+        if self.sample_popup_vals is not None:
+            self.sample_popup_vals[sym] = val
+        return val
+
+    def _apply_sample_seg(self, sym, count, sx0, sx1, x):
+        t = max(0.0, min(0.9999, (x - sx0) / max(1.0, sx1 - sx0)))
+        val = int(t * count)
+        self._zset(sym, val)
+        if self.sample_popup_vals is not None:
+            self.sample_popup_vals[sym] = val
+        return val
 
     def _apply_quant_slider(self, qx0, qx1, x):
         t = max(0.0, min(1.0, (x - qx0) / max(1.0, qx1 - qx0)))
@@ -2336,10 +2689,49 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self._commit_steps_val(sc, p, which, nv)
                 self.refresh_gui()
             return
+        if kind == "wave_hold":
+            pad_i, which, wx0, wx1, x0, hy0 = arg
+            if abs(event.x - x0) >= 8:
+                self._cancel_wave_hold()
+                self.drag_info = ("wave_trim", (pad_i, which, wx0, wx1), hy0, 0)
+                self._apply_wave_trim(which, wx0, wx1, event.x)
+                self.refresh_gui()
+            elif abs(event.y - hy0) > 18:
+                self._cancel_wave_hold()
+                self.drag_info = None
+            return
         if kind == "wave_trim":
             _pad_i, which, wx0, wx1 = arg
             self._apply_wave_trim(which, wx0, wx1, event.x)
             self.refresh_gui()
+            return
+        if kind == "sample_slider":
+            sym, vmin, vmax, step, sx0, sx1, last_v = arg
+            nv = self._calc_sample_slider(vmin, vmax, step, sx0, sx1, event.x)
+            if sym == "pad_end":
+                nv = int(round(nv))
+            if nv != last_v:
+                arg[6] = nv
+                self._apply_sample_slider(sym, vmin, vmax, step, sx0, sx1, event.x)
+                self.refresh_gui()
+            return
+        if kind == "sample_mode_slider":
+            mx0, mx1, last_v = arg
+            t = max(0.0, min(0.9999, (event.x - mx0) / max(1.0, mx1 - mx0)))
+            nv = int(t * 4)
+            if nv != last_v:
+                arg[2] = nv
+                self._apply_sample_seg("pad_mode", 4, mx0, mx1, event.x)
+                self.refresh_gui()
+            return
+        if kind == "sample_choke_slider":
+            kx0, kx1, last_v = arg
+            t = max(0.0, min(0.9999, (event.x - kx0) / max(1.0, kx1 - kx0)))
+            nv = int(t * 5)
+            if nv != last_v:
+                arg[2] = nv
+                self._apply_sample_seg("pad_choke", 5, kx0, kx1, event.x)
+                self.refresh_gui()
             return
         if kind in ("seq_pad_hold", "pad_hold"):
             return
@@ -2354,8 +2746,18 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
 
     def _on_release(self, event):
         self._cancel_step_hold()
+        self._cancel_wave_hold()
         if self.drag_info:
             kind = self.drag_info[0]
+            if kind == "wave_hold":
+                _, (pad_i, which, wx0, wx1, x0, _y0), t0, _ = self.drag_info
+                self.drag_info = None
+                if (time.monotonic() - t0) >= 0.38:
+                    self._open_sample_popup(pad_i)
+                else:
+                    self._apply_wave_trim(which, wx0, wx1, x0)
+                    self.refresh_gui()
+                return
             if kind == "step_vel_drag":
                 self.drag_info = None
                 self.step_drag_override = None
