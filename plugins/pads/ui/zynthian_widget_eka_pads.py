@@ -172,6 +172,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.sample_popup_vals = None  # dict of optimistic control values while sample popup open
         self._wave_hold_after = None
         self.reset_confirm_until = 0.0
+        self._reset_wait_seq = None
+        self._reset_wait_until = 0.0
         self._cmd_nonce = 0
         self.last_synced_pad = -1
         self.last_synced_scene = -1
@@ -249,8 +251,13 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             hdr = struct.unpack_from(EP_SHM_HDR_FMT, buf, 0)
             if hdr[0] != EP_SHM_MAGIC:
                 return False
-            self.shm_hdr = hdr
             seq = hdr[2]
+            if self._reset_wait_seq is not None:
+                if seq != self._reset_wait_seq or time.monotonic() >= self._reset_wait_until:
+                    self._reset_wait_seq = None
+                else:
+                    return True
+            self.shm_hdr = hdr
             if seq != self.shm_seq or self.pads_data is None:
                 self.shm_seq = seq
                 off = EP_SHM_HDR_SIZE
@@ -343,6 +350,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             ("pad_filter", p[2]),
             ("pad_level",  p[3]),
             ("pad_start",  p[4]),
+            ("pad_end",    int(round(p[5]))),
             ("pad_mode",   p[6]),
             ("pad_punch",  p[7]),
             ("pad_drive",  p[8]),
@@ -881,6 +889,21 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             full = os.path.join(kit_dir, fn)
             self._zset("sample%d" % (i + 1), full)
 
+    @staticmethod
+    def _default_pad_tuple(pad_idx):
+        return (
+            0.0, 100.0, 0.0, 80.0,
+            0.0, 100.0, 0,
+            0.0, 0.0, 0.0, 75.0,
+            0, 0.0, 0, 0,
+            36 + (pad_idx & 15),
+            0.0, 0.0, 0.0, 0.0,
+            0, 1, 1.5, 4.0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0.0, 0.0, 0.0, 0.0,
+        )
+
     def _reset_all_defaults(self):
         """Clear all samples, scenes, pad params, modulation, filters, and Aux routes to factory defaults."""
         self._cancel_step_hold()
@@ -893,20 +916,16 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.lfo_popup = None
         self.copy_src = -1
 
-        # 1. Reset C DSP core (all 8 scenes, all 16 pad params + mod/LFOs, filters, quantize, seq)
-        self._send_cmd(CMD_CLEAR_SCENE, val=0xFF)
-
-        # 2. Unload all 16 samples
-        for i in range(EP_PADS):
-            self._zset("sample%d" % (i + 1), "_")
-
-        # 3. Disconnect & clear all 4 Aux routes
+        # 1. Disconnect & clear all 4 Aux routes in JACK
         for ai in range(4):
             self._apply_aux_route(ai, None, persist=False)
         self.last_aux_routes_str = "_"
         self._zset("aux_routes", "_")
 
-        # 4. Reset Zynthian control ports to defaults
+        # 2. Clear sample paths & reset Zynthian control ports to factory defaults BEFORE C full reset
+        for i in range(EP_PADS):
+            self._zset("sample%d" % (i + 1), "_")
+
         defaults = (
             ("sel_pad", 0),
             ("follow", 1),
@@ -946,9 +965,41 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         for sym, val in defaults:
             self._zset(sym, val)
 
+        # 3. Trigger atomic full reset in C DSP core LAST (kills voices, unloads all 16 samples,
+        #    resets all 16 pad params + mod/LFOs + 8 scenes + filters + reports clean state back)
+        self._send_cmd(CMD_CLEAR_SCENE, val=0xFF)
+
+        # 4. Hold optimistic default UI state until C bumps shm seq (prevents stale SHM echo!)
+        if self.shm_seq >= 0:
+            self._reset_wait_seq = self.shm_seq
+            self._reset_wait_until = time.monotonic() + 1.0
+        self.pads_data = [self._default_pad_tuple(i) for i in range(EP_PADS)]
+        sc_buf = bytearray(EP_SCENES * EP_SCENE_SIZE)
+        for sc in range(EP_SCENES):
+            base = sc * EP_SCENE_SIZE + EP_PADS * EP_STEPS * 3
+            for p in range(EP_PADS):
+                sc_buf[base + EP_PADS + p] = 16
+        self.scenes_data = bytes(sc_buf)
+        if self.shm_hdr:
+            h = list(self.shm_hdr)
+            h[3] = 0
+            h[4] = 1
+            h[5] = 0
+            h[6] = 0
+            h[7] = 0
+            h[8] = -1
+            h[9] = -1
+            h[10] = 120.0
+            h[11] = 50.0
+            h[12] = 100
+            h[15] = 25
+            h[16] = 0
+            h[17] = 0
+            self.shm_hdr = tuple(h)
+        self.last_shm_mode = 0
         self.sel_pad = 0
-        self.last_synced_pad = -1
-        self.last_synced_scene = -1
+        self.last_synced_pad = 0
+        self.last_synced_scene = 0
         self.peak_cache.clear()
         self._toast("All reset to default")
 
@@ -1027,8 +1078,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         shm_pad = self.shm_hdr[3] if self.shm_hdr else int(round(self._mon("out_sel_pad", self.sel_pad)))
         if 0 <= shm_pad < EP_PADS:
             self.sel_pad = shm_pad
-        cur_scene = int(round(self._mon("out_seq_scene", 0)))
-        if (self.sel_pad != self.last_synced_pad or cur_scene != self.last_synced_scene) and self.pads_data is not None:
+        cur_scene = 0 if self._reset_wait_seq is not None else int(round(self._mon("out_seq_scene", 0)))
+        if self._reset_wait_seq is None and (self.sel_pad != self.last_synced_pad or cur_scene != self.last_synced_scene) and self.pads_data is not None:
             self.last_synced_pad = self.sel_pad
             self.last_synced_scene = cur_scene
             self._sync_encoders_to_pad(self.sel_pad)
@@ -2306,6 +2357,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 return
 
             if action == "unload":
+                self._send_cmd(CMD_CLEAR_PAD, b=arg, val=0xFF)
                 self._zset("sample%d" % (arg + 1), "_")
                 self.refresh_gui()
                 return

@@ -438,7 +438,34 @@ static int hex_nibble(char ch) {
 }
 
 static void seq_decode(EpCore* c, const char* str) {
-  if (!str || str[0] != 'V' || str[1] != '1') return;
+  if (!str) return;
+  /* Legacy presets saved seq_data as atom:Path: lilv could prepend a bundle dir and percent-encode '|' as "%7C". */
+  char clean[8192];
+  const char* start = str;
+  if (!(start[0] == 'V' && start[1] == '1')) {
+    const char* found = strstr(str, "V1,");
+    if (!found) found = strstr(str, "V1;");
+    if (!found) found = strstr(str, "V1|");
+    if (!found) found = strstr(str, "V1%7C");
+    if (!found) found = strstr(str, "V1%7c");
+    if (!found) return;
+    start = found;
+  }
+  if (strstr(start, "%7C") || strstr(start, "%7c")) {
+    size_t w = 0;
+    for (const char* q = start; *q && w + 1 < sizeof clean; ) {
+      if (q[0] == '%' && q[1] == '7' && (q[2] == 'C' || q[2] == 'c')) {
+        clean[w++] = '|';
+        q += 3;
+      } else {
+        clean[w++] = *q++;
+      }
+    }
+    clean[w] = '\0';
+    start = clean;
+  }
+  str = start;
+  if (str[0] != 'V' || str[1] != '1') return;
   for (int s = 0; s < EP_SCENES; s++) ep_seq_clear_scene(c, s);
   for (int i = 0; i < EP_PADS; i++) ep_pad_defaults(&c->pad[i], i);
   c->retrig_ms = 25;
@@ -581,22 +608,41 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
       }
       break;
     case CMD_CLEAR_PAD:
-      ep_seq_clear_pad(&P->core, a, b);
-      P->shm_dirty = 1;
+      if (val == 0xFF) {
+        request_load(P, b, NULL);
+        P->shm_dirty = 1;
+        P->report_next = 0;
+        P->seq_notify_cd = 0;
+      } else {
+        ep_seq_clear_pad(&P->core, a, b);
+        P->shm_dirty = 1;
+      }
       break;
     case CMD_CLEAR_SCENE:
       if (val == 0xFF) {
         ep_core_all_off(&P->core);
+        ep_seq_set_mode(&P->core, EP_SEQ_STOP);
+        ep_core_reset(&P->core);
         for (int s = 0; s < EP_SCENES; s++) ep_seq_clear_scene(&P->core, s);
-        for (int i = 0; i < EP_PADS; i++) ep_pad_defaults(&P->core.pad[i], i);
+        for (int i = 0; i < EP_PADS; i++) {
+          request_load(P, i, NULL);
+          ep_pad_defaults(&P->core.pad[i], i);
+          P->last_pad_hit_sample[i] = 0;
+        }
+        memset(P->core.lfo_phase, 0, sizeof P->core.lfo_phase);
+        memset(P->core.lfo_sh, 0, sizeof P->core.lfo_sh);
+        memset(P->core.lfo_val, 0, sizeof P->core.lfo_val);
+        P->last_any_hit_sample = 0;
+        P->last_any_hit_pad = -1;
+        P->last_any_hit_vel = 0;
         P->core.retrig_ms = 25;
         P->core.min_vel = 0;
         P->core.xtalk = 0;
         P->core.master_vol = 85.0f;
         P->core.stereo_width = 100.0f;
-        ep_seq_set_mode(&P->core, EP_SEQ_STOP);
         P->core.seq.scene = 0;
         P->core.seq.pend_scene = -1;
+        P->core.seq.num_steps = EP_STEPS_DEF;
         P->core.seq.bpm = 120.0;
         P->core.seq.swing = 50.0f;
         ep_seq_set_quantize(&P->core, 100);
@@ -607,6 +653,8 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
         P->have_prev_ctl = 0;
         P->have_prev_steps = 0;
         P->shm_dirty = 1;
+        P->report_next = 0;
+        P->seq_notify_cd = 0;
       } else {
         ep_seq_clear_scene(&P->core, a);
         P->shm_dirty = 1;
@@ -1405,13 +1453,16 @@ static LV2_State_Status state_save(LV2_Handle h, LV2_State_Store_Function store,
         LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
   store(handle, P->st_scenes, P->core.scenes, sizeof P->core.scenes, P->atom_Chunk,
         LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
-  size_t slen = seq_encode(&P->core, P->seq_buf, sizeof P->seq_buf);
+  /* Store seq_data and aux_routes as atom:String (NOT atom:Path!) so lilv never mangles
+   * '|' / ':' characters as relative filesystem URIs in .ttl preset files. */
+  char sbuf[sizeof P->seq_buf];
+  size_t slen = seq_encode(&P->core, sbuf, sizeof sbuf);
   if (slen > 0) {
-    store(handle, P->p_seq_data, P->seq_buf, slen + 1, P->atom_Path,
+    store(handle, P->p_seq_data, sbuf, slen + 1, P->atom_String,
           LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
   }
   if (P->aux_routes[0] && strcmp(P->aux_routes, "_") != 0) {
-    store(handle, P->p_aux_routes, P->aux_routes, strlen(P->aux_routes) + 1, P->atom_Path,
+    store(handle, P->p_aux_routes, P->aux_routes, strlen(P->aux_routes) + 1, P->atom_String,
           LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
   }
   return LV2_STATE_SUCCESS;
@@ -1424,6 +1475,31 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
   EkaPads* P = (EkaPads*)h;
   size_t sz; uint32_t type, fl;
 
+  /* Start from clean defaults so nothing from a previously loaded kit leaks through */
+  ep_core_all_off(&P->core);
+  for (int s = 0; s < EP_SCENES; s++) ep_seq_clear_scene(&P->core, s);
+  for (int i = 0; i < EP_PADS; i++) ep_pad_defaults(&P->core.pad[i], i);
+  P->core.retrig_ms = 25;
+  P->core.min_vel = 0;
+  P->core.xtalk = 0;
+  ep_seq_set_quantize(&P->core, 100);
+  P->core.seq.bpm = 120.0;
+  P->core.seq.num_steps = EP_STEPS_DEF;
+  P->sel_pad = 0;
+  P->follow = 1;
+  P->learn = 0;
+
+  /* 1. Decode ASCII seq_data first (restores quantize, retrig/min_vel/xtalk, and fallback pads/scenes) */
+  const void* sd = retrieve(handle, P->p_seq_data, &sz, &type, &fl);
+  if (sd && (type == P->atom_String || type == P->atom_Path) && sz > 0) {
+    char tmp[sizeof P->seq_buf];
+    size_t n = sz < sizeof(tmp) - 1 ? sz : sizeof(tmp) - 1;
+    memcpy(tmp, sd, n);
+    tmp[n] = '\0';
+    seq_decode(&P->core, tmp);
+  }
+
+  /* 2. Exact binary chunks always take precedence over ASCII seq_data (lossless & recovers legacy presets) */
   const void* blob = retrieve(handle, P->st_pad_params, &sz, &type, &fl);
   if (blob && sz == sizeof P->core.pad) {
     memcpy(P->core.pad, blob, sz);
@@ -1436,51 +1512,44 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
       memcpy(&P->core.pad[i], src + i * stride, stride);
     }
   }
-  const void* sd = retrieve(handle, P->p_seq_data, &sz, &type, &fl);
-  if (sd && (type == P->atom_String || type == P->atom_Path) && sz > 0) {
-    char tmp[sizeof P->seq_buf];
-    size_t n = sz < sizeof(tmp) - 1 ? sz : sizeof(tmp) - 1;
-    memcpy(tmp, sd, n);
-    tmp[n] = '\0';
-    seq_decode(&P->core, tmp);
-  } else {
-    const void* sc = retrieve(handle, P->st_scenes, &sz, &type, &fl);
-    if (sc && sz == sizeof P->core.scenes) {
-      memcpy(P->core.scenes, sc, sz);
-    } else if (sc && sz == (size_t)(EP_SCENES * (EP_PADS * EP_STEPS * 2 + EP_PADS * 2))) {
-      /* Legacy 32-step 2-byte EpStep snapshot migration */
-      const uint8_t* raw = (const uint8_t*)sc;
-      size_t old_sc_sz = EP_PADS * EP_STEPS * 2 + EP_PADS * 2;
-      for (int s = 0; s < EP_SCENES; s++) {
-        ep_seq_clear_scene(&P->core, s);
-        const uint8_t* sbase = raw + s * old_sc_sz;
-        for (int p = 0; p < EP_PADS; p++) {
-          for (int st = 0; st < EP_STEPS; st++) {
-            size_t off = (size_t)(p * EP_STEPS + st) * 2;
-            P->core.scenes[s].steps[p][st].vel = sbase[off];
-            P->core.scenes[s].steps[p][st].roll = sbase[off + 1];
-            P->core.scenes[s].steps[p][st].chance = 0;
-          }
-          P->core.scenes[s].pad_start[p] = sbase[EP_PADS * EP_STEPS * 2 + p];
-          P->core.scenes[s].pad_end[p] = sbase[EP_PADS * EP_STEPS * 2 + EP_PADS + p];
+
+  const void* sc = retrieve(handle, P->st_scenes, &sz, &type, &fl);
+  if (sc && sz == sizeof P->core.scenes) {
+    memcpy(P->core.scenes, sc, sz);
+  } else if (sc && sz == (size_t)(EP_SCENES * (EP_PADS * EP_STEPS * 2 + EP_PADS * 2))) {
+    /* Legacy 32-step 2-byte EpStep snapshot migration */
+    const uint8_t* raw = (const uint8_t*)sc;
+    size_t old_sc_sz = EP_PADS * EP_STEPS * 2 + EP_PADS * 2;
+    for (int s = 0; s < EP_SCENES; s++) {
+      ep_seq_clear_scene(&P->core, s);
+      const uint8_t* sbase = raw + s * old_sc_sz;
+      for (int p = 0; p < EP_PADS; p++) {
+        for (int st = 0; st < EP_STEPS; st++) {
+          size_t off = (size_t)(p * EP_STEPS + st) * 2;
+          P->core.scenes[s].steps[p][st].vel = sbase[off];
+          P->core.scenes[s].steps[p][st].roll = sbase[off + 1];
+          P->core.scenes[s].steps[p][st].chance = 0;
         }
+        P->core.scenes[s].pad_start[p] = sbase[EP_PADS * EP_STEPS * 2 + p];
+        P->core.scenes[s].pad_end[p] = sbase[EP_PADS * EP_STEPS * 2 + EP_PADS + p];
       }
-    } else if (sc && sz == (size_t)(EP_SCENES * EP_PADS * 16 * 2)) {
-      /* Legacy 16-step 2-byte EpStep snapshot migration */
-      const uint8_t* raw = (const uint8_t*)sc;
-      for (int s = 0; s < EP_SCENES; s++) {
-        ep_seq_clear_scene(&P->core, s);
-        for (int p = 0; p < EP_PADS; p++) {
-          for (int st = 0; st < 16; st++) {
-            size_t off = (size_t)((s * EP_PADS + p) * 16 + st) * 2;
-            P->core.scenes[s].steps[p][st].vel = raw[off];
-            P->core.scenes[s].steps[p][st].roll = raw[off + 1];
-            P->core.scenes[s].steps[p][st].chance = 0;
-          }
+    }
+  } else if (sc && sz == (size_t)(EP_SCENES * EP_PADS * 16 * 2)) {
+    /* Legacy 16-step 2-byte EpStep snapshot migration */
+    const uint8_t* raw = (const uint8_t*)sc;
+    for (int s = 0; s < EP_SCENES; s++) {
+      ep_seq_clear_scene(&P->core, s);
+      for (int p = 0; p < EP_PADS; p++) {
+        for (int st = 0; st < 16; st++) {
+          size_t off = (size_t)((s * EP_PADS + p) * 16 + st) * 2;
+          P->core.scenes[s].steps[p][st].vel = raw[off];
+          P->core.scenes[s].steps[p][st].roll = raw[off + 1];
+          P->core.scenes[s].steps[p][st].chance = 0;
         }
       }
     }
   }
+
   const void* sp = retrieve(handle, P->p_sel_pad, &sz, &type, &fl);
   if (sp && sz == sizeof(int32_t)) {
     int v = *(const int32_t*)sp;
@@ -1495,6 +1564,11 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
     int b = *(const int32_t*)bv;
     if (b >= 40 && b <= 240) P->core.seq.bpm = (double)b;
   }
+  const void* lv = retrieve(handle, P->p_seq_len, &sz, &type, &fl);
+  if (lv && sz == sizeof(int32_t)) {
+    int l = *(const int32_t*)lv;
+    if (l >= EP_STEPS_MIN && l <= EP_STEPS) P->core.seq.num_steps = l;
+  }
 
   const void* ar = retrieve(handle, P->p_aux_routes, &sz, &type, &fl);
   if (ar && (type == P->atom_String || type == P->atom_Path) && sz > 0) {
@@ -1507,25 +1581,30 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
 
   for (int i = 0; i < EP_PADS; i++) {
     const void* pv = retrieve(handle, P->p_sample[i], &sz, &type, &fl);
-    if (pv && (type == P->atom_Path || type == P->atom_String) && sz > 0 && sz < EP_PATH_MAX) {
+    if (pv && (type == P->atom_Path || type == P->atom_String) && sz > 0) {
       char buf[EP_PATH_MAX];
-      memcpy(buf, pv, sz);
-      buf[sz - 1] = '\0';
+      size_t n = sz < EP_PATH_MAX - 1 ? sz : EP_PATH_MAX - 1;
+      memcpy(buf, pv, n);
+      buf[n] = '\0';
       if (buf[0] && strcmp(buf, "_") != 0) {
         int err = EP_LOAD_OK;
         EpSample* s = ep_sample_load(buf, EP_MAX_SECONDS, &err);
         snprintf(P->paths[i], EP_PATH_MAX, "%s", buf);
-        if (err == EP_LOAD_OK && s) {
-          swap_sample(P, i, s);
-        }
+        atomic_fetch_add_explicit(&P->req_seq[i], 1, memory_order_relaxed);
+        swap_sample(P, i, (err == EP_LOAD_OK && s) ? s : NULL);
+        continue;
       }
     }
+    P->paths[i][0] = '\0';
+    atomic_fetch_add_explicit(&P->req_seq[i], 1, memory_order_relaxed);
+    swap_sample(P, i, NULL);
   }
   P->have_prev_ctl = 0;
   P->have_prev_steps = 0;
   P->shm_dirty = 1;
   shm_publish(P);
   P->report_next = 0;
+  P->seq_notify_cd = 0;
   return LV2_STATE_SUCCESS;
 }
 
