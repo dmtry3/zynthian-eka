@@ -172,6 +172,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.sample_popup_vals = None  # dict of optimistic control values while sample popup open
         self._wave_hold_after = None
         self.reset_confirm_until = 0.0
+        self._cmd_nonce = 0
         self.last_synced_pad = -1
         self.last_synced_scene = -1
         self.copy_src = -1         # >=0 when waiting for user to tap destination scene
@@ -857,7 +858,17 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
     def _send_cmd(self, op, a=0, b=0, c=0, val=0):
         try:
             z = self.processor.controllers_dict["seq_cmd"]
-            z.set_value(pack_cmd(op, a, b, c, val))
+            if op == CMD_TRIG_PAD:
+                # Nonce in unused `c` bits ensures repeated hits on the same pad always trigger
+                self._cmd_nonce = (self._cmd_nonce + 1) & 0x1F
+                c = self._cmd_nonce
+            packed = pack_cmd(op, a, b, c, val)
+            if z.value == packed:
+                z.set_value(0)
+            z.set_value(packed)
+            # Reset one-shot / destructive commands to 0 so Zynthian snapshots never replay them on restore
+            if op in (CMD_TRIG_PAD, CMD_CLEAR_PAD, CMD_CLEAR_SCENE, CMD_COPY_SCENE):
+                z.set_value(0)
         except Exception:
             pass
 

@@ -690,7 +690,7 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
     default:
       break;
   }
-  if (op != CMD_TRIG_PAD) {
+  if (op != 0 && op != CMD_TRIG_PAD) {
     P->seq_notify_dirty = 1;
   }
 }
