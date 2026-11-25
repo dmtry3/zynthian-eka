@@ -41,13 +41,13 @@
 
 ## Установка
 
-На Zynthian (собирается прямо на устройстве):
+На Zynthian (SSH под root):
 
 ```bash
 git clone https://github.com/dmtry3/zynthian-eka.git
 cd zynthian-eka/plugins/bloom
-sudo ./scripts/install.sh
-sudo systemctl restart zynthian
+sudo make install
+systemctl restart zynthian
 ```
 
 `install.sh` собирает плагин и ставит две ссылки:
@@ -55,12 +55,12 @@ sudo systemctl restart zynthian
 - виджет в `/zynthian/zynthian-ui/zyngui/widgets_user/`.
 
 Ещё он обновляет кэш списка пресетов Zynthian для этого плагина. Больше в Zynthian ничего не меняется.
-Удаление: `sudo ./scripts/uninstall.sh`, он удаляет только ссылки.
+Удаление: `sudo make uninstall`, он удаляет только ссылки.
 
-Обновление:
+Обновление одной строкой:
 
 ```bash
-git pull && sudo ./scripts/install.sh && sudo systemctl restart zynthian
+cd /root/zynthian-eka && git pull && sudo make install-bloom && systemctl restart zynthian
 ```
 
 В Zynthian добавь **Eka Bloom** в цепочку как MIDI tool перед синтом. Он будет в категории *Other*:

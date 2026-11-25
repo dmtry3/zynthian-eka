@@ -1,6 +1,6 @@
 # Eka Weave-4 for Zynthian
 
-[Русская версия](README.ru.md)
+**English** · [Русский](README.ru.md)
 
 A four-voice real-time pitch harmonizer for [Zynthian](https://zynthian.org), implemented as an **LV2 audio effect plugin** (mono in, stereo out) plus a **touch widget** (stereo pitch/pan map, delay timeline, filter response curves, scenes A–D) for the Zynthian touch UI.
 
@@ -43,11 +43,19 @@ Powered by the **Bungee Basic** pitch-shifting engine (standard quality, granula
 
 ## Installation
 
+On Zynthian (SSH as root):
+
 ```bash
 git clone https://github.com/dmtry3/zynthian-eka.git
 cd zynthian-eka/plugins/weave4
-sudo ./scripts/install.sh      # builds, installs the LV2 bundle + widget, registers factory presets
-sudo systemctl restart zynthian
+sudo make install              # builds, installs the LV2 bundle + widget, registers factory presets
+systemctl restart zynthian
+```
+
+Update in one line:
+
+```bash
+cd /root/zynthian-eka && git pull && sudo make install-weave4 && systemctl restart zynthian
 ```
 
 `install.sh` builds and installs:
@@ -59,7 +67,7 @@ sudo systemctl restart zynthian
 
 It also registers the 9 factory presets in `/zynthian/config/jalv/presets_Eka_Weave-4.json` (preserving any existing user banks) and initializes the user preset bundle directory so saving into a new bank works right away.
 
-Nothing in Zynthian's own files is modified. To remove: `sudo ./scripts/uninstall.sh`.
+Nothing in Zynthian's own files is modified. To remove: `sudo make uninstall`.
 
 If adding for the first time, refresh/enable **Eka Weave-4** in Zynthian webconf (*Software → LV2 Plugins*), then add it to a chain as an *Audio Effect* (Pitch). For **MIDI** mode, route MIDI input into the chain.
 
@@ -157,5 +165,5 @@ DISPLAY=:0 python3 test/widget_ui.py  # Native Zynthian Tk widget test (on Pi)
 
 ## License & Third-Party
 
-GPL-3.0-or-later — see `LICENSE`.
-Third-party sources, versions and licenses (Bungee Basic, embedded aubio DSP subset) are documented in `THIRD_PARTY.md`.
+GPL-3.0-or-later — see [LICENSE](LICENSE).
+Third-party sources, versions and licenses (Bungee Basic, embedded aubio DSP subset) are documented in [THIRD_PARTY.md](THIRD_PARTY.md). Changes: [CHANGELOG.md](CHANGELOG.md).

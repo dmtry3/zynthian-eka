@@ -63,7 +63,7 @@ systemctl restart zynthian
 Обновление одной строкой:
 
 ```bash
-cd /root/zynthian-eka && git pull && cd plugins/grainflow && sudo make install && systemctl restart zynthian
+cd /root/zynthian-eka && git pull && sudo make install-grainflow && systemctl restart zynthian
 ```
 
 | Ссылка или папка | Что |
@@ -288,4 +288,4 @@ Offset, Freeze, LFO, случайные параметры и модуляцию
 
 ## Лицензия
 
-GPL-3.0-or-later, см. [LICENSE](LICENSE). Идеи — по мотивам Autochroma (imagiro); код, интерфейс и пресеты свои.
+GPL-3.0-or-later, см. [LICENSE](LICENSE). Идеи — по мотивам Autochroma (imagiro); код, интерфейс и пресеты свои. Изменения: [CHANGELOG.md](CHANGELOG.md).

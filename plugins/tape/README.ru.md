@@ -22,11 +22,13 @@
   плавным ходом) и **сдвиг высоты** ±12 полутонов без смены темпа (Signalsmith Stretch).
 - **Микшер:** уровень, панорама (стерео или раздельно L/R у дорожки), mute, мастер с мягким ограничителем, пики.
 - **Mute, Reverse, Reset** с плавными затуханиями; удержание Reset очищает всё.
+- **Неразрушающая обрезка (Trim):** долгий тап по записанной дорожке на экране Loop открывает окно Trim с маркерами
+  начала и конца лупа (привязка `FREE`, `BEAT` или `BAR`); границы обрезки сохраняются в сессиях.
 - **Сессии:** пресет Zynthian сохраняет весь лупер вместе со звуком (WAV 24 бит), в фоне, лупы не
   останавливаются.
 - **Футсвитч:** каждая функция — контроллер на странице энкодеров, мапится MIDI learn Zynthian; тап и удержание
   плагин различает сам.
-- **Виджеты:** Loop (волны дорожек, парты, полоса темпа, визуальный метроном), Mixer, Speed, настройки.
+- **Виджеты:** Loop (волны дорожек, парты, полоса темпа, визуальный метроном), Trim, Mixer, Speed, настройки.
 
 ## Скриншоты
 
@@ -49,7 +51,7 @@ systemctl restart zynthian
 Обновление одной строкой:
 
 ```bash
-cd /root/zynthian-eka && git pull && cd plugins/tape && sudo make install && systemctl restart zynthian
+cd /root/zynthian-eka && git pull && sudo make install-tape && systemctl restart zynthian
 ```
 
 `make install` собирает плагин на устройстве (g++) и создаёт две ссылки: `/usr/local/lib/lv2/eka-tape.lv2` →
@@ -96,4 +98,4 @@ make test       # ядро офлайн: дорожки, слои, парты, �
 ## Лицензия
 
 GPL-3.0-or-later, см. [LICENSE](LICENSE). Сдвиг высоты сделан на Signalsmith Stretch (MIT), см.
-[THIRD_PARTY.md](THIRD_PARTY.md).
+[THIRD_PARTY.md](THIRD_PARTY.md). Изменения: [CHANGELOG.md](CHANGELOG.md).

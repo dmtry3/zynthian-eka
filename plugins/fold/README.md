@@ -1,6 +1,6 @@
 # Eka Fold for Zynthian
 
-[Русская версия](README.ru.md)
+**English** · [Русский](README.ru.md)
 
 A polyphonic **West Coast synthesizer** for [Zynthian](https://zynthian.org), as an **LV2 instrument plugin**, with an
 **on-screen widget** for the Zynthian touch UI that shows what every page of knobs does.
@@ -9,7 +9,7 @@ A complex oscillator pair (Principal + Mod OSC) with FM, AM, Sync and Timbre bet
 Chebyshev shapers, a lopass gate on a vactrol model, two function generators, a mod matrix, and a waveguide / delay
 in every voice. Up to 8 voices. Inspired by the Buchla 259 / 292 / 281 and the Music Easel, and by Madrona Aalto.
 
-> Tested on: Raspberry Pi 5, Zynthian V5 kit, 800x480 touch screen. Other hardware is untested.
+> Tested on: Zynthian **Vangelis** (stable 2610), Raspberry Pi 5, V5 kit, 800x480 touch screen. Other hardware is untested.
 
 ## Features
 
@@ -69,7 +69,7 @@ systemctl restart zynthian
 Update later with one line:
 
 ```bash
-cd /root/zynthian-eka && git pull && cd plugins/fold && sudo make install && systemctl restart zynthian
+cd /root/zynthian-eka && git pull && sudo make install-fold && systemctl restart zynthian
 ```
 
 `make install` builds on the device (gcc, g++, `lv2-dev`; all on Zynthian) and creates:
@@ -153,4 +153,4 @@ The presets are generated: edit `scripts/gen_presets.py`, then run it (it writes
 ## License
 
 GPL-3.0-or-later, see [LICENSE](LICENSE). The VA, FM2, Wave, Harm and PD sources, the Modal and String resonators and three tables are derived from MIT-licensed code by
-Emilie Gillet: see [THIRD_PARTY.md](THIRD_PARTY.md) for the license text and what was changed.
+Emilie Gillet: see [THIRD_PARTY.md](THIRD_PARTY.md) for the license text and what was changed. Changes: [CHANGELOG.md](CHANGELOG.md).

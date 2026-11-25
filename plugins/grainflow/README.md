@@ -62,7 +62,7 @@ systemctl restart zynthian
 Update in one line:
 
 ```bash
-cd /root/zynthian-eka && git pull && cd plugins/grainflow && sudo make install && systemctl restart zynthian
+cd /root/zynthian-eka && git pull && sudo make install-grainflow && systemctl restart zynthian
 ```
 
 | Link or folder | What |
@@ -251,4 +251,4 @@ and render every preset to `build_test/presets/*.wav` to listen to.
 
 ## License
 
-GPL-3.0-or-later, see [LICENSE](LICENSE). Ideas after Autochroma (imagiro); code, interface and presets are our own.
+GPL-3.0-or-later, see [LICENSE](LICENSE). Ideas after Autochroma (imagiro); code, interface and presets are our own. Changes: [CHANGELOG.md](CHANGELOG.md).

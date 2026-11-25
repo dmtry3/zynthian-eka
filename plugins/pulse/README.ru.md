@@ -98,4 +98,4 @@ SAN=1 make -C plugins/pulse test      # с AddressSanitizer и UBSan
 
 ## Лицензия
 
-GPL-3.0-or-later. См. [LICENSE](LICENSE).
+GPL-3.0-or-later. См. [LICENSE](LICENSE). Изменения: [CHANGELOG.md](CHANGELOG.md).

@@ -1,6 +1,6 @@
 # Changelog — Eka Press
 
-## Unreleased
+## 0.1.1 — 2026-11-21
 
 - Long-press (0.5 s) on the mode button toggles clickless true **Bypass** (`bypass` LV2 port); the entire widget turns greyscale while bypassed.
 

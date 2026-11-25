@@ -1,6 +1,6 @@
 # Changelog
 
-## Next
+## 0.9 (2026-11-20)
 
 - Two more Principal sources: **Harm** (additive, 24 harmonics: Harmonics = bumps, Color = centre, Morph = slope)
   and **PD** (phase distortion: Harmonics = ratio, Color = amount, Morph = skew; held under 18 kHz).
@@ -9,6 +9,8 @@
   and **String** (sitar buzz / plain / dispersion; Structure, Brightness); Feedback is their Decay. In tune within
   a cent (the loop filters' delay taken off).
 - Presets Bell - Modal, Perc - Bar, String - Sitar, String - Piano (32 in all).
+- Unified knob labels across all pages (removed redundant `%` / `ms` suffixes), clean voice/delay reset on `activate()`,
+  CPU savings once voice tails finish, and `Env` / `Delay` widget UI polish.
 
 ## 0.7 (2026-11-12)
 

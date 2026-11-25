@@ -14,7 +14,7 @@ Raspberry Pi 5 and to work together in one setup.
 ### [Eka Tape](plugins/tape): live audio looper
 
 Parts of stereo tracks, played with the feet: record, overdub without limits, undo / redo, Lock tracks into the
-next part, speed and pitch per track, a mixer, sessions saved with their sound. Follows the Zynthian tempo like tape.
+next part, non-destructive loop Trim, speed and pitch per track, a mixer, sessions saved with their sound. Follows the Zynthian tempo like tape.
 
 ![Eka Tape](plugins/tape/docs/1-loops.png)
 
@@ -69,7 +69,7 @@ Four polyrhythmic shaper slots (`TIME`, `DRIVE & CRUSH`, `FILTER`, `GATE & SPACE
 
 ### [Eka Press](plugins/press): single-band live compressor
 
-Four compressor characters (`Clean`, `Opto`, `Punch`, `Glue`), `SC HPF` (`20..500 Hz`), `Stereo Link`, `Auto Release`, `SC Listen`, analog `Drive`, `Auto Makeup`, parallel `Mix`, `-0.3 dBFS` `Soft Clip`, an interactive Transfer Curve + scrolling Gain-Reduction timeline widget, and 10 factory presets.
+Four compressor characters (`Clean`, `Opto`, `Punch`, `Glue`), `SC HPF` (`20..500 Hz`), `Stereo Link`, `Auto Release`, `SC Listen`, analog `Drive`, `Auto Makeup`, parallel `Mix`, `-0.3 dBFS` `Soft Clip`, click-free `Bypass`, an interactive Transfer Curve + scrolling Gain-Reduction timeline widget, and 10 factory presets.
 
 ![Eka Press](plugins/press/docs/1-main.png)
 
@@ -85,7 +85,7 @@ Independent L/R Hermite-interpolated delay (`5..2500 ms`) with BPM sync (`1/64..
 
 ### [Eka Pads](plugins/pads): 16-pad drum sampler & polyrhythmic scene sequencer
 
-Bitwig Drum Machine-style 4×4 drum sampler built for pad controllers (like M-VAVE SMC-PAD Pocket): 16 independent pads with async WAV/FLAC loading, anti-aliased sinc pitch, decay, bipolar DJ filter, punch, drive/crush, choke groups, bipolar `Width`, 4 stereo `Aux` sends to Zynthian Mixbuses, a 4-slot per-pad modulation matrix (2 LFOs + Env Follower), Auto-Select syncing Zynthian's 4 encoders to the last hit pad, and a polyrhythmic 32-step scene sequencer with live Overdub, ratchets, and one-tap export to ZynSeq.
+Bitwig Drum Machine-style 4×4 drum sampler built for pad controllers (like M-VAVE SMC-PAD Pocket): 16 independent pads with async WAV/FLAC loading, anti-aliased sinc pitch, decay, bipolar DJ filter, punch, drive/crush, choke groups, bipolar `Width`, 4 stereo `Aux` sends to Zynthian Mixbuses, a 4-slot per-pad modulation matrix (2 LFOs + Env Follower), Auto-Select syncing Zynthian's 4 encoders to the last hit pad, and a polyrhythmic 32-step scene sequencer with live Overdub, per-step velocity/chance/ratchets, and one-tap export to ZynSeq.
 
 ## A setup
 
@@ -123,5 +123,5 @@ make -C plugins/bloom test
 
 ## License
 
-GPL-3.0-or-later, see the `LICENSE` file of each plugin. Third-party code and samples are listed in the plugins'
+GPL-3.0-or-later, see [LICENSE](LICENSE) (and the `LICENSE` file of each plugin). Third-party code and samples are listed in the plugins'
 `THIRD_PARTY.md` and `samples/CREDITS.md`.

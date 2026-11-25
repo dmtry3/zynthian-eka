@@ -1,6 +1,6 @@
 # Eka Fold для Zynthian
 
-[English version](README.md)
+[English](README.md) · **Русский**
 
 Полифонический **West Coast синтезатор** для [Zynthian](https://zynthian.org) в виде **LV2-инструмента** со
 **своим виджетом** для сенсорного экрана Zynthian: на каждой вкладке видно, что делают ручки своей страницы.
@@ -9,7 +9,7 @@
 lopass gate на модели вактрола, два функциональных генератора, матрица модуляции и waveguide / delay в каждом голосе.
 До 8 голосов. Вдохновлён Buchla 259 / 292 / 281 и Music Easel, а также Madrona Aalto.
 
-> Проверено на: Raspberry Pi 5, набор Zynthian V5, сенсорный экран 800x480. Другое железо не проверялось.
+> Проверено на: Zynthian **Vangelis** (stable 2610), Raspberry Pi 5, набор V5, сенсорный экран 800x480. Другое железо не проверялось.
 
 ## Возможности
 
@@ -69,7 +69,7 @@ systemctl restart zynthian
 Обновление одной строкой:
 
 ```bash
-cd /root/zynthian-eka && git pull && cd plugins/fold && sudo make install && systemctl restart zynthian
+cd /root/zynthian-eka && git pull && sudo make install-fold && systemctl restart zynthian
 ```
 
 `make install` собирает на самом устройстве (gcc, g++, `lv2-dev` — всё есть в Zynthian) и создаёт:
@@ -153,4 +153,4 @@ make test       # движок офлайн (строй, алиасинг, ще�
 ## Лицензия
 
 GPL-3.0-or-later, см. [LICENSE](LICENSE). Источники VA, FM2, Wave, Harm и PD, резонаторы Modal и String и три таблицы основаны на коде Эмили Жилле под лицензией MIT: текст
-лицензии и что изменено — в [THIRD_PARTY.md](THIRD_PARTY.md).
+лицензии и что изменено — в [THIRD_PARTY.md](THIRD_PARTY.md). Изменения: [CHANGELOG.md](CHANGELOG.md).

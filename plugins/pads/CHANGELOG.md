@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 (2026-11-24)
+
+- **Compact Step Popup & Velocity Drag (`Seq` tab):** long-press any step tile to open a compact popup with `Velocity` (`0..127`), `Chance` (`10..100%`), and `Roll` (`1x..4x`) sliders, while preserving vertical `Velocity` drag directly on step tiles.
+- **Sample Settings Popup (`Pads` tab):** long-press the waveform box to edit all per-pad sound parameters (`Pitch`, `Level`, `Decay`, `Filter`, `Start`, `End`, `Punch`, `Drive`, `Pan`, `Width`, `Mode`, `Choke`) on screen.
+- **`Reset All` (`Kit` tab):** two-tap confirmation button that cleanly unloads all samples and resets all pad settings, modulation, and scenes to defaults.
+- **Reliability Fixes:** fixed repeated `Play` triggering via `seq_cmd` nonce (with one-shot reset to `0` for clean snapshots), fixed preset per-pad settings persistence, and prevented dropped sample loads from LV2 worker ringbuffer overflow.
+
 ## 0.2.0 (2026-11-23)
 
 - **Per-pad Modulation Matrix (`Mod` tab):** 4 modulation slots per pad (`Off`, `Vel`, `Rand`, `LFO1`, `LFO2`, `Env` → `Pitch`, `Decay`, `Filter`, `Level`, `Start`, `Drive`, `Pan`, `Width`, `Aux1`, `Aux2`), 2 independent LFOs with waveform preview popup (`Sine`, `Tri`, `Saw`, `Sqr`, `S&H`, `Free` / `Sync` divisions) and an input Envelope Follower.

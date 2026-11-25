@@ -39,15 +39,15 @@ played notes, a keyboard for the key and the chords of the scale, and an editor 
 | ![Scale: keyboard, scales and degrees](docs/5-scale.png) | |
 | **Scale:** tap the key, the scale, a degree | |
 
-## Install
+## Installation
 
-On the Zynthian (it builds on the device):
+On Zynthian (SSH as root):
 
 ```bash
 git clone https://github.com/dmtry3/zynthian-eka.git
 cd zynthian-eka/plugins/bloom
-sudo ./scripts/install.sh
-sudo systemctl restart zynthian
+sudo make install
+systemctl restart zynthian
 ```
 
 `install.sh` builds the plugin and creates two symlinks:
@@ -55,12 +55,12 @@ sudo systemctl restart zynthian
 - the widget into `/zynthian/zynthian-ui/zyngui/widgets_user/`.
 
 It also refreshes Zynthian's preset list for this plugin. Nothing else in Zynthian is changed.
-Remove it with `sudo ./scripts/uninstall.sh`, which only deletes the links.
+Remove it with `sudo make uninstall`, which only deletes the links.
 
-Update:
+Update in one line:
 
 ```bash
-git pull && sudo ./scripts/install.sh && sudo systemctl restart zynthian
+cd /root/zynthian-eka && git pull && sudo make install-bloom && systemctl restart zynthian
 ```
 
 In Zynthian, add **Eka Bloom** to a chain as a MIDI tool in front of a synth. Zynthian shows it in

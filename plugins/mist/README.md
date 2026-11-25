@@ -56,7 +56,7 @@ systemctl restart zynthian
 Update later with one line:
 
 ```bash
-cd /root/zynthian-eka && git pull && cd plugins/mist && sudo make install && systemctl restart zynthian
+cd /root/zynthian-eka && git pull && sudo make install-mist && systemctl restart zynthian
 ```
 
 `make install` builds on the device (gcc, `lv2-dev`, `libsndfile`; all on Zynthian) and creates:
@@ -117,4 +117,4 @@ The presets are generated: edit `scripts/gen_presets.py`, then run it. `scripts/
 ## License
 
 GPL-3.0-or-later, see [LICENSE](LICENSE). The sample files have their own licenses:
-[samples/CREDITS.md](samples/CREDITS.md).
+[samples/CREDITS.md](samples/CREDITS.md). Changes: [CHANGELOG.md](CHANGELOG.md).

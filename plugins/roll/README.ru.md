@@ -1,7 +1,8 @@
 # Eka Roll для Zynthian
 
-[English version](README.md)
-Demo video https://www.youtube.com/watch?v=ChqsykTJQ88
+[English](README.md) · **Русский**
+
+Демо-видео: https://www.youtube.com/watch?v=ChqsykTJQ88
 
 MIDI-лупер для [Zynthian](https://zynthian.org): **LV2-плагин (MIDI-инструмент)** внутри цепочки и необязательный
 **виджет на сенсорном экране** (piano roll, слои, слоты).
@@ -51,11 +52,19 @@ MIDI-лупер для [Zynthian](https://zynthian.org): **LV2-плагин (MID
 
 ## Установка
 
+На Zynthian (SSH под root):
+
 ```bash
 git clone https://github.com/dmtry3/zynthian-eka.git
 cd zynthian-eka/plugins/roll
-sudo ./scripts/install.sh      # собирает плагин и создаёт две ссылки (см. ниже)
-sudo systemctl restart zynthian
+sudo make install              # собирает плагин и создаёт две ссылки (см. ниже)
+systemctl restart zynthian
+```
+
+Обновление одной строкой:
+
+```bash
+cd /root/zynthian-eka && git pull && sudo make install-roll && systemctl restart zynthian
 ```
 
 Скрипт создаёт:
@@ -65,7 +74,7 @@ sudo systemctl restart zynthian
 | `/usr/local/lib/lv2/eka-roll.lv2` | `build/eka-roll.lv2` |
 | `/zynthian/zynthian-ui/zyngui/widgets_user/zynthian_widget_eka_roll.py` | `ui/zynthian_widget_eka_roll.py` |
 
-Файлы самого Zynthian не изменяются. Удалить: `sudo ./scripts/uninstall.sh`.
+Файлы самого Zynthian не изменяются. Удалить: `sudo make uninstall`.
 
 Добавьте **Eka Roll** в цепочку как *MIDI-инструмент* перед синтом.
 
@@ -169,4 +178,4 @@ Half, Double, оба Apply и Export срабатывают только на н
 
 ## Лицензия
 
-См. файл `LICENSE`.
+GPL-3.0-or-later, см. [LICENSE](LICENSE). Изменения: [CHANGELOG.md](CHANGELOG.md).

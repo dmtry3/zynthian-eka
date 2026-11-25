@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.1 (2026-11-21)
+
+- Long touch / push (`>2 s`) on `Undo/Redo` now opens Zynthian controller options / MIDI learn.
+
 ## 0.9.0 (2026-11-13)
 
 - Edit page: Layer, Transpose, **Shift**, Apply. Shift moves the layer in time; each knob click is the step picked on

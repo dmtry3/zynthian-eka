@@ -21,7 +21,7 @@ Made for four encoders: **Auto-Select** follows the last hit pad and keeps Zynth
   - 4 modulation slots per pad: sources (`Off`, `Vel`, `Rand`, `LFO1`, `LFO2`, `Env`) → destinations (`Pitch`, `Decay`, `Filter`, `Level`, `Start`, `Drive`, `Pan`, `Width`, `Aux1`, `Aux2`) with bipolar amount (`-100..+100%`).
   - 2 independent LFOs per pad (`Sine`, `Tri`, `Saw`, `Sqr`, `S&H`, `Free` `0.05..20 Hz` or tempo `Sync` `4/1..1/16T`) with a waveform preview popup, plus an Envelope Follower.
 - **Polyrhythmic Scene Sequencer (`Seq` tab):**
-  - Up to **32 steps** per pad with independent `Beg..End` loop range (`1..32`), `Swing` (`50..75%`), smooth `Quantize` (`0..100%` with real microtiming), `Velocity` (`0..127`) and ratchet `Roll` (`1x..4x`).
+  - Up to **32 steps** per pad with independent `Beg..End` loop range (`1..32`), `Swing` (`50..75%`), smooth `Quantize` (`0..100%` with real microtiming), `Velocity` (`0..127`), `Chance` (`10..100%`), and ratchet `Roll` (`1x..4x`).
   - **5 large scenes (`A..E`)** on screen (8 scenes internally, `A..H`), quantized switching at bar boundaries via touchscreen or MIDI notes `52..56`.
   - **Live Overdub (`Dub/Rec`)** from MIDI pads, tightly phase-locked (`<0.25 ms`) to Zynthian / `Eka Roll` Host Transport (`time:Position`) or internal BPM (`40..240`).
   - **One-tap export to ZynSeq (`->ZSeq`)** with automatic bar-count calculation from the LCM of polyrhythmic pad lengths.
@@ -101,4 +101,4 @@ make -C plugins/pads test            # DSP core, LV2 host and widget tests
 
 ## License
 
-GPL-3.0-or-later. See [LICENSE](LICENSE).
+GPL-3.0-or-later. See [LICENSE](LICENSE). Changes: [CHANGELOG.md](CHANGELOG.md).

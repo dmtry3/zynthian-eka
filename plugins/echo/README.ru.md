@@ -80,4 +80,4 @@ SAN=1 make -C plugins/echo test      # с AddressSanitizer + UBSan
 
 ## Лицензия
 
-GPL-3.0-or-later. См. [LICENSE](LICENSE).
+GPL-3.0-or-later. См. [LICENSE](LICENSE). Изменения: [CHANGELOG.md](CHANGELOG.md).

@@ -56,7 +56,7 @@ systemctl restart zynthian
 Обновление одной строкой:
 
 ```bash
-cd /root/zynthian-eka && git pull && cd plugins/mist && sudo make install && systemctl restart zynthian
+cd /root/zynthian-eka && git pull && sudo make install-mist && systemctl restart zynthian
 ```
 
 `make install` собирает плагин на устройстве (gcc, `lv2-dev`, `libsndfile` — всё есть на Zynthian) и создаёт:
@@ -115,4 +115,4 @@ make test       # движок офлайн и виджет с заглушка�
 
 ## Лицензия
 
-GPL-3.0-or-later, см. [LICENSE](LICENSE). У сэмплов свои лицензии: [samples/CREDITS.md](samples/CREDITS.md).
+GPL-3.0-or-later, см. [LICENSE](LICENSE). У сэмплов свои лицензии: [samples/CREDITS.md](samples/CREDITS.md). Изменения: [CHANGELOG.md](CHANGELOG.md).

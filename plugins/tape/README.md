@@ -22,11 +22,13 @@ sound goes through a fade or a crossfade.
   ±12 semitones without changing the tempo (Signalsmith Stretch).
 - **Mixer:** level, pan (stereo or split L/R per track), mute, master with a soft limiter, peak meters.
 - **Mute, Reverse, Reset** with smooth fades; hold Reset to clear everything.
+- **Non-destructive Trim:** long-press a recorded track on the Loop screen to open the Trim window and adjust loop
+  start and end markers (`FREE`, `BEAT`, or `BAR` snap); trim boundaries are saved in sessions.
 - **Sessions:** a Zynthian preset saves the whole looper with its sound (24-bit WAV), in the background,
   without stopping the loops.
 - **Footswitch:** every function is a controller on a knob page, so it maps by Zynthian's MIDI learn; the plugin
   tells a tap from a hold itself.
-- **Touch widgets:** Loop (the waves of the tracks, parts, tempo bar, visual metronome), Mixer, Speed, settings.
+- **Touch widgets:** Loop (the waves of the tracks, parts, tempo bar, visual metronome), Trim, Mixer, Speed, settings.
 
 ## Screenshots
 
@@ -49,7 +51,7 @@ systemctl restart zynthian
 Update later with one line:
 
 ```bash
-cd /root/zynthian-eka && git pull && cd plugins/tape && sudo make install && systemctl restart zynthian
+cd /root/zynthian-eka && git pull && sudo make install-tape && systemctl restart zynthian
 ```
 
 `make install` builds on the device (g++) and creates two links: `/usr/local/lib/lv2/eka-tape.lv2` →
@@ -95,4 +97,4 @@ make test       # the core offline: tracks, layers, parts, crossfades, speed, se
 ## License
 
 GPL-3.0-or-later, see [LICENSE](LICENSE). Pitch uses Signalsmith Stretch (MIT), see
-[THIRD_PARTY.md](THIRD_PARTY.md).
+[THIRD_PARTY.md](THIRD_PARTY.md). Changes: [CHANGELOG.md](CHANGELOG.md).

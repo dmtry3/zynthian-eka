@@ -51,7 +51,7 @@ cd /root/zynthian-eka && git pull && sudo make install-q4 && systemctl restart z
 | `zyngui/widgets_user/zynthian_widget_eka_q-4.py` | Touch widget (`ui/zynthian_widget_eka_q4.py`) |
 | `zynthian-my-data/presets/lv2/Eka_Q-4.presets.lv2` | User presets folder |
 
-`install.sh` also refreshes Zynthian's preset cache. Nothing in Zynthian's own files is modified. To remove: `sudo make uninstall`.
+`install.sh` refreshes Zynthian's preset cache and sets the category to **Filter & EQ**. To remove: `sudo make uninstall`.
 
 If adding for the first time, enable **Eka Q-4** in Zynthian webconf (*Software → LV2 Plugins*), then add it to a chain as an *Audio Effect*.
 
@@ -85,4 +85,4 @@ SAN=1 make -C plugins/q4 test      # with AddressSanitizer + UBSan
 
 ## License
 
-GPL-3.0-or-later. See [LICENSE](LICENSE).
+GPL-3.0-or-later. See [LICENSE](LICENSE). Changes: [CHANGELOG.md](CHANGELOG.md).

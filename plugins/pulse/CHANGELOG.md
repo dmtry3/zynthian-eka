@@ -1,5 +1,9 @@
 # Changelog — Eka Pulse
 
+## 1.0.1 — 2026-11-23
+
+- Made step-shape buttons taller on the `Steps` tab for easier touch control.
+
 ## 1.0.0 — 2026-11-20
 
 - **M0:** Plugin scaffold (`eka-pulse.lv2`, `eka_pulse.so`, `zynthian_widget_eka_pulse.py`), polyrhythmic 1..16-step shaper with 6 step shapes and 24 built-in patterns, `4: GATE & SPACE` slot, stereo-linked brickwall limiter, deterministic transport sync (halts when stopped, starts on beat 1).

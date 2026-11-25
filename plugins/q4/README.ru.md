@@ -51,7 +51,7 @@ cd /root/zynthian-eka && git pull && sudo make install-q4 && systemctl restart z
 | `zyngui/widgets_user/zynthian_widget_eka_q-4.py` | Тач-виджет (`ui/zynthian_widget_eka_q4.py`) |
 | `zynthian-my-data/presets/lv2/Eka_Q-4.presets.lv2` | Папка пользовательских пресетов |
 
-`install.sh` также обновляет кэш пресетов Zynthian. Файлы самого Zynthian не изменяются. Удаление: `sudo make uninstall`.
+`install.sh` обновляет кэш пресетов Zynthian и задаёт категорию **Filter & EQ**. Удаление: `sudo make uninstall`.
 
 При первом добавлении включите **Eka Q-4** в webconf Zynthian (*Software → LV2 Plugins*), затем добавьте его в цепочку как *Audio Effect*.
 
@@ -85,4 +85,4 @@ SAN=1 make -C plugins/q4 test      # с AddressSanitizer + UBSan
 
 ## Лицензия
 
-GPL-3.0-or-later. См. [LICENSE](LICENSE).
+GPL-3.0-or-later. См. [LICENSE](LICENSE). Изменения: [CHANGELOG.md](CHANGELOG.md).

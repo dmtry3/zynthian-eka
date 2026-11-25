@@ -1,6 +1,6 @@
 # Eka Weave-4 для Zynthian
 
-[English version](README.md)
+[English](README.md) · **Русский**
 
 Четырёхголосый питч-гармонизатор реального времени для [Zynthian](https://zynthian.org): **LV2-плагин (аудиоэффект)** с моно-входом и стерео-выходом, плюс **сенсорный виджет** (стереокарта высоты/панорамы, таймлайн дилэев, кривые фильтров, сцены A–D).
 
@@ -43,11 +43,19 @@
 
 ## Установка
 
+На Zynthian (SSH под root):
+
 ```bash
 git clone https://github.com/dmtry3/zynthian-eka.git
 cd zynthian-eka/plugins/weave4
-sudo ./scripts/install.sh      # собирает, устанавливает LV2-бандл и виджет, регистрирует фабричные пресеты
-sudo systemctl restart zynthian
+sudo make install              # собирает, устанавливает LV2-бандл и виджет, регистрирует фабричные пресеты
+systemctl restart zynthian
+```
+
+Обновление одной строкой:
+
+```bash
+cd /root/zynthian-eka && git pull && sudo make install-weave4 && systemctl restart zynthian
 ```
 
 `install.sh` собирает и устанавливает:
@@ -59,7 +67,7 @@ sudo systemctl restart zynthian
 
 Также скрипт регистрирует 9 фабричных пресетов в `/zynthian/config/jalv/presets_Eka_Weave-4.json` (сохраняя все существующие пользовательские банки) и инициализирует бандл пользовательских пресетов, чтобы сохранение в новый банк работало сразу.
 
-Файлы самого Zynthian не изменяются. Удалить: `sudo ./scripts/uninstall.sh`.
+Файлы самого Zynthian не изменяются. Удалить: `sudo make uninstall`.
 
 При первой установке обновите/включите **Eka Weave-4** в webconf Zynthian (*Software → LV2 Plugins*), затем добавьте плагин в цепочку как *Audio Effect* (Pitch). Для режима **MIDI** направьте MIDI-вход в эту цепочку.
 
@@ -157,5 +165,5 @@ DISPLAY=:0 python3 test/widget_ui.py  # Нативный Tk-тест видже�
 
 ## Лицензия и сторонний код
 
-GPL-3.0-or-later — см. `LICENSE`.
-Сторонние исходники, версии и лицензии (Bungee Basic, встроенное подмножество aubio DSP) перечислены в `THIRD_PARTY.md`.
+GPL-3.0-or-later — см. [LICENSE](LICENSE).
+Сторонние исходники, версии и лицензии (Bungee Basic, встроенное подмножество aubio DSP) перечислены в [THIRD_PARTY.md](THIRD_PARTY.md). Изменения: [CHANGELOG.md](CHANGELOG.md).

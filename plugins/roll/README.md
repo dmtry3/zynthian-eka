@@ -1,7 +1,8 @@
 # Eka Roll for Zynthian
 
-[Русская версия](README.ru.md)
-Demo video https://www.youtube.com/watch?v=ChqsykTJQ88
+**English** · [Русский](README.ru.md)
+
+Demo video: https://www.youtube.com/watch?v=ChqsykTJQ88
 
 A MIDI looper for [Zynthian](https://zynthian.org) implemented as an **LV2 MIDI-tool plugin** that sits inside a
 chain, plus an optional **on-screen widget** (piano roll, layers, slots) for the Zynthian touch UI.
@@ -51,11 +52,19 @@ a loop to a Standard MIDI File and straight into a `zynseq` pattern.
 
 ## Installation
 
+On Zynthian (SSH as root):
+
 ```bash
 git clone https://github.com/dmtry3/zynthian-eka.git
 cd zynthian-eka/plugins/roll
-sudo ./scripts/install.sh      # builds the plugin and creates two symlinks (see below)
-sudo systemctl restart zynthian
+sudo make install              # builds the plugin and creates two symlinks (see below)
+systemctl restart zynthian
+```
+
+Update in one line:
+
+```bash
+cd /root/zynthian-eka && git pull && sudo make install-roll && systemctl restart zynthian
 ```
 
 The script creates:
@@ -65,7 +74,7 @@ The script creates:
 | `/usr/local/lib/lv2/eka-roll.lv2` | `build/eka-roll.lv2` |
 | `/zynthian/zynthian-ui/zyngui/widgets_user/zynthian_widget_eka_roll.py` | `ui/zynthian_widget_eka_roll.py` |
 
-Nothing in Zynthian's own files is modified. To remove: `sudo ./scripts/uninstall.sh`.
+Nothing in Zynthian's own files is modified. To remove: `sudo make uninstall`.
 
 Add **Eka Roll** to a chain as a *MIDI tool* placed before the synth.
 
@@ -168,4 +177,4 @@ they can be mapped to hardware buttons.
 
 ## License
 
-See `LICENSE`.
+GPL-3.0-or-later, see [LICENSE](LICENSE). Changes: [CHANGELOG.md](CHANGELOG.md).

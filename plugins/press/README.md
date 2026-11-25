@@ -81,4 +81,4 @@ SAN=1 make -C plugins/press test      # with AddressSanitizer + UBSan
 
 ## License
 
-GPL-3.0-or-later. See [LICENSE](LICENSE).
+GPL-3.0-or-later. See [LICENSE](LICENSE). Changes: [CHANGELOG.md](CHANGELOG.md).
