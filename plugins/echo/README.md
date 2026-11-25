@@ -23,6 +23,13 @@ Made for four encoders: six clean knob pages covering time, mode/routing, loop t
 - **10 Factory Presets** (*Factory* bank): `Init Quarter`, `Dotted Eighth Edge`, `Warm Space Tape`, `Analog BBD Slap & Tail`, `Golden Ratio Ping-Pong`, `Ducking Lead Echo`, `Cloudy Diffused Wash`, `Dub Siren Throw`, `Polyrhythm 3 vs 4`, and `Infinite Freeze Pad`.
 - **Real-time safe:** zero allocations in `run()`, denormal/NaN-safe, click-free parameter smoothing.
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Main](docs/1-main.png) | ![FX](docs/2-perf.png) |
+| **Main:** draggable L/R tap map with BPM-synced repeats, loop HPF–LPF bar, IN/DK/OUT meters and mode/freeze/trails buttons | **FX:** live `Time FX` / `Filter FX` X-Y pad, `Wash FX` slider with `0` reset, `LINK`, `HOLD / SNAP 0` and `ZERO 0` |
+
 ## Installation
 
 On Zynthian (SSH as root):

@@ -28,6 +28,15 @@ Made for four encoders: **Auto-Select** follows the last hit pad and keeps Zynth
 - **Controller-ready (`M-VAVE SMC-PAD Pocket`):** Auto-Select, one-tap MIDI Learn, and a hardware trigger filter (`Retrig`, `MinVel`, `XTalk`) to eliminate double/phantom hits.
 - **Full Snapshot Persistence:** all 16 sample paths, pad parameters, modulation, sequencer patterns, and Aux routes are saved in Zynthian snapshots (`LV2 State`).
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Pads](docs/1-pads.png) | ![Mod](docs/2-mod.png) |
+| **Pads:** 4×4 pad grid with choke groups, waveform inspector, `Aux 1..4` send sliders and `Sc A..E` scene bar | **Mod:** `LFO 1` & `LFO 2` buttons, 4-slot modulation matrix with bipolar depth sliders and 16-pad strip |
+| ![Seq](docs/3-seq.png) | ![Kit](docs/4-kit.png) |
+| **Seq:** scenes `A..E`, `Q` quantize, `->ZSeq` export, polyrhythmic `Beg..End` steps slider and 4×8 step grid | **Kit:** factory kit loader, `MIDI Learn`, `Reset All`, `Retrig`/`MinVel`/`XTalk` filters and `Aux 1..4 -> Mixbus` routing |
+
 ## Installation
 
 On Zynthian (SSH as root):

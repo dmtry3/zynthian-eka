@@ -83,9 +83,13 @@ Raspberry Pi 5 и для работы вместе в одном сетапе.
 
 Независимая задержка L/R с интерполяцией Эрмита (`5..2500 мс`) и BPM Sync (`1/64..1 bar`), четыре характера (`Clean`, `Tape` с инерцией ленточного мотора, `BBD`, `Diff`), три стерео-роутинга (`Stereo`, `PingPong`, `Cross`), фильтры петли `HPF`/`LPF`, `Drive`, `Diffuse`, LFO-модуляция, `Duck`, `Freeze`, `Trails`, отдельный живой экран **FX** с X-Y пэдом (`Time FX`, `Filter FX`, `Wash FX`, пружинный режим `SNAP 0`, MIDI-сброс `FX Zero`) и 10 заводских пресетов.
 
+![Eka Echo](plugins/echo/docs/1-main.png)
+
 ### [Eka Pads](plugins/pads): 16-пэдовый драм-сэмплер и полиритмический секвенсор со сценами
 
 Драм-машина в стиле Bitwig Drum Machine (сетка 4×4) для пэдовых контроллеров вроде M-VAVE SMC-PAD Pocket: 16 независимых пэдов с фоновой загрузкой WAV/FLAC, анти-алиасинг питч, decay, биполярный DJ-фильтр, punch, drive/crush, 4 choke-группы, биполярный `Width`, 4 стерео-сенда `Aux` в Mixbus Zynthian, матрица модуляции на 4 слота (2 LFO + Env Follower), автофокус последнего нажатого пэда на 4 энкодера Zynthian и полиритмический 32-шаговый секвенсор со сценами, живой записью Overdub, velocity/вероятностью/трещотками на шаг и экспортом в ZynSeq.
+
+![Eka Pads](plugins/pads/docs/1-pads.png)
 
 ## Сетап
 

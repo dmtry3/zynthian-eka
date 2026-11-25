@@ -23,6 +23,13 @@
 - **10 заводских пресетов** (банк *Factory*): `Init Quarter`, `Dotted Eighth Edge`, `Warm Space Tape`, `Analog BBD Slap & Tail`, `Golden Ratio Ping-Pong`, `Ducking Lead Echo`, `Cloudy Diffused Wash`, `Dub Siren Throw`, `Polyrhythm 3 vs 4`, `Infinite Freeze Pad`.
 - **Безопасен для реального времени:** без выделений памяти в `run()`, защита от денормалов и NaN, плавное сглаживание параметров без щелчков.
 
+## Скриншоты
+
+| | |
+|---|---|
+| ![Main](docs/1-main.png) | ![FX](docs/2-perf.png) |
+| **Main:** перетаскиваемая шкала L/R с повторами в темп, полоска фильтра HPF–LPF, метры IN/DK/OUT и кнопки режимов, Freeze и Trails | **FX:** живой X-Y пэд `Time FX` / `Filter FX`, слайдер `Wash FX` с кнопкой `0`, `LINK`, `HOLD / SNAP 0` и `ZERO 0` |
+
 ## Установка
 
 На Zynthian (SSH под root):
