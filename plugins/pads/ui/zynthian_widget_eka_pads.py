@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# Eka Pads widget for Zynthian: Bitwig Drum Machine-style 4x4 pad grid,
+# Eka Pads widget for Zynthian: 4x4 pad grid,
 # waveform inspector, Auto-Select syncing Zynthian's 4 physical encoders,
 # and 8-scene 16-step sequencer with Overdub and M-VAVE SMC-PAD support.
 

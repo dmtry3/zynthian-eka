@@ -87,7 +87,7 @@ Independent L/R Hermite-interpolated delay (`5..2500 ms`) with BPM sync (`1/64..
 
 ### [Eka Pads](plugins/pads): 16-pad drum sampler & polyrhythmic scene sequencer
 
-Bitwig Drum Machine-style 4×4 drum sampler built for pad controllers (like M-VAVE SMC-PAD Pocket): 16 independent pads with async WAV/FLAC loading, anti-aliased sinc pitch, decay, bipolar DJ filter, punch, drive/crush, choke groups, bipolar `Width`, 4 stereo `Aux` sends to Zynthian Mixbuses, a 4-slot per-pad modulation matrix (2 LFOs + Env Follower), Auto-Select syncing Zynthian's 4 encoders to the last hit pad, and a polyrhythmic 32-step scene sequencer with live Overdub, per-step velocity/chance/ratchets, and one-tap export to ZynSeq.
+A 4×4 drum sampler built for pad controllers (like M-VAVE SMC-PAD Pocket): 16 independent pads with async WAV/FLAC loading, anti-aliased sinc pitch, decay, bipolar DJ filter, punch, drive/crush, choke groups, bipolar `Width`, 4 stereo `Aux` sends to Zynthian Mixbuses, a 4-slot per-pad modulation matrix (2 LFOs + Env Follower), Auto-Select syncing Zynthian's 4 encoders to the last hit pad, and a polyrhythmic 32-step scene sequencer with live Overdub, per-step velocity/chance/ratchets, and one-tap export to ZynSeq.
 
 ![Eka Pads](plugins/pads/docs/1-pads.png)
 
