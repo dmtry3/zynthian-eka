@@ -85,6 +85,11 @@ UPDATE_PERIOD = 0.06  # ~16 fps on Pi 5
 NPEAKS = 256
 
 
+def note_short(n):
+    n = int(n) & 127
+    return "%s%d" % (NOTE_NAMES[n % 12], n // 12 - 1)
+
+
 def note_name(n):
     n = int(n) & 127
     return "%s%d (%d)" % (NOTE_NAMES[n % 12], n // 12 - 1, n)
@@ -157,6 +162,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.shm_seq = -1
         self.shm_hdr = None
         self.last_shm_mode = 0
+        self.last_shm_learn = 0
         self.last_hit_seq = 0
         self.len_dragged = False
         self.pads_data = None      # list of 16 tuples (pitch, decay, filter, level, start, end, mode, punch, drive, pan, vel_sens, choke, send, mute, solo, midi_note)
@@ -171,6 +177,10 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.sample_popup = None   # None or pad_idx (0..15)
         self.sample_popup_vals = None  # dict of optimistic control values while sample popup open
         self._wave_hold_after = None
+        self.notes_popup = False   # True when 16-pad MIDI note mapping window is open
+        self.notes_reset_confirm_until = 0.0
+        self.notes_drag_override = None  # None or (pad_idx, midi_note) during vertical pad drag
+        self.last_synced_row_notes = None
         self.reset_confirm_until = 0.0
         self._reset_wait_seq = None
         self._reset_wait_until = 0.0
@@ -339,6 +349,32 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         except Exception as e:
             logging.warning("Eka Pads widget: file selector failed => %s", e)
 
+    def _get_pad_note(self, pad_idx):
+        if self.notes_drag_override and self.notes_drag_override[0] == pad_idx:
+            return int(self.notes_drag_override[1]) & 127
+        if self.pads_data and 0 <= pad_idx < len(self.pads_data):
+            return int(self.pads_data[pad_idx][15]) & 127
+        return 36 + (pad_idx & 15)
+
+    def _sync_note_encoders(self, row):
+        if not self.pads_data:
+            return
+        row = int(row) & 3
+        notes = tuple(int(self.pads_data[row * 4 + col][15]) & 127 for col in range(4))
+        for col in range(4):
+            self._zset("pad_note%d" % (col + 1), notes[col])
+        self.last_synced_row_notes = notes
+
+    def _close_notes_popup(self, restore_group=True):
+        if not self.notes_popup:
+            return
+        self.notes_popup = False
+        self.notes_reset_confirm_until = 0.0
+        self.notes_drag_override = None
+        self._zset("learn", 0)
+        if restore_group:
+            self._select_page(self.tab)
+
     def _sync_encoders_to_pad(self, pad_idx):
         """When Auto-Select or tap switches pad, update Zynthian's 12 pad zctrls to that pad's values."""
         if not self.pads_data or pad_idx < 0 or pad_idx >= EP_PADS:
@@ -369,6 +405,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         )
         for sym, val in mapping:
             self._zset(sym, val)
+        self._sync_note_encoders(pad_idx // 4)
         scene = int(round(self._mon("out_seq_scene", 0)))
         ps, pe = self._pad_range_get(scene, pad_idx)
         self._zset("pad_steps", pe)
@@ -875,7 +912,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 z.set_value(0)
             z.set_value(packed)
             # Reset one-shot / destructive commands to 0 so Zynthian snapshots never replay them on restore
-            if op in (CMD_TRIG_PAD, CMD_CLEAR_PAD, CMD_CLEAR_SCENE, CMD_COPY_SCENE):
+            if op in (CMD_TRIG_PAD, CMD_CLEAR_PAD, CMD_CLEAR_SCENE, CMD_COPY_SCENE) or (op == CMD_SET_MOD_AMT and a == 4):
                 z.set_value(0)
         except Exception:
             pass
@@ -918,6 +955,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.sample_popup = None
         self.sample_popup_vals = None
         self.lfo_popup = None
+        self.notes_popup = False
+        self.notes_reset_confirm_until = 0.0
+        self.notes_drag_override = None
         self.copy_src = -1
 
         # 1. Disconnect & clear all 4 Aux routes in JACK
@@ -965,6 +1005,10 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             ("pad_lfo2_rate", 4.0),
             ("pad_mod1_amt", 0.0),
             ("pad_mod2_amt", 0.0),
+            ("pad_note1", 36),
+            ("pad_note2", 37),
+            ("pad_note3", 38),
+            ("pad_note4", 39),
         )
         for sym, val in defaults:
             self._zset(sym, val)
@@ -1001,6 +1045,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             h[17] = 0
             self.shm_hdr = tuple(h)
         self.last_shm_mode = 0
+        self.last_shm_learn = 0
+        self.last_synced_row_notes = (36, 37, 38, 39)
         self.sel_pad = 0
         self.last_synced_pad = 0
         self.last_synced_scene = 0
@@ -1061,12 +1107,23 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self._read_shm()
         self._ensure_aux_routes()
 
-        # Sync seq_mode zctrl whenever host Transport Start/Stop changes plugin sequencer mode
+        # Sync seq_mode & learn zctrls whenever plugin updates them (transport / MIDI Learn completion)
         if self.shm_hdr:
             cur_mode = self.shm_hdr[6]
             if cur_mode != self.last_shm_mode:
                 self._zset("seq_mode", cur_mode)
                 self.last_shm_mode = cur_mode
+
+            cur_learn = self.shm_hdr[5]
+            if cur_learn != self.last_shm_learn:
+                prev_learn = self.last_shm_learn
+                self._zset("learn", cur_learn)
+                self.last_shm_learn = cur_learn
+                if prev_learn == 1 and cur_learn == 0 and self.notes_popup and self.pads_data:
+                    lp = self.shm_hdr[3]
+                    if 0 <= lp < EP_PADS:
+                        mn = int(self.pads_data[lp][15]) & 127
+                        self._toast("Pad %d -> %s" % (lp + 1, note_name(mn)), secs=2.0)
 
             # In Pads / Seq / Mod tabs, hitting any physical MIDI pad switches to that pad for editing
             hit_seq = self.shm_hdr[13]
@@ -1087,6 +1144,11 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self.last_synced_pad = self.sel_pad
             self.last_synced_scene = cur_scene
             self._sync_encoders_to_pad(self.sel_pad)
+        elif self._reset_wait_seq is None and self.pads_data is not None:
+            row = (self.sel_pad >> 2) & 3
+            row_notes = tuple(int(self.pads_data[row * 4 + col][15]) & 127 for col in range(4))
+            if row_notes != self.last_synced_row_notes:
+                self._sync_note_encoders(row)
 
         w, h = max(int(self.width), 160), max(int(self.height), 120)
         c = self.widget_canvas
@@ -2015,18 +2077,16 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         bh = max(30, fs * 2 + 10)
         fsmall = max(8, fs - 1)
 
-        pinfo = self.pads_data[self.sel_pad] if self.pads_data else None
-        midi_n = pinfo[15] if pinfo else (36 + self.sel_pad)
-        learn = self.shm_hdr[5] if self.shm_hdr else int(round(self._zval("learn", 0)))
         scene = int(round(self._mon("out_seq_scene", 0)))
 
-        # Row 1: Load Factory Kit + Pad Learn
+        # Row 1: Load Factory Kit + Pad MIDI Notes window
         half = (w - 3 * pad_m) / 2.0
         self._add_btn(c, pad_m, y, pad_m + half, y + bh, "Load Factory 16-Pad Kit",
                       COL_ACCENT, "#000000", fam, fsmall, "factory_kit", None)
         self._add_btn(c, pad_m * 2 + half, y, w - pad_m, y + bh,
-                      "Hit M-VAVE Pad..." if learn else ("Pad %d MIDI Learn (%s)" % (self.sel_pad + 1, note_name(midi_n))),
-                      COL_REC if learn else COL_PANEL, "#ffffff", fam, fsmall, "learn", 1 - learn)
+                      "Pad MIDI Notes",
+                      "#1c2a3a", "#74c0fc", fam, fsmall, "open_notes", None,
+                      outline=COL_ACCENT)
         y += bh + 10
 
         # Row 2: Clear Active Scene + Unload Pad Sample + Reset All to Default
@@ -2095,11 +2155,198 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         # Helpful M-VAVE SMC-PAD Pocket guide
         guide = (
             "M-VAVE SMC-PAD Pocket:\n"
-            "  • Pads 1..16 = MIDI Notes 36..51 (or tap MIDI Learn)\n"
+            "  • Pads 1..16 = MIDI Notes 36..51 (configure in Pad MIDI Notes)\n"
             "  • Bank B Notes 52..56 = Quantized Scene Switch A..E\n"
             "  • Seq tab: long-press bottom pad 1..16 to Mute / Unmute"
         )
         c.create_text(pad_m, y, anchor="nw", text=guide, fill="#a0a0b4", font=(fam, fsmall))
+
+        # Pad MIDI Notes configuration popup overlay
+        if self.notes_popup:
+            self._draw_notes_popup(c, w, h, top_h, fam, fs)
+
+    def _draw_notes_popup(self, c, w, h, top_h, fam, fs):
+        self.hit_boxes = []
+        sel_p = self.sel_pad
+        active_row = (sel_p >> 2) & 3
+        row_col = ROW_COLORS[active_row]
+        learn = self.shm_hdr[5] if self.shm_hdr else int(round(self._zval("learn", 0)))
+        sel_note = self._get_pad_note(sel_p)
+        fsmall = max(7, fs - 1)
+        ftiny = max(6, fs - 2)
+
+        mx = max(6, int(w * 0.02))
+        my = top_h + 4
+        px0, py0, px1, py1 = mx, my, w - mx, h - 4
+
+        # Dimmed backdrop + modal card
+        c.create_rectangle(0, top_h, w, h, fill="#0b0b0f", stipple="gray50", outline="")
+        c.create_rectangle(px0, py0, px1, py1, fill=COL_BG,
+                           outline=COL_REC if learn else row_col, width=2)
+
+        pad_i = 7
+        ix0, ix1 = px0 + pad_i, px1 - pad_i
+        iw = max(120, ix1 - ix0)
+
+        # Header bar: status title + Learn + Reset (Def) + Close
+        hdr_h = max(28, fs * 2 + 8)
+        c.create_rectangle(px0 + 1, py0 + 1, px1 - 1, py0 + hdr_h, fill=COL_PANEL, outline="")
+        c.create_rectangle(px0 + 1, py0 + 1, px1 - 1, py0 + 4,
+                           fill=COL_REC if learn else row_col, width=0)
+        if learn:
+            title_txt = "Hit MIDI pad for P%d..." % (sel_p + 1)
+            title_col = "#ff8787"
+        else:
+            title_txt = "Pad Notes  •  P%d: %s" % (sel_p + 1, note_name(sel_note))
+            title_col = row_col
+        c.create_text(ix0 + 2, py0 + hdr_h / 2 + 1, anchor="w",
+                      text=title_txt, fill=title_col, font=(fam, fs, "bold"))
+
+        bw_close = max(46, int(iw * 0.12))
+        bw_rst = max(44, int(iw * 0.11))
+        bw_lrn = max(62, int(iw * 0.17))
+        bx_close = ix1 - bw_close
+        bx_rst = bx_close - bw_rst - 4
+        bx_lrn = bx_rst - bw_lrn - 4
+
+        self._add_btn(c, bx_lrn, py0 + 4, bx_lrn + bw_lrn, py0 + hdr_h - 3,
+                      "Learn ON" if learn else "Learn",
+                      COL_REC if learn else "#251c22",
+                      "#ffffff" if learn else "#ff8787",
+                      fam, fsmall, "notes_learn", 1 - learn,
+                      outline="#ffffff" if learn else COL_REC)
+        confirming = time.monotonic() < self.notes_reset_confirm_until
+        self._add_btn(c, bx_rst, py0 + 4, bx_rst + bw_rst, py0 + hdr_h - 3,
+                      "Sure?" if confirming else "Def",
+                      "#e67700" if confirming else COL_PANEL,
+                      "#000000" if confirming else "#ffd43b",
+                      fam, fsmall, "notes_reset", None,
+                      outline="#ffd43b" if confirming else "#444452")
+        self._add_btn(c, bx_close, py0 + 4, ix1, py0 + hdr_h - 3, "Close",
+                      "#2a2a34", "#f0f0f5", fam, fsmall, "notes_close", None,
+                      outline="#444452")
+
+        # Body: Row selector column (left) + 4x4 Pad Note grid (right)
+        body_y = py0 + hdr_h + 5
+        body_h = max(132, py1 - body_y - 5)
+        row_w = max(36, int(iw * 0.105))
+        grid_x0 = ix0 + row_w + 5
+        grid_w = max(120, ix1 - grid_x0)
+        cw = grid_w / 4.0
+        ch = body_h / 4.0
+
+        # Active row highlight frame spanning row selector + 4 pads (shows encoder mapping)
+        ar_ui = 3 - active_row
+        ary0 = body_y + ar_ui * ch
+        ary1 = ary0 + ch
+        c.create_rectangle(ix0 - 2, ary0, ix1 + 2, ary1,
+                           fill="#1b2130", outline=row_col, width=1)
+
+        # Left column: 4 Row buttons (R4 top .. R1 bottom)
+        for row_hw in range(4):
+            row_ui = 3 - row_hw
+            ry0 = body_y + row_ui * ch + 2
+            ry1 = body_y + (row_ui + 1) * ch - 2
+            r_col = ROW_COLORS[row_hw]
+            is_act = (row_hw == active_row)
+            c.create_rectangle(ix0, ry0, ix0 + row_w, ry1,
+                               fill=r_col if is_act else COL_PANEL,
+                               outline="#ffffff" if is_act else "#3e3e4a",
+                               width=2 if is_act else 1)
+            if not is_act:
+                c.create_rectangle(ix0 + 1, ry0 + 1, ix0 + 4, ry1 - 1, fill=r_col, width=0)
+            rmid = (ry0 + ry1) / 2.0
+            if ch >= 42:
+                c.create_text(ix0 + row_w / 2, rmid - fs * 0.55,
+                              text="R%d" % (row_hw + 1),
+                              fill="#000000" if is_act else "#f0f0f5",
+                              font=(fam, fsmall, "bold"))
+                c.create_text(ix0 + row_w / 2, rmid + fs * 0.65,
+                              text="%d-%d" % (row_hw * 4 + 1, row_hw * 4 + 4),
+                              fill="#141418" if is_act else "#9090a4",
+                              font=(fam, ftiny))
+            else:
+                c.create_text(ix0 + row_w / 2, rmid,
+                              text="R%d" % (row_hw + 1),
+                              fill="#000000" if is_act else "#f0f0f5",
+                              font=(fam, fsmall, "bold"))
+            self.hit_boxes.append((ix0, ry0, ix0 + row_w, ry1, "notes_row", row_hw))
+
+        # Right 4x4 Grid: 16 Pads (bottom row = Pads 1..4, top row = Pads 13..16)
+        for p in range(EP_PADS):
+            col_i = p % 4
+            row_hw = p // 4
+            row_ui = 3 - row_hw
+            gx0 = grid_x0 + col_i * cw + 2
+            gy0 = body_y + row_ui * ch + 2
+            gx1 = grid_x0 + (col_i + 1) * cw - 2
+            gy1 = body_y + (row_ui + 1) * ch - 2
+
+            is_sel = (p == sel_p)
+            is_ar = (row_hw == active_row)
+            mn = self._get_pad_note(p)
+            lvl = self._mon("out_pad_lvl%d" % (p + 1), 0.0)
+            accent = ROW_COLORS[row_hw]
+
+            if is_sel and learn:
+                bg = "#4a1c24"
+                out_c = COL_REC
+                out_w = 2
+            elif is_sel:
+                bg = COL_PAD_SEL
+                out_c = "#ffffff"
+                out_w = 2
+            elif lvl > 0.05:
+                bg = "#3b4866"
+                out_c = accent if is_ar else "#6c7a9c"
+                out_w = 1
+            elif is_ar:
+                bg = "#252b3b"
+                out_c = accent
+                out_w = 1
+            else:
+                bg = COL_PAD
+                out_c = "#3a3a46"
+                out_w = 1
+
+            c.create_rectangle(gx0, gy0, gx1, gy1, fill=bg, outline=out_c, width=out_w)
+            c.create_rectangle(gx0 + 1, gy0 + 1, gx1 - 1, gy0 + 4,
+                               fill=COL_REC if (is_sel and learn) else accent, width=0)
+
+            if lvl > 0.02:
+                bar_w = max(2, int((gx1 - gx0 - 4) * min(lvl, 1.0)))
+                c.create_rectangle(gx0 + 2, gy1 - 4, gx0 + 2 + bar_w, gy1 - 1, fill="#ffd43b", width=0)
+
+            # Top-left: Pad number; Top-right: Encoder badge (E1..E4) or LRN
+            c.create_text(gx0 + 4, gy0 + 6, anchor="nw", text="P%d" % (p + 1),
+                          fill="#c0c4d4" if is_ar else "#88889a", font=(fam, ftiny))
+            if is_sel and learn:
+                c.create_text(gx1 - 4, gy0 + 6, anchor="ne", text="LRN",
+                              fill="#ff8787", font=(fam, ftiny, "bold"))
+            elif is_ar:
+                c.create_text(gx1 - 4, gy0 + 6, anchor="ne", text="E%d" % (col_i + 1),
+                              fill=accent, font=(fam, ftiny, "bold"))
+
+            # Center: Note name + MIDI number
+            note_txt = ("%s (%d)" % (note_short(mn), mn)) if cw >= 92 else ("%s %d" % (note_short(mn), mn))
+            cy = (gy0 + gy1) / 2.0 + (0 if ch < 50 else -2)
+            c.create_text((gx0 + gx1) / 2.0, cy, text=note_txt,
+                          fill="#ffffff" if (is_sel or is_ar) else "#e0e0ea",
+                          font=(fam, fs if cw >= 86 else fsmall, "bold"))
+
+            # Bottom: short sample name
+            if ch >= 48:
+                sname = short_sample_name(self._pad_path(p), p)
+                c.create_text((gx0 + gx1) / 2.0, gy1 - max(9, ftiny + 3),
+                              text=sname,
+                              fill="#b8c0d4" if is_sel else "#8c90a4",
+                              font=(fam, ftiny))
+
+            self.hit_boxes.append((gx0, gy0, gx1, gy1, "notes_pad", p))
+
+        # Absorb taps inside popup background; tapping outside closes popup
+        self.hit_boxes.append((px0, py0, px1, py1, "notes_nop", None))
+        self.hit_boxes.append((0, 0, w, h, "notes_close", None))
 
     # ---------- Touch Interaction ----------
 
@@ -2124,6 +2371,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.step_drag_override = None
                 self.sample_popup = None
                 self.sample_popup_vals = None
+                self._close_notes_popup(restore_group=False)
                 self.reset_confirm_until = 0.0
                 self._select_page(arg)
                 self.refresh_gui()
@@ -2347,6 +2595,63 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
 
             if action == "factory_kit":
                 self._load_factory_kit()
+                self.refresh_gui()
+                return
+
+            if action == "open_notes":
+                self.notes_popup = True
+                self.notes_reset_confirm_until = 0.0
+                self.notes_drag_override = None
+                self.last_synced_row_notes = None
+                self._select_group("g_notes")
+                self.refresh_gui()
+                return
+
+            if action == "notes_nop":
+                return
+
+            if action == "notes_close":
+                self._close_notes_popup(restore_group=True)
+                self.refresh_gui()
+                return
+
+            if action == "notes_learn":
+                self._zset("learn", arg)
+                self.refresh_gui()
+                return
+
+            if action == "notes_reset":
+                if now < self.notes_reset_confirm_until:
+                    self.notes_reset_confirm_until = 0.0
+                    self._send_cmd(CMD_SET_MOD_AMT, a=4, c=1)
+                    self.last_synced_row_notes = None
+                    self._toast("Pad notes reset to 36..51", secs=2.5)
+                else:
+                    self.notes_reset_confirm_until = now + 3.0
+                    self._toast("Tap Def again to reset notes (36..51)", secs=3.0)
+                self.refresh_gui()
+                return
+
+            if action == "notes_row":
+                row_hw = arg & 3
+                new_pad = row_hw * 4 + (self.sel_pad % 4)
+                self.sel_pad = new_pad
+                self._zset("sel_pad", new_pad)
+                self.last_synced_pad = -1
+                self.last_synced_row_notes = None
+                self._select_group("g_notes")
+                self.refresh_gui()
+                return
+
+            if action == "notes_pad":
+                p = arg & 15
+                cur_note = self._get_pad_note(p)
+                self.sel_pad = p
+                self._zset("sel_pad", p)
+                self.last_synced_pad = -1
+                self.last_synced_row_notes = None
+                self._select_group("g_notes")
+                self.drag_info = ("notes_pad_drag", [p, cur_note, False], y, cur_note)
                 self.refresh_gui()
                 return
 
@@ -2654,6 +2959,21 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         if not self.drag_info or event is None:
             return
         kind, arg, y0, start_val = self.drag_info
+        if kind == "notes_pad_drag":
+            p, last_n, moved = arg
+            dy = y0 - event.y
+            if not moved and abs(dy) < 10:
+                return
+            arg[2] = True
+            nn = max(0, min(127, int(round(start_val + dy / 8.0))))
+            if nn != last_n:
+                arg[1] = nn
+                self.notes_drag_override = (p, nn)
+                self._send_cmd(CMD_SET_MOD_AMT, a=4, b=p, c=0, val=nn)
+                if self.shm_hdr and ((self.shm_hdr[3] >> 2) & 3) == ((p >> 2) & 3):
+                    self._zset("pad_note%d" % ((p % 4) + 1), nn)
+                self.refresh_gui()
+            return
         if kind == "step_hold":
             sc, p, st, x0, hy0 = arg
             dx = abs(event.x - x0)
@@ -2816,6 +3136,14 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self._cancel_wave_hold()
         if self.drag_info:
             kind = self.drag_info[0]
+            if kind == "notes_pad_drag":
+                _, (p, _last_n, moved), _y0, _sv = self.drag_info
+                self.drag_info = None
+                self.notes_drag_override = None
+                if not moved:
+                    self._send_cmd(CMD_TRIG_PAD, b=p, val=110)
+                self.refresh_gui()
+                return
             if kind == "wave_hold":
                 _, (pad_i, which, wx0, wx1, x0, _y0), t0, _ = self.drag_info
                 self.drag_info = None

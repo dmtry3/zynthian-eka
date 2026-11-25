@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 (2026-11-25)
+
+- **Pad MIDI Notes Window (`Kit` tab):** replaced the single `MIDI Learn` button with a dedicated 16-pad MIDI note mapping window. Select any row (`R1..R4`) or pad to control all 4 pads in that row via Zynthian's 4 physical encoders (`Pad Notes` page: `Note 1..4`), drag vertically on any pad, arm `Learn` to reassign the selected pad from a MIDI controller, or tap `Def` twice to restore `36..51`.
+
 ## 0.2.1 (2026-11-24)
 
 - **Compact Step Popup & Velocity Drag (`Seq` tab):** long-press any step tile to open a compact popup with `Velocity` (`0..127`), `Chance` (`10..100%`), and `Roll` (`1x..4x`) sliders, while preserving vertical `Velocity` drag directly on step tiles.

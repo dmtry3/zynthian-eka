@@ -68,7 +68,7 @@ If adding for the first time, enable **Eka Pads** in Zynthian webconf (*Software
 
 ## Controls
 
-Seven pages of 4 encoders (pages 1–5 follow the currently selected pad):
+Eight pages of 4 encoders (pages 1–5 follow the currently selected pad; page 8 follows the active row in the `Pad MIDI Notes` window):
 
 | Page | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|---|
@@ -79,6 +79,7 @@ Seven pages of 4 encoders (pages 1–5 follow the currently selected pad):
 | **5. Pad Mod** | `LFO 1 Hz` (`0.05..20 Hz`) | `LFO 2 Hz` (`0.05..20 Hz`) | `Mod 1 Amt` (`-100..+100%`) | `Mod 2 Amt` (`-100..+100%`) |
 | **6. Seq & Master** | `Seq` (`Stop / Play / Rec`) | `Scene` (`Scene A..E`) | `Swing` (`50..75%`) | `Master` (`0..100%`) |
 | **7. Steps & Stereo** | `Stereo` (`0..200%`) | `Steps` (`1..32`) | `Beg Step` (`1..32`) | — |
+| **8. Pad Notes** | `Note 1` (`0..127`) | `Note 2` (`0..127`) | `Note 3` (`0..127`) | `Note 4` (`0..127`) |
 
 ## Widget & Gestures
 
@@ -97,7 +98,7 @@ Four tabs along the top bar (`Pads | Mod | Seq | Kit`):
   - **4×8 LED step grid:** short tap toggles a step; drag up/down adjusts `Velocity`; **long press** opens the step popup with `Velocity` (`0..127`), `Chance` (`10..100%`), and `Roll` (`1x..4x`) sliders.
   - **Bottom 16-pad strip:** tap to select lane, long press to `Mute / Unmute`.
 - **`Kit` tab:**
-  - `Load Factory 16-Pad Kit`, `MIDI Learn` for the selected pad, `Clear Scene`, `Unload Pad`, `Reset All` (two-tap confirmation to reset all settings, scenes, and samples to default).
+  - `Load Factory 16-Pad Kit`, `Pad MIDI Notes` (dedicated 16-pad note-mapping window: pick a row `R1..R4` to map the 4 pads with encoders `Note 1..4`, drag vertically on a pad, arm `Learn` for the selected pad, or reset to `36..51` via `Def`), `Clear Scene`, `Unload Pad`, `Reset All` (two-tap confirmation to reset all settings, scenes, and samples to default).
   - Hardware pad filter sliders: `Retrig` (`0..80 ms`), `MinVel` (`0..40`), `XTalk` (`0..60%`).
   - `Aux 1..4 -> Mixbus` routing buttons (tap to cycle available Zynthian Mixbuses).
 

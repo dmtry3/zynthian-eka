@@ -30,7 +30,7 @@
 #define EP_SHM_MAGIC   0x45504144u /* "EPAD" */
 #define EP_SHM_VER     10u
 
-/* Control input ports MUST come first (contiguous 0..26) so Zynthian's synthetic
+/* Control input ports MUST come first (contiguous 0..30) so Zynthian's synthetic
  * patch:writable parameter indices never collide with Input ControlPorts! */
 enum {
   P_PITCH = 0, P_DECAY, P_FILTER, P_LEVEL,        /* Page 1: Pad Sound */
@@ -49,24 +49,28 @@ enum {
   P_PAD_LFO2_RATE,                                /* index 24: Selected pad LFO 2 Rate 0.05..20 Hz */
   P_PAD_MOD1_AMT,                                 /* index 25: Selected pad Mod 1 Amount -100..+100% */
   P_PAD_MOD2_AMT,                                 /* index 26: Selected pad Mod 2 Amount -100..+100% */
-  P_MIDI_IN,                                      /* index 27 */
-  P_OUT_L,                                        /* index 28 */
-  P_OUT_R,                                        /* index 29 */
-  P_AUX1_L,                                       /* index 30 */
-  P_AUX1_R,                                       /* index 31 */
-  P_AUX2_L,                                       /* index 32 */
-  P_AUX2_R,                                       /* index 33 */
-  P_AUX3_L,                                       /* index 34 */
-  P_AUX3_R,                                       /* index 35 */
-  P_AUX4_L,                                       /* index 36 */
-  P_AUX4_R,                                       /* index 37 */
-  P_NOTIFY,                                       /* index 38 */
-  P_OUT_SEL_PAD,                                  /* index 39 */
-  P_OUT_SEQ_STEP,                                 /* index 40 */
-  P_OUT_SEQ_SCENE,                                /* index 41 */
-  P_OUT_SEQ_PEND,                                 /* index 42 */
-  P_OUT_LVL0,                                     /* index 43..58 (16 ports) */
-  P_OUT_PLAYHEAD = P_OUT_LVL0 + EP_PADS           /* index 59 */
+  P_PAD_NOTE1,                                    /* index 27: Selected row col 1 MIDI note 0..127 */
+  P_PAD_NOTE2,                                    /* index 28: Selected row col 2 MIDI note 0..127 */
+  P_PAD_NOTE3,                                    /* index 29: Selected row col 3 MIDI note 0..127 */
+  P_PAD_NOTE4,                                    /* index 30: Selected row col 4 MIDI note 0..127 */
+  P_MIDI_IN,                                      /* index 31 */
+  P_OUT_L,                                        /* index 32 */
+  P_OUT_R,                                        /* index 33 */
+  P_AUX1_L,                                       /* index 34 */
+  P_AUX1_R,                                       /* index 35 */
+  P_AUX2_L,                                       /* index 36 */
+  P_AUX2_R,                                       /* index 37 */
+  P_AUX3_L,                                       /* index 38 */
+  P_AUX3_R,                                       /* index 39 */
+  P_AUX4_L,                                       /* index 40 */
+  P_AUX4_R,                                       /* index 41 */
+  P_NOTIFY,                                       /* index 42 */
+  P_OUT_SEL_PAD,                                  /* index 43 */
+  P_OUT_SEQ_STEP,                                 /* index 44 */
+  P_OUT_SEQ_SCENE,                                /* index 45 */
+  P_OUT_SEQ_PEND,                                 /* index 46 */
+  P_OUT_LVL0,                                     /* index 47..62 (16 ports) */
+  P_OUT_PLAYHEAD = P_OUT_LVL0 + EP_PADS           /* index 63 */
 };
 
 #define N_CTL     P_END
@@ -144,11 +148,13 @@ typedef struct {
   const float* in_pad_aux[EP_AUX_BUSES];
   const float* in_pad_lfo_rate[EP_LFOS];
   const float* in_pad_mod_amt[2];
+  const float* in_pad_note[4];
   float prev_pad_steps;
   float prev_pad_beg;
   float prev_pad_aux[EP_AUX_BUSES];
   float prev_pad_lfo_rate[EP_LFOS];
   float prev_pad_mod_amt[2];
+  float prev_pad_note[4];
   int have_prev_steps;
 
   LV2_URID_Map* map;
@@ -766,7 +772,19 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
       }
       break;
     case CMD_SET_MOD_AMT:
-      if (a < EP_MOD_SLOTS && b < EP_PADS) {
+      if (a == 4) {
+        if (c == 1) {
+          /* Reset all 16 pad MIDI notes to default 36..51 */
+          for (int i = 0; i < EP_PADS; i++) {
+            P->core.pad[i].midi_note = 36 + i;
+          }
+          P->shm_dirty = 1;
+        } else if (b < EP_PADS) {
+          /* Set single pad's MIDI note 0..127 */
+          P->core.pad[b].midi_note = val & 0x7F;
+          P->shm_dirty = 1;
+        }
+      } else if (a < EP_MOD_SLOTS && b < EP_PADS) {
         int v = val > 200 ? 200 : val;
         P->core.pad[b].mod_amt[a] = (float)(v - 100);
         P->shm_dirty = 1;
@@ -794,6 +812,9 @@ static void snapshot_prev_controls(EkaPads* P) {
   }
   for (int k = 0; k < 2; k++) {
     if (P->in_pad_mod_amt[k]) P->prev_pad_mod_amt[k] = *P->in_pad_mod_amt[k];
+  }
+  for (int k = 0; k < 4; k++) {
+    if (P->in_pad_note[k]) P->prev_pad_note[k] = *P->in_pad_note[k];
   }
   P->have_prev_ctl = 1;
   P->have_prev_steps = 1;
@@ -1104,6 +1125,10 @@ static void connect_port(LV2_Handle h, uint32_t port, void* data) {
     case P_PAD_LFO2_RATE: P->in_pad_lfo_rate[1] = (const float*)data; break;
     case P_PAD_MOD1_AMT:  P->in_pad_mod_amt[0] = (const float*)data; break;
     case P_PAD_MOD2_AMT:  P->in_pad_mod_amt[1] = (const float*)data; break;
+    case P_PAD_NOTE1:     P->in_pad_note[0] = (const float*)data; break;
+    case P_PAD_NOTE2:     P->in_pad_note[1] = (const float*)data; break;
+    case P_PAD_NOTE3:     P->in_pad_note[2] = (const float*)data; break;
+    case P_PAD_NOTE4:     P->in_pad_note[3] = (const float*)data; break;
     default:
       if (port >= P_OUT_LVL0 && port < P_OUT_LVL0 + EP_PADS)
         P->out_lvl[port - P_OUT_LVL0] = (float*)data;
@@ -1190,10 +1215,31 @@ static void run(LV2_Handle h, uint32_t nframes) {
     for (int k = 0; k < 2; k++) {
       if (P->in_pad_mod_amt[k]) P->prev_pad_mod_amt[k] = *P->in_pad_mod_amt[k];
     }
+    for (int k = 0; k < 4; k++) {
+      if (P->in_pad_note[k]) P->prev_pad_note[k] = *P->in_pad_note[k];
+    }
     P->have_prev_steps = 1;
   } else {
     int sc = P->core.seq.scene;
     int pd = P->sel_pad;
+    int row = (pd >> 2) & 3;
+    for (int col = 0; col < 4; col++) {
+      if (P->in_pad_note[col]) {
+        float v = *P->in_pad_note[col];
+        if (fabsf(v - P->prev_pad_note[col]) > 0.4f) {
+          P->prev_pad_note[col] = v;
+          int mn = (int)lrintf(v);
+          if (mn < 0) mn = 0;
+          if (mn > 127) mn = 127;
+          int tp = row * 4 + col;
+          if (P->core.pad[tp].midi_note != mn) {
+            P->core.pad[tp].midi_note = mn;
+            P->shm_dirty = 1;
+            P->seq_notify_dirty = 1;
+          }
+        }
+      }
+    }
     for (int k = 0; k < EP_LFOS; k++) {
       if (P->in_pad_lfo_rate[k]) {
         float v = *P->in_pad_lfo_rate[k];
