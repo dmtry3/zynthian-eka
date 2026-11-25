@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3 (2026-11-25)
+
+- **Optional USB SMC-PAD Patch (`make patch-smcpad` / `scripts/patch-smcpad.sh`):** disables autoloading of Zynthian's `zynthian_ctrldev_sinco_smk25.py` driver (`autoload_flag = False`) so plugging an M-VAVE SMC-PAD over USB (`SINCO IN 2`) no longer overwrites its pad layout via SMK25 SysEx. Includes `--status` and `--revert` flags.
+
 ## 0.2.2 (2026-11-25)
 
 - **Pad MIDI Notes Window (`Kit` tab):** replaced the single `MIDI Learn` button with a dedicated 16-pad MIDI note mapping window. Select any row (`R1..R4`) or pad to control all 4 pads in that row via Zynthian's 4 physical encoders (`Pad Notes` page: `Note 1..4`), drag vertically on any pad, arm `Learn` to reassign the selected pad from a MIDI controller, or tap `Def` twice to restore `36..51`.

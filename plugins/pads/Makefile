@@ -1,5 +1,5 @@
 # Thin wrapper: build, install, uninstall and tests are in scripts/.
-.PHONY: all install uninstall test clean
+.PHONY: all install uninstall test clean patch-smcpad
 
 all:
 	./scripts/build.sh
@@ -9,6 +9,9 @@ install:
 
 uninstall:
 	./scripts/uninstall.sh
+
+patch-smcpad:
+	./scripts/patch-smcpad.sh
 
 test:
 	./scripts/test.sh

@@ -66,6 +66,25 @@ cd /root/zynthian-eka && git pull && sudo make install-pads && systemctl restart
 
 If adding for the first time, enable **Eka Pads** in Zynthian webconf (*Software → LV2 Plugins*), then add it to a chain as a *Synthesizer / Instrument*.
 
+### Optional Patch: M-VAVE SMC-PAD over USB
+
+**M-VAVE SMC-PAD** / **SMC-PAD Pocket** uses a SINCO USB chip and exposes the port `SINCO IN 2` — the same identifier as the **SINCO SMK25** keyboard. On connection, Zynthian autoloads `zyngine/ctrldev/zynthian_ctrldev_sinco_smk25.py`, which writes an SMK25 SysEx preset to the controller and overwrites the SMC-PAD pad layout.
+
+An optional patch script disables autoloading of that driver (`autoload_flag = False`; it can still be enabled manually in Zynthian UI if needed):
+
+```bash
+cd /root/zynthian-eka/plugins/pads && sudo make patch-smcpad && systemctl restart zynthian
+```
+
+To check status or revert the patch:
+
+```bash
+./scripts/patch-smcpad.sh --status
+sudo ./scripts/patch-smcpad.sh --revert && systemctl restart zynthian
+```
+
+> Note: Zynthian software updates overwrite `/zynthian/zynthian-ui/`, so re-run `sudo make patch-smcpad && systemctl restart zynthian` after updating Zynthian.
+
 ## Controls
 
 Eight pages of 4 encoders (pages 1–5 follow the currently selected pad; page 8 follows the active row in the `Pad MIDI Notes` window):
