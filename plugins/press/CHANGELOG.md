@@ -1,5 +1,10 @@
 # Changelog — Eka Press
 
+## 0.1.2 — 2026-11-26
+
+- Fixed UI lag when turning knobs: replaced full `canvas.delete("all")` redraws in `zynthian_widget_eka_press.py` with persistent retained canvas items, fine-grained dirty-checking, knob-active monitor IPC backoff, and throttled touch drag.
+- Minor DSP speedups in `src/press_core.c` (`expf` instead of `powf` for dB-to-linear conversion, removed duplicate `tanhf` in drive).
+
 ## 0.1.1 — 2026-11-21
 
 - Long-press (0.5 s) on the mode button toggles clickless true **Bypass** (`bypass` LV2 port); the entire widget turns greyscale while bypassed.

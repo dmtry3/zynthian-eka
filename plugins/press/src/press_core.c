@@ -26,7 +26,8 @@ static inline float lin_to_db(float x) {
 }
 
 static inline float db_to_lin(float db) {
-    return powf(10.0f, db * 0.05f);
+    /* 10^(db/20) == exp(db * ln(10)/20); avoids expensive general powf() */
+    return expf(db * 0.11512925465f);
 }
 
 static inline float time_coeff(float ms, float sr) {
@@ -147,9 +148,9 @@ static inline float apply_drive(float x, float drive, float *dc_x, float *dc_y, 
     /* Pre-gain 1x .. 3.8x */
     float pre = 1.0f + drive * 2.8f;
     float bias = 0.10f * drive;
-    float s = tanhf(x * pre + bias) - tanhf(bias);
-    /* Compensate small-signal slope: d/dx tanh(pre*x + bias) at 0 = pre * sech^2(bias) */
     float tb = tanhf(bias);
+    float s = tanhf(x * pre + bias) - tb;
+    /* Compensate small-signal slope: d/dx tanh(pre*x + bias) at 0 = pre * sech^2(bias) */
     float norm = 1.0f / (pre * (1.0f - tb * tb));
     float sat = s * norm;
     /* Mild loudness compensation as signal compresses into saturation */
