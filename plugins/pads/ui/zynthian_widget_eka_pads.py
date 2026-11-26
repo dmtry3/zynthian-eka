@@ -32,15 +32,17 @@ EP_STEPS = 32
 EP_STEPS_MIN = 4
 EP_SCENE_SIZE = EP_PADS * EP_STEPS * 5 + EP_PADS * 2   # 2592 bytes
 EP_SHM_MAGIC = 0x45504144
-EP_SHM_HDR_FMT = "<IIIiiiiiiiffiIiiiiiiiiiiiiiifI"
-EP_SHM_HDR_SIZE = struct.calcsize(EP_SHM_HDR_FMT)      # 120 bytes
+EP_SHM_HDR_FMT = "<IIIiiiiiiiffiIiiiiiiiiiiiiiifIiiffif"
+EP_SHM_HDR_SIZE = struct.calcsize(EP_SHM_HDR_FMT)      # 144 bytes
 EP_PAD_FMT = "<ffffffiffffifiiiffffiiffiiiiiiiiffffffii"
 EP_PAD_SIZE = struct.calcsize(EP_PAD_FMT)              # 160 bytes
 EP_SHM_SIZE = EP_SHM_HDR_SIZE + EP_PADS * EP_PAD_SIZE + EP_SCENES * EP_SCENE_SIZE
 
 AUDIO_EXTS = (".wav", ".flac", ".aiff", ".aif", ".ogg", ".mp3")
 PLAY_MODE_NAMES = ("16L", "Chrm", "16Vl", "16Fl")
+PLAY_MODE_LABELS = ("Norm", "Chrm", "16Vl", "16Fl")
 REPEAT_DIV_NAMES = ("Rpt", "1/8", "1/16", "16T", "1/32")
+REPEAT_DIV_LABELS = ("Off", "1/8", "1/16", "16T", "1/32")
 METRO_NAMES = ("Off", "Rec", "On")
 
 # Packed seq_cmd operations matching eka_pads.c
@@ -68,8 +70,8 @@ LFO_SYNC_DIVS = ("4/1", "2/1", "1/1", "1/2", "1/4", "1/8", "1/16", "1/8T", "1/16
 LEN_PRESETS = (4, 8, 12, 16, 24, 32)
 QUANT_NAMES = ("Off", "1/16", "1/8", "1/4")
 
-TABS = ["Pads", "Mod", "Seq", "Kit"]
-TAB_GROUPS = ["g_sound", "g_mod", "g_seq", "g_mix"]
+TABS = ["Play", "Pads", "Mod", "Seq", "Kit"]
+TAB_GROUPS = ["g_seq", "g_sound", "g_mod", "g_seq", "g_mix"]
 SCENE_NAMES = ["A", "B", "C", "D", "E", "F", "G", "H"]
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
@@ -220,6 +222,15 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.toast = ""
         self.toast_until = 0.0
         self.lfo_popup = None      # None, 0 (LFO 1), or 1 (LFO 2)
+        # Play tab performance state
+        self.xy_hold_mode = False  # False = Momentary auto-return, True = Hold/Latch
+        self.perf_xy_override = None  # None or (filt, reso)
+        self.perf_fx_local = 0     # 0..4 while holding Stut / Tape Stop
+        self.perf_break_local = False
+        self.perf_throw_local = False
+        self.choke_mute_override = None
+        self.choke_solo_override = None
+        self._choke_hold_after = None
 
         self.widget_canvas = tkinter.Canvas(
             self, highlightthickness=0, relief="flat",
@@ -1147,6 +1158,14 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.notes_reset_confirm_until = 0.0
         self.notes_drag_override = None
         self.copy_src = -1
+        self.xy_hold_mode = False
+        self.perf_xy_override = None
+        self.perf_fx_local = 0
+        self.perf_break_local = False
+        self.perf_throw_local = False
+        self.choke_mute_override = None
+        self.choke_solo_override = None
+        self._cancel_choke_hold()
 
         # 1. Disconnect & clear all 4 Aux routes in JACK
         for ai in range(4):
@@ -1217,7 +1236,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             for p in range(EP_PADS):
                 sc_buf[base + EP_PADS + p] = 16
         self.scenes_data = bytes(sc_buf)
-        if self.shm_hdr and len(self.shm_hdr) >= 30:
+        if self.shm_hdr and len(self.shm_hdr) >= 36:
             h = list(self.shm_hdr)
             h[3] = 0; h[4] = 1; h[5] = 0; h[6] = 0; h[7] = 0; h[8] = -1; h[9] = -1
             h[10] = 120.0; h[11] = 50.0; h[12] = 100
@@ -1225,6 +1244,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             h[18] = 0; h[19] = 0; h[20] = 0; h[21] = 0; h[22] = 0
             h[23] = 0; h[24] = -1; h[25] = 0; h[26] = 4; h[27] = 0
             h[28] = 0.0; h[29] = 0x32102100
+            h[30] = 0; h[31] = 0; h[32] = 0.0; h[33] = 20.0; h[34] = 0; h[35] = 0.0
             self.shm_hdr = tuple(h)
         self.last_shm_mode = 0
         self.last_shm_learn = 0
@@ -1270,12 +1290,12 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         if group == self.last_group:
             return
         self.last_group = group
-        if group == "g_mod" and self.tab != 1:
-            self.tab = 1
-        elif group == "g_seq" and self.tab != 2:
+        if group == "g_mod" and self.tab != 2:
             self.tab = 2
-        elif group in ("g_sound", "g_shape", "g_mix") and self.tab in (1, 2):
-            self.tab = 0
+        elif group == "g_seq" and self.tab in (1, 2):
+            self.tab = 3
+        elif group in ("g_sound", "g_shape", "g_mix") and self.tab in (2, 3):
+            self.tab = 1
 
     # ---------- Drawing ----------
 
@@ -1307,12 +1327,12 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                         mn = int(self.pads_data[lp][15]) & 127
                         self._toast("Pad %d -> %s" % (lp + 1, note_name(mn)), secs=2.0)
 
-            # In Pads / Seq / Mod tabs, hitting any physical MIDI pad switches to that pad for editing
+            # In Play / Pads / Mod / Seq tabs, hitting any physical MIDI pad switches to that pad for editing / 16L
             hit_seq = self.shm_hdr[13]
             last_hit = self.shm_hdr[14]
             if hit_seq != self.last_hit_seq:
                 self.last_hit_seq = hit_seq
-                if self.tab in (0, 1, 2) and 0 <= last_hit < EP_PADS and last_hit != self.sel_pad:
+                if self.tab in (0, 1, 2, 3) and 0 <= last_hit < EP_PADS and last_hit != self.sel_pad:
                     self.sel_pad = last_hit
                     self._zset("sel_pad", last_hit)
                     self.last_synced_pad = -1
@@ -1344,10 +1364,12 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self._draw_topbar(c, w, top_h, fam, fs)
 
         if self.tab == 0:
-            self._draw_pads_tab(c, w, h, top_h, fam, fs)
+            self._draw_play_tab(c, w, h, top_h, fam, fs)
         elif self.tab == 1:
-            self._draw_mod_tab(c, w, h, top_h, fam, fs)
+            self._draw_pads_tab(c, w, h, top_h, fam, fs)
         elif self.tab == 2:
+            self._draw_mod_tab(c, w, h, top_h, fam, fs)
+        elif self.tab == 3:
             self._draw_seq_tab(c, w, h, top_h, fam, fs)
         else:
             self._draw_kit_tab(c, w, h, top_h, fam, fs)
@@ -1367,39 +1389,41 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
     def _draw_topbar(self, c, w, top_h, fam, fs):
         c.create_rectangle(0, 0, w, top_h, fill=COL_BG, outline="")
         x = 4
-        bw = max(54, int(w * 0.112))
+        bw = max(48, int(w * 0.094))
         tab_fs = fs + 1
         for i, name in enumerate(TABS):
             sel = (i == self.tab)
+            tab_col = "#40c057" if (i == 0 and sel) else (COL_ACCENT if sel else COL_PANEL)
+            out_col = "#69db7c" if (i == 0 and sel) else (COL_ACCENT if sel else "#444452")
             c.create_rectangle(x, 2, x + bw, top_h - 3,
-                               fill=COL_ACCENT if sel else COL_PANEL,
-                               outline=COL_ACCENT if sel else "#444452", width=2 if sel else 1)
+                               fill=tab_col, outline=out_col, width=2 if sel else 1)
             c.create_text(x + bw / 2, (top_h - 1) / 2, text=name,
                           fill="#000000" if sel else "#f0f0f5", font=(fam, tab_fs, "bold"))
             self.hit_boxes.append((x, 2, x + bw, top_h - 3, "tab", i))
             x += bw + 4
 
-        # Compact performance pills in free topbar space: 16 Levels/Chromatic + Note Repeat
+        # Compact performance pills on non-Play tabs: 16 Levels/Chromatic + Note Repeat
         play_mode = int(self.shm_hdr[18]) if (self.shm_hdr and len(self.shm_hdr) >= 30) else 0
         rpt_div = int(self.shm_hdr[19]) if (self.shm_hdr and len(self.shm_hdr) >= 30) else 0
-        pw_p = max(44, int(w * 0.075))
         fsmall = max(7, fs - 1)
-        x += 4
-        pm_on = (play_mode > 0)
-        self._add_btn(c, x, 3, x + pw_p, top_h - 4,
-                      PLAY_MODE_NAMES[play_mode % len(PLAY_MODE_NAMES)],
-                      "#5f3dc4" if pm_on else COL_PANEL,
-                      "#ffffff" if pm_on else "#a0a4b8", fam, fsmall,
-                      "cycle_play_mode", (play_mode + 1) % len(PLAY_MODE_NAMES),
-                      outline="#b197fc" if pm_on else "#3e3e4c")
-        x += pw_p + 4
-        rp_on = (rpt_div > 0)
-        self._add_btn(c, x, 3, x + pw_p, top_h - 4,
-                      REPEAT_DIV_NAMES[rpt_div % len(REPEAT_DIV_NAMES)],
-                      "#d9480f" if rp_on else COL_PANEL,
-                      "#ffffff" if rp_on else "#a0a4b8", fam, fsmall,
-                      "cycle_repeat_div", (rpt_div + 1) % len(REPEAT_DIV_NAMES),
-                      outline="#ffa94d" if rp_on else "#3e3e4c")
+        if self.tab != 0:
+            pw_p = max(40, int(w * 0.068))
+            x += 2
+            pm_on = (play_mode > 0)
+            self._add_btn(c, x, 3, x + pw_p, top_h - 4,
+                          PLAY_MODE_NAMES[play_mode % len(PLAY_MODE_NAMES)],
+                          "#5f3dc4" if pm_on else COL_PANEL,
+                          "#ffffff" if pm_on else "#a0a4b8", fam, fsmall,
+                          "cycle_play_mode", (play_mode + 1) % len(PLAY_MODE_NAMES),
+                          outline="#b197fc" if pm_on else "#3e3e4c")
+            x += pw_p + 4
+            rp_on = (rpt_div > 0)
+            self._add_btn(c, x, 3, x + pw_p, top_h - 4,
+                          REPEAT_DIV_NAMES[rpt_div % len(REPEAT_DIV_NAMES)],
+                          "#d9480f" if rp_on else COL_PANEL,
+                          "#ffffff" if rp_on else "#a0a4b8", fam, fsmall,
+                          "cycle_repeat_div", (rpt_div + 1) % len(REPEAT_DIV_NAMES),
+                          outline="#ffa94d" if rp_on else "#3e3e4c")
 
         # Status pills on top right: Scene / Fill / Chain / Count-in + BPM + Seq state
         scene = int(round(self._mon("out_seq_scene", 0)))
@@ -1425,6 +1449,372 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                     sc_txt += "->%s" % SCENE_NAMES[pend]
             info = "%s %d [%s]" % (sc_txt, bpm, st_txt)
         c.create_text(w - 6, top_h / 2, anchor="e", text=info, fill=st_col, font=(fam, max(8, fs - 1)))
+
+    def _get_choke_masks(self):
+        now = time.monotonic()
+        shm_m = int(self.shm_hdr[30]) & 0xF if (self.shm_hdr and len(self.shm_hdr) >= 36) else 0
+        shm_s = int(self.shm_hdr[31]) & 0xF if (self.shm_hdr and len(self.shm_hdr) >= 36) else 0
+        if self.choke_mute_override is not None:
+            mv, until = self.choke_mute_override
+            if now < until and shm_m != mv:
+                shm_m = mv
+            else:
+                self.choke_mute_override = None
+        if self.choke_solo_override is not None:
+            sv, until = self.choke_solo_override
+            if now < until and shm_s != sv:
+                shm_s = sv
+            else:
+                self.choke_solo_override = None
+        return shm_m, shm_s
+
+    def _set_choke_masks(self, mute_mask=None, solo_mask=None):
+        now = time.monotonic()
+        if mute_mask is not None:
+            m = int(mute_mask) & 0xF
+            self.choke_mute_override = (m, now + 0.30)
+            self._send_cmd(CMD_SET_MOD_AMT, a=6, c=11, val=m)
+        if solo_mask is not None:
+            s = int(solo_mask) & 0xF
+            self.choke_solo_override = (s, now + 0.30)
+            self._send_cmd(CMD_SET_MOD_AMT, a=6, c=12, val=s)
+
+    def _get_perf_xy(self):
+        now = time.monotonic()
+        pf = float(self.shm_hdr[32]) if (self.shm_hdr and len(self.shm_hdr) >= 36) else 0.0
+        pr = float(self.shm_hdr[33]) if (self.shm_hdr and len(self.shm_hdr) >= 36) else 20.0
+        if self.perf_xy_override is not None:
+            ov_f, ov_r, until = self.perf_xy_override
+            if until is None or now < until:
+                return ov_f, ov_r
+            self.perf_xy_override = None
+        return pf, pr
+
+    def _send_perf_xy(self, filt, reso, persistent=False):
+        fv = max(-100, min(100, int(round(filt))))
+        rv = max(0, min(100, int(round(reso))))
+        until = None if persistent else (time.monotonic() + 0.30)
+        self.perf_xy_override = (float(fv), float(rv), until)
+        self._send_cmd(CMD_SET_MOD_AMT, a=6, c=13, val=fv + 100)
+        self._send_cmd(CMD_SET_MOD_AMT, a=6, c=14, val=rv)
+        return fv, rv
+
+    def _apply_perf_xy(self, x0, y0, x1, y1, x, y):
+        tx = max(0.0, min(1.0, (x - x0) / max(1.0, x1 - x0)))
+        ty = max(0.0, min(1.0, (y - y0) / max(1.0, y1 - y0)))
+        filt = int(round((tx * 200.0 - 100.0) / 2.0)) * 2
+        if abs(filt) <= 3:
+            filt = 0
+        reso = int(round(((1.0 - ty) * 100.0) / 2.0)) * 2
+        return self._send_perf_xy(filt, reso, persistent=True)
+
+    def _send_perf_flags(self):
+        val = (1 if self.perf_break_local else 0) | (2 if self.perf_throw_local else 0)
+        self._send_cmd(CMD_SET_MOD_AMT, a=6, c=16, val=val)
+
+    def _release_momentary_fx(self):
+        if self.perf_fx_local != 0:
+            self.perf_fx_local = 0
+            self._send_cmd(CMD_SET_MOD_AMT, a=6, c=15, val=0)
+        if self.perf_break_local or self.perf_throw_local:
+            self.perf_break_local = False
+            self.perf_throw_local = False
+            self._send_perf_flags()
+
+    def _cancel_choke_hold(self):
+        if self._choke_hold_after is not None:
+            try:
+                self.after_cancel(self._choke_hold_after)
+            except Exception:
+                pass
+            self._choke_hold_after = None
+
+    def _on_choke_hold_timeout(self, grp):
+        self._choke_hold_after = None
+        if self.drag_info and self.drag_info[0] == "choke_hold" and self.drag_info[1] == grp:
+            self.drag_info = None
+            _cm, cs = self._get_choke_masks()
+            new_s = cs ^ (1 << grp)
+            self._set_choke_masks(solo_mask=new_s)
+            self._toast("Solo G%d" % (grp + 1) if (new_s & (1 << grp)) else "Solo G%d Off" % (grp + 1), secs=1.5)
+            self.refresh_gui()
+
+    def _draw_play_tab(self, c, w, h, top_h, fam, fs):
+        pad_m = 6
+        y0 = top_h + pad_m
+        fsmall = max(7, fs - 1)
+        ftiny = max(6, fs - 2)
+
+        scene = int(round(self._mon("out_seq_scene", 0)))
+        pend = int(round(self._mon("out_seq_pend", -1)))
+        smode = self.shm_hdr[6] if self.shm_hdr else int(round(self._zval("seq_mode", 0)))
+        play_mode = int(self.shm_hdr[18]) if (self.shm_hdr and len(self.shm_hdr) >= 30) else 0
+        rpt_div = int(self.shm_hdr[19]) if (self.shm_hdr and len(self.shm_hdr) >= 30) else 0
+        fill_ret = int(self.shm_hdr[24]) if (self.shm_hdr and len(self.shm_hdr) >= 30) else -1
+        bar_phase = float(self.shm_hdr[35]) if (self.shm_hdr and len(self.shm_hdr) >= 36) else 0.0
+        choke_mute, choke_solo = self._get_choke_masks()
+        perf_filt, perf_reso = self._get_perf_xy()
+        fx_flags = int(self.shm_hdr[34]) if (self.shm_hdr and len(self.shm_hdr) >= 36) else 0
+        cur_fx = self.perf_fx_local if self.perf_fx_local else (fx_flags & 0xF)
+        is_break = self.perf_break_local or bool(fx_flags & 0x10)
+        is_throw = self.perf_throw_local or bool(fx_flags & 0x20)
+
+        # ---- Bottom Full-Width: 4-Beat Bar Progress + 5 Large Scene Buttons (A..E, hold = 1-Bar Fill) ----
+        prog_h = 8
+        sc_h = max(46, fs * 3 + 16)
+        sc_y0 = h - pad_m - sc_h
+        prog_y0 = sc_y0 - prog_h - 4
+        beat_w = (w - 2 * pad_m - 12) / 4.0
+        for b in range(4):
+            bx0 = pad_m + b * (beat_w + 4)
+            bx1 = bx0 + beat_w
+            c.create_rectangle(bx0, prog_y0, bx1, prog_y0 + prog_h, fill="#1a1c24", outline="#2f3342", width=1)
+            if smode >= 1:
+                b_start = b * 4.0
+                if bar_phase >= b_start + 4.0:
+                    c.create_rectangle(bx0 + 1, prog_y0 + 1, bx1 - 1, prog_y0 + prog_h - 1, fill="#2b6cb0", outline="")
+                elif bar_phase > b_start:
+                    frac = max(0.0, min(1.0, (bar_phase - b_start) / 4.0))
+                    fx = bx0 + 1 + frac * max(1.0, bx1 - bx0 - 2)
+                    c.create_rectangle(bx0 + 1, prog_y0 + 1, fx, prog_y0 + prog_h - 1,
+                                       fill=COL_PEND if fill_ret >= 0 else COL_ACCENT, outline="")
+
+        sbw = (w - 2 * pad_m + 4) / float(EP_UI_SCENES)
+        for s in range(EP_UI_SCENES):
+            sx0 = pad_m + s * sbw
+            sx1 = sx0 + sbw - 4
+            is_fill = (fill_ret >= 0 and s == scene)
+            if is_fill:
+                bg, fg, out_c = "#e64980", "#ffffff", "#ff8787"
+                lbl = "Fill %s->%s" % (SCENE_NAMES[s], SCENE_NAMES[fill_ret & 7])
+            elif s == scene:
+                bg, fg, out_c = COL_ACCENT, "#000000", "#a5d8ff"
+                lbl = "Scene " + SCENE_NAMES[s]
+            elif s == pend:
+                bg, fg, out_c = COL_PEND, "#000000", "#fff3bf"
+                lbl = "Next " + SCENE_NAMES[s]
+            else:
+                bg, fg, out_c = COL_PANEL, "#f0f0f5", "#444452"
+                lbl = "Scene " + SCENE_NAMES[s]
+            self._add_btn(c, sx0, sc_y0, sx1, h - pad_m, lbl, bg, fg, fam, fs + 1, "scene", s, outline=out_c)
+
+        # ---- Main Two-Column Performance Area ----
+        body_y1 = prog_y0 - 6
+        body_h = max(140, body_y1 - y0)
+        mid_x = w // 2
+        lx0, lx1 = pad_m, mid_x - 4
+        rx0, rx1 = mid_x + 4, w - pad_m
+        lw = max(100, lx1 - lx0)
+        rw = max(100, rx1 - rx0)
+
+        # ==== LEFT COLUMN: Choke Groups (top) + Note Repeat (mid) + 16 Levels (bot) ====
+        gap_y = 6
+        ch_h = int(body_h * 0.44)
+        rpt_h = int(body_h * 0.27)
+        l16_h = max(44, body_h - ch_h - rpt_h - 2 * gap_y)
+
+        # 1) CHOKE GROUP MUTE (4 tall buttons G1..G4 + All On)
+        hdr_h = max(18, fs + 8)
+        c.create_text(lx0 + 2, y0 + hdr_h / 2, anchor="w",
+                      text="CHOKE MUTE  (hold=Solo)", fill="#a8aebf", font=(fam, ftiny, "bold"))
+        any_choke_mod = bool(choke_mute or choke_solo)
+        all_w = max(56, int(lw * 0.22))
+        self._add_btn(c, lx1 - all_w, y0, lx1, y0 + hdr_h, "All On",
+                      "#e03131" if any_choke_mod else COL_PANEL,
+                      "#ffffff" if any_choke_mod else "#787c8c",
+                      fam, ftiny, "choke_all_on", None,
+                      outline="#ff8787" if any_choke_mod else "#383844")
+
+        gy0 = y0 + hdr_h + 3
+        gy1 = y0 + ch_h
+        gw4 = (lw - 12) / 4.0
+        for g in range(4):
+            gx0 = lx0 + g * (gw4 + 4)
+            gx1 = gx0 + gw4
+            gpads = [p for p in range(EP_PADS) if self.pads_data and int(self.pads_data[p][11]) == (g + 1)]
+            glvl = max((self._mon("out_pad_lvl%d" % (p + 1), 0.0) for p in gpads), default=0.0)
+            is_m = bool(choke_mute & (1 << g))
+            is_s = bool(choke_solo & (1 << g))
+            accent = ROW_COLORS[g]
+
+            if is_s:
+                bg, out_c, out_w = "#473b19", "#ffd43b", 2
+            elif is_m:
+                bg, out_c, out_w = "#421a22", "#fa5252", 2
+            elif glvl > 0.06:
+                bg, out_c, out_w = "#2b3852", accent, 2
+            else:
+                bg, out_c, out_w = COL_PAD if gpads else "#1b1b22", "#444858" if gpads else "#2d2e38", 1
+
+            c.create_rectangle(gx0, gy0, gx1, gy1, fill=bg, outline=out_c, width=out_w)
+            c.create_rectangle(gx0 + 1, gy0 + 1, gx1 - 1, gy0 + 6,
+                               fill="#555560" if is_m else accent, width=0)
+            if glvl > 0.02 and not is_m:
+                bw_m = max(2, int((gx1 - gx0 - 6) * min(glvl, 1.0)))
+                c.create_rectangle(gx0 + 3, gy1 - 6, gx0 + 3 + bw_m, gy1 - 2, fill="#ffd43b", width=0)
+
+            gh_box = gy1 - gy0
+            c.create_text((gx0 + gx1) / 2, gy0 + gh_box * 0.36, text="G%d" % (g + 1),
+                          fill="#ff8787" if is_m else ("#ffd43b" if is_s else ("#ffffff" if gpads else "#686c7c")),
+                          font=(fam, fs + 3, "bold"))
+            if is_s:
+                sub, sub_col = "SOLO", "#ffd43b"
+            elif is_m:
+                sub, sub_col = "MUTE", "#ff8787"
+            elif len(gpads) == 1:
+                sub, sub_col = short_sample_name(self._pad_path(gpads[0]), gpads[0])[:8], "#c0c6d8"
+            elif len(gpads) > 1:
+                sub, sub_col = "%d pads" % len(gpads), "#c0c6d8"
+            else:
+                sub, sub_col = "—", "#555866"
+            c.create_text((gx0 + gx1) / 2, gy0 + gh_box * 0.68, text=sub, fill=sub_col,
+                          font=(fam, ftiny, "bold" if (is_m or is_s) else "normal"))
+            self.hit_boxes.append((gx0, gy0, gx1, gy1, "choke_grp", g))
+
+        # 2) NOTE REPEAT (5 direct-tap buttons: Off | 1/8 | 1/16 | 16T | 1/32)
+        ry_sec = y0 + ch_h + gap_y
+        lbl_h = max(14, ftiny + 6)
+        c.create_text(lx0 + 2, ry_sec + lbl_h / 2, anchor="w",
+                      text="NOTE REPEAT", fill="#ffa94d" if rpt_div > 0 else "#a8aebf", font=(fam, ftiny, "bold"))
+        rby0 = ry_sec + lbl_h + 2
+        rby1 = ry_sec + rpt_h
+        bw5 = (lw - 12) / 5.0
+        for di, dlab in enumerate(REPEAT_DIV_LABELS):
+            bx0 = lx0 + di * (bw5 + 3)
+            bx1 = bx0 + bw5
+            sel = (rpt_div == di)
+            if sel and di > 0:
+                bg, fg, out_c = "#d9480f", "#ffffff", "#ffa94d"
+            elif sel:
+                bg, fg, out_c = "#323646", "#f0f0f5", "#6c7288"
+            else:
+                bg, fg, out_c = COL_PANEL, "#b0b4c4", "#3a3d4c"
+            self._add_btn(c, bx0, rby0, bx1, rby1, dlab, bg, fg, fam, fsmall,
+                          "set_repeat_div", di, outline=out_c)
+
+        # 3) 16 LEVELS (4 direct-tap buttons: Norm | Chrm | 16Vl | 16Fl)
+        ly_sec = ry_sec + rpt_h + gap_y
+        sel_name = short_sample_name(self._pad_path(self.sel_pad), self.sel_pad)
+        c.create_text(lx0 + 2, ly_sec + lbl_h / 2, anchor="w",
+                      text="16 LEVELS  •  P%d %s" % (self.sel_pad + 1, sel_name),
+                      fill="#b197fc" if play_mode > 0 else "#a8aebf", font=(fam, ftiny, "bold"))
+        lby0 = ly_sec + lbl_h + 2
+        lby1 = body_y1
+        bw4 = (lw - 9) / 4.0
+        for pi, plab in enumerate(PLAY_MODE_LABELS):
+            bx0 = lx0 + pi * (bw4 + 3)
+            bx1 = bx0 + bw4
+            sel = (play_mode == pi)
+            if sel and pi > 0:
+                bg, fg, out_c = "#5f3dc4", "#ffffff", "#b197fc"
+            elif sel:
+                bg, fg, out_c = "#323646", "#f0f0f5", "#6c7288"
+            else:
+                bg, fg, out_c = COL_PANEL, "#b0b4c4", "#3a3d4c"
+            self._add_btn(c, bx0, lby0, bx1, lby1, plab, bg, fg, fam, fsmall,
+                          "set_play_mode", pi, outline=out_c)
+
+        # ==== RIGHT COLUMN: Master Filter XY-Pad (top) + Punch-in FX 2x3 (bot) ====
+        xy_sec_h = int(body_h * 0.56)
+        fx_y0 = y0 + xy_sec_h + gap_y
+
+        # 1) MASTER FILTER XY-PAD (X = LP/HP, Y = Reso, Mom / Hold toggle)
+        filt_active = abs(perf_filt) >= 2.0
+        if not filt_active:
+            f_txt = "Open"
+        elif perf_filt < 0:
+            f_txt = "LP %d%% · R%d" % (abs(int(round(perf_filt))), int(round(perf_reso)))
+        else:
+            f_txt = "HP %d%% · R%d" % (int(round(perf_filt)), int(round(perf_reso)))
+        c.create_text(rx0 + 2, y0 + hdr_h / 2, anchor="w",
+                      text="MASTER FILTER  •  %s" % f_txt,
+                      fill="#da77f2" if (filt_active and perf_filt < 0) else ("#66d9e8" if filt_active else "#a8aebf"),
+                      font=(fam, ftiny, "bold"))
+        mw_btn = max(58, int(rw * 0.20))
+        self._add_btn(c, rx1 - mw_btn, y0, rx1, y0 + hdr_h,
+                      "Hold" if self.xy_hold_mode else "Mom",
+                      "#5f3dc4" if self.xy_hold_mode else "#1f3d2b",
+                      "#ffffff" if self.xy_hold_mode else "#63e6be",
+                      fam, ftiny, "xy_mode_toggle", None,
+                      outline="#b197fc" if self.xy_hold_mode else "#40c057")
+
+        xy0 = y0 + hdr_h + 3
+        xy1 = y0 + xy_sec_h
+        xymid = (rx0 + rx1) * 0.5
+        xy_col = "#da77f2" if perf_filt < -2.0 else ("#66d9e8" if perf_filt > 2.0 else "#4dabf7")
+        c.create_rectangle(rx0, xy0, rx1, xy1, fill="#12131a",
+                           outline=xy_col if filt_active else "#3a3e4e", width=2 if filt_active else 1)
+        # Subtle quadrant grid
+        for frac in (0.25, 0.5, 0.75):
+            gx = rx0 + frac * rw
+            gy = xy0 + frac * (xy1 - xy0)
+            c.create_line(gx, xy0 + 2, gx, xy1 - 2,
+                          fill="#2e3244" if frac == 0.5 else "#1d202b", width=1,
+                          dash=(3, 3) if frac == 0.5 else ())
+            c.create_line(rx0 + 2, gy, rx1 - 2, gy, fill="#1d202b", width=1)
+        # Edge labels
+        c.create_text(rx0 + 6, (xy0 + xy1) / 2, anchor="w", text="LP", fill="#6a5478", font=(fam, ftiny, "bold"))
+        c.create_text(rx1 - 6, (xy0 + xy1) / 2, anchor="e", text="HP", fill="#466e78", font=(fam, ftiny, "bold"))
+        c.create_text(xymid, xy1 - 4, anchor="s", text="OPEN", fill="#4a5064", font=(fam, max(6, ftiny - 1)))
+        c.create_text(rx0 + 6, xy0 + 4, anchor="nw", text="RESO", fill="#4a5064", font=(fam, max(6, ftiny - 1)))
+
+        # Shaded sweep fill + crosshair + glowing puck
+        px = rx0 + ((max(-100.0, min(100.0, perf_filt)) + 100.0) / 200.0) * rw
+        py = xy1 - (max(0.0, min(100.0, perf_reso)) / 100.0) * max(1.0, xy1 - xy0)
+        if filt_active:
+            xa, xb = (xymid, px) if px >= xymid else (px, xymid)
+            c.create_rectangle(xa, xy0 + 2, xb, xy1 - 2,
+                               fill="#2b1938" if perf_filt < 0 else "#152f38", outline="")
+        c.create_line(px, xy0 + 2, px, xy1 - 2, fill=xy_col, width=1)
+        c.create_line(rx0 + 2, py, rx1 - 2, py, fill=xy_col, width=1)
+        r_pk = 8
+        c.create_oval(px - r_pk, py - r_pk, px + r_pk, py + r_pk,
+                      fill=xy_col if filt_active else "#2e3548", outline="#ffffff", width=2)
+        self.hit_boxes.append((rx0, xy0, rx1, xy1, "perf_xy", (rx0, xy0, rx1, xy1)))
+
+        # 2) PUNCH-IN FX (2 rows x 3 large momentary hold buttons)
+        c.create_text(rx0 + 2, fx_y0 + lbl_h / 2, anchor="w",
+                      text="PUNCH-IN FX  (hold)",
+                      fill="#66d9e8" if (cur_fx or is_break or is_throw) else "#a8aebf",
+                      font=(fam, ftiny, "bold"))
+        fb_y0 = fx_y0 + lbl_h + 2
+        fb_h = max(60, body_y1 - fb_y0)
+        row_h = (fb_h - 4) / 2.0
+        bw3 = (rw - 8) / 3.0
+
+        # Row 1: Stut 1/4 | Stut 1/8 | Stut 1/16
+        for ci, (fx_id, lbl) in enumerate(((1, "Stut 1/4"), (2, "Stut 1/8"), (3, "Stut 1/16"))):
+            bx0 = rx0 + ci * (bw3 + 4)
+            bx1 = bx0 + bw3
+            on = (cur_fx == fx_id)
+            self._add_btn(c, bx0, fb_y0, bx1, fb_y0 + row_h, lbl,
+                          "#1098ad" if on else "#1a2832",
+                          "#ffffff" if on else "#99e9f2",
+                          fam, fsmall, "perf_fx_hold", fx_id,
+                          outline="#ffffff" if on else "#2b6c7a")
+
+        # Row 2: Tape Stop | Break (Drop) | Aux1 Throw
+        r2y0 = fb_y0 + row_h + 4
+        on_ts = (cur_fx == 4)
+        self._add_btn(c, rx0, r2y0, rx0 + bw3, body_y1, "Tape Stop",
+                      "#e67700" if on_ts else "#2e2418",
+                      "#000000" if on_ts else "#ffd43b",
+                      fam, fsmall, "perf_fx_hold", 4,
+                      outline="#ffffff" if on_ts else "#8c5c1a")
+
+        bx_br = rx0 + bw3 + 4
+        self._add_btn(c, bx_br, r2y0, bx_br + bw3, body_y1, "Break",
+                      "#e03131" if is_break else "#2e1a1f",
+                      "#ffffff" if is_break else "#ffa8a8",
+                      fam, fsmall, "perf_break_hold", None,
+                      outline="#ffffff" if is_break else "#8c2b36")
+
+        bx_th = rx0 + 2 * (bw3 + 4)
+        self._add_btn(c, bx_th, r2y0, rx1, body_y1, "Aux1 Throw",
+                      "#7048e8" if is_throw else "#241d36",
+                      "#ffffff" if is_throw else "#d0bfff",
+                      fam, fsmall, "perf_throw_hold", None,
+                      outline="#ffffff" if is_throw else "#5b4494")
 
     def _draw_pads_tab(self, c, w, h, top_h, fam, fs):
         pad_m = 4
@@ -2994,6 +3384,8 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 continue
 
             if action == "tab":
+                self._release_momentary_fx()
+                self._cancel_choke_hold()
                 self.tab = arg
                 self.copy_src = -1
                 self.lfo_popup = None
@@ -3009,6 +3401,73 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self._close_notes_popup(restore_group=False)
                 self.reset_confirm_until = 0.0
                 self._select_page(arg)
+                self.refresh_gui()
+                return
+
+            if action == "choke_grp":
+                self._cancel_choke_hold()
+                self.drag_info = ("choke_hold", arg, now, 0)
+                try:
+                    self._choke_hold_after = self.after(350, lambda g=arg: self._on_choke_hold_timeout(g))
+                except Exception:
+                    self._choke_hold_after = None
+                return
+
+            if action == "choke_all_on":
+                self._cancel_choke_hold()
+                self._set_choke_masks(mute_mask=0, solo_mask=0)
+                self._toast("All Choke Groups On", secs=1.4)
+                self.refresh_gui()
+                return
+
+            if action == "set_repeat_div":
+                self._send_cmd(CMD_SET_MOD_AMT, a=6, c=1, val=arg)
+                self.refresh_gui()
+                return
+
+            if action == "set_play_mode":
+                self._send_cmd(CMD_SET_MOD_AMT, a=6, c=0, val=arg)
+                self.refresh_gui()
+                return
+
+            if action == "xy_mode_toggle":
+                self.xy_hold_mode = not self.xy_hold_mode
+                if not self.xy_hold_mode:
+                    self._send_perf_xy(0, 20, persistent=False)
+                self.refresh_gui()
+                return
+
+            if action == "perf_xy":
+                px0, py0, px1, py1 = arg
+                if self.xy_hold_mode and self.last_tap[0] == "perf_xy" and (now - self.last_tap[1]) < 0.35:
+                    self.last_tap = (None, 0.0)
+                    self._send_perf_xy(0, 20, persistent=False)
+                    self.refresh_gui()
+                    return
+                self.last_tap = ("perf_xy", now)
+                fv, rv = self._apply_perf_xy(px0, py0, px1, py1, x, y)
+                self.drag_info = ("perf_xy", [px0, py0, px1, py1, fv, rv], y, 0)
+                self.refresh_gui()
+                return
+
+            if action == "perf_fx_hold":
+                self.perf_fx_local = arg
+                self._send_cmd(CMD_SET_MOD_AMT, a=6, c=15, val=arg)
+                self.drag_info = ("perf_fx_hold", arg, now, 0)
+                self.refresh_gui()
+                return
+
+            if action == "perf_break_hold":
+                self.perf_break_local = True
+                self._send_perf_flags()
+                self.drag_info = ("perf_break_hold", None, now, 0)
+                self.refresh_gui()
+                return
+
+            if action == "perf_throw_hold":
+                self.perf_throw_local = True
+                self._send_perf_flags()
+                self.drag_info = ("perf_throw_hold", None, now, 0)
                 self.refresh_gui()
                 return
 
@@ -4128,7 +4587,22 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self._apply_sample_seg("pad_choke", 5, kx0, kx1, event.x)
                 self.refresh_gui()
             return
-        if kind in ("seq_pad_hold", "pad_hold", "pad_16lvl_hold", "scene_hold", "clr_hold"):
+        if kind == "perf_xy":
+            px0, py0, px1, py1, last_f, last_r = arg
+            tx = max(0.0, min(1.0, (event.x - px0) / max(1.0, px1 - px0)))
+            ty = max(0.0, min(1.0, (event.y - py0) / max(1.0, py1 - py0)))
+            nf = int(round((tx * 200.0 - 100.0) / 2.0)) * 2
+            if abs(nf) <= 3:
+                nf = 0
+            nr = int(round(((1.0 - ty) * 100.0) / 2.0)) * 2
+            if nf != last_f or nr != last_r:
+                arg[4] = nf
+                arg[5] = nr
+                self._send_perf_xy(nf, nr, persistent=True)
+                self.refresh_gui()
+            return
+        if kind in ("seq_pad_hold", "pad_hold", "pad_16lvl_hold", "scene_hold", "clr_hold",
+                    "choke_hold", "perf_fx_hold", "perf_break_hold", "perf_throw_hold"):
             return
         dy = y0 - event.y
         if abs(dy) < 4:
@@ -4142,8 +4616,52 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
     def _on_release(self, event):
         self._cancel_step_hold()
         self._cancel_wave_hold()
+        self._cancel_choke_hold()
         if self.drag_info:
             kind = self.drag_info[0]
+            if kind == "choke_hold":
+                _, grp, t0, _ = self.drag_info
+                self.drag_info = None
+                cm, cs = self._get_choke_masks()
+                if (time.monotonic() - t0) >= 0.35:
+                    new_s = cs ^ (1 << grp)
+                    self._set_choke_masks(solo_mask=new_s)
+                    self._toast("Solo G%d" % (grp + 1) if (new_s & (1 << grp)) else "Solo G%d Off" % (grp + 1), secs=1.5)
+                else:
+                    new_m = cm ^ (1 << grp)
+                    if cs & (1 << grp):
+                        self._set_choke_masks(mute_mask=new_m, solo_mask=cs & ~(1 << grp))
+                    else:
+                        self._set_choke_masks(mute_mask=new_m)
+                self.refresh_gui()
+                return
+            if kind == "perf_xy":
+                _, (_px0, _py0, _px1, _py1, last_f, last_r), _y0, _ = self.drag_info
+                self.drag_info = None
+                if not self.xy_hold_mode:
+                    self._send_perf_xy(0, 20, persistent=False)
+                else:
+                    self.perf_xy_override = (float(last_f), float(last_r), time.monotonic() + 0.30)
+                self.refresh_gui()
+                return
+            if kind == "perf_fx_hold":
+                self.drag_info = None
+                self.perf_fx_local = 0
+                self._send_cmd(CMD_SET_MOD_AMT, a=6, c=15, val=0)
+                self.refresh_gui()
+                return
+            if kind == "perf_break_hold":
+                self.drag_info = None
+                self.perf_break_local = False
+                self._send_perf_flags()
+                self.refresh_gui()
+                return
+            if kind == "perf_throw_hold":
+                self.drag_info = None
+                self.perf_throw_local = False
+                self._send_perf_flags()
+                self.refresh_gui()
+                return
             if kind == "notes_pad_drag":
                 _, (p, _last_n, moved), _y0, _sv = self.drag_info
                 self.drag_info = None

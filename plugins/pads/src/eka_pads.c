@@ -28,7 +28,7 @@
 #define EP_MAX_SECONDS 120.0
 #define EP_RETIRED_MAX 32
 #define EP_SHM_MAGIC   0x45504144u /* "EPAD" */
-#define EP_SHM_VER     11u
+#define EP_SHM_VER     12u
 
 /* Control input ports MUST come first (contiguous 0..31) so Zynthian's synthetic
  * patch:writable parameter indices never collide with Input ControlPorts! */
@@ -129,12 +129,19 @@ typedef struct {
   int32_t  chain_pos;   /* 0..7 */
   float    bus_glue;    /* 0..100 % */
   uint32_t chain_packed;/* 8 x 4-bit nibbles for chain[0..7] */
+  /* v12 header fields (+24 bytes -> 144 bytes total) */
+  int32_t  choke_mute;  /* bits 0..3: Choke Grp 1..4 Mute */
+  int32_t  choke_solo;  /* bits 0..3: Choke Grp 1..4 Solo */
+  float    perf_filter; /* -100..+100 % master DJ filter */
+  float    perf_reso;   /* 0..100 % master DJ filter reso */
+  int32_t  perf_fx_flags;/* bits 0..3: perf_fx, bit 4: break, bit 5: aux1_throw */
+  float    bar_phase;   /* 0..16 in 16th-note steps */
   EpPadParams pads[EP_PADS];
   EpScene  scenes[EP_SCENES];
 } EpShm;
 _Static_assert(sizeof(EpPadParams) == 160, "EpPadParams size must match Python widget");
 _Static_assert(sizeof(EpScene) == 2592, "EpScene size must match Python widget");
-_Static_assert(sizeof(EpShm) == 23416, "EpShm size must match Python widget");
+_Static_assert(sizeof(EpShm) == 23440, "EpShm size must match Python widget");
 
 /* Worker messages */
 enum { MSG_LOAD = 1, MSG_FREE };
@@ -258,6 +265,14 @@ static void shm_publish(EkaPads* P) {
     cp |= ((uint32_t)(P->core.seq.chain[i] & 0xF)) << (i * 4);
   }
   s->chain_packed = cp;
+  s->choke_mute  = (int32_t)P->core.choke_mute_mask;
+  s->choke_solo  = (int32_t)P->core.choke_solo_mask;
+  s->perf_filter = P->core.perf_filter;
+  s->perf_reso   = P->core.perf_reso;
+  s->perf_fx_flags = (P->core.perf_fx & 0xF) |
+                     (P->core.perf_break ? 0x10 : 0) |
+                     (P->core.perf_aux1_throw ? 0x20 : 0);
+  s->bar_phase   = (float)P->core.seq.bar_phase;
   if (P->shm_dirty) {
     memcpy(s->pads, P->core.pad, sizeof P->core.pad);
     memcpy(s->scenes, P->core.scenes, sizeof P->core.scenes);
@@ -785,6 +800,17 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
         P->core.play_mode = EP_PLAY_NORMAL;
         P->core.repeat_div = EP_RPT_OFF;
         P->core.held_mask = 0;
+        P->core.choke_mute_mask = 0;
+        P->core.choke_solo_mask = 0;
+        for (int g = 0; g <= EP_CHOKE_MAX; g++) P->core.choke_env[g] = 1.0f;
+        P->core.perf_filter = 0.0f;
+        P->core.perf_reso = 20.0f;
+        P->core.perf_filter_s = 0.0f;
+        P->core.perf_reso_s = 20.0f;
+        P->core.perf_fx = EP_FX_NONE;
+        P->core.perf_fx_cur = EP_FX_NONE;
+        P->core.perf_break = 0;
+        P->core.perf_aux1_throw = 0;
         memset(P->core.rr_pos, 0, sizeof P->core.rr_pos);
         P->core.seq.scene = 0;
         P->core.seq.pend_scene = -1;
@@ -1024,6 +1050,21 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
         } else if (c == 10) {
           ep_core_hold_stop(&P->core, b);
           ep_core_release(&P->core, P->sel_pad);
+        } else if (c == 11) {
+          P->core.choke_mute_mask = (uint8_t)(val & 0x0F);
+        } else if (c == 12) {
+          P->core.choke_solo_mask = (uint8_t)(val & 0x0F);
+        } else if (c == 13) {
+          int fv = (val > 200 ? 200 : val) - 100;
+          P->core.perf_filter = (float)fv;
+        } else if (c == 14) {
+          int rv = val > 100 ? 100 : val;
+          P->core.perf_reso = (float)rv;
+        } else if (c == 15) {
+          P->core.perf_fx = (val < EP_FX_NMODES) ? val : EP_FX_NONE;
+        } else if (c == 16) {
+          P->core.perf_break = (val & 1) ? 1 : 0;
+          P->core.perf_aux1_throw = (val & 2) ? 1 : 0;
         }
       } else if (a == 7 && b < EP_PADS) {
         /* Pattern generators on active scene for pad b */
@@ -1049,7 +1090,7 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
   }
   int is_transient = (op == CMD_TRIG_PAD) ||
                      (op == CMD_SET_MOD_AMT && a == 5 && (c == 9 || c == 10)) ||
-                     (op == CMD_SET_MOD_AMT && a == 6 && (c == 0 || c == 1 || c == 5 || c == 9 || c == 10));
+                     (op == CMD_SET_MOD_AMT && a == 6 && (c == 0 || c == 1 || c == 5 || (c >= 9 && c <= 16)));
   if (op != 0 && !is_transient) {
     P->seq_notify_dirty = 1;
   }
@@ -1890,6 +1931,17 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
   P->core.xtalk = 0;
   P->core.play_mode = EP_PLAY_NORMAL;
   P->core.repeat_div = EP_RPT_OFF;
+  P->core.choke_mute_mask = 0;
+  P->core.choke_solo_mask = 0;
+  for (int g = 0; g <= EP_CHOKE_MAX; g++) P->core.choke_env[g] = 1.0f;
+  P->core.perf_filter = 0.0f;
+  P->core.perf_reso = 20.0f;
+  P->core.perf_filter_s = 0.0f;
+  P->core.perf_reso_s = 20.0f;
+  P->core.perf_fx = EP_FX_NONE;
+  P->core.perf_fx_cur = EP_FX_NONE;
+  P->core.perf_break = 0;
+  P->core.perf_aux1_throw = 0;
   P->core.seq.metro_mode = EP_METRO_OFF;
   P->core.seq.countin_en = 0;
   P->core.seq.countin_rem = 0;

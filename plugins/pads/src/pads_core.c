@@ -150,6 +150,11 @@ void ep_core_init(EpCore* c, double sr) {
   c->repeat_div = EP_RPT_OFF;
   c->rng_state = 0x12345678u;
   c->sel_playhead = -1.0f;
+  c->perf_filter = 0.0f;
+  c->perf_reso = 20.0f;
+  c->perf_filter_s = 0.0f;
+  c->perf_reso_s = 20.0f;
+  for (int g = 0; g <= EP_CHOKE_MAX; g++) c->choke_env[g] = 1.0f;
   for (int i = 0; i < EP_PADS; i++) {
     ep_pad_defaults(&c->pad[i], i);
     c->gen[i] = 1;
@@ -194,6 +199,19 @@ void ep_core_reset(EpCore* c) {
   c->click_env = 0.0f;
   c->click_phase = 0.0f;
   c->held_mask = 0;
+  c->mf_ic1_l = c->mf_ic2_l = c->mf_ic1_r = c->mf_ic2_r = 0.0f;
+  c->perf_fx = EP_FX_NONE;
+  c->perf_fx_cur = EP_FX_NONE;
+  c->perf_break = 0;
+  c->perf_aux1_throw = 0;
+  c->perf_break_env = 0.0f;
+  c->perf_throw_env = 0.0f;
+  c->fx_wet = 0.0f;
+  c->fx_write = 0;
+  c->fx_read_pos = 0.0;
+  c->fx_tape_rate = 1.0f;
+  memset(c->fx_buf_l, 0, sizeof c->fx_buf_l);
+  memset(c->fx_buf_r, 0, sizeof c->fx_buf_r);
   c->seq.bar_phase = 0.0;
   c->seq.cur_step = (c->seq.mode == EP_SEQ_STOP) ? -1 : 0;
   c->seq.last_step_fired = -1;
@@ -918,6 +936,24 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
   const float act_decay = (float)exp(-(double)nframes / (0.14 * c->sr));
   const float env_atk = 1.0f - (float)exp(-1.0 / (0.002 * c->sr));
   const float env_rel = 1.0f - (float)exp(-1.0 / (0.055 * c->sr));
+  /* Smooth choke-group mute/solo audibility gain per block (click-free 3 ms ramp) */
+  float cg_step = (float)nframes / (float)(0.003 * c->sr + 1.0);
+  if (cg_step > 1.0f) cg_step = 1.0f;
+  for (int g = 0; g <= EP_CHOKE_MAX; g++) {
+    float tgt = 1.0f;
+    if (c->choke_solo_mask) {
+      tgt = (g >= 1 && (c->choke_solo_mask & (1u << (g - 1)))) ? 1.0f : 0.0f;
+    } else if (g >= 1 && (c->choke_mute_mask & (1u << (g - 1)))) {
+      tgt = 0.0f;
+    }
+    if (c->choke_env[g] < tgt) {
+      c->choke_env[g] += cg_step;
+      if (c->choke_env[g] > tgt) c->choke_env[g] = tgt;
+    } else if (c->choke_env[g] > tgt) {
+      c->choke_env[g] -= cg_step;
+      if (c->choke_env[g] < tgt) c->choke_env[g] = tgt;
+    }
+  }
   for (int i = 0; i < EP_PADS; i++) {
     c->activity[i] *= act_decay;
     if (c->activity[i] < 0.002f) c->activity[i] = 0.0f;
@@ -948,14 +984,16 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
     }
 
     int audible = solo_active ? p->solo : !p->mute;
+    int cg = (p->choke >= 1 && p->choke <= EP_CHOKE_MAX) ? p->choke : 0;
+    float cg_gain = c->choke_env[cg];
     float eff_level = clampf(p->level + pad_mod_sum(c, v, pad, EP_MDST_LEVEL), 0.0f, 150.0f);
-    float pad_gain = audible ? (clampf(eff_level * 0.01f, 0.0f, 1.5f) * v->vel_gain) : 0.0f;
+    float pad_gain = audible ? (clampf(eff_level * 0.01f, 0.0f, 1.5f) * v->vel_gain * cg_gain) : 0.0f;
     float aux_amt[EP_AUX_BUSES];
     for (int a = 0; a < EP_AUX_BUSES; a++) {
       float ea = p->aux[a];
       if (a == 0) ea += pad_mod_sum(c, v, pad, EP_MDST_AUX1);
       else if (a == 1) ea += pad_mod_sum(c, v, pad, EP_MDST_AUX2);
-      aux_amt[a] = (audible && al[a] && ar[a]) ? clampf(ea * 0.01f, 0.0f, 1.0f) : 0.0f;
+      aux_amt[a] = (audible && cg_gain > 0.001f && al[a] && ar[a]) ? clampf(ea * 0.01f, 0.0f, 1.0f) : 0.0f;
     }
 
     float eff_pan = clampf(p->pan + pad_mod_sum(c, v, pad, EP_MDST_PAN), -100.0f, 100.0f);
@@ -1145,6 +1183,184 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
   }
 
   c->sel_playhead = sel_ph;
+
+  /* Play Mode Master Performance FX:
+   * 1) Aux1 Throw (momentary full send to Aux 1 before Break mute)
+   * 2) Punch-in Stutter (1/4, 1/8, 1/16) & Tape Stop (master ring buffer)
+   * 3) Master DJ Filter (LP/HP + Reso with click-free center crossfade)
+   * 4) Drop / Break (mutes Main Out smoothly while Aux 1..4 tails keep ringing) */
+  {
+    const uint32_t fx_mask = EP_FX_BUF_LEN - 1u;
+    const float ramp_3ms = 1.0f / (float)(0.003 * c->sr + 1.0);
+    const float filt_s_coef = 1.0f - (float)exp(-1.0 / (0.012 * c->sr));
+    const float tape_dec = 1.0f / (float)(0.45 * c->sr + 1.0);
+    const double bpm_cl = c->seq.bpm < 40.0 ? 40.0 : (c->seq.bpm > 240.0 ? 240.0 : c->seq.bpm);
+
+    /* Detect FX engage / mode switch */
+    if (c->perf_fx != EP_FX_NONE && c->perf_fx != c->perf_fx_cur) {
+      int prev_fx = c->perf_fx_cur;
+      c->perf_fx_cur = c->perf_fx;
+      if (c->perf_fx == EP_FX_STUT_4 || c->perf_fx == EP_FX_STUT_8 || c->perf_fx == EP_FX_STUT_16) {
+        double beats = (c->perf_fx == EP_FX_STUT_4) ? 1.0 : ((c->perf_fx == EP_FX_STUT_8) ? 0.5 : 0.25);
+        uint32_t llen = (uint32_t)llround((60.0 / bpm_cl) * beats * c->sr);
+        if (llen < 256u) llen = 256u;
+        if (llen > EP_FX_BUF_LEN - 256u) llen = EP_FX_BUF_LEN - 256u;
+        c->fx_loop_len = llen;
+        if (prev_fx == EP_FX_STUT_4 || prev_fx == EP_FX_STUT_8 || prev_fx == EP_FX_STUT_16) {
+          c->fx_read_pos = fmod(c->fx_read_pos, (double)llen);
+        } else {
+          c->fx_loop_start = (c->fx_write - llen) & fx_mask;
+          c->fx_read_pos = 0.0;
+        }
+      } else if (c->perf_fx == EP_FX_TAPE_STOP) {
+        c->fx_read_pos = (double)c->fx_write;
+        c->fx_tape_rate = 1.0f;
+      }
+    }
+
+    const float throw_tgt = c->perf_aux1_throw ? 1.0f : 0.0f;
+    const float break_tgt = c->perf_break ? 1.0f : 0.0f;
+    const float fx_tgt = (c->perf_fx != EP_FX_NONE) ? 1.0f : 0.0f;
+
+    for (uint32_t i = 0; i < nframes; i++) {
+      float l = ol_buf[i];
+      float r = or_buf[i];
+
+      /* Aux1 Throw: smoothly blend Aux 1 toward 100% of summed dry mix */
+      if (c->perf_throw_env < throw_tgt) {
+        c->perf_throw_env += ramp_3ms;
+        if (c->perf_throw_env > throw_tgt) c->perf_throw_env = throw_tgt;
+      } else if (c->perf_throw_env > throw_tgt) {
+        c->perf_throw_env -= ramp_3ms;
+        if (c->perf_throw_env < throw_tgt) c->perf_throw_env = throw_tgt;
+      }
+      if (c->perf_throw_env > 0.0005f && al[0] && ar[0]) {
+        al[0][i] += (l - al[0][i]) * c->perf_throw_env;
+        ar[0][i] += (r - ar[0][i]) * c->perf_throw_env;
+      }
+
+      /* Stutter / Tape Stop ring buffer */
+      if (c->fx_wet < fx_tgt) {
+        c->fx_wet += ramp_3ms;
+        if (c->fx_wet > fx_tgt) c->fx_wet = fx_tgt;
+      } else if (c->fx_wet > fx_tgt) {
+        c->fx_wet -= ramp_3ms;
+        if (c->fx_wet <= 0.0f) {
+          c->fx_wet = 0.0f;
+          if (c->perf_fx == EP_FX_NONE) c->perf_fx_cur = EP_FX_NONE;
+        }
+      }
+
+      int active_fx = c->perf_fx_cur;
+      if (active_fx == EP_FX_NONE) {
+        c->fx_buf_l[c->fx_write] = l;
+        c->fx_buf_r[c->fx_write] = r;
+        c->fx_write = (c->fx_write + 1u) & fx_mask;
+      } else if (active_fx == EP_FX_TAPE_STOP) {
+        c->fx_buf_l[c->fx_write] = l;
+        c->fx_buf_r[c->fx_write] = r;
+        c->fx_write = (c->fx_write + 1u) & fx_mask;
+        float fl = 0.0f, fr = 0.0f;
+        if (c->fx_tape_rate > 0.001f) {
+          uint32_t i0 = ((uint32_t)c->fx_read_pos) & fx_mask;
+          uint32_t i1 = (i0 + 1u) & fx_mask;
+          float frac = (float)(c->fx_read_pos - floor(c->fx_read_pos));
+          fl = c->fx_buf_l[i0] + (c->fx_buf_l[i1] - c->fx_buf_l[i0]) * frac;
+          fr = c->fx_buf_r[i0] + (c->fx_buf_r[i1] - c->fx_buf_r[i0]) * frac;
+          float amp = c->fx_tape_rate < 0.08f ? (c->fx_tape_rate / 0.08f) : 1.0f;
+          fl *= amp;
+          fr *= amp;
+          c->fx_read_pos += (double)c->fx_tape_rate;
+          if (c->fx_read_pos >= (double)EP_FX_BUF_LEN) c->fx_read_pos -= (double)EP_FX_BUF_LEN;
+          c->fx_tape_rate -= tape_dec;
+          if (c->fx_tape_rate < 0.0f) c->fx_tape_rate = 0.0f;
+        }
+        l = l + (fl - l) * c->fx_wet;
+        r = r + (fr - r) * c->fx_wet;
+      } else {
+        /* Stutter loop playback (keep ring buffer frozen so long holds never overwrite slice) */
+        uint32_t llen = c->fx_loop_len > 256u ? c->fx_loop_len : 256u;
+        uint32_t rp = (uint32_t)c->fx_read_pos;
+        if (rp >= llen) rp = 0;
+        uint32_t ridx = (c->fx_loop_start + rp) & fx_mask;
+        float fl = c->fx_buf_l[ridx];
+        float fr = c->fx_buf_r[ridx];
+        /* Tiny 64-sample wrap crossfade at loop end for click-free repeats */
+        const uint32_t xf = 64u;
+        if (llen > xf * 2u && rp >= llen - xf) {
+          uint32_t k = rp - (llen - xf);
+          float a = (float)k / (float)xf;
+          uint32_t widx = (c->fx_loop_start + k) & fx_mask;
+          fl = fl * (1.0f - a) + c->fx_buf_l[widx] * a;
+          fr = fr * (1.0f - a) + c->fx_buf_r[widx] * a;
+        }
+        rp++;
+        if (rp >= llen) rp = 0;
+        c->fx_read_pos = (double)rp;
+        l = l + (fl - l) * c->fx_wet;
+        r = r + (fr - r) * c->fx_wet;
+      }
+
+      /* Master DJ Filter (LP/HP + Reso with smooth ramping & clickless center crossfade) */
+      c->perf_filter_s += filt_s_coef * (c->perf_filter - c->perf_filter_s);
+      c->perf_reso_s   += filt_s_coef * (c->perf_reso - c->perf_reso_s);
+      float f_abs = fabsf(c->perf_filter_s);
+      if (f_abs > 0.25f) {
+        float rn = clampf(c->perf_reso_s, 0.0f, 100.0f) * 0.01f;
+        float mk = 1.40f - 1.22f * rn;
+        float mfc;
+        if (c->perf_filter_s < 0.0f) {
+          float t = (100.0f + c->perf_filter_s) * 0.01f;
+          mfc = 60.0f * powf(300.0f, t);
+        } else {
+          float t = c->perf_filter_s * 0.01f;
+          mfc = 20.0f * powf(500.0f, t);
+        }
+        if (mfc > 0.45f * (float)c->sr) mfc = 0.45f * (float)c->sr;
+        float mg_f = tanf((float)M_PI * mfc / (float)c->sr);
+        float ma1 = 1.0f / (1.0f + mg_f * (mg_f + mk));
+        float ma2 = mg_f * ma1;
+        float ma3 = mg_f * ma2;
+
+        float v3l = l - c->mf_ic2_l;
+        float v1l = ma1 * c->mf_ic1_l + ma2 * v3l;
+        float v2l = c->mf_ic2_l + ma2 * c->mf_ic1_l + ma3 * v3l;
+        c->mf_ic1_l = 2.0f * v1l - c->mf_ic1_l;
+        c->mf_ic2_l = 2.0f * v2l - c->mf_ic2_l;
+        float fl = (c->perf_filter_s < 0.0f) ? v2l : (l - mk * v1l - v2l);
+
+        float v3r = r - c->mf_ic2_r;
+        float v1r = ma1 * c->mf_ic1_r + ma2 * v3r;
+        float v2r = c->mf_ic2_r + ma2 * c->mf_ic1_r + ma3 * v3r;
+        c->mf_ic1_r = 2.0f * v1r - c->mf_ic1_r;
+        c->mf_ic2_r = 2.0f * v2r - c->mf_ic2_r;
+        float fr = (c->perf_filter_s < 0.0f) ? v2r : (r - mk * v1r - v2r);
+
+        float fwet = f_abs < 5.0f ? (f_abs * 0.2f) : 1.0f;
+        l = l + (fl - l) * fwet;
+        r = r + (fr - r) * fwet;
+      } else {
+        c->mf_ic1_l = c->mf_ic2_l = c->mf_ic1_r = c->mf_ic2_r = 0.0f;
+      }
+
+      /* Drop / Break: smoothly mute Main Out while Aux 1..4 tails keep ringing */
+      if (c->perf_break_env < break_tgt) {
+        c->perf_break_env += ramp_3ms;
+        if (c->perf_break_env > break_tgt) c->perf_break_env = break_tgt;
+      } else if (c->perf_break_env > break_tgt) {
+        c->perf_break_env -= ramp_3ms;
+        if (c->perf_break_env < break_tgt) c->perf_break_env = break_tgt;
+      }
+      if (c->perf_break_env > 0.0005f) {
+        float bg = 1.0f - c->perf_break_env;
+        l *= bg;
+        r *= bg;
+      }
+
+      ol_buf[i] = l;
+      or_buf[i] = r;
+    }
+  }
 
   /* Mix internal metronome / count-in click into main output only */
   if (c->click_env > 0.0005f) {

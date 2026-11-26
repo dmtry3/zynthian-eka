@@ -2,7 +2,7 @@
 
 **English** · [Русский](README.ru.md)
 
-A **16-pad drum sampler, modulation engine, and polyrhythmic scene sequencer** for [Zynthian](https://zynthian.org), implemented as an **LV2 instrument plugin** (MIDI in, main stereo out + 4 stereo Aux sends, LV2 `time:Position` transport sync) plus a **4-tab touch widget** (`Pads`, `Mod`, `Seq`, `Kit`) designed for live finger-drumming with pad controllers like **M-VAVE SMC-PAD Pocket** over Bluetooth MIDI.
+A **16-pad drum sampler, modulation engine, and polyrhythmic scene sequencer** for [Zynthian](https://zynthian.org), implemented as an **LV2 instrument plugin** (MIDI in, main stereo out + 4 stereo Aux sends, LV2 `time:Position` transport sync) plus a **5-tab touch widget** (`Play`, `Pads`, `Mod`, `Seq`, `Kit`) designed for live finger-drumming with pad controllers like **M-VAVE SMC-PAD Pocket** over Bluetooth MIDI.
 
 Made for four encoders: **Auto-Select** follows the last hit pad and keeps Zynthian's 4 physical encoders synced to that pad across seven clean knob pages without value jumps.
 
@@ -17,9 +17,12 @@ Made for four encoders: **Auto-Select** follows the last hit pad and keeps Zynth
   - `Start` / `End` waveform trim, 5 playback modes (`One-Shot`, `Gate`, `Rev Shot`, `Rev Gate`, `Loop`), transient `Punch` (`-100..+100%`), `Drive` (soft saturation + bitcrush).
   - `Pan`, `Vel Sens`, 4 click-free `Choke` groups (2 ms fade), bipolar `Width` (`-100..+100%`, all-pass + dual-Haas stereo enhancer), `Mute`, `Solo`, pad `Link` (`Layer` / `Round-Robin`), **Auto-Slice** (4/8/16 grid or transient detection), and **Copy / Swap Pad**.
   - **Master `Bus Glue` compressor (`0..100%`)** ahead of the soft limiter.
-- **Performance Modes (`16L` & `Rpt` in top bar):**
-  - **16 Levels / Chromatic (`16L`):** play the selected pad across all 16 pads (or an external MIDI keyboard) by chromatic pitch (`Chrm`), 16 velocities (`16Vl`), or 16 filter steps (`16Fl`) with live p-lock Overdub recording.
-  - **Note Repeat (`Rpt`):** MPC-style tempo-synced retrigger (`1/8`, `1/16`, `1/16T`, `1/32`) while holding touch or MIDI pads.
+- **Dedicated `Play` Performance Tab:**
+  - **Choke Group Mute / Solo (`G1..G4` + `All On`):** click-free live stem muting (short tap) and soloing (long press) for Choke Groups `1..4` with activity meters, independent of per-pad mutes.
+  - **Direct `Note Repeat` (`Off | 1/8 | 1/16 | 16T | 1/32`) & `16 Levels` (`Norm | Chrm | 16Vl | 16Fl`):** one-tap access during live play (also available as compact pills on other tabs).
+  - **Master DJ Filter XY-Pad:** `LP ← Open → HP` + `Reso` with `Mom` (auto-return on release) and `Hold` modes.
+  - **Momentary Punch-in FX (hold):** tempo-synced `Stut 1/4`, `Stut 1/8`, `Stut 1/16`, `Tape Stop`, `Break` (mutes Main Out while Aux reverb/delay tails ring out), and `Aux1 Throw` (100% Aux 1 send throw).
+  - **Full-width Scene Bar (`A..E`) + 4-beat bar progress strip:** tap to queue scene, long-press for 1-bar Fill.
 - **4 Stereo Aux Sends (`Aux 1..4`):** per-pad send levels routed directly to Zynthian Mixbuses from the `Kit` tab.
 - **Per-pad Modulation Matrix (`Mod` tab):**
   - 4 modulation slots per pad: sources (`Off`, `Vel`, `Rand`, `LFO1`, `LFO2`, `Env`) → destinations (`Pitch`, `Decay`, `Filter`, `Level`, `Start`, `Drive`, `Pan`, `Width`, `Aux1`, `Aux2`) with bipolar amount (`-100..+100%`).
@@ -107,7 +110,12 @@ Eight pages of 4 encoders (pages 1–5 follow the currently selected pad; page 8
 
 ## Widget & Gestures
 
-Four tabs along the top bar (`Pads | Mod | Seq | Kit`):
+Five tabs along the top bar (`Play | Pads | Mod | Seq | Kit`):
+
+- **`Play` tab:**
+  - **Left column:** 4 large `Choke Mute` buttons (`G1..G4`, tap = Mute, hold = Solo, `All On` reset), 5 direct `Note Repeat` buttons (`Off..1/32`), and 4 direct `16 Levels` buttons (`Norm..16Fl`).
+  - **Right column:** `Master Filter` XY-pad (`LP/HP` + `Reso`, `Mom`/`Hold` toggle) and 6 momentary `Punch-in FX` hold buttons (`Stut 1/4`, `Stut 1/8`, `Stut 1/16`, `Tape Stop`, `Break`, `Aux1 Throw`).
+  - **Bottom:** 4-beat bar progress strip and 5 full-width Scene buttons (`A..E`, hold = 1-bar Fill).
 
 - **`Pads` tab:**
   - **Left 4×4 pad grid:** tap a pad to trigger and select it; **long press** toggles `Mute`.

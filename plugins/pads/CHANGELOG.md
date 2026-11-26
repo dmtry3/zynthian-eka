@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1 (2026-11-26)
+
+- **Dedicated `Play` Performance Tab (first tab):** live stage view (`Play | Pads | Mod | Seq | Kit`) with large touch targets:
+  - **4 Choke Group Mute buttons (`G1..G4`):** independent click-free live Mute per choke group (short tap) and Solo (long press) without touching individual pad mutes, live group activity meters, plus a one-tap `All On` reset button.
+  - **Direct Note Repeat (`Off | 1/8 | 1/16 | 16T | 1/32`) & 16 Levels (`Norm | Chrm | 16Vl | 16Fl`) strips:** instant 1-tap switching without cycling.
+  - **Master DJ Filter XY-Pad:** stereo TPT SVF `LP ← Open → HP` (X) + `Reso` (Y) with `Mom` (smooth auto-return on release) and `Hold` (double-tap to reset) modes.
+  - **Momentary Punch-in FX (hold):** tempo-synced master `Stut 1/4`, `Stut 1/8`, `Stut 1/16`, `Tape Stop` vinyl brake, `Break` (smoothly mutes Main Out while Aux 1..4 reverb/delay tails ring out), and `Aux1 Throw` (momentary 100% Aux 1 dub throw).
+  - **Full-width Scene Launcher (`A..E`) + 4-Beat Bar Progress strip:** tap for quantized scene switch, long-press for 1-bar Fill.
+
 ## 0.3.0 (2026-11-26)
 
 - **Quick Sample Step (`<` / `>`) & Load Folder as Kit:** step through audio files (`WAV/FLAC/AIFF/OGG/MP3`) in the pad's current folder directly from the `Pads` tab with instant audition, and load any sample folder into Pads 1..16 via `Load Folder Kit` on the `Kit` tab.

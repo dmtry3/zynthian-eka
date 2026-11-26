@@ -16,6 +16,17 @@
 #define EP_STEPS_MIN  4
 #define EP_STEPS_DEF  16
 #define EP_CHAIN_MAX  8
+#define EP_FX_BUF_LEN 65536
+
+/* Performance master punch-in FX */
+enum {
+  EP_FX_NONE = 0,
+  EP_FX_STUT_4,
+  EP_FX_STUT_8,
+  EP_FX_STUT_16,
+  EP_FX_TAPE_STOP,
+  EP_FX_NMODES
+};
 
 /* Sequencer modes */
 enum {
@@ -272,6 +283,30 @@ typedef struct {
   float  lfo_val[EP_PADS][EP_LFOS];
   float activity[EP_PADS];/* 0..1 visual meter per pad */
   float sel_playhead;     /* -1 or 0..1 playhead of selected pad */
+  /* Play / Performance mode DSP state */
+  uint8_t choke_mute_mask;/* bits 0..3: live Mute for Choke Groups 1..4 */
+  uint8_t choke_solo_mask;/* bits 0..3: live Solo for Choke Groups 1..4 */
+  float   choke_env[EP_CHOKE_MAX + 1]; /* smoothed audibility gain [0=ungrouped, 1..4=choke grp] */
+  float   perf_filter;    /* -100..+100 % master DJ filter (LP < 0 < HP) */
+  float   perf_reso;      /* 0..100 % master DJ filter resonance (default 20) */
+  float   perf_filter_s;  /* smoothed master DJ filter */
+  float   perf_reso_s;    /* smoothed master DJ filter reso */
+  float   mf_ic1_l, mf_ic2_l;
+  float   mf_ic1_r, mf_ic2_r;
+  int     perf_fx;        /* EP_FX_* punch-in master FX */
+  int     perf_fx_cur;    /* currently active FX for transition detection */
+  int     perf_break;     /* 0 or 1: mute Main Out while Aux tails ring */
+  int     perf_aux1_throw;/* 0 or 1: momentary 100% Aux 1 send throw */
+  float   perf_break_env; /* smoothed 0..1 break mute */
+  float   perf_throw_env; /* smoothed 0..1 aux1 throw */
+  uint32_t fx_write;
+  uint32_t fx_loop_start;
+  uint32_t fx_loop_len;
+  double   fx_read_pos;
+  float    fx_tape_rate;
+  float    fx_wet;        /* smooth crossfade 0..1 between live and FX buffer */
+  float    fx_buf_l[EP_FX_BUF_LEN];
+  float    fx_buf_r[EP_FX_BUF_LEN];
 } EpCore;
 
 void ep_pad_defaults(EpPadParams* p, int pad_index);
