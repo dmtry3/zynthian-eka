@@ -2,8 +2,8 @@
 
 **English** · [Русский](README.ru.md)
 
-Thirteen LV2 plugins for [Zynthian](https://zynthian.org), each with its own touch widget: an audio looper, a MIDI
-looper, a generative arpeggiator, a granular sampler, a West Coast synth, a live granular effect, a four-voice pitch harmonizer, a rhythmic multi-effect shaper, a single-band live compressor, a 4-band parametric equalizer, a stereo/polyrhythmic live delay, a 16-pad drum sampler & sequencer, and a 3D stereo soundstage & widener. They are made to play live on a
+Fourteen LV2 plugins for [Zynthian](https://zynthian.org), each with its own touch widget: an audio looper, a MIDI
+looper, a generative arpeggiator, a granular sampler, a West Coast synth, a live granular effect, a four-voice pitch harmonizer, a rhythmic multi-effect shaper, a single-band live compressor, a 4-band parametric equalizer, a stereo/polyrhythmic live delay, a 16-pad drum sampler & sequencer, a 3D stereo soundstage & widener, and a 6-engine musical-to-extreme "Über-Mod" modulator. They are made to play live on a
 Raspberry Pi 5 and to work together in one setup.
 
 > Tested on: Zynthian **Vangelis** (stable 2610), Raspberry Pi 5, V5 kit, 800x480 touch screen.
@@ -97,6 +97,12 @@ A 4×4 drum sampler built for pad controllers (like M-VAVE SMC-PAD Pocket): 16 i
 
 ![Eka Space](plugins/space/docs/1-main.png)
 
+### [Eka Modls](plugins/modls): 6-engine musical-to-extreme "Über-Mod" modulator
+
+Six distinct modulation engines (`Chorus`, 3-phase `Tri-Mod`, true through-zero tape `Flanger`, 4..12-stage bilinear `Phaser`, infinite Shepard `Barber` pole, and 8-tap diffused `Uber` cloud), 6 LFO shapes (`Sine`, `Tri`, `Exp`, `S&H`, `Chaos`, `Env`) with BPM sync (`4 bars .. 1/64`), `OverMod` (musical → audio-rate FM & chaos), `Diffuse`, analog `Drive`, `Low Cut` / `High Cut`, bipolar `Env Mod`, `LFO Freeze`, a dedicated live **FX** X-Y pad (`Comb FX × Warp FX` + `Rate FX`), and 14 factory presets.
+
+![Eka Modls](plugins/modls/docs/1-main.png)
+
 ## A setup
 
 A typical chain: **Pads** drives the beat (with per-pad Aux sends into **Echo** or **Pulse**), **Roll** records the chords, **Bloom** turns them into a moving arpeggio, **Fold** or **Mist** plays it, **Weave-4** adds four-voice harmony to your live instrument (or follows the chords from **Roll**), **Grain Flow** and **Echo** reshape the audio, **Tape** loops the sound together with your instrument, **Q-4** sculpts the tone and clears resonances, and **Press** shapes the live input or glues the mix. Each plugin also works on its own.
@@ -108,7 +114,7 @@ On the Zynthian (SSH as root):
 ```bash
 git clone https://github.com/dmtry3/zynthian-eka.git
 cd zynthian-eka
-sudo make install-bloom          # one plugin: tape, roll, bloom, mist, fold, grainflow, weave4, pulse, press, q4, echo or pads
+sudo make install-bloom          # one plugin: tape, roll, bloom, mist, fold, grainflow, weave4, pulse, press, q4, echo, pads, space or modls
 sudo make install                # or all of them
 systemctl restart zynthian
 ```
