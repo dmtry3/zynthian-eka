@@ -11,18 +11,23 @@ Made for four encoders: **Auto-Select** follows the last hit pad and keeps Zynth
 
 ## Features
 
-- **16 independent pads (4×4 grid)** with async background sample loading (`libsndfile`: `WAV`, `FLAC`, `AIFF`, `OGG`, `MP3`) via LV2 Worker and a built-in 16-sample factory drum kit (`samples/`).
+- **16 independent pads (4×4 grid)** with async background sample loading (`libsndfile`: `WAV`, `FLAC`, `AIFF`, `OGG`, `MP3`) via LV2 Worker, quick `< / >` sample stepping, `Load Folder Kit`, and a built-in 16-sample factory drum kit (`samples/`).
 - **Per-pad DSP engine:**
-  - Anti-aliased windowed sinc `Pitch` (`±24 st`), `Decay` (`0..100%`), bipolar DJ `Filter` (`LP` / Open / `HP`), `Level`.
-  - `Start` / `End` waveform trim, 4 playback modes (`One-Shot`, `Gate`, `Rev Shot`, `Rev Gate`), transient `Punch` (`-100..+100%`), `Drive` (soft saturation + bitcrush).
-  - `Pan`, `Vel Sens`, 4 click-free `Choke` groups (2 ms fade), bipolar `Width` (`-100..+100%`, all-pass + dual-Haas stereo enhancer), `Mute` & `Solo`.
+  - Anti-aliased windowed sinc `Pitch` (`±24 st`), exponential `Attack` (`0..500 ms`), `Decay` (`0..100%`), bipolar DJ `Filter` (`LP` / Open / `HP`) with resonance `Reso` (`0..100%`), `Level`.
+  - `Start` / `End` waveform trim, 5 playback modes (`One-Shot`, `Gate`, `Rev Shot`, `Rev Gate`, `Loop`), transient `Punch` (`-100..+100%`), `Drive` (soft saturation + bitcrush).
+  - `Pan`, `Vel Sens`, 4 click-free `Choke` groups (2 ms fade), bipolar `Width` (`-100..+100%`, all-pass + dual-Haas stereo enhancer), `Mute`, `Solo`, pad `Link` (`Layer` / `Round-Robin`), **Auto-Slice** (4/8/16 grid or transient detection), and **Copy / Swap Pad**.
+  - **Master `Bus Glue` compressor (`0..100%`)** ahead of the soft limiter.
+- **Performance Modes (`16L` & `Rpt` in top bar):**
+  - **16 Levels / Chromatic (`16L`):** play the selected pad across all 16 pads (or an external MIDI keyboard) by chromatic pitch (`Chrm`), 16 velocities (`16Vl`), or 16 filter steps (`16Fl`) with live p-lock Overdub recording.
+  - **Note Repeat (`Rpt`):** MPC-style tempo-synced retrigger (`1/8`, `1/16`, `1/16T`, `1/32`) while holding touch or MIDI pads.
 - **4 Stereo Aux Sends (`Aux 1..4`):** per-pad send levels routed directly to Zynthian Mixbuses from the `Kit` tab.
 - **Per-pad Modulation Matrix (`Mod` tab):**
   - 4 modulation slots per pad: sources (`Off`, `Vel`, `Rand`, `LFO1`, `LFO2`, `Env`) → destinations (`Pitch`, `Decay`, `Filter`, `Level`, `Start`, `Drive`, `Pan`, `Width`, `Aux1`, `Aux2`) with bipolar amount (`-100..+100%`).
   - 2 independent LFOs per pad (`Sine`, `Tri`, `Saw`, `Sqr`, `S&H`, `Free` `0.05..20 Hz` or tempo `Sync` `4/1..1/16T`) with a waveform preview popup, plus an Envelope Follower.
 - **Polyrhythmic Scene Sequencer (`Seq` tab):**
-  - Up to **32 steps** per pad with independent `Beg..End` loop range (`1..32`), `Swing` (`50..75%`), smooth `Quantize` (`0..100%` with real microtiming), `Velocity` (`0..127`), `Chance` (`10..100%`), and ratchet `Roll` (`1x..4x`).
-  - **5 large scenes (`A..E`)** on screen (8 scenes internally, `A..H`), quantized switching at bar boundaries via touchscreen or MIDI notes `52..56`.
+  - Up to **32 steps** per pad with independent `Beg..End` loop range (`1..32`), `Swing` (`50..75%`), smooth `Quantize` (`0..100%` with real microtiming), `Velocity` (`0..127`), `Chance` (`10..100%`), ratchet `Roll` (`1x..4x`), and per-step **Parameter Locks** (`Pitch`, `Filter`, `Microtiming`).
+  - **Euclidean Rhythm Generator (`Euclid Hits/Rot`)**, `< Shift / Shift >` pattern rotate, **Metronome** (`Off / Rec / On`), 1-bar **Count-in**, and **Undo Dub**.
+  - **5 large scenes (`A..E`)** on screen (8 scenes internally, `A..H`), quantized switching at bar boundaries via touchscreen or MIDI notes `52..56`, **Scene Chain** (up to 8 bars), and **1-bar Fill** via long-press on `A..E`.
   - **Live Overdub (`Dub/Rec`)** from MIDI pads, tightly phase-locked (`<0.25 ms`) to Zynthian / `Eka Roll` Host Transport (`time:Position`) or internal BPM (`40..240`).
   - **One-tap export to ZynSeq (`->ZSeq`)** with automatic bar-count calculation from the LCM of polyrhythmic pad lengths.
 - **Controller-ready (`M-VAVE SMC-PAD Pocket`):** Auto-Select, one-tap MIDI Learn, and a hardware trigger filter (`Retrig`, `MinVel`, `XTalk`) to eliminate double/phantom hits.
@@ -92,12 +97,12 @@ Eight pages of 4 encoders (pages 1–5 follow the currently selected pad; page 8
 | Page | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|---|
 | **1. Pad Sound** | `Pitch` (`-24..+24 st`) | `Decay` (`0..100%`) | `Filter` (`-100..+100%`) | `Level` (`0..100%`) |
-| **2. Pad Shape** | `Start` (`0..95%`) | `Mode` (`One-Shot/Gate/Rev Shot/Rev Gate`) | `Punch` (`-100..+100%`) | `Drive` (`0..100%`) |
+| **2. Pad Shape** | `Start` (`0..99%`) | `Mode` (`One-Shot/Gate/Rev Shot/Rev Gate/Loop`) | `Punch` (`-100..+100%`) | `Drive` (`0..100%`) |
 | **3. Pad Mix** | `Pan` (`-100..+100%`) | `Vel Sens` (`0..100%`) | `Choke` (`Off / Grp 1..4`) | `Width` (`-100..+100%`) |
 | **4. Pad Sends** | `Aux 1` (`0..100%`) | `Aux 2` (`0..100%`) | `Aux 3` (`0..100%`) | `Aux 4` (`0..100%`) |
 | **5. Pad Mod** | `LFO 1 Hz` (`0.05..20 Hz`) | `LFO 2 Hz` (`0.05..20 Hz`) | `Mod 1 Amt` (`-100..+100%`) | `Mod 2 Amt` (`-100..+100%`) |
 | **6. Seq & Master** | `Seq` (`Stop / Play / Rec`) | `Scene` (`Scene A..E`) | `Swing` (`50..75%`) | `Master` (`0..100%`) |
-| **7. Steps & Stereo** | `Stereo` (`0..200%`) | `Steps` (`1..32`) | `Beg Step` (`1..32`) | — |
+| **7. Steps & Stereo** | `Stereo` (`0..200%`) | `Steps` (`1..32`) | `Beg Step` (`1..32`) | `Bus Glue` (`0..100%`) |
 | **8. Pad Notes** | `Note 1` (`0..127`) | `Note 2` (`0..127`) | `Note 3` (`0..127`) | `Note 4` (`0..127`) |
 
 ## Widget & Gestures

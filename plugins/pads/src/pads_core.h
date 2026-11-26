@@ -1,4 +1,4 @@
-/* Eka Pads: 16-pad drum sampler + 8-scene step sequencer + Room Space DSP core (pure C, no LV2). */
+/* Eka Pads: 16-pad drum sampler + 8-scene step sequencer + Bus Glue DSP core (pure C, no LV2). */
 #ifndef EP_PADS_CORE_H
 #define EP_PADS_CORE_H
 
@@ -15,6 +15,7 @@
 #define EP_STEPS      32
 #define EP_STEPS_MIN  4
 #define EP_STEPS_DEF  16
+#define EP_CHAIN_MAX  8
 
 /* Sequencer modes */
 enum {
@@ -29,7 +30,40 @@ enum {
   EP_MODE_GATE,
   EP_MODE_REV_ONESHOT,
   EP_MODE_REV_GATE,
+  EP_MODE_LOOP,
   EP_NMODES
+};
+
+/* Pad performance play modes (16 Levels / Chromatic) */
+enum {
+  EP_PLAY_NORMAL = 0,
+  EP_PLAY_CHROM,
+  EP_PLAY_16VEL,
+  EP_PLAY_16FLT,
+  EP_PLAY_NMODES
+};
+
+/* Note Repeat divisions */
+enum {
+  EP_RPT_OFF = 0,
+  EP_RPT_8,
+  EP_RPT_16,
+  EP_RPT_16T,
+  EP_RPT_32,
+  EP_RPT_NMODES
+};
+
+/* Metronome modes */
+enum {
+  EP_METRO_OFF = 0,
+  EP_METRO_REC,
+  EP_METRO_ON
+};
+
+/* Pad link modes */
+enum {
+  EP_LINK_LAYER = 0,
+  EP_LINK_RR
 };
 
 /* Modulation matrix sources, destinations, and LFO waves */
@@ -78,8 +112,8 @@ typedef struct {
   float decay;            /* 0..100 % (10 ms .. 10 s; >=99.5 = full sample) */
   float filter;           /* -100..+100 % (<0 = LP, 0 = open, >0 = HP) */
   float level;            /* 0..100 % */
-  float start;            /* 0..95 % */
-  float end;              /* 5..100 % (default 100) */
+  float start;            /* 0..99 % */
+  float end;              /* 1..100 % (default 100) */
   int mode;               /* EP_MODE_* */
   float punch;            /* -100..+100 % (fast pitch envelope on attack) */
   float drive;            /* 0..100 % (0..50 soft saturation, 50..100 bitcrush/decimate) */
@@ -91,17 +125,24 @@ typedef struct {
   int solo;               /* 0 or 1 */
   int midi_note;          /* 0..127 (default 36 + pad) */
   float aux[EP_AUX_BUSES];/* 0..100 % (Aux Send 1..4 stereo outs) */
-  int   lfo_wave[EP_LFOS];      /* EP_LFO_* */
+  int   lfo_wave[EP_LFOS];      /* EP_LFO_* (+ bit 4 = BPM sync) */
   float lfo_rate[EP_LFOS];      /* 0.05..20.0 Hz */
   int   mod_src[EP_MOD_SLOTS];  /* EP_MSRC_* */
   int   mod_dst[EP_MOD_SLOTS];  /* EP_MDST_* */
   float mod_amt[EP_MOD_SLOTS];  /* -100..+100 % */
+  /* v0.3.0 extensions (appended for seamless binary snapshot migration) */
+  float attack;           /* 0..100 % (0 ms .. 500 ms exponential fade-in) */
+  float reso;             /* 0..100 % (filter resonance; default 20% -> k=1.15) */
+  int   link_pad;         /* 0 = off, 1..16 = linked target pad (1-based) */
+  int   link_mode;        /* 0 = Layer, 1 = Round-Robin */
 } EpPadParams;
 
 typedef struct {
   uint8_t vel;            /* 0 = off, 1..127 = trigger velocity */
-  uint8_t roll;           /* bits 0..1: ratchet 0..3 (1x..4x); bits 2..7: signed micro-timing (-32..+31 / 64 step) */
+  uint8_t roll;           /* bits 0..1: ratchet 0..3 (1x..4x); bits 2..7: signed micro-timing (-30..+30 / 64 step) */
   uint8_t chance;         /* 0 = 100% (default), 1..100 = trigger probability % */
+  int8_t  pitch_off;      /* -24..+24 semitones p-lock offset */
+  int8_t  filt_off;       /* -100..+100 % filter p-lock offset */
 } EpStep;
 
 typedef struct {
@@ -119,8 +160,11 @@ typedef struct {
   double start_frame;
   int reverse;
   int gate_mode;
+  int loop_mode;
   int released;
   float vel_gain;
+  float atk_env;          /* 0..1 attack fade-in envelope */
+  float atk_inc;          /* per-sample attack increment */
   float env;              /* amplitude envelope 0..1 */
   float decay_coef;       /* per-sample multiplier */
   int full_sample;        /* 1 if decay >= 99.5% */
@@ -128,6 +172,9 @@ typedef struct {
   float fade_step;        /* >0 when fading out */
   float punch_env;        /* 1..0 fast pitch envelope */
   float punch_coef;
+  /* Per-voice parameter-lock / 16-levels offsets */
+  float plock_pitch;      /* semitones */
+  float plock_filter;     /* -100..+100 % */
   /* TPT SVF state (stereo) */
   float ic1_l, ic2_l;
   float ic1_r, ic2_r;
@@ -156,7 +203,7 @@ typedef struct {
   int quantize;           /* 0..100 % quantize strength (0=free micro-timing, 100=hard grid) */
   double bpm;             /* 40..240 */
   float swing;            /* 50..75 % */
-  double bar_phase;       /* 0..num_steps in 16th-note units */
+  double bar_phase;       /* 0..16 in 16th-note units */
   int last_step_fired;    /* -1 or 0..31 */
   int host_playing;       /* 1 if locked to host transport */
   /* Independent per-pad polyrhythmic lane state */
@@ -166,11 +213,26 @@ typedef struct {
   /* Ratchet (sub-step roll) pending counters */
   uint8_t roll_rem[EP_PADS];
   uint8_t roll_vel[EP_PADS];
+  int8_t  roll_pitch[EP_PADS];
+  int8_t  roll_filt[EP_PADS];
   double roll_timer[EP_PADS];
   double roll_interval[EP_PADS];
   /* Prevent double trigger when Overdub quantizes a hit forward to the upcoming step */
   uint16_t skip_next_mask;
   int skip_step[EP_PADS];
+  /* Metronome, Count-in, Scene Chain, 1-bar Fill, Undo Overdub */
+  int metro_mode;         /* EP_METRO_* */
+  int countin_en;         /* 0 or 1 (1-bar count-in before Rec from Stop) */
+  int countin_rem;        /* >0 while counting in (16..1 steps remaining) */
+  double countin_phase;   /* 0..16 step phase during count-in */
+  int last_metro_beat;    /* -1 or 0..3 */
+  int fill_ret_scene;     /* -1 or 0..7 scene to return to after 1-bar fill */
+  int chain_on;           /* 0 or 1 */
+  int chain_len;          /* 1..EP_CHAIN_MAX */
+  int chain_pos;          /* 0..EP_CHAIN_MAX-1 */
+  uint8_t chain[EP_CHAIN_MAX];
+  EpScene undo_scene;
+  int undo_scene_idx;     /* -1 if no undo snapshot */
 } EpSeq;
 
 typedef struct {
@@ -184,9 +246,26 @@ typedef struct {
   EpSeq seq;
   float master_vol;       /* 0..100 % */
   float stereo_width;     /* 0..200 % (0=mono, 100=normal, 200=wide) */
+  float bus_glue;         /* 0..100 % master bus compressor / glue */
+  float comp_env;         /* stereo bus compressor detector state */
   int   retrig_ms;        /* 0..80 ms same-pad double-trigger mask (default 25) */
   int   min_vel;          /* 0..40 minimum MIDI velocity threshold (default 0) */
   int   xtalk;            /* 0..60 % adjacent-pad crosstalk suppression (default 0) */
+  int   play_mode;        /* EP_PLAY_* (Normal / Chrom / 16Vel / 16Flt) */
+  int   repeat_div;       /* EP_RPT_* (Off / 1/8 / 1/16 / 1/16T / 1/32) */
+  /* Note Repeat held-pad state (16 slots) */
+  uint16_t held_mask;
+  uint8_t  held_vel[EP_PADS];
+  int8_t   held_pad[EP_PADS];      /* actual sound pad triggered */
+  float    held_pitch[EP_PADS];
+  float    held_filt[EP_PADS];
+  double   rpt_timer[EP_PADS];
+  /* Round-robin step counter per pad */
+  uint8_t  rr_pos[EP_PADS];
+  /* Internal metronome click synth */
+  float    click_phase;
+  float    click_env;
+  float    click_freq;
   uint32_t rng_state;
   double lfo_phase[EP_PADS][EP_LFOS];
   float  lfo_sh[EP_PADS][EP_LFOS];
@@ -203,6 +282,11 @@ uint32_t ep_core_set_source(EpCore* c, int pad, const EpSource* src);
 int ep_core_gen_in_use(const EpCore* c, int pad, uint32_t gen);
 
 void ep_core_trigger(EpCore* c, int pad, int vel);
+void ep_core_trigger_ex(EpCore* c, int pad, int vel, float pitch_off, float filt_off, int depth);
+void ep_core_trigger_16level(EpCore* c, int sel_pad, int slot, int vel,
+                             int* out_vel, float* out_pitch, float* out_filt);
+void ep_core_hold_start(EpCore* c, int slot, int sound_pad, int vel, float pitch_off, float filt_off);
+void ep_core_hold_stop(EpCore* c, int slot);
 void ep_core_release(EpCore* c, int pad);
 void ep_core_all_off(EpCore* c);
 
@@ -212,11 +296,17 @@ void ep_seq_set_len(EpCore* c, int steps);
 void ep_seq_set_pad_range(EpCore* c, int scene, int pad, int start_step, int end_step);
 void ep_seq_set_quantize(EpCore* c, int q);
 void ep_seq_request_scene(EpCore* c, int scene);
+void ep_seq_request_fill(EpCore* c, int fill_scene);
 void ep_seq_sync_host(EpCore* c, double bpm, int playing, double bar_beat, int bpb);
 void ep_seq_record_hit(EpCore* c, int pad, int vel);
+void ep_seq_record_hit_ex(EpCore* c, int pad, int vel, int pitch_off, int filt_off);
+void ep_seq_save_undo(EpCore* c, int scene);
+int  ep_seq_undo(EpCore* c);
 void ep_seq_clear_pad(EpCore* c, int scene, int pad);
 void ep_seq_clear_scene(EpCore* c, int scene);
 void ep_seq_copy_scene(EpCore* c, int src_scene, int dst_scene);
+void ep_seq_rotate_pad(EpCore* c, int scene, int pad, int dir);
+void ep_seq_euclid_pad(EpCore* c, int scene, int pad, int hits, int rot);
 
 /* Render `nframes` stereo audio (+ optional Aux 1..4 stereo send buses). */
 void ep_core_process_aux(EpCore* c, float* out_l, float* out_r,

@@ -28,9 +28,9 @@
 #define EP_MAX_SECONDS 120.0
 #define EP_RETIRED_MAX 32
 #define EP_SHM_MAGIC   0x45504144u /* "EPAD" */
-#define EP_SHM_VER     10u
+#define EP_SHM_VER     11u
 
-/* Control input ports MUST come first (contiguous 0..30) so Zynthian's synthetic
+/* Control input ports MUST come first (contiguous 0..31) so Zynthian's synthetic
  * patch:writable parameter indices never collide with Input ControlPorts! */
 enum {
   P_PITCH = 0, P_DECAY, P_FILTER, P_LEVEL,        /* Page 1: Pad Sound */
@@ -53,24 +53,25 @@ enum {
   P_PAD_NOTE2,                                    /* index 28: Selected row col 2 MIDI note 0..127 */
   P_PAD_NOTE3,                                    /* index 29: Selected row col 3 MIDI note 0..127 */
   P_PAD_NOTE4,                                    /* index 30: Selected row col 4 MIDI note 0..127 */
-  P_MIDI_IN,                                      /* index 31 */
-  P_OUT_L,                                        /* index 32 */
-  P_OUT_R,                                        /* index 33 */
-  P_AUX1_L,                                       /* index 34 */
-  P_AUX1_R,                                       /* index 35 */
-  P_AUX2_L,                                       /* index 36 */
-  P_AUX2_R,                                       /* index 37 */
-  P_AUX3_L,                                       /* index 38 */
-  P_AUX3_R,                                       /* index 39 */
-  P_AUX4_L,                                       /* index 40 */
-  P_AUX4_R,                                       /* index 41 */
-  P_NOTIFY,                                       /* index 42 */
-  P_OUT_SEL_PAD,                                  /* index 43 */
-  P_OUT_SEQ_STEP,                                 /* index 44 */
-  P_OUT_SEQ_SCENE,                                /* index 45 */
-  P_OUT_SEQ_PEND,                                 /* index 46 */
-  P_OUT_LVL0,                                     /* index 47..62 (16 ports) */
-  P_OUT_PLAYHEAD = P_OUT_LVL0 + EP_PADS           /* index 63 */
+  P_BUS_GLUE,                                     /* index 31: Master Bus Compressor / Glue 0..100% */
+  P_MIDI_IN,                                      /* index 32 */
+  P_OUT_L,                                        /* index 33 */
+  P_OUT_R,                                        /* index 34 */
+  P_AUX1_L,                                       /* index 35 */
+  P_AUX1_R,                                       /* index 36 */
+  P_AUX2_L,                                       /* index 37 */
+  P_AUX2_R,                                       /* index 38 */
+  P_AUX3_L,                                       /* index 39 */
+  P_AUX3_R,                                       /* index 40 */
+  P_AUX4_L,                                       /* index 41 */
+  P_AUX4_R,                                       /* index 42 */
+  P_NOTIFY,                                       /* index 43 */
+  P_OUT_SEL_PAD,                                  /* index 44 */
+  P_OUT_SEQ_STEP,                                 /* index 45 */
+  P_OUT_SEQ_SCENE,                                /* index 46 */
+  P_OUT_SEQ_PEND,                                 /* index 47 */
+  P_OUT_LVL0,                                     /* index 48..63 (16 ports) */
+  P_OUT_PLAYHEAD = P_OUT_LVL0 + EP_PADS           /* index 64 */
 };
 
 #define N_CTL     P_END
@@ -115,12 +116,25 @@ typedef struct {
   int32_t  retrig_ms;   /* 0..80 ms same-pad retrigger filter */
   int32_t  min_vel;     /* 0..40 min velocity threshold */
   int32_t  xtalk;       /* 0..60 % crosstalk suppression */
+  /* v11 header fields (+48 bytes -> 120 bytes total) */
+  int32_t  play_mode;   /* 0=Normal, 1=Chrom, 2=16Vel, 3=16Flt */
+  int32_t  repeat_div;  /* 0=Off, 1=1/8, 2=1/16, 3=1/16T, 4=1/32 */
+  int32_t  metro_mode;  /* 0=Off, 1=Rec, 2=On */
+  int32_t  countin_en;  /* 0=Off, 1=1 Bar */
+  int32_t  countin_rem; /* 0..16 remaining count-in steps */
+  int32_t  undo_avail;  /* 0 or 1 */
+  int32_t  fill_ret;    /* -1 or 0..7 */
+  int32_t  chain_on;    /* 0 or 1 */
+  int32_t  chain_len;   /* 1..8 */
+  int32_t  chain_pos;   /* 0..7 */
+  float    bus_glue;    /* 0..100 % */
+  uint32_t chain_packed;/* 8 x 4-bit nibbles for chain[0..7] */
   EpPadParams pads[EP_PADS];
   EpScene  scenes[EP_SCENES];
 } EpShm;
-_Static_assert(sizeof(EpPadParams) == 144, "EpPadParams size must match Python widget");
-_Static_assert(sizeof(EpScene) == 1568, "EpScene size must match Python widget");
-_Static_assert(sizeof(EpShm) == 14920, "EpShm size must match Python widget");
+_Static_assert(sizeof(EpPadParams) == 160, "EpPadParams size must match Python widget");
+_Static_assert(sizeof(EpScene) == 2592, "EpScene size must match Python widget");
+_Static_assert(sizeof(EpShm) == 23416, "EpShm size must match Python widget");
 
 /* Worker messages */
 enum { MSG_LOAD = 1, MSG_FREE };
@@ -149,6 +163,7 @@ typedef struct {
   const float* in_pad_lfo_rate[EP_LFOS];
   const float* in_pad_mod_amt[2];
   const float* in_pad_note[4];
+  const float* in_bus_glue;
   float prev_pad_steps;
   float prev_pad_beg;
   float prev_pad_aux[EP_AUX_BUSES];
@@ -212,21 +227,37 @@ typedef struct {
 static void shm_publish(EkaPads* P) {
   if (!P->shm) return;
   EpShm* s = P->shm;
-  s->sel_pad   = P->sel_pad;
-  s->follow    = P->follow;
-  s->learn     = P->learn;
-  s->seq_mode  = P->core.seq.mode;
-  s->seq_scene = P->core.seq.scene;
-  s->seq_pend  = P->core.seq.pend_scene;
-  s->seq_step  = P->core.seq.cur_step;
-  s->bpm       = (float)P->core.seq.bpm;
-  s->swing     = P->core.seq.swing;
-  s->seq_quant = P->core.seq.quantize;
-  s->hit_seq   = P->hit_seq;
+  s->sel_pad     = P->sel_pad;
+  s->follow      = P->follow;
+  s->learn       = P->learn;
+  s->seq_mode    = P->core.seq.mode;
+  s->seq_scene   = P->core.seq.scene;
+  s->seq_pend    = P->core.seq.pend_scene;
+  s->seq_step    = P->core.seq.cur_step;
+  s->bpm         = (float)P->core.seq.bpm;
+  s->swing       = P->core.seq.swing;
+  s->seq_quant   = P->core.seq.quantize;
+  s->hit_seq     = P->hit_seq;
   s->last_hit_pad = P->last_hit_pad;
-  s->retrig_ms = P->core.retrig_ms;
-  s->min_vel   = P->core.min_vel;
-  s->xtalk     = P->core.xtalk;
+  s->retrig_ms   = P->core.retrig_ms;
+  s->min_vel     = P->core.min_vel;
+  s->xtalk       = P->core.xtalk;
+  s->play_mode   = P->core.play_mode;
+  s->repeat_div  = P->core.repeat_div;
+  s->metro_mode  = P->core.seq.metro_mode;
+  s->countin_en  = P->core.seq.countin_en;
+  s->countin_rem = P->core.seq.countin_rem;
+  s->undo_avail  = P->core.seq.undo_scene_idx >= 0 ? 1 : 0;
+  s->fill_ret    = P->core.seq.fill_ret_scene;
+  s->chain_on    = P->core.seq.chain_on;
+  s->chain_len   = P->core.seq.chain_len;
+  s->chain_pos   = P->core.seq.chain_pos;
+  s->bus_glue    = P->core.bus_glue;
+  uint32_t cp = 0;
+  for (int i = 0; i < EP_CHAIN_MAX; i++) {
+    cp |= ((uint32_t)(P->core.seq.chain[i] & 0xF)) << (i * 4);
+  }
+  s->chain_packed = cp;
   if (P->shm_dirty) {
     memcpy(s->pads, P->core.pad, sizeof P->core.pad);
     memcpy(s->scenes, P->core.scenes, sizeof P->core.scenes);
@@ -399,7 +430,10 @@ static size_t seq_encode(const EpCore* c, char* buf, size_t cap) {
         EpStep step = sc->steps[p][st];
         if (step.vel == 0) continue;
         int ch = (step.chance == 0 || step.chance > 100) ? 100 : (int)step.chance;
-        if (ch < 100) {
+        if (step.pitch_off != 0 || step.filt_off != 0) {
+          n = snprintf(buf + pos, cap - pos, ":%d.%d.%d.%d.%d.%d",
+                       st, (int)step.vel, (int)step.roll, ch, (int)step.pitch_off, (int)step.filt_off);
+        } else if (ch < 100) {
           n = snprintf(buf + pos, cap - pos, ":%d.%d.%d.%d", st, (int)step.vel, (int)step.roll, ch);
         } else if (step.roll > 0) {
           n = snprintf(buf + pos, cap - pos, ":%d.%d.%d", st, (int)step.vel, (int)step.roll);
@@ -435,20 +469,32 @@ static size_t seq_encode(const EpCore* c, char* buf, size_t cap) {
                 fabsf(cur->aux[0] - def.aux[0]) > 0.2f ||
                 fabsf(cur->aux[1] - def.aux[1]) > 0.2f ||
                 fabsf(cur->aux[2] - def.aux[2]) > 0.2f ||
-                fabsf(cur->aux[3] - def.aux[3]) > 0.2f);
+                fabsf(cur->aux[3] - def.aux[3]) > 0.2f ||
+                fabsf(cur->attack - def.attack) > 0.2f ||
+                fabsf(cur->reso - def.reso) > 0.2f ||
+                cur->link_pad != def.link_pad ||
+                cur->link_mode != def.link_mode);
     if (!diff) continue;
     n = snprintf(buf + pos, cap - pos,
-                 "|P%x:%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%.1f,%.1f,%.1f,%.1f,%d,%.1f,%d,%d,%d,%.1f,%.1f,%.1f,%.1f",
+                 "|P%x:%.1f,%.1f,%.1f,%.1f,%.2f,%.2f,%d,%.1f,%.1f,%.1f,%.1f,%d,%.1f,%d,%d,%d,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%d",
                  p & 0xF, cur->pitch, cur->decay, cur->filter, cur->level,
                  cur->start, cur->end, cur->mode, cur->punch, cur->drive,
                  cur->pan, cur->vel_sens, cur->choke, cur->width,
                  cur->mute, cur->solo, cur->midi_note,
-                 cur->aux[0], cur->aux[1], cur->aux[2], cur->aux[3]);
+                 cur->aux[0], cur->aux[1], cur->aux[2], cur->aux[3],
+                 cur->attack, cur->reso, cur->link_pad, cur->link_mode);
     if (n < 0 || (size_t)n >= cap - pos) return pos;
     pos += (size_t)n;
   }
   if (c->retrig_ms != 25 || c->min_vel != 0 || c->xtalk != 0) {
     n = snprintf(buf + pos, cap - pos, "|F:%d,%d,%d", c->retrig_ms, c->min_vel, c->xtalk);
+    if (n > 0 && (size_t)n < cap - pos) pos += (size_t)n;
+  }
+  if (c->seq.metro_mode != 0 || c->seq.countin_en != 0 || c->seq.chain_on != 0 || c->seq.chain_len != 4) {
+    n = snprintf(buf + pos, cap - pos, "|E:%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+                 c->seq.metro_mode, c->seq.countin_en, c->seq.chain_on, c->seq.chain_len,
+                 (int)c->seq.chain[0], (int)c->seq.chain[1], (int)c->seq.chain[2], (int)c->seq.chain[3],
+                 (int)c->seq.chain[4], (int)c->seq.chain[5], (int)c->seq.chain[6], (int)c->seq.chain[7]);
     if (n > 0 && (size_t)n < cap - pos) pos += (size_t)n;
   }
   for (int p = 0; p < EP_PADS; p++) {
@@ -541,18 +587,26 @@ static void seq_decode(EpCore* c, const char* str) {
     while (*p == ':') {
       p++;
       int st = (int)strtol(p, (char**)&p, 10);
-      int vel = 0, roll = 0, chance = 0;
+      int vel = 0, roll = 0, chance = 0, po = 0, fo = 0;
       if (*p == '.') { p++; vel = (int)strtol(p, (char**)&p, 10); }
       if (*p == '.') { p++; roll = (int)strtol(p, (char**)&p, 10); }
       if (*p == '.') { p++; chance = (int)strtol(p, (char**)&p, 10); }
+      if (*p == '.') { p++; po = (int)strtol(p, (char**)&p, 10); }
+      if (*p == '.') { p++; fo = (int)strtol(p, (char**)&p, 10); }
       if (st >= 0 && st < EP_STEPS && vel > 0) {
         c->scenes[sc].steps[pad][st].vel = (uint8_t)(vel > 127 ? 127 : vel);
         c->scenes[sc].steps[pad][st].roll = (uint8_t)(roll & 0xFF);
         c->scenes[sc].steps[pad][st].chance = (uint8_t)((chance > 0 && chance < 100) ? chance : 0);
+        if (po < -24) po = -24;
+        if (po > 24) po = 24;
+        if (fo < -100) fo = -100;
+        if (fo > 100) fo = 100;
+        c->scenes[sc].steps[pad][st].pitch_off = (int8_t)po;
+        c->scenes[sc].steps[pad][st].filt_off = (int8_t)fo;
       }
     }
   }
-  /* Parse optional |P<hex>:... / |F:... / |M<hex>:... (also accepts legacy '=' separator) */
+  /* Parse optional |P<hex>:... / |F:... / |E:... / |M<hex>:... (also accepts legacy '=' separator) */
   while (*p == '|') {
     p++;
     if (p[0] == 'P' && p[1] && (p[2] == ':' || p[2] == '=')) {
@@ -560,9 +614,9 @@ static void seq_decode(EpCore* c, const char* str) {
       p += 3;
       if (pad >= 0 && pad < EP_PADS) {
         EpPadParams* d = &c->pad[pad];
-        float v[20];
+        float v[24];
         int cnt = 0;
-        while (cnt < 20 && *p && *p != '|') {
+        while (cnt < 24 && *p && *p != '|') {
           v[cnt++] = strtof(p, (char**)&p);
           if (*p == ',') p++;
         }
@@ -577,7 +631,29 @@ static void seq_decode(EpCore* c, const char* str) {
           for (int a = 0; a < EP_AUX_BUSES; a++) {
             d->aux[a] = (cnt > 16 + a) ? v[16 + a] : 0.0f;
           }
+          if (cnt > 20) d->attack = v[20] < 0.0f ? 0.0f : (v[20] > 100.0f ? 100.0f : v[20]);
+          if (cnt > 21) d->reso   = v[21] < 0.0f ? 0.0f : (v[21] > 100.0f ? 100.0f : v[21]);
+          if (cnt > 22) {
+            int lp = (int)lrintf(v[22]);
+            d->link_pad = (lp >= 0 && lp <= EP_PADS) ? lp : 0;
+          }
+          if (cnt > 23) d->link_mode = ((int)lrintf(v[23])) ? EP_LINK_RR : EP_LINK_LAYER;
         }
+      }
+    } else if (p[0] == 'E' && (p[1] == ':' || p[1] == '=')) {
+      p += 2;
+      int ev[12] = { 0 };
+      int cnt = 0;
+      while (cnt < 12 && *p && *p != '|') {
+        ev[cnt++] = (int)strtol(p, (char**)&p, 10);
+        if (*p == ',') p++;
+      }
+      if (cnt >= 1) c->seq.metro_mode = (ev[0] >= 0 && ev[0] <= 2) ? ev[0] : 0;
+      if (cnt >= 2) c->seq.countin_en = ev[1] ? 1 : 0;
+      if (cnt >= 3) c->seq.chain_on   = ev[2] ? 1 : 0;
+      if (cnt >= 4) c->seq.chain_len  = ev[3] < 1 ? 1 : (ev[3] > EP_CHAIN_MAX ? EP_CHAIN_MAX : ev[3]);
+      for (int k = 0; k < EP_CHAIN_MAX && 4 + k < cnt; k++) {
+        c->seq.chain[k] = (uint8_t)(ev[4 + k] & 7);
       }
     } else if (p[0] == 'F' && (p[1] == ':' || p[1] == '=')) {
       p += 2;
@@ -633,7 +709,22 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
   switch (op) {
     case CMD_SET_VEL:
       if (a < EP_SCENES && b < EP_PADS && c < EP_STEPS) {
-        P->core.scenes[a].steps[b][c].vel = (uint8_t)(val > 127 ? 127 : val);
+        if (val < 128) {
+          P->core.scenes[a].steps[b][c].vel = (uint8_t)val;
+        } else if (val < 192) {
+          /* 0x80..0xBF: p-lock pitch offset (-24..+24 st) */
+          int po = (val & 0x3F) - 24;
+          if (po < -24) po = -24;
+          if (po > 24) po = 24;
+          P->core.scenes[a].steps[b][c].pitch_off = (int8_t)po;
+        } else {
+          /* 0xC0..0xFF: p-lock micro-timing (-30..+30 / 64 step), preserving roll bits 0..1 */
+          int m = (val & 0x3F) - 30;
+          if (m < -30) m = -30;
+          if (m > 30) m = 30;
+          uint8_t prev = P->core.scenes[a].steps[b][c].roll;
+          P->core.scenes[a].steps[b][c].roll = (uint8_t)(((m & 0x3F) << 2) | (prev & 3));
+        }
         P->shm_dirty = 1;
       }
       break;
@@ -643,9 +734,15 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
           /* High bit set: val = 0x80 | chance (1..100%; 0 or >=100 -> 100% default stored as 0) */
           int ch = val & 0x7F;
           P->core.scenes[a].steps[b][c].chance = (uint8_t)((ch > 0 && ch < 100) ? ch : 0);
+        } else if (val >= 4) {
+          /* 4..127: p-lock filter offset (val=60 -> 0%, 10..110 -> -100..+100% in 2% steps) */
+          int fo = (val - 60) * 2;
+          if (fo < -100) fo = -100;
+          if (fo > 100) fo = 100;
+          P->core.scenes[a].steps[b][c].filt_off = (int8_t)fo;
         } else {
           uint8_t prev = P->core.scenes[a].steps[b][c].roll;
-          P->core.scenes[a].steps[b][c].roll = (uint8_t)((prev & 0xFCu) | (uint8_t)(val > 3 ? 3 : val));
+          P->core.scenes[a].steps[b][c].roll = (uint8_t)((prev & 0xFCu) | (uint8_t)(val & 3));
         }
         P->shm_dirty = 1;
       }
@@ -683,8 +780,26 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
         P->core.xtalk = 0;
         P->core.master_vol = 85.0f;
         P->core.stereo_width = 100.0f;
+        P->core.bus_glue = 0.0f;
+        P->core.comp_env = 0.0f;
+        P->core.play_mode = EP_PLAY_NORMAL;
+        P->core.repeat_div = EP_RPT_OFF;
+        P->core.held_mask = 0;
+        memset(P->core.rr_pos, 0, sizeof P->core.rr_pos);
         P->core.seq.scene = 0;
         P->core.seq.pend_scene = -1;
+        P->core.seq.fill_ret_scene = -1;
+        P->core.seq.metro_mode = EP_METRO_OFF;
+        P->core.seq.countin_en = 0;
+        P->core.seq.countin_rem = 0;
+        P->core.seq.chain_on = 0;
+        P->core.seq.chain_len = 4;
+        P->core.seq.chain_pos = 0;
+        P->core.seq.chain[0] = 0; P->core.seq.chain[1] = 0;
+        P->core.seq.chain[2] = 1; P->core.seq.chain[3] = 2;
+        P->core.seq.chain[4] = 0; P->core.seq.chain[5] = 1;
+        P->core.seq.chain[6] = 2; P->core.seq.chain[7] = 3;
+        P->core.seq.undo_scene_idx = -1;
         P->core.seq.num_steps = EP_STEPS_DEF;
         P->core.seq.bpm = 120.0;
         P->core.seq.swing = 50.0f;
@@ -784,6 +899,145 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
           P->core.pad[b].midi_note = val & 0x7F;
           P->shm_dirty = 1;
         }
+      } else if (a == 5 && b < EP_PADS) {
+        /* Pad extras: attack, reso, link, fine start/end (for Auto-Slice), choke, Copy/Swap, Touch Hold */
+        if (c == 0) {
+          P->core.pad[b].attack = (float)(val > 100 ? 100 : val);
+          P->shm_dirty = 1;
+        } else if (c == 1) {
+          P->core.pad[b].reso = (float)(val > 100 ? 100 : val);
+          P->shm_dirty = 1;
+        } else if (c == 2) {
+          P->core.pad[b].link_pad = (val <= EP_PADS) ? val : 0;
+          P->shm_dirty = 1;
+        } else if (c == 3) {
+          P->core.pad[b].link_mode = val ? EP_LINK_RR : EP_LINK_LAYER;
+          P->shm_dirty = 1;
+        } else if (c == 4) {
+          /* Fine start: 0..240 -> 0..100% (exact 1/4, 1/8, 1/16 fractions!) */
+          float pct = ((float)(val > 240 ? 240 : val)) * (100.0f / 240.0f);
+          if (pct > 99.0f) pct = 99.0f;
+          P->core.pad[b].start = pct;
+          if (P->core.pad[b].end <= pct + 0.2f) P->core.pad[b].end = pct + 0.5f > 100.0f ? 100.0f : pct + 0.5f;
+          P->shm_dirty = 1;
+        } else if (c == 5) {
+          /* Fine end: 1..240 -> 0.416..100% */
+          int vv = val < 1 ? 1 : (val > 240 ? 240 : val);
+          float pct = ((float)vv) * (100.0f / 240.0f);
+          if (pct < 1.0f) pct = 1.0f;
+          if (pct > 100.0f) pct = 100.0f;
+          P->core.pad[b].end = pct;
+          P->shm_dirty = 1;
+        } else if (c == 6) {
+          P->core.pad[b].choke = val > EP_CHOKE_MAX ? EP_CHOKE_MAX : val;
+          P->shm_dirty = 1;
+        } else if (c == 7) {
+          /* Copy Pad b -> dst (preserve dst midi_note) */
+          int dst = val & 15;
+          if (dst != b) {
+            int keep_note = P->core.pad[dst].midi_note;
+            P->core.pad[dst] = P->core.pad[b];
+            P->core.pad[dst].midi_note = keep_note;
+            request_load(P, dst, P->paths[b][0] ? P->paths[b] : NULL);
+            P->shm_dirty = 1;
+            P->report_next = 0;
+          }
+        } else if (c == 8) {
+          /* Swap Pad b <-> dst (preserve both midi_notes) */
+          int dst = val & 15;
+          if (dst != b) {
+            int nb = P->core.pad[b].midi_note;
+            int nd = P->core.pad[dst].midi_note;
+            EpPadParams tp = P->core.pad[b];
+            P->core.pad[b] = P->core.pad[dst];
+            P->core.pad[dst] = tp;
+            P->core.pad[b].midi_note = nb;
+            P->core.pad[dst].midi_note = nd;
+            /* Swap sample pointers, paths & sources safely */
+            ep_core_all_off(&P->core);
+            EpSample* ts = P->samples[b];
+            P->samples[b] = P->samples[dst];
+            P->samples[dst] = ts;
+            char tpath[EP_PATH_MAX];
+            memcpy(tpath, P->paths[b], EP_PATH_MAX);
+            memcpy(P->paths[b], P->paths[dst], EP_PATH_MAX);
+            memcpy(P->paths[dst], tpath, EP_PATH_MAX);
+            EpSource sb = { 0 }, sd = { 0 };
+            if (P->samples[b])   { sb.data = P->samples[b]->data;   sb.frames = P->samples[b]->frames;   sb.rate = (float)P->samples[b]->rate; }
+            if (P->samples[dst]) { sd.data = P->samples[dst]->data; sd.frames = P->samples[dst]->frames; sd.rate = (float)P->samples[dst]->rate; }
+            ep_core_set_source(&P->core, b, P->samples[b] ? &sb : NULL);
+            ep_core_set_source(&P->core, dst, P->samples[dst] ? &sd : NULL);
+            P->shm_dirty = 1;
+            P->report_next = 0;
+          }
+        } else if (c == 9) {
+          ep_core_hold_start(&P->core, b, b, val > 0 ? val : 110, 0.0f, 0.0f);
+        } else if (c == 10) {
+          ep_core_hold_stop(&P->core, b);
+          ep_core_release(&P->core, b);
+        }
+      } else if (a == 6) {
+        /* Global performance & sequencer controls */
+        if (c == 0) {
+          P->core.play_mode = val % EP_PLAY_NMODES;
+          P->core.held_mask = 0;
+          P->shm_dirty = 1;
+        } else if (c == 1) {
+          P->core.repeat_div = val % EP_RPT_NMODES;
+          P->core.held_mask = 0;
+          P->shm_dirty = 1;
+        } else if (c == 2) {
+          P->core.seq.metro_mode = (val <= 2) ? val : 0;
+          P->shm_dirty = 1;
+        } else if (c == 3) {
+          P->core.seq.countin_en = val ? 1 : 0;
+          P->shm_dirty = 1;
+        } else if (c == 4) {
+          if (ep_seq_undo(&P->core)) {
+            P->shm_dirty = 1;
+          }
+        } else if (c == 5) {
+          ep_seq_request_fill(&P->core, val & 7);
+          P->shm_dirty = 1;
+        } else if (c == 6) {
+          P->core.seq.chain_on = val ? 1 : 0;
+          P->shm_dirty = 1;
+        } else if (c == 7) {
+          int cl = val < 1 ? 1 : (val > EP_CHAIN_MAX ? EP_CHAIN_MAX : val);
+          P->core.seq.chain_len = cl;
+          if (P->core.seq.chain_pos >= cl) P->core.seq.chain_pos = 0;
+          P->shm_dirty = 1;
+        } else if (c == 8) {
+          P->core.seq.chain[b & 7] = (uint8_t)(val & 7);
+          P->shm_dirty = 1;
+        } else if (c == 9) {
+          /* Touch trigger 16-level slot b (0..15) for sel_pad */
+          int eff_vel = 110;
+          float po = 0.0f, fo = 0.0f;
+          ep_core_trigger_16level(&P->core, P->sel_pad, b, val > 0 ? val : 110, &eff_vel, &po, &fo);
+          ep_core_hold_start(&P->core, b, P->sel_pad, eff_vel, po, fo);
+          if (P->core.seq.mode == EP_SEQ_REC && P->core.seq.countin_rem == 0) {
+            ep_seq_record_hit_ex(&P->core, P->sel_pad, eff_vel, (int)lrintf(po), (int)lrintf(fo));
+            P->shm_dirty = 1;
+            P->seq_notify_dirty = 1;
+          }
+        } else if (c == 10) {
+          ep_core_hold_stop(&P->core, b);
+          ep_core_release(&P->core, P->sel_pad);
+        }
+      } else if (a == 7 && b < EP_PADS) {
+        /* Pattern generators on active scene for pad b */
+        int sc = P->core.seq.scene;
+        if (val == 0xFE) {
+          ep_seq_rotate_pad(&P->core, sc, b, -1);
+          P->shm_dirty = 1;
+        } else if (val == 0xFF) {
+          ep_seq_rotate_pad(&P->core, sc, b, +1);
+          P->shm_dirty = 1;
+        } else if (val <= EP_STEPS) {
+          ep_seq_euclid_pad(&P->core, sc, b, val, c);
+          P->shm_dirty = 1;
+        }
       } else if (a < EP_MOD_SLOTS && b < EP_PADS) {
         int v = val > 200 ? 200 : val;
         P->core.pad[b].mod_amt[a] = (float)(v - 100);
@@ -793,7 +1047,10 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
     default:
       break;
   }
-  if (op != 0 && op != CMD_TRIG_PAD) {
+  int is_transient = (op == CMD_TRIG_PAD) ||
+                     (op == CMD_SET_MOD_AMT && a == 5 && (c == 9 || c == 10)) ||
+                     (op == CMD_SET_MOD_AMT && a == 6 && (c == 0 || c == 1 || c == 5 || c == 9 || c == 10));
+  if (op != 0 && !is_transient) {
     P->seq_notify_dirty = 1;
   }
 }
@@ -872,7 +1129,7 @@ static void handle_patch_set(EkaPads* P, const LV2_Atom_Object* obj) {
     P->shm_dirty = 1;
     P->seq_notify_dirty = 1;
   } else if (u == P->p_pad_end) {
-    if (iv < 5) iv = 5;
+    if (iv < 1) iv = 1;
     if (iv > 100) iv = 100;
     P->core.pad[P->sel_pad].end = (float)iv;
     P->shm_dirty = 1;
@@ -1129,6 +1386,7 @@ static void connect_port(LV2_Handle h, uint32_t port, void* data) {
     case P_PAD_NOTE2:     P->in_pad_note[1] = (const float*)data; break;
     case P_PAD_NOTE3:     P->in_pad_note[2] = (const float*)data; break;
     case P_PAD_NOTE4:     P->in_pad_note[3] = (const float*)data; break;
+    case P_BUS_GLUE:      P->in_bus_glue = (const float*)data; break;
     default:
       if (port >= P_OUT_LVL0 && port < P_OUT_LVL0 + EP_PADS)
         P->out_lvl[port - P_OUT_LVL0] = (float*)data;
@@ -1201,6 +1459,7 @@ static void run(LV2_Handle h, uint32_t nframes) {
   if (P->ctl[P_SEQ_SWING]) P->core.seq.swing = *P->ctl[P_SEQ_SWING];
   if (P->ctl[P_MASTER])    P->core.master_vol = *P->ctl[P_MASTER];
   if (P->in_stereo_width)  P->core.stereo_width = *P->in_stereo_width;
+  if (P->in_bus_glue)      P->core.bus_glue = *P->in_bus_glue;
 
   /* Encoder control for selected pad's Steps (End), Beg Step, and Aux 1..4 Sends */
   if (!P->have_prev_steps) {
@@ -1375,6 +1634,44 @@ static void run(LV2_Handle h, uint32_t nframes) {
             P->shm_dirty = 1;
             P->seq_notify_dirty = 1;
             ep_core_trigger(&P->core, P->sel_pad, vel);
+          } else if (P->core.play_mode != EP_PLAY_NORMAL) {
+            int matched_slot = -1;
+            for (int p = 0; p < EP_PADS; p++) {
+              if (P->core.pad[p].midi_note == note) { matched_slot = p; break; }
+            }
+            if (matched_slot >= 0) {
+              uint64_t ev_sample = P->sample_clock + (uint64_t)t;
+              uint64_t retrig_samples = (uint64_t)((double)P->core.retrig_ms * 0.001 * P->sr);
+              int skip = (P->core.min_vel > 0 && (int)vel < P->core.min_vel) ||
+                         (retrig_samples > 0 && (ev_sample - P->last_pad_hit_sample[matched_slot]) < retrig_samples);
+              if (!skip) {
+                P->last_pad_hit_sample[matched_slot] = ev_sample;
+                int eff_vel = vel;
+                float po = 0.0f, fo = 0.0f;
+                ep_core_trigger_16level(&P->core, P->sel_pad, matched_slot, vel, &eff_vel, &po, &fo);
+                ep_core_hold_start(&P->core, matched_slot, P->sel_pad, eff_vel, po, fo);
+                if (P->core.seq.mode == EP_SEQ_REC && P->core.seq.countin_rem == 0) {
+                  ep_seq_record_hit_ex(&P->core, P->sel_pad, eff_vel, (int)lrintf(po), (int)lrintf(fo));
+                  P->shm_dirty = 1;
+                  P->seq_notify_dirty = 1;
+                }
+              }
+            } else if (P->core.play_mode == EP_PLAY_CHROM) {
+              /* External MIDI keyboard plays sel_pad chromatically relative to its MIDI note */
+              int base_note = P->core.pad[P->sel_pad].midi_note;
+              float po = (float)((int)note - base_note);
+              if (po < -24.0f) po = -24.0f;
+              if (po > 24.0f) po = 24.0f;
+              ep_core_trigger_ex(&P->core, P->sel_pad, vel, po, 0.0f, 0);
+              ep_core_hold_start(&P->core, P->sel_pad, P->sel_pad, vel, po, 0.0f);
+              if (P->core.seq.mode == EP_SEQ_REC && P->core.seq.countin_rem == 0) {
+                ep_seq_record_hit_ex(&P->core, P->sel_pad, vel, (int)lrintf(po), 0);
+                P->shm_dirty = 1;
+                P->seq_notify_dirty = 1;
+              }
+            } else if (note >= 52 && note < 57) {
+              ep_seq_request_scene(&P->core, note - 52);
+            }
           } else {
             int matched = 0;
             uint64_t ev_sample = P->sample_clock + (uint64_t)t;
@@ -1410,7 +1707,8 @@ static void run(LV2_Handle h, uint32_t nframes) {
                   snapshot_prev_controls(P);
                 }
                 ep_core_trigger(&P->core, p, vel);
-                if (P->core.seq.mode == EP_SEQ_REC) {
+                ep_core_hold_start(&P->core, p, p, vel, 0.0f, 0.0f);
+                if (P->core.seq.mode == EP_SEQ_REC && P->core.seq.countin_rem == 0) {
                   ep_seq_record_hit(&P->core, p, vel);
                   P->shm_dirty = 1;
                   P->seq_notify_dirty = 1;
@@ -1423,9 +1721,20 @@ static void run(LV2_Handle h, uint32_t nframes) {
             }
           }
         } else if (status == 0x80 || (status == 0x90 && vel == 0)) {
-          for (int p = 0; p < EP_PADS; p++) {
-            if (P->core.pad[p].midi_note == note) {
-              ep_core_release(&P->core, p);
+          if (P->core.play_mode != EP_PLAY_NORMAL) {
+            int matched_slot = -1;
+            for (int p = 0; p < EP_PADS; p++) {
+              if (P->core.pad[p].midi_note == note) { matched_slot = p; break; }
+            }
+            if (matched_slot >= 0) ep_core_hold_stop(&P->core, matched_slot);
+            else ep_core_hold_stop(&P->core, P->sel_pad);
+            ep_core_release(&P->core, P->sel_pad);
+          } else {
+            for (int p = 0; p < EP_PADS; p++) {
+              if (P->core.pad[p].midi_note == note) {
+                ep_core_hold_stop(&P->core, p);
+                ep_core_release(&P->core, p);
+              }
             }
           }
         }
@@ -1579,6 +1888,20 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
   P->core.retrig_ms = 25;
   P->core.min_vel = 0;
   P->core.xtalk = 0;
+  P->core.play_mode = EP_PLAY_NORMAL;
+  P->core.repeat_div = EP_RPT_OFF;
+  P->core.seq.metro_mode = EP_METRO_OFF;
+  P->core.seq.countin_en = 0;
+  P->core.seq.countin_rem = 0;
+  P->core.seq.fill_ret_scene = -1;
+  P->core.seq.chain_on = 0;
+  P->core.seq.chain_len = 4;
+  P->core.seq.chain_pos = 0;
+  P->core.seq.chain[0] = 0; P->core.seq.chain[1] = 0;
+  P->core.seq.chain[2] = 1; P->core.seq.chain[3] = 2;
+  P->core.seq.chain[4] = 0; P->core.seq.chain[5] = 1;
+  P->core.seq.chain[6] = 2; P->core.seq.chain[7] = 3;
+  P->core.seq.undo_scene_idx = -1;
   ep_seq_set_quantize(&P->core, 100);
   P->core.seq.bpm = 120.0;
   P->core.seq.num_steps = EP_STEPS_DEF;
@@ -1600,8 +1923,8 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
   const void* blob = retrieve(handle, P->st_pad_params, &sz, &type, &fl);
   if (blob && sz == sizeof P->core.pad) {
     memcpy(P->core.pad, blob, sz);
-  } else if (blob && (sz == EP_PADS * 64 || sz == EP_PADS * 72 || sz == EP_PADS * 80)) {
-    /* Legacy 64/72/80-byte EpPadParams snapshot migration */
+  } else if (blob && (sz == EP_PADS * 64 || sz == EP_PADS * 72 || sz == EP_PADS * 80 || sz == EP_PADS * 144)) {
+    /* Legacy 64/72/80/144-byte EpPadParams snapshot migration */
     size_t stride = sz / EP_PADS;
     const uint8_t* src = (const uint8_t*)blob;
     for (int i = 0; i < EP_PADS; i++) {
@@ -1613,6 +1936,26 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
   const void* sc = retrieve(handle, P->st_scenes, &sz, &type, &fl);
   if (sc && sz == sizeof P->core.scenes) {
     memcpy(P->core.scenes, sc, sz);
+  } else if (sc && sz == (size_t)(EP_SCENES * (EP_PADS * EP_STEPS * 3 + EP_PADS * 2))) {
+    /* Legacy v0.2.x 32-step 3-byte EpStep snapshot migration */
+    const uint8_t* raw = (const uint8_t*)sc;
+    size_t old_sc_sz = EP_PADS * EP_STEPS * 3 + EP_PADS * 2;
+    for (int s = 0; s < EP_SCENES; s++) {
+      ep_seq_clear_scene(&P->core, s);
+      const uint8_t* sbase = raw + s * old_sc_sz;
+      for (int p = 0; p < EP_PADS; p++) {
+        for (int st = 0; st < EP_STEPS; st++) {
+          size_t off = (size_t)(p * EP_STEPS + st) * 3;
+          P->core.scenes[s].steps[p][st].vel = sbase[off];
+          P->core.scenes[s].steps[p][st].roll = sbase[off + 1];
+          P->core.scenes[s].steps[p][st].chance = sbase[off + 2];
+          P->core.scenes[s].steps[p][st].pitch_off = 0;
+          P->core.scenes[s].steps[p][st].filt_off = 0;
+        }
+        P->core.scenes[s].pad_start[p] = sbase[EP_PADS * EP_STEPS * 3 + p];
+        P->core.scenes[s].pad_end[p] = sbase[EP_PADS * EP_STEPS * 3 + EP_PADS + p];
+      }
+    }
   } else if (sc && sz == (size_t)(EP_SCENES * (EP_PADS * EP_STEPS * 2 + EP_PADS * 2))) {
     /* Legacy 32-step 2-byte EpStep snapshot migration */
     const uint8_t* raw = (const uint8_t*)sc;

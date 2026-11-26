@@ -50,7 +50,6 @@ static inline float lfo_eval(int wave, double ph, float sh) {
 static inline double lfo_effective_hz(int wave_flags, float rate, double bpm) {
   float r = clampf(rate, 0.05f, 20.0f);
   if ((wave_flags & 16) == 0) return (double)r;
-  /* 9 musical divisions in beats per LFO cycle: 4/1, 2/1, 1/1, 1/2, 1/4, 1/8, 1/16, 1/8T, 1/16T */
   static const double div_beats[9] = {
     16.0, 8.0, 4.0, 2.0, 1.0, 0.5, 0.25, 1.0 / 3.0, 1.0 / 6.0
   };
@@ -60,6 +59,16 @@ static inline double lfo_effective_hz(int wave_flags, float rate, double bpm) {
   if (idx > 8) idx = 8;
   double b = bpm < 40.0 ? 40.0 : (bpm > 240.0 ? 240.0 : bpm);
   return (b / 60.0) / div_beats[idx];
+}
+
+static inline double repeat_steps_for_div(int div) {
+  switch (div) {
+    case EP_RPT_8:   return 2.0;         /* 1/8 note = 2 sixteenth steps */
+    case EP_RPT_16:  return 1.0;         /* 1/16 note = 1 step */
+    case EP_RPT_16T: return 2.0 / 3.0;   /* 1/16 triplet */
+    case EP_RPT_32:  return 0.5;         /* 1/32 note = 0.5 step */
+    default:         return 0.0;
+  }
 }
 
 static inline float pad_mod_sum(const EpCore* c, const EpVoice* v, int pad, int dst) {
@@ -115,6 +124,10 @@ void ep_pad_defaults(EpPadParams* p, int pad_index) {
   p->lfo_rate[0] = 1.5f;
   p->lfo_wave[1] = EP_LFO_TRI;
   p->lfo_rate[1] = 4.0f;
+  p->attack = 0.0f;
+  p->reso = 20.0f;
+  p->link_pad = 0;
+  p->link_mode = EP_LINK_LAYER;
 }
 
 static void init_scene_ranges(EpScene* sc) {
@@ -129,9 +142,12 @@ void ep_core_init(EpCore* c, double sr) {
   c->sr = sr > 1000.0 ? sr : 48000.0;
   c->master_vol = 85.0f;
   c->stereo_width = 100.0f;
+  c->bus_glue = 0.0f;
   c->retrig_ms = 25;
   c->min_vel = 0;
   c->xtalk = 0;
+  c->play_mode = EP_PLAY_NORMAL;
+  c->repeat_div = EP_RPT_OFF;
   c->rng_state = 0x12345678u;
   c->sel_playhead = -1.0f;
   for (int i = 0; i < EP_PADS; i++) {
@@ -140,6 +156,7 @@ void ep_core_init(EpCore* c, double sr) {
     c->seq.pad_last_step[i] = -1;
     c->seq.pad_cur_step[i] = -1;
     c->seq.skip_step[i] = -1;
+    c->held_pad[i] = (int8_t)i;
   }
   for (int s = 0; s < EP_SCENES; s++) {
     init_scene_ranges(&c->scenes[s]);
@@ -149,19 +166,40 @@ void ep_core_init(EpCore* c, double sr) {
   c->seq.pend_scene = -1;
   c->seq.cur_step = -1;
   c->seq.num_steps = EP_STEPS_DEF;
-  c->seq.quantize = 100; /* 100% grid quantize */
+  c->seq.quantize = 100;
   c->seq.bpm = 120.0;
   c->seq.swing = 50.0f;
   c->seq.last_step_fired = -1;
+  c->seq.last_metro_beat = -1;
+  c->seq.fill_ret_scene = -1;
+  c->seq.chain_on = 0;
+  c->seq.chain_len = 4;
+  c->seq.chain_pos = 0;
+  c->seq.chain[0] = 0;
+  c->seq.chain[1] = 0;
+  c->seq.chain[2] = 1;
+  c->seq.chain[3] = 2;
+  c->seq.chain[4] = 0;
+  c->seq.chain[5] = 1;
+  c->seq.chain[6] = 2;
+  c->seq.chain[7] = 3;
+  c->seq.undo_scene_idx = -1;
 }
 
 void ep_core_reset(EpCore* c) {
   memset(c->voices, 0, sizeof c->voices);
   memset(c->activity, 0, sizeof c->activity);
   c->sel_playhead = -1.0f;
+  c->comp_env = 0.0f;
+  c->click_env = 0.0f;
+  c->click_phase = 0.0f;
+  c->held_mask = 0;
   c->seq.bar_phase = 0.0;
   c->seq.cur_step = (c->seq.mode == EP_SEQ_STOP) ? -1 : 0;
   c->seq.last_step_fired = -1;
+  c->seq.last_metro_beat = -1;
+  c->seq.countin_rem = 0;
+  c->seq.countin_phase = 0.0;
   c->seq.skip_next_mask = 0;
   for (int i = 0; i < EP_PADS; i++) {
     c->seq.pad_phase[i] = 0.0;
@@ -203,6 +241,7 @@ int ep_core_gen_in_use(const EpCore* c, int pad, uint32_t gen) {
 
 void ep_core_all_off(EpCore* c) {
   for (int i = 0; i < EP_VOICES; i++) c->voices[i].active = 0;
+  c->held_mask = 0;
 }
 
 static int any_solo(const EpCore* c) {
@@ -233,7 +272,7 @@ static int find_voice_slot(EpCore* c) {
   return best;
 }
 
-void ep_core_trigger(EpCore* c, int pad, int vel) {
+static void trigger_voice_single(EpCore* c, int pad, int vel, float pitch_off, float filt_off) {
   if (pad < 0 || pad >= EP_PADS) return;
   const EpSource* s = &c->src[pad];
   const EpPadParams* p = &c->pad[pad];
@@ -261,10 +300,12 @@ void ep_core_trigger(EpCore* c, int pad, int vel) {
   v->hit_vel = vel_norm;
   v->hit_rand = rng_bipolar(&c->rng_state);
   v->env_fol = vel_norm;
+  v->plock_pitch = clampf(pitch_off, -24.0f, 24.0f);
+  v->plock_filter = clampf(filt_off, -100.0f, 100.0f);
 
-  float eff_start = clampf(p->start + pad_mod_sum(c, v, pad, EP_MDST_START) * 0.5f, 0.0f, 95.0f);
-  float st_frac = clampf(eff_start * 0.01f, 0.0f, 0.95f);
-  float en_frac = clampf(p->end * 0.01f, st_frac + 0.01f, 1.0f);
+  float eff_start = clampf(p->start + pad_mod_sum(c, v, pad, EP_MDST_START) * 0.5f, 0.0f, 99.0f);
+  float st_frac = clampf(eff_start * 0.01f, 0.0f, 0.99f);
+  float en_frac = clampf(p->end * 0.01f, st_frac + 0.002f, 1.0f);
   if (en_frac > 1.0f) en_frac = 1.0f;
 
   v->active = 1;
@@ -275,11 +316,22 @@ void ep_core_trigger(EpCore* c, int pad, int vel) {
   if (v->end_frame <= v->start_frame) v->end_frame = (double)(s->frames - 1);
 
   v->reverse = (p->mode == EP_MODE_REV_ONESHOT || p->mode == EP_MODE_REV_GATE);
-  v->gate_mode = (p->mode == EP_MODE_GATE || p->mode == EP_MODE_REV_GATE);
+  v->loop_mode = (p->mode == EP_MODE_LOOP);
+  v->gate_mode = (p->mode == EP_MODE_GATE || p->mode == EP_MODE_REV_GATE || p->mode == EP_MODE_LOOP);
   v->pos = v->reverse ? v->end_frame : v->start_frame;
 
   float vs = clampf(p->vel_sens * 0.01f, 0.0f, 1.0f);
   v->vel_gain = (1.0f - vs) + vs * (vel_norm * vel_norm);
+
+  /* Exponential Attack fade-in (0% = instant; 1..100% = 1..500 ms) */
+  if (p->attack > 0.5f) {
+    double atk_sec = 0.001 * pow(500.0, (double)clampf(p->attack, 0.0f, 100.0f) / 100.0);
+    v->atk_env = 0.0f;
+    v->atk_inc = (float)(1.0 / (atk_sec * c->sr + 1.0));
+  } else {
+    v->atk_env = 1.0f;
+    v->atk_inc = 0.0f;
+  }
 
   v->env = 1.0f;
   float eff_decay = clampf(p->decay + pad_mod_sum(c, v, pad, EP_MDST_DECAY), 0.0f, 100.0f);
@@ -299,6 +351,100 @@ void ep_core_trigger(EpCore* c, int pad, int vel) {
 
   float act = 0.35f + 0.65f * vel_norm;
   if (act > c->activity[pad]) c->activity[pad] = act;
+}
+
+void ep_core_trigger_ex(EpCore* c, int pad, int vel, float pitch_off, float filt_off, int depth) {
+  if (pad < 0 || pad >= EP_PADS) return;
+  const EpPadParams* p = &c->pad[pad];
+
+  /* Round-Robin chain resolution at top-level trigger */
+  if (depth == 0 && p->link_pad >= 1 && p->link_pad <= EP_PADS && p->link_mode == EP_LINK_RR) {
+    int chain[EP_PADS];
+    int n = 0;
+    uint16_t seen = 0;
+    int cur = pad;
+    while (n < EP_PADS && !(seen & (1u << cur))) {
+      chain[n++] = cur;
+      seen |= (uint16_t)(1u << cur);
+      int lp = c->pad[cur].link_pad;
+      if (lp >= 1 && lp <= EP_PADS && c->pad[cur].link_mode == EP_LINK_RR) {
+        cur = lp - 1;
+      } else {
+        break;
+      }
+    }
+    int chosen = chain[c->rr_pos[pad] % (uint8_t)n];
+    c->rr_pos[pad] = (uint8_t)((c->rr_pos[pad] + 1) % n);
+    trigger_voice_single(c, chosen, vel, pitch_off, filt_off);
+    return;
+  }
+
+  trigger_voice_single(c, pad, vel, pitch_off, filt_off);
+
+  /* Layer mode: trigger linked target pad simultaneously (max depth 2 prevents cycles) */
+  if (depth < 2 && p->link_pad >= 1 && p->link_pad <= EP_PADS && p->link_mode == EP_LINK_LAYER) {
+    int target = p->link_pad - 1;
+    if (target != pad) {
+      ep_core_trigger_ex(c, target, vel, pitch_off, filt_off, depth + 1);
+    }
+  }
+}
+
+void ep_core_trigger(EpCore* c, int pad, int vel) {
+  ep_core_trigger_ex(c, pad, vel, 0.0f, 0.0f, 0);
+}
+
+void ep_core_trigger_16level(EpCore* c, int sel_pad, int slot, int vel,
+                             int* out_vel, float* out_pitch, float* out_filt) {
+  if (sel_pad < 0 || sel_pad >= EP_PADS) sel_pad = 0;
+  if (slot < 0) slot = 0;
+  if (slot >= EP_PADS) slot = EP_PADS - 1;
+  int eff_vel = vel > 0 ? (vel > 127 ? 127 : vel) : 100;
+  float p_off = 0.0f;
+  float f_off = 0.0f;
+  switch (c->play_mode) {
+    case EP_PLAY_CHROM:
+      /* Slot 0..15 -> 0..+15 semitones (Pad 1 = root, Pad 13 = +1 octave) */
+      p_off = (float)slot;
+      break;
+    case EP_PLAY_16VEL:
+      /* 16 linear velocity levels from 8 to 127 */
+      eff_vel = 8 + (slot * 119) / 15;
+      break;
+    case EP_PLAY_16FLT:
+      /* 16 filter steps from -90% (dark LP) to +90% (bright HP) */
+      f_off = -90.0f + (float)slot * 12.0f;
+      break;
+    default:
+      break;
+  }
+  if (out_vel) *out_vel = eff_vel;
+  if (out_pitch) *out_pitch = p_off;
+  if (out_filt) *out_filt = f_off;
+  ep_core_trigger_ex(c, sel_pad, eff_vel, p_off, f_off, 0);
+}
+
+void ep_core_hold_start(EpCore* c, int slot, int sound_pad, int vel, float pitch_off, float filt_off) {
+  if (slot < 0 || slot >= EP_PADS || sound_pad < 0 || sound_pad >= EP_PADS) return;
+  c->held_mask |= (uint16_t)(1u << slot);
+  c->held_pad[slot] = (int8_t)sound_pad;
+  c->held_vel[slot] = (uint8_t)(vel > 127 ? 127 : (vel < 1 ? 100 : vel));
+  c->held_pitch[slot] = pitch_off;
+  c->held_filt[slot] = filt_off;
+  double rsteps = repeat_steps_for_div(c->repeat_div);
+  if (rsteps > 0.0) {
+    double bpm = c->seq.bpm < 40.0 ? 40.0 : (c->seq.bpm > 240.0 ? 240.0 : c->seq.bpm);
+    double samples_per_step = c->sr / ((bpm / 60.0) * 4.0);
+    c->rpt_timer[slot] = rsteps * samples_per_step;
+  } else {
+    c->rpt_timer[slot] = 0.0;
+  }
+}
+
+void ep_core_hold_stop(EpCore* c, int slot) {
+  if (slot < 0 || slot >= EP_PADS) return;
+  c->held_mask &= (uint16_t)~(1u << slot);
+  c->rpt_timer[slot] = 0.0;
 }
 
 void ep_core_release(EpCore* c, int pad) {
@@ -330,15 +476,43 @@ static inline void get_pad_range(const EpScene* sc, int p, int* out_s, int* out_
   *out_e = e;
 }
 
+static void trigger_click(EpCore* c, int accent) {
+  c->click_freq = accent ? 1500.0f : 960.0f;
+  c->click_env = accent ? 0.32f : 0.20f;
+  c->click_phase = 0.0f;
+}
+
+void ep_seq_save_undo(EpCore* c, int scene) {
+  if (scene < 0 || scene >= EP_SCENES) return;
+  c->seq.undo_scene = c->scenes[scene];
+  c->seq.undo_scene_idx = scene;
+}
+
+int ep_seq_undo(EpCore* c) {
+  int sc = c->seq.undo_scene_idx;
+  if (sc < 0 || sc >= EP_SCENES) return 0;
+  EpScene cur = c->scenes[sc];
+  c->scenes[sc] = c->seq.undo_scene;
+  c->seq.undo_scene = cur; /* allows toggle Undo/Redo! */
+  return 1;
+}
+
 void ep_seq_set_mode(EpCore* c, int mode) {
   if (mode < EP_SEQ_STOP) mode = EP_SEQ_STOP;
   if (mode > EP_SEQ_REC) mode = EP_SEQ_REC;
   if (mode == c->seq.mode) return;
   int was_stopped = (c->seq.mode == EP_SEQ_STOP);
+  if (mode == EP_SEQ_REC) {
+    ep_seq_save_undo(c, c->seq.scene);
+  }
   c->seq.mode = mode;
   if (mode == EP_SEQ_STOP) {
     c->seq.cur_step = -1;
     c->seq.last_step_fired = -1;
+    c->seq.last_metro_beat = -1;
+    c->seq.countin_rem = 0;
+    c->seq.countin_phase = 0.0;
+    c->seq.fill_ret_scene = -1;
     c->seq.skip_next_mask = 0;
     for (int p = 0; p < EP_PADS; p++) {
       c->seq.pad_last_step[p] = -1;
@@ -355,6 +529,21 @@ void ep_seq_set_mode(EpCore* c, int mode) {
       c->seq.bar_phase = 0.0;
     }
     c->seq.last_step_fired = -1;
+    c->seq.last_metro_beat = -1;
+    if (c->seq.chain_on && c->seq.chain_len > 0) {
+      c->seq.chain_pos = 0;
+      c->seq.scene = c->seq.chain[0] % EP_SCENES;
+      c->seq.pend_scene = -1;
+    }
+    if (mode == EP_SEQ_REC && c->seq.countin_en && !c->seq.host_playing) {
+      c->seq.countin_rem = 16;
+      c->seq.countin_phase = 0.0;
+      trigger_click(c, 1);
+      c->seq.last_metro_beat = 0;
+    } else {
+      c->seq.countin_rem = 0;
+      c->seq.countin_phase = 0.0;
+    }
     const EpScene* sc = &c->scenes[c->seq.scene];
     for (int p = 0; p < EP_PADS; p++) {
       int ps, pe;
@@ -405,6 +594,7 @@ void ep_seq_set_quantize(EpCore* c, int q) {
 
 void ep_seq_request_scene(EpCore* c, int scene) {
   if (scene < 0 || scene >= EP_SCENES) return;
+  c->seq.fill_ret_scene = -1;
   if (c->seq.mode == EP_SEQ_STOP) {
     c->seq.scene = scene;
     c->seq.pend_scene = -1;
@@ -412,6 +602,37 @@ void ep_seq_request_scene(EpCore* c, int scene) {
     c->seq.pend_scene = -1;
   } else {
     c->seq.pend_scene = scene;
+  }
+}
+
+void ep_seq_request_fill(EpCore* c, int fill_scene) {
+  if (fill_scene < 0 || fill_scene >= EP_SCENES) return;
+  if (c->seq.mode == EP_SEQ_STOP) {
+    c->seq.scene = fill_scene;
+    c->seq.pend_scene = -1;
+    c->seq.fill_ret_scene = -1;
+    return;
+  }
+  int ret = (c->seq.fill_ret_scene >= 0) ? c->seq.fill_ret_scene : c->seq.scene;
+  if (fill_scene == ret) {
+    c->seq.fill_ret_scene = -1;
+    c->seq.pend_scene = -1;
+    return;
+  }
+  /* Immediately jump into the fill scene aligned to current bar_phase, and queue return at next bar! */
+  c->seq.scene = fill_scene;
+  c->seq.fill_ret_scene = ret;
+  c->seq.pend_scene = ret;
+  const EpScene* sc = &c->scenes[fill_scene];
+  for (int p = 0; p < EP_PADS; p++) {
+    int ps, pe;
+    get_pad_range(sc, p, &ps, &pe);
+    double plen = (double)(pe - ps);
+    double pp = fmod(c->seq.bar_phase, plen);
+    if (pp < 0.0) pp += plen;
+    c->seq.pad_phase[p] = pp;
+    c->seq.pad_last_step[p] = (pp < 0.08) ? -1 : (int)floor(pp);
+    c->seq.roll_rem[p] = 0;
   }
 }
 
@@ -431,17 +652,14 @@ void ep_seq_sync_host(EpCore* c, double bpm, int playing, double bar_beat, int b
   if (nsteps < EP_STEPS_MIN || nsteps > EP_STEPS) nsteps = EP_STEPS_DEF;
   double len = (double)nsteps;
   if (playing && bpb > 0 && bar_beat >= 0.0) {
-    /* Map host barBeat (0..bpb) onto 0..len 16th-note phase */
     double ph = fmod(bar_beat * 4.0, len);
     if (ph < 0.0) ph += len;
-    /* Signed shortest phase error in [-len/2, +len/2] */
     double err = ph - c->seq.bar_phase;
     if (err >  len * 0.5) err -= len;
     if (err < -len * 0.5) err += len;
 
     const EpScene* sc = &c->scenes[c->seq.scene];
     if (just_started || fabs(err) > 1.0) {
-      /* Transport Start or Seek: hard-lock bar_phase and all pad lanes to exact host phase */
       c->seq.bar_phase = ph;
       for (int p = 0; p < EP_PADS; p++) {
         int ps, pe;
@@ -450,12 +668,10 @@ void ep_seq_sync_host(EpCore* c, double bpm, int playing, double bar_beat, int b
         double pp = fmod(ph, plen);
         if (pp < 0.0) pp += plen;
         c->seq.pad_phase[p] = pp;
-        /* If right on beat 1 (< 0.08 step), leave pad_last_step = -1 so step 0 fires on frame 0 */
         c->seq.pad_last_step[p] = (pp < 0.08) ? -1 : (int)floor(pp);
         c->seq.roll_rem[p] = 0;
       }
     } else if (fabs(err) > 0.002) {
-      /* Tight phase-lock (< 0.25 ms @ 120 BPM) while preserving polyrhythmic pad offsets */
       c->seq.bar_phase = ph;
       for (int p = 0; p < EP_PADS; p++) {
         int ps, pe;
@@ -481,15 +697,15 @@ static inline uint8_t pack_roll_micro(int roll, double micro_steps) {
   return (uint8_t)(((m & 0x3F) << 2) | (roll & 3));
 }
 
-void ep_seq_record_hit(EpCore* c, int pad, int vel) {
-  if (c->seq.mode != EP_SEQ_REC || pad < 0 || pad >= EP_PADS || vel <= 0) return;
+void ep_seq_record_hit_ex(EpCore* c, int pad, int vel, int pitch_off, int filt_off) {
+  if (c->seq.mode != EP_SEQ_REC || c->seq.countin_rem > 0 || pad < 0 || pad >= EP_PADS || vel <= 0) return;
   EpScene* sc = &c->scenes[c->seq.scene];
   int ps, pe;
   get_pad_range(sc, pad, &ps, &pe);
   int plen = pe - ps;
   double ph = c->seq.pad_phase[pad];
   double nearest = floor(ph + 0.5);
-  double err = ph - nearest; /* -0.5 .. +0.5 step */
+  double err = ph - nearest;
   double keep = 1.0 - clampf((float)c->seq.quantize * 0.01f, 0.0f, 1.0f);
   double micro = err * keep;
 
@@ -499,8 +715,13 @@ void ep_seq_record_hit(EpCore* c, int pad, int vel) {
   sc->steps[pad][abs_step].vel = (uint8_t)(vel > 127 ? 127 : vel);
   int old_roll = sc->steps[pad][abs_step].roll & 3;
   sc->steps[pad][abs_step].roll = pack_roll_micro(old_roll, micro);
+  if (pitch_off < -24) pitch_off = -24;
+  if (pitch_off > 24) pitch_off = 24;
+  if (filt_off < -100) filt_off = -100;
+  if (filt_off > 100) filt_off = 100;
+  sc->steps[pad][abs_step].pitch_off = (int8_t)pitch_off;
+  sc->steps[pad][abs_step].filt_off = (int8_t)filt_off;
 
-  /* If quantized forward to the next upcoming step, suppress its immediate auto-trigger once */
   int cur_rel = (int)floor(ph) % plen;
   if (rel != cur_rel) {
     c->seq.skip_step[pad] = abs_step;
@@ -508,8 +729,13 @@ void ep_seq_record_hit(EpCore* c, int pad, int vel) {
   }
 }
 
+void ep_seq_record_hit(EpCore* c, int pad, int vel) {
+  ep_seq_record_hit_ex(c, pad, vel, 0, 0);
+}
+
 void ep_seq_clear_pad(EpCore* c, int scene, int pad) {
   if (scene < 0 || scene >= EP_SCENES || pad < 0 || pad >= EP_PADS) return;
+  ep_seq_save_undo(c, scene);
   memset(c->scenes[scene].steps[pad], 0, sizeof c->scenes[scene].steps[pad]);
 }
 
@@ -525,10 +751,48 @@ void ep_seq_copy_scene(EpCore* c, int src_scene, int dst_scene) {
   c->scenes[dst_scene] = c->scenes[src_scene];
 }
 
+void ep_seq_rotate_pad(EpCore* c, int scene, int pad, int dir) {
+  if (scene < 0 || scene >= EP_SCENES || pad < 0 || pad >= EP_PADS) return;
+  EpScene* sc = &c->scenes[scene];
+  int ps, pe;
+  get_pad_range(sc, pad, &ps, &pe);
+  int plen = pe - ps;
+  if (plen <= 1) return;
+  ep_seq_save_undo(c, scene);
+  EpStep tmp[EP_STEPS];
+  for (int i = 0; i < plen; i++) {
+    int dst = (dir >= 0) ? ((i + 1) % plen) : ((i + plen - 1) % plen);
+    tmp[dst] = sc->steps[pad][ps + i];
+  }
+  for (int i = 0; i < plen; i++) {
+    sc->steps[pad][ps + i] = tmp[i];
+  }
+}
+
+void ep_seq_euclid_pad(EpCore* c, int scene, int pad, int hits, int rot) {
+  if (scene < 0 || scene >= EP_SCENES || pad < 0 || pad >= EP_PADS) return;
+  EpScene* sc = &c->scenes[scene];
+  int ps, pe;
+  get_pad_range(sc, pad, &ps, &pe);
+  int plen = pe - ps;
+  if (plen <= 0) return;
+  if (hits < 0) hits = 0;
+  if (hits > plen) hits = plen;
+  ep_seq_save_undo(c, scene);
+  int r = ((rot % plen) + plen) % plen;
+  for (int i = 0; i < plen; i++) {
+    int idx = (i + plen - r) % plen;
+    EpStep* st = &sc->steps[pad][ps + i];
+    memset(st, 0, sizeof *st);
+    if (hits > 0 && ((idx * hits) % plen) < hits) {
+      st->vel = (i % 4 == 0) ? 115 : 95;
+    }
+  }
+}
+
 /* Compute the swing-adjusted phase (0..16) at which step `s` fires */
 static double step_trigger_phase(int s, float swing) {
   if ((s & 1) == 0) return (double)s;
-  /* swing 50..75% -> odd step shifts from s to s + 0.5 */
   double shift = ((double)clampf(swing, 50.0f, 75.0f) - 50.0) / 50.0;
   return (double)s + shift;
 }
@@ -549,13 +813,15 @@ static void fire_pad_step(EpCore* c, int p, int abs_step, double samples_per_ste
       return;
     }
     if (!skip) {
-      ep_core_trigger(c, p, st.vel);
+      ep_core_trigger_ex(c, p, st.vel, (float)st.pitch_off, (float)st.filt_off, 0);
     }
     int r = st.roll & 3;
     if (r > 0 && r <= 3) {
       int sub = r + 1; /* 2x, 3x, 4x */
       c->seq.roll_rem[p] = (uint8_t)(sub - 1);
       c->seq.roll_vel[p] = st.vel;
+      c->seq.roll_pitch[p] = st.pitch_off;
+      c->seq.roll_filt[p] = st.filt_off;
       c->seq.roll_interval[p] = samples_per_step / (double)sub;
       c->seq.roll_timer[p] = c->seq.roll_interval[p];
     } else {
@@ -585,7 +851,6 @@ static inline void sample_read_hq(const EpSource* s, double pos, double step, fl
   double inv_half = 1.0 / (double)half;
   double start_x = (double)(-half + 1) - frac;
 
-  /* Trigonometric recurrences avoid calling sin/cos inside the tap loop */
   double d_sinc = M_PI * cutoff;
   double s_cos_d = cos(d_sinc), s_sin_d = sin(d_sinc);
   double u0 = M_PI * start_x * cutoff;
@@ -615,7 +880,6 @@ static inline void sample_read_hq(const EpSource* s, double pos, double step, fl
     sum_r += w * (double)s->data[2 * idx + 1];
     sum_w += w;
 
-    /* Advance sin/cos recurrences */
     double ns = s_sin * s_cos_d + s_cos * s_sin_d;
     double nc = s_cos * s_cos_d - s_sin * s_sin_d;
     s_sin = ns; s_cos = nc;
@@ -700,13 +964,15 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
     float gain_l = pad_gain * cosf(angle) * 1.41421356f;
     float gain_r = pad_gain * sinf(angle) * 1.41421356f;
 
-    float eff_pitch = clampf(p->pitch + pad_mod_sum(c, v, pad, EP_MDST_PITCH) * 0.12f, -36.0f, 36.0f);
+    float eff_pitch = clampf(p->pitch + v->plock_pitch + pad_mod_sum(c, v, pad, EP_MDST_PITCH) * 0.12f, -36.0f, 36.0f);
     double base_step = ((double)s->rate / c->sr) * pow(2.0, (double)eff_pitch / 12.0);
     float punch_st = clampf(p->punch, -100.0f, 100.0f) * 0.24f;
 
-    float filt = clampf(p->filter + pad_mod_sum(c, v, pad, EP_MDST_FILTER), -100.0f, 100.0f);
+    float filt = clampf(p->filter + v->plock_filter + pad_mod_sum(c, v, pad, EP_MDST_FILTER), -100.0f, 100.0f);
+    float reso_n = clampf(p->reso, 0.0f, 100.0f) * 0.01f;
+    float k = 1.40f - 1.25f * reso_n; /* reso=20% -> k=1.15; reso=100% -> k=0.15 */
     int filt_mode = 0;
-    float g = 0.0f, k = 1.15f, a1 = 0.0f, a2 = 0.0f, a3 = 0.0f;
+    float g = 0.0f, a1 = 0.0f, a2 = 0.0f, a3 = 0.0f;
     if (filt < -1.0f) {
       filt_mode = -1;
       float t = (100.0f + filt) / 100.0f;
@@ -735,22 +1001,25 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
 
     float pw = clampf((p->width + pad_mod_sum(c, v, pad, EP_MDST_WIDTH)) * 0.01f, -1.0f, 1.0f);
     int wid_active = fabsf(pw) > 0.005f;
-    int wid_tap1 = (int)(c->sr * 0.0065); /* 6.5 ms */
-    int wid_tap2 = (int)(c->sr * 0.0135); /* 13.5 ms */
+    int wid_tap1 = (int)(c->sr * 0.0065);
+    int wid_tap2 = (int)(c->sr * 0.0135);
     if (wid_tap1 < 32) wid_tap1 = 32;
     if (wid_tap1 > 480) wid_tap1 = 480;
     if (wid_tap2 < 64) wid_tap2 = 64;
     if (wid_tap2 > 1000) wid_tap2 = 1000;
-    /* 1-pole LP at ~140 Hz to keep sub-bass centered & punchy */
     float wid_lp_a = (float)exp(-2.0 * M_PI * 140.0 / c->sr);
-    /* 2-stage 1st-order all-pass poles (~500 Hz & ~2200 Hz) for instant attack spread */
     float ap1_g = 0.87f;
     float ap2_g = 0.52f;
+    double loop_len = v->end_frame - v->start_frame;
 
     float peak_voice = 0.0f;
 
     for (uint32_t i = 0; i < nframes; i++) {
-      if (v->reverse) {
+      if (v->loop_mode && loop_len > 1.0) {
+        if (v->pos >= v->end_frame) {
+          v->pos = v->start_frame + fmod(v->pos - v->start_frame, loop_len);
+        }
+      } else if (v->reverse) {
         if (v->pos < v->start_frame) { v->active = 0; break; }
       } else {
         if (v->pos >= v->end_frame) { v->active = 0; break; }
@@ -800,13 +1069,11 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
 
       if (wid_active) {
         if (pw < 0.0f) {
-          /* -100..0%: clean M/S narrowing down to pure mono at -100% */
           float mid = 0.5f * (l + r);
           float side = 0.5f * (l - r) * (1.0f + pw);
           l = mid + side;
           r = mid - side;
         } else {
-          /* 0..+100%: sub-safe all-pass + dual-tap opposite-polarity Haas stereoizer */
           v->wid_lp_l = wid_lp_a * v->wid_lp_l + (1.0f - wid_lp_a) * l;
           v->wid_lp_r = wid_lp_a * v->wid_lp_r + (1.0f - wid_lp_a) * r;
           float hi_l = l - v->wid_lp_l;
@@ -814,7 +1081,6 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
           float hi_mid = 0.5f * (hi_l + hi_r);
           float hi_side = 0.5f * (hi_l - hi_r) * (1.0f + 1.5f * pw);
 
-          /* Instantaneous phase decorrelation via 2-stage all-pass */
           float ap1 = -ap1_g * hi_mid + v->wid_ap1_x + ap1_g * v->wid_ap1_y;
           v->wid_ap1_x = hi_mid;
           v->wid_ap1_y = ap1;
@@ -822,7 +1088,6 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
           v->wid_ap2_x = ap1;
           v->wid_ap2_y = ap2;
 
-          /* Dual staggered micro-delay taps (6.5 ms & 13.5 ms) into Side */
           int wp = v->wid_pos;
           float d1 = v->wid_buf[(wp - wid_tap1) & 1023];
           float d2 = v->wid_buf[(wp - wid_tap2) & 1023];
@@ -837,7 +1102,12 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
         }
       }
 
-      float amp = v->env * v->fade;
+      if (v->atk_env < 1.0f) {
+        v->atk_env += v->atk_inc;
+        if (v->atk_env > 1.0f) v->atk_env = 1.0f;
+      }
+
+      float amp = v->atk_env * v->env * v->fade;
       float ol = l * amp * gain_l;
       float or_ = r * amp * gain_r;
       ol_buf[i] += ol;
@@ -876,8 +1146,31 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
 
   c->sel_playhead = sel_ph;
 
+  /* Mix internal metronome / count-in click into main output only */
+  if (c->click_env > 0.0005f) {
+    float ph_inc = (float)(2.0 * M_PI * (double)c->click_freq / c->sr);
+    float c_dec = (float)exp(-1.0 / (0.014 * c->sr));
+    for (uint32_t i = 0; i < nframes; i++) {
+      if (c->click_env <= 0.0005f) { c->click_env = 0.0f; break; }
+      float cs = sinf(c->click_phase) * c->click_env;
+      ol_buf[i] += cs;
+      or_buf[i] += cs;
+      c->click_phase += ph_inc;
+      c->click_env *= c_dec;
+    }
+  }
+
+  /* Master volume, stereo width, Bus Glue compressor, and soft limiter */
   float mg = clampf(c->master_vol * 0.01f, 0.0f, 1.5f);
   float sw = clampf(c->stereo_width * 0.01f, 0.0f, 2.0f);
+  float glue = clampf(c->bus_glue * 0.01f, 0.0f, 1.0f);
+  float comp_atk = 1.0f - (float)exp(-1.0 / (0.010 * c->sr));
+  float comp_rel = 1.0f - (float)exp(-1.0 / (0.100 * c->sr));
+  float comp_thr = 0.85f - 0.63f * glue; /* 0.85 down to 0.22 */
+  float comp_rat = 1.0f + 3.5f * glue;   /* 1:1 up to 4.5:1 */
+  float comp_mkp = 1.0f + 0.65f * glue;  /* smooth makeup gain */
+  float comp_slope = 1.0f - (1.0f / comp_rat);
+
   for (uint32_t i = 0; i < nframes; i++) {
     float l = ol_buf[i] * mg;
     float r = or_buf[i] * mg;
@@ -886,6 +1179,17 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
       float side = 0.5f * (l - r) * sw;
       l = mid + side;
       r = mid - side;
+    }
+    if (glue > 0.005f) {
+      float det = fabsf(l) > fabsf(r) ? fabsf(l) : fabsf(r);
+      c->comp_env += (det > c->comp_env ? comp_atk : comp_rel) * (det - c->comp_env);
+      float gr = 1.0f;
+      if (c->comp_env > comp_thr && c->comp_env > 1e-6f) {
+        gr = powf(comp_thr / c->comp_env, comp_slope);
+      }
+      float cg = gr * comp_mkp;
+      l *= cg;
+      r *= cg;
     }
     if (l > 0.75f) l = 0.75f + 0.25f * fast_tanh((l - 0.75f) * 4.0f);
     else if (l < -0.75f) l = -0.75f + 0.25f * fast_tanh((l + 0.75f) * 4.0f);
@@ -909,6 +1213,31 @@ static void render_voices(EpCore* c, float* out_l, float* out_r,
   }
 }
 
+/* Advance Note Repeat timers on held pads for `adv` samples, firing re-triggers if due */
+static void process_note_repeat(EpCore* c, uint32_t adv, double samples_per_step) {
+  if (!c->held_mask || c->repeat_div <= EP_RPT_OFF) return;
+  double rsteps = repeat_steps_for_div(c->repeat_div);
+  if (rsteps <= 0.0) return;
+  double interval = rsteps * samples_per_step;
+  if (interval < 128.0) interval = 128.0;
+  for (int s = 0; s < EP_PADS; s++) {
+    if (!(c->held_mask & (1u << s))) continue;
+    c->rpt_timer[s] -= (double)adv;
+    if (c->rpt_timer[s] <= 0.0) {
+      c->rpt_timer[s] += interval;
+      if (c->rpt_timer[s] < 0.0) c->rpt_timer[s] = interval;
+      int p = c->held_pad[s];
+      int v = c->held_vel[s];
+      float po = c->held_pitch[s];
+      float fo = c->held_filt[s];
+      ep_core_trigger_ex(c, p, v, po, fo, 0);
+      if (c->seq.mode == EP_SEQ_REC && c->seq.countin_rem == 0) {
+        ep_seq_record_hit_ex(c, p, v, (int)lrintf(po), (int)lrintf(fo));
+      }
+    }
+  }
+}
+
 void ep_core_process_aux(EpCore* c, float* out_l, float* out_r,
                          float* const aux_l[EP_AUX_BUSES],
                          float* const aux_r[EP_AUX_BUSES],
@@ -919,16 +1248,50 @@ void ep_core_process_aux(EpCore* c, float* out_l, float* out_r,
     uint32_t chunk = nframes - done;
     if (chunk > 256) chunk = 256;
 
-    if (c->seq.mode != EP_SEQ_STOP) {
-      double bpm = c->seq.bpm < 40.0 ? 40.0 : (c->seq.bpm > 240.0 ? 240.0 : c->seq.bpm);
-      /* 4 16th-notes per quarter note */
-      double steps_per_sample = (bpm / 60.0) * 4.0 / c->sr;
-      double samples_per_step = 1.0 / steps_per_sample;
+    double bpm = c->seq.bpm < 40.0 ? 40.0 : (c->seq.bpm > 240.0 ? 240.0 : c->seq.bpm);
+    double steps_per_sample = (bpm / 60.0) * 4.0 / c->sr;
+    double samples_per_step = 1.0 / steps_per_sample;
 
+    if (c->seq.mode != EP_SEQ_STOP && c->seq.countin_rem > 0) {
+      /* 1-bar Count-in before recording begins */
+      render_voices(c, out_l, out_r, aux_l, aux_r, done, chunk, sel_pad);
+      double dstep = (double)chunk * steps_per_sample;
+      c->seq.countin_phase += dstep;
+      int beat = (int)floor(c->seq.countin_phase / 4.0);
+      if (beat > c->seq.last_metro_beat && beat < 4) {
+        c->seq.last_metro_beat = beat;
+        trigger_click(c, beat == 0);
+      }
+      int rem = 16 - (int)floor(c->seq.countin_phase);
+      if (rem <= 0) {
+        c->seq.countin_rem = 0;
+        c->seq.countin_phase = 0.0;
+        c->seq.bar_phase = 0.0;
+        c->seq.last_metro_beat = -1;
+        for (int p = 0; p < EP_PADS; p++) {
+          c->seq.pad_phase[p] = 0.0;
+          c->seq.pad_last_step[p] = -1;
+        }
+      } else {
+        c->seq.countin_rem = rem;
+      }
+      c->seq.cur_step = -1;
+    } else if (c->seq.mode != EP_SEQ_STOP) {
       /* Process sub-chunk sample-accurately up to the next per-pad step or roll event */
       uint32_t sub_pos = 0;
       while (sub_pos < chunk) {
         const EpScene* sc = &c->scenes[c->seq.scene];
+
+        /* Metronome click on beat 0, 1, 2, 3 */
+        int metro_active = (c->seq.metro_mode == EP_METRO_ON) ||
+                           (c->seq.metro_mode == EP_METRO_REC && c->seq.mode == EP_SEQ_REC);
+        if (metro_active) {
+          int cur_beat = ((int)floor(c->seq.bar_phase / 4.0)) & 3;
+          if (cur_beat != c->seq.last_metro_beat) {
+            c->seq.last_metro_beat = cur_beat;
+            trigger_click(c, cur_beat == 0);
+          }
+        }
 
         /* Fire initial step immediately for any pad starting from idle */
         for (int p = 0; p < EP_PADS; p++) {
@@ -986,18 +1349,35 @@ void ep_core_process_aux(EpCore* c, float* out_l, float* out_r,
 
         if (adv > 0) {
           render_voices(c, out_l, out_r, aux_l, aux_r, done + sub_pos, adv, sel_pad);
+          process_note_repeat(c, adv, samples_per_step);
           double dstep = (double)adv * steps_per_sample;
           double prev_bar = c->seq.bar_phase;
           c->seq.bar_phase = fmod(prev_bar + dstep, 16.0);
-          /* Quantized scene switch at 16-step bar boundary */
-          if (c->seq.pend_scene >= 0 && c->seq.bar_phase < prev_bar) {
-            c->seq.scene = c->seq.pend_scene;
-            c->seq.pend_scene = -1;
-            for (int p = 0; p < EP_PADS; p++) {
-              c->seq.pad_phase[p] = c->seq.bar_phase;
-              c->seq.pad_last_step[p] = -1;
+          /* Quantized scene switch / Fill return / Scene Chain advance at 16-step bar boundary */
+          if (c->seq.bar_phase < prev_bar) {
+            int next_sc = -1;
+            if (c->seq.pend_scene >= 0) {
+              next_sc = c->seq.pend_scene;
+              c->seq.pend_scene = -1;
+              c->seq.fill_ret_scene = -1;
+            } else if (c->seq.chain_on && c->seq.chain_len > 0) {
+              c->seq.chain_pos = (c->seq.chain_pos + 1) % c->seq.chain_len;
+              next_sc = c->seq.chain[c->seq.chain_pos] % EP_SCENES;
             }
-            sc = &c->scenes[c->seq.scene];
+            if (next_sc >= 0 && next_sc != c->seq.scene) {
+              c->seq.scene = next_sc;
+              for (int p = 0; p < EP_PADS; p++) {
+                c->seq.pad_phase[p] = c->seq.bar_phase;
+                c->seq.pad_last_step[p] = -1;
+              }
+              sc = &c->scenes[c->seq.scene];
+            } else {
+              for (int p = 0; p < EP_PADS; p++) {
+                int ps, pe;
+                get_pad_range(sc, p, &ps, &pe);
+                c->seq.pad_phase[p] = fmod(c->seq.pad_phase[p] + dstep, (double)(pe - ps));
+              }
+            }
           } else {
             for (int p = 0; p < EP_PADS; p++) {
               int ps, pe;
@@ -1034,12 +1414,15 @@ void ep_core_process_aux(EpCore* c, float* out_l, float* out_r,
         } else if (ev_kind == 2 && ev_pad >= 0) {
           c->seq.roll_rem[ev_pad]--;
           c->seq.roll_timer[ev_pad] += c->seq.roll_interval[ev_pad];
-          ep_core_trigger(c, ev_pad, c->seq.roll_vel[ev_pad]);
+          ep_core_trigger_ex(c, ev_pad, c->seq.roll_vel[ev_pad],
+                             (float)c->seq.roll_pitch[ev_pad],
+                             (float)c->seq.roll_filt[ev_pad], 0);
         }
       }
       c->seq.cur_step = (sel_pad >= 0 && sel_pad < EP_PADS) ? c->seq.pad_cur_step[sel_pad] : -1;
     } else {
       render_voices(c, out_l, out_r, aux_l, aux_r, done, chunk, sel_pad);
+      process_note_repeat(c, chunk, samples_per_step);
     }
 
     done += chunk;

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 (2026-11-26)
+
+- **Quick Sample Step (`<` / `>`) & Load Folder as Kit:** step through audio files (`WAV/FLAC/AIFF/OGG/MP3`) in the pad's current folder directly from the `Pads` tab with instant audition, and load any sample folder into Pads 1..16 via `Load Folder Kit` on the `Kit` tab.
+- **16 Levels / Chromatic Mode (`16L`) & Note Repeat (`Rpt`):** two unobtrusive performance pills in the top bar. `16L` cycles `Off → Chromatic → 16Vel → 16Flt` across both touch pads and physical MIDI controllers (plus external MIDI keyboards in Chromatic mode), recording directly into Overdub with p-locks; `Rpt` provides tempo-synced MPC-style retriggers (`1/8`, `1/16`, `1/16T`, `1/32`) while holding pads.
+- **Auto-Slice, Pad Link (Layer / Round-Robin) & Copy/Swap Pad:** organized under a clean `Tools` sub-view inside the Sample Settings popup (long-press waveform) — slice any loop into 4/8/16 grid pads or by transient detection with live preview markers and optional Choke Grp 1, link pads for simultaneous layering or round-robin cycling, and copy or swap pads in one tap.
+- **Attack, Filter Resonance (`Reso`), Loop Mode & Master Bus Glue:** added exponential per-pad `Attack` (`0..500 ms`), SVF `Reso` (`0..100%`), 5th playback mode `Loop`, and stereo-linked Master `Bus Glue` compressor (Page 7 4th knob + `Kit` tab `Glue` slider).
+- **Step Parameter Locks, Euclidean Generator, Pattern Shift, Metronome/Count-in, Undo Dub, Scene Chain & 1-Bar Fill:** expanded the Step Popup with `Pitch`, `Filter`, and `Microtiming` p-locks; added a compact `Seq Tools` popup (`Euclid` Hits/Rot, `< Shift / Shift >`, `Metro Off/Rec/On`, `Count-in 1B`, `Undo Dub`, and 8-bar `Scene Chain`); long-press any Scene button (`A..E`) while playing for a quantized 1-bar Fill with automatic return. Full backward-compatible LV2 state migration from `0.2.x`.
+
 ## 0.2.3 (2026-11-25)
 
 - **Optional USB SMC-PAD Patch (`make patch-smcpad` / `scripts/patch-smcpad.sh`):** disables autoloading of Zynthian's `zynthian_ctrldev_sinco_smk25.py` driver (`autoload_flag = False`) so plugging an M-VAVE SMC-PAD over USB (`SINCO IN 2`) no longer overwrites its pad layout via SMK25 SysEx. Includes `--status` and `--revert` flags.
