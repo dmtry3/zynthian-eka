@@ -168,7 +168,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.mm_path = None
         self.shm_seq = -1
         self.shm_hdr = None
-        self.last_shm_mode = 0
+        self.last_shm_mode = -1
         self.last_shm_learn = 0
         self.last_hit_seq = 0
         self.len_dragged = False
@@ -3748,11 +3748,13 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 return
 
             if action == "seq_play":
+                self._send_cmd(CMD_SET_MOD_AMT, a=6, c=17, val=arg)
                 self._zset("seq_mode", arg)
                 self.refresh_gui()
                 return
 
             if action == "seq_rec":
+                self._send_cmd(CMD_SET_MOD_AMT, a=6, c=17, val=arg)
                 self._zset("seq_mode", arg)
                 self.refresh_gui()
                 return

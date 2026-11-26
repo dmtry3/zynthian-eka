@@ -215,6 +215,7 @@ typedef struct {
 
   float prev_ctl[N_CTL];
   int have_prev_ctl;
+  uint32_t restore_guard_samples; /* ignore stale seq_mode=Play/Rec restored from snapshots */
 
   /* Shared memory for widget */
   char shm_path[128];
@@ -1065,6 +1066,10 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
         } else if (c == 16) {
           P->core.perf_break = (val & 1) ? 1 : 0;
           P->core.perf_aux1_throw = (val & 2) ? 1 : 0;
+        } else if (c == 17) {
+          P->restore_guard_samples = 0;
+          ep_seq_set_mode(&P->core, val);
+          P->shm_dirty = 1;
         }
       } else if (a == 7 && b < EP_PADS) {
         /* Pattern generators on active scene for pad b */
@@ -1090,7 +1095,7 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
   }
   int is_transient = (op == CMD_TRIG_PAD) ||
                      (op == CMD_SET_MOD_AMT && a == 5 && (c == 9 || c == 10)) ||
-                     (op == CMD_SET_MOD_AMT && a == 6 && (c == 0 || c == 1 || c == 5 || (c >= 9 && c <= 16)));
+                     (op == CMD_SET_MOD_AMT && a == 6 && (c == 0 || c == 1 || c == 5 || (c >= 9 && c <= 17)));
   if (op != 0 && !is_transient) {
     P->seq_notify_dirty = 1;
   }
@@ -1138,6 +1143,10 @@ static void handle_patch_set(EkaPads* P, const LV2_Atom_Object* obj) {
   if (u == P->p_seq_data && (val->type == P->atom_String || val->type == P->atom_Path)) {
     const char* s = (const char*)LV2_ATOM_BODY_CONST(val);
     seq_decode(&P->core, s);
+    if (!P->core.seq.host_playing) {
+      ep_seq_set_mode(&P->core, EP_SEQ_STOP);
+      P->restore_guard_samples = (uint32_t)(P->sr * 1.5);
+    }
     P->have_prev_ctl = 0;
     P->have_prev_steps = 0;
     P->shm_dirty = 1;
@@ -1323,6 +1332,7 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double sr, const char* bu
   P->report_next = -1;
   P->shm_fd = -1;
   P->shm_dirty = 1;
+  P->restore_guard_samples = (uint32_t)(sr * 1.5);
   ep_core_init(&P->core, sr);
 
   for (int i = 0; features && features[i]; i++) {
@@ -1440,6 +1450,7 @@ static void activate(LV2_Handle h) {
   ep_core_reset(&P->core);
   P->have_prev_ctl = 0;
   P->have_prev_steps = 0;
+  P->restore_guard_samples = (uint32_t)(P->sr * 1.5);
   P->shm_dirty = 1;
 }
 
@@ -1486,7 +1497,10 @@ static void run(LV2_Handle h, uint32_t nframes) {
       float v = *P->ctl[P_SEQ_MODE];
       if (fabsf(v - P->prev_ctl[P_SEQ_MODE]) > 1e-4f) {
         P->prev_ctl[P_SEQ_MODE] = v;
-        ep_seq_set_mode(&P->core, (int)lrintf(v));
+        int m = (int)lrintf(v);
+        if (P->restore_guard_samples == 0 || m == EP_SEQ_STOP) {
+          ep_seq_set_mode(&P->core, m);
+        }
       }
     }
     if (P->ctl[P_SEQ_SCENE]) {
@@ -1793,6 +1807,10 @@ static void run(LV2_Handle h, uint32_t nframes) {
     ep_core_process_aux(&P->core, P->out_l + pos, P->out_r + pos, al, ar, nframes - pos, P->sel_pad);
   }
   P->sample_clock += (uint64_t)nframes;
+  if (P->restore_guard_samples > 0) {
+    P->restore_guard_samples = (P->restore_guard_samples > nframes)
+                               ? (P->restore_guard_samples - nframes) : 0;
+  }
 
   if (P->out_sel_pad)   *P->out_sel_pad   = (float)P->sel_pad;
   if (P->out_seq_step)  *P->out_seq_step  = (float)P->core.seq.cur_step;
@@ -1924,6 +1942,8 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
   /* Start from clean defaults so nothing from a previously loaded kit leaks through */
   P->pending_load_mask = 0;
   ep_core_all_off(&P->core);
+  ep_seq_set_mode(&P->core, EP_SEQ_STOP);
+  P->restore_guard_samples = (uint32_t)(P->sr * 1.5);
   for (int s = 0; s < EP_SCENES; s++) ep_seq_clear_scene(&P->core, s);
   for (int i = 0; i < EP_PADS; i++) ep_pad_defaults(&P->core.pad[i], i);
   P->core.retrig_ms = 25;

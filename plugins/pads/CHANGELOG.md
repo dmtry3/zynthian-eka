@@ -8,6 +8,7 @@
   - **Master DJ Filter XY-Pad:** stereo TPT SVF `LP ← Open → HP` (X) + `Reso` (Y) with `Mom` (smooth auto-return on release) and `Hold` (double-tap to reset) modes.
   - **Momentary Punch-in FX (hold):** tempo-synced master `Stut 1/4`, `Stut 1/8`, `Stut 1/16`, `Tape Stop` vinyl brake, `Break` (smoothly mutes Main Out while Aux 1..4 reverb/delay tails ring out), and `Aux1 Throw` (momentary 100% Aux 1 dub throw).
   - **Full-width Scene Launcher (`A..E`) + 4-Beat Bar Progress strip:** tap for quantized scene switch, long-press for 1-bar Fill.
+- **Snapshot Restore Fix:** restoring a Zynthian snapshot or LV2 preset no longer auto-starts the sequencer from a saved `seq_mode` when host transport is stopped; explicit UI `Play`/`Dub` and host transport start still engage immediately.
 
 ## 0.3.0 (2026-11-26)
 
