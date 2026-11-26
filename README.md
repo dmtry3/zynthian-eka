@@ -2,8 +2,8 @@
 
 **English** · [Русский](README.ru.md)
 
-Twelve LV2 plugins for [Zynthian](https://zynthian.org), each with its own touch widget: an audio looper, a MIDI
-looper, a generative arpeggiator, a granular sampler, a West Coast synth, a live granular effect, a four-voice pitch harmonizer, a rhythmic multi-effect shaper, a single-band live compressor, a 4-band parametric equalizer, a stereo/polyrhythmic live delay and a 16-pad drum sampler & sequencer. They are made to play live on a
+Thirteen LV2 plugins for [Zynthian](https://zynthian.org), each with its own touch widget: an audio looper, a MIDI
+looper, a generative arpeggiator, a granular sampler, a West Coast synth, a live granular effect, a four-voice pitch harmonizer, a rhythmic multi-effect shaper, a single-band live compressor, a 4-band parametric equalizer, a stereo/polyrhythmic live delay, a 16-pad drum sampler & sequencer, and a 3D stereo soundstage & widener. They are made to play live on a
 Raspberry Pi 5 and to work together in one setup.
 
 > Tested on: Zynthian **Vangelis** (stable 2610), Raspberry Pi 5, V5 kit, 800x480 touch screen.
@@ -90,6 +90,12 @@ Independent L/R Hermite-interpolated delay (`5..2500 ms`) with BPM sync (`1/64..
 A 4×4 drum sampler built for pad controllers (like M-VAVE SMC-PAD Pocket): 16 independent pads with async WAV/FLAC loading, anti-aliased sinc pitch, decay, bipolar DJ filter, punch, drive/crush, choke groups, bipolar `Width`, 4 stereo `Aux` sends to Zynthian Mixbuses, a 4-slot per-pad modulation matrix (2 LFOs + Env Follower), Auto-Select syncing Zynthian's 4 encoders to the last hit pad, and a polyrhythmic 32-step scene sequencer with live Overdub, per-step velocity/chance/ratchets, and one-tap export to ZynSeq.
 
 ![Eka Pads](plugins/pads/docs/1-pads.png)
+
+### [Eka Space](plugins/space): 3D stereo soundstage, widener & spatial modulator
+
+2D stage positioning (`Pan`, `Width` `0..300%`, `Depth`, spectral `Tilt`), five stereo expansion engines (`M/S`, mono-safe `Comb`, psychoacoustic `Haas`, quadrature `Dimension`, 4-stage all-pass `Vortex`) with 4-tap early reflections (`Room`), tempo-synced spatial LFO trajectories (`Pan`, `Breathe`, `Orbit`, `Figure-8`, `Drift`), `Bass Mono` low-end anchor (`20..500 Hz`), `Side HPF` / `Side Air`, dynamic `Env Width`, `Audition` (`Stereo/Mono/Mid/Side`), `SafePhase` anti-cancellation guard, a dedicated live **FX** X-Y screen (`Pan FX`, `Width FX`, `Spin FX`), and 10 factory presets.
+
+![Eka Space](plugins/space/docs/1-main.png)
 
 ## A setup
 
