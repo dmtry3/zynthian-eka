@@ -95,18 +95,21 @@ sudo ./scripts/patch-smcpad.sh --revert && systemctl restart zynthian
 
 ## Controls
 
-Eight pages of 4 encoders (pages 1–5 follow the currently selected pad; page 8 follows the active row in the `Pad MIDI Notes` window):
+Eleven pages of 4 encoders (pages 1–3 are live MIDI-mappable Play performance controls shown when the `Play` tab is active; pages 4–8 follow the currently selected pad; page 11 follows the active row in the `Pad MIDI Notes` window):
 
 | Page | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|---|
-| **1. Pad Sound** | `Pitch` (`-24..+24 st`) | `Decay` (`0..100%`) | `Filter` (`-100..+100%`) | `Level` (`0..100%`) |
-| **2. Pad Shape** | `Start` (`0..99%`) | `Mode` (`One-Shot/Gate/Rev Shot/Rev Gate/Loop`) | `Punch` (`-100..+100%`) | `Drive` (`0..100%`) |
-| **3. Pad Mix** | `Pan` (`-100..+100%`) | `Vel Sens` (`0..100%`) | `Choke` (`Off / Grp 1..4`) | `Width` (`-100..+100%`) |
-| **4. Pad Sends** | `Aux 1` (`0..100%`) | `Aux 2` (`0..100%`) | `Aux 3` (`0..100%`) | `Aux 4` (`0..100%`) |
-| **5. Pad Mod** | `LFO 1 Hz` (`0.05..20 Hz`) | `LFO 2 Hz` (`0.05..20 Hz`) | `Mod 1 Amt` (`-100..+100%`) | `Mod 2 Amt` (`-100..+100%`) |
-| **6. Seq & Master** | `Seq` (`Stop / Play / Rec`) | `Scene` (`Scene A..E`) | `Swing` (`50..75%`) | `Master` (`0..100%`) |
-| **7. Steps & Stereo** | `Stereo` (`0..200%`) | `Steps` (`1..32`) | `Beg Step` (`1..32`) | `Bus Glue` (`0..100%`) |
-| **8. Pad Notes** | `Note 1` (`0..127`) | `Note 2` (`0..127`) | `Note 3` (`0..127`) | `Note 4` (`0..127`) |
+| **1. Play FX** | `Mst Filter` (`-100..+100%`) | `Mst Reso` (`0..100%`) | `Stutter` (`Off / 1/4 / 1/8 / 1/16`) | `Aux1 Throw` (`Off / On`) |
+| **2. Play Mutes** | `Mute G1` (`Off / On`) | `Mute G2` (`Off / On`) | `Mute G3` (`Off / On`) | `Mute G4` (`Off / On`) |
+| **3. Play Perf** | `Tape Stop` (`Off / On`) | `Break` (`Off / On`) | `Note Rpt` (`Off..1/32`) | `16 Levels` (`Normal / Chrom / 16 Vel / 16 Flt`) |
+| **4. Pad Sound** | `Pitch` (`-24..+24 st`) | `Decay` (`0..100%`) | `Filter` (`-100..+100%`) | `Level` (`0..100%`) |
+| **5. Pad Shape** | `Start` (`0..99%`) | `Mode` (`One-Shot/Gate/Rev Shot/Rev Gate/Loop`) | `Punch` (`-100..+100%`) | `Drive` (`0..100%`) |
+| **6. Pad Mix** | `Pan` (`-100..+100%`) | `Vel Sens` (`0..100%`) | `Choke` (`Off / Grp 1..4`) | `Width` (`-100..+100%`) |
+| **7. Pad Sends** | `Aux 1` (`0..100%`) | `Aux 2` (`0..100%`) | `Aux 3` (`0..100%`) | `Aux 4` (`0..100%`) |
+| **8. Pad Mod** | `LFO 1 Hz` (`0.05..20 Hz`) | `LFO 2 Hz` (`0.05..20 Hz`) | `Mod 1 Amt` (`-100..+100%`) | `Mod 2 Amt` (`-100..+100%`) |
+| **9. Seq & Master** | `Seq` (`Stop / Play / Rec`) | `Scene` (`Scene A..E`) | `Swing` (`50..75%`) | `Master` (`0..100%`) |
+| **10. Steps & Stereo** | `Stereo` (`0..200%`) | `Steps` (`1..32`) | `Beg Step` (`1..32`) | `Bus Glue` (`0..100%`) |
+| **11. Pad Notes** | `Note 1` (`0..127`) | `Note 2` (`0..127`) | `Note 3` (`0..127`) | `Note 4` (`0..127`) |
 
 ## Widget & Gestures
 

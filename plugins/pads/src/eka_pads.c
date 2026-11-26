@@ -30,7 +30,7 @@
 #define EP_SHM_MAGIC   0x45504144u /* "EPAD" */
 #define EP_SHM_VER     12u
 
-/* Control input ports MUST come first (contiguous 0..31) so Zynthian's synthetic
+/* Control input ports MUST come first (contiguous 0..43) so Zynthian's synthetic
  * patch:writable parameter indices never collide with Input ControlPorts! */
 enum {
   P_PITCH = 0, P_DECAY, P_FILTER, P_LEVEL,        /* Page 1: Pad Sound */
@@ -54,24 +54,36 @@ enum {
   P_PAD_NOTE3,                                    /* index 29: Selected row col 3 MIDI note 0..127 */
   P_PAD_NOTE4,                                    /* index 30: Selected row col 4 MIDI note 0..127 */
   P_BUS_GLUE,                                     /* index 31: Master Bus Compressor / Glue 0..100% */
-  P_MIDI_IN,                                      /* index 32 */
-  P_OUT_L,                                        /* index 33 */
-  P_OUT_R,                                        /* index 34 */
-  P_AUX1_L,                                       /* index 35 */
-  P_AUX1_R,                                       /* index 36 */
-  P_AUX2_L,                                       /* index 37 */
-  P_AUX2_R,                                       /* index 38 */
-  P_AUX3_L,                                       /* index 39 */
-  P_AUX3_R,                                       /* index 40 */
-  P_AUX4_L,                                       /* index 41 */
-  P_AUX4_R,                                       /* index 42 */
-  P_NOTIFY,                                       /* index 43 */
-  P_OUT_SEL_PAD,                                  /* index 44 */
-  P_OUT_SEQ_STEP,                                 /* index 45 */
-  P_OUT_SEQ_SCENE,                                /* index 46 */
-  P_OUT_SEQ_PEND,                                 /* index 47 */
-  P_OUT_LVL0,                                     /* index 48..63 (16 ports) */
-  P_OUT_PLAYHEAD = P_OUT_LVL0 + EP_PADS           /* index 64 */
+  P_PERF_FILTER,                                  /* index 32: Master DJ Filter -100..+100% */
+  P_PERF_RESO,                                    /* index 33: Master DJ Filter Reso 0..100% */
+  P_PERF_STUTTER,                                 /* index 34: Stutter 0=Off, 1=1/4, 2=1/8, 3=1/16 */
+  P_PERF_THROW,                                   /* index 35: Aux1 Dub Throw 0/1 */
+  P_CHOKE_MUTE1,                                  /* index 36: Choke Group 1 Mute 0/1 */
+  P_CHOKE_MUTE2,                                  /* index 37: Choke Group 2 Mute 0/1 */
+  P_CHOKE_MUTE3,                                  /* index 38: Choke Group 3 Mute 0/1 */
+  P_CHOKE_MUTE4,                                  /* index 39: Choke Group 4 Mute 0/1 */
+  P_PERF_TAPE,                                    /* index 40: Tape Stop 0/1 */
+  P_PERF_BREAK,                                   /* index 41: Break (Main mute, Aux tails ring) 0/1 */
+  P_PERF_REPEAT,                                  /* index 42: Note Repeat 0=Off..4=1/32 */
+  P_PERF_16LVL,                                   /* index 43: 16 Levels 0=Norm..3=16Flt */
+  P_MIDI_IN,                                      /* index 44 */
+  P_OUT_L,                                        /* index 45 */
+  P_OUT_R,                                        /* index 46 */
+  P_AUX1_L,                                       /* index 47 */
+  P_AUX1_R,                                       /* index 48 */
+  P_AUX2_L,                                       /* index 49 */
+  P_AUX2_R,                                       /* index 50 */
+  P_AUX3_L,                                       /* index 51 */
+  P_AUX3_R,                                       /* index 52 */
+  P_AUX4_L,                                       /* index 53 */
+  P_AUX4_R,                                       /* index 54 */
+  P_NOTIFY,                                       /* index 55 */
+  P_OUT_SEL_PAD,                                  /* index 56 */
+  P_OUT_SEQ_STEP,                                 /* index 57 */
+  P_OUT_SEQ_SCENE,                                /* index 58 */
+  P_OUT_SEQ_PEND,                                 /* index 59 */
+  P_OUT_LVL0,                                     /* index 60..75 (16 ports) */
+  P_OUT_PLAYHEAD = P_OUT_LVL0 + EP_PADS           /* index 76 */
 };
 
 #define N_CTL     P_END
@@ -171,12 +183,30 @@ typedef struct {
   const float* in_pad_mod_amt[2];
   const float* in_pad_note[4];
   const float* in_bus_glue;
+  const float* in_perf_filter;
+  const float* in_perf_reso;
+  const float* in_perf_stutter;
+  const float* in_perf_throw;
+  const float* in_choke_mute[EP_CHOKE_MAX];
+  const float* in_perf_tape;
+  const float* in_perf_break;
+  const float* in_perf_repeat;
+  const float* in_perf_16lvl;
   float prev_pad_steps;
   float prev_pad_beg;
   float prev_pad_aux[EP_AUX_BUSES];
   float prev_pad_lfo_rate[EP_LFOS];
   float prev_pad_mod_amt[2];
   float prev_pad_note[4];
+  float prev_perf_filter;
+  float prev_perf_reso;
+  float prev_perf_stutter;
+  float prev_perf_throw;
+  float prev_choke_mute[EP_CHOKE_MAX];
+  float prev_perf_tape;
+  float prev_perf_break;
+  float prev_perf_repeat;
+  float prev_perf_16lvl;
   int have_prev_steps;
 
   LV2_URID_Map* map;
@@ -812,6 +842,15 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
         P->core.perf_fx_cur = EP_FX_NONE;
         P->core.perf_break = 0;
         P->core.perf_aux1_throw = 0;
+        P->prev_perf_filter = 0.0f;
+        P->prev_perf_reso = 20.0f;
+        P->prev_perf_stutter = 0.0f;
+        P->prev_perf_throw = 0.0f;
+        for (int g = 0; g < EP_CHOKE_MAX; g++) P->prev_choke_mute[g] = 0.0f;
+        P->prev_perf_tape = 0.0f;
+        P->prev_perf_break = 0.0f;
+        P->prev_perf_repeat = 0.0f;
+        P->prev_perf_16lvl = 0.0f;
         memset(P->core.rr_pos, 0, sizeof P->core.rr_pos);
         P->core.seq.scene = 0;
         P->core.seq.pend_scene = -1;
@@ -1333,6 +1372,7 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double sr, const char* bu
   P->shm_fd = -1;
   P->shm_dirty = 1;
   P->restore_guard_samples = (uint32_t)(sr * 1.5);
+  P->prev_perf_reso = 20.0f;
   ep_core_init(&P->core, sr);
 
   for (int i = 0; features && features[i]; i++) {
@@ -1438,6 +1478,18 @@ static void connect_port(LV2_Handle h, uint32_t port, void* data) {
     case P_PAD_NOTE3:     P->in_pad_note[2] = (const float*)data; break;
     case P_PAD_NOTE4:     P->in_pad_note[3] = (const float*)data; break;
     case P_BUS_GLUE:      P->in_bus_glue = (const float*)data; break;
+    case P_PERF_FILTER:   P->in_perf_filter = (const float*)data; break;
+    case P_PERF_RESO:     P->in_perf_reso = (const float*)data; break;
+    case P_PERF_STUTTER:  P->in_perf_stutter = (const float*)data; break;
+    case P_PERF_THROW:    P->in_perf_throw = (const float*)data; break;
+    case P_CHOKE_MUTE1:   P->in_choke_mute[0] = (const float*)data; break;
+    case P_CHOKE_MUTE2:   P->in_choke_mute[1] = (const float*)data; break;
+    case P_CHOKE_MUTE3:   P->in_choke_mute[2] = (const float*)data; break;
+    case P_CHOKE_MUTE4:   P->in_choke_mute[3] = (const float*)data; break;
+    case P_PERF_TAPE:     P->in_perf_tape = (const float*)data; break;
+    case P_PERF_BREAK:    P->in_perf_break = (const float*)data; break;
+    case P_PERF_REPEAT:   P->in_perf_repeat = (const float*)data; break;
+    case P_PERF_16LVL:    P->in_perf_16lvl = (const float*)data; break;
     default:
       if (port >= P_OUT_LVL0 && port < P_OUT_LVL0 + EP_PADS)
         P->out_lvl[port - P_OUT_LVL0] = (float*)data;
@@ -1450,6 +1502,15 @@ static void activate(LV2_Handle h) {
   ep_core_reset(&P->core);
   P->have_prev_ctl = 0;
   P->have_prev_steps = 0;
+  P->prev_perf_filter = 0.0f;
+  P->prev_perf_reso = 20.0f;
+  P->prev_perf_stutter = 0.0f;
+  P->prev_perf_throw = 0.0f;
+  for (int g = 0; g < EP_CHOKE_MAX; g++) P->prev_choke_mute[g] = 0.0f;
+  P->prev_perf_tape = 0.0f;
+  P->prev_perf_break = 0.0f;
+  P->prev_perf_repeat = 0.0f;
+  P->prev_perf_16lvl = 0.0f;
   P->restore_guard_samples = (uint32_t)(P->sr * 1.5);
   P->shm_dirty = 1;
 }
@@ -1515,6 +1576,105 @@ static void run(LV2_Handle h, uint32_t nframes) {
   if (P->ctl[P_MASTER])    P->core.master_vol = *P->ctl[P_MASTER];
   if (P->in_stereo_width)  P->core.stereo_width = *P->in_stereo_width;
   if (P->in_bus_glue)      P->core.bus_glue = *P->in_bus_glue;
+
+  /* Live Play performance control ports (MIDI-mappable & Zynthian encoder pages) */
+  if (P->in_perf_filter) {
+    float v = *P->in_perf_filter;
+    if (fabsf(v - P->prev_perf_filter) > 1e-3f) {
+      P->prev_perf_filter = v;
+      if (v < -100.0f) v = -100.0f;
+      if (v > 100.0f) v = 100.0f;
+      P->core.perf_filter = v;
+    }
+  }
+  if (P->in_perf_reso) {
+    float v = *P->in_perf_reso;
+    if (fabsf(v - P->prev_perf_reso) > 1e-3f) {
+      P->prev_perf_reso = v;
+      if (v < 0.0f) v = 0.0f;
+      if (v > 100.0f) v = 100.0f;
+      P->core.perf_reso = v;
+    }
+  }
+  {
+    int st_chg = 0, tp_chg = 0;
+    int st_val = 0, tp_val = 0;
+    if (P->in_perf_stutter) {
+      float v = *P->in_perf_stutter;
+      st_val = (int)lrintf(v);
+      if (st_val < 0) st_val = 0;
+      if (st_val > 3) st_val = 3;
+      if (fabsf(v - P->prev_perf_stutter) > 0.4f) {
+        P->prev_perf_stutter = v;
+        st_chg = 1;
+      }
+    }
+    if (P->in_perf_tape) {
+      float v = *P->in_perf_tape;
+      tp_val = (v >= 0.5f) ? 1 : 0;
+      if (fabsf(v - P->prev_perf_tape) > 0.4f) {
+        P->prev_perf_tape = v;
+        tp_chg = 1;
+      }
+    }
+    if (tp_chg) {
+      P->core.perf_fx = tp_val ? EP_FX_TAPE_STOP : (st_val ? st_val : EP_FX_NONE);
+    } else if (st_chg) {
+      P->core.perf_fx = st_val ? st_val : (tp_val ? EP_FX_TAPE_STOP : EP_FX_NONE);
+    }
+  }
+  if (P->in_perf_throw) {
+    float v = *P->in_perf_throw;
+    if (fabsf(v - P->prev_perf_throw) > 0.4f) {
+      P->prev_perf_throw = v;
+      P->core.perf_aux1_throw = (v >= 0.5f) ? 1 : 0;
+    }
+  }
+  if (P->in_perf_break) {
+    float v = *P->in_perf_break;
+    if (fabsf(v - P->prev_perf_break) > 0.4f) {
+      P->prev_perf_break = v;
+      P->core.perf_break = (v >= 0.5f) ? 1 : 0;
+    }
+  }
+  for (int g = 0; g < EP_CHOKE_MAX; g++) {
+    if (P->in_choke_mute[g]) {
+      float v = *P->in_choke_mute[g];
+      if (fabsf(v - P->prev_choke_mute[g]) > 0.4f) {
+        P->prev_choke_mute[g] = v;
+        if (v >= 0.5f) {
+          P->core.choke_mute_mask |= (uint8_t)(1u << g);
+          P->core.choke_solo_mask &= (uint8_t)~(1u << g);
+        } else {
+          P->core.choke_mute_mask &= (uint8_t)~(1u << g);
+        }
+      }
+    }
+  }
+  if (P->in_perf_repeat) {
+    float v = *P->in_perf_repeat;
+    if (fabsf(v - P->prev_perf_repeat) > 0.4f) {
+      P->prev_perf_repeat = v;
+      int rv = (int)lrintf(v);
+      if (rv < 0) rv = 0;
+      if (rv >= EP_RPT_NMODES) rv = EP_RPT_NMODES - 1;
+      P->core.repeat_div = rv;
+      P->core.held_mask = 0;
+      P->shm_dirty = 1;
+    }
+  }
+  if (P->in_perf_16lvl) {
+    float v = *P->in_perf_16lvl;
+    if (fabsf(v - P->prev_perf_16lvl) > 0.4f) {
+      P->prev_perf_16lvl = v;
+      int pm = (int)lrintf(v);
+      if (pm < 0) pm = 0;
+      if (pm >= EP_PLAY_NMODES) pm = EP_PLAY_NMODES - 1;
+      P->core.play_mode = pm;
+      P->core.held_mask = 0;
+      P->shm_dirty = 1;
+    }
+  }
 
   /* Encoder control for selected pad's Steps (End), Beg Step, and Aux 1..4 Sends */
   if (!P->have_prev_steps) {
@@ -1962,6 +2122,15 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
   P->core.perf_fx_cur = EP_FX_NONE;
   P->core.perf_break = 0;
   P->core.perf_aux1_throw = 0;
+  P->prev_perf_filter = 0.0f;
+  P->prev_perf_reso = 20.0f;
+  P->prev_perf_stutter = 0.0f;
+  P->prev_perf_throw = 0.0f;
+  for (int g = 0; g < EP_CHOKE_MAX; g++) P->prev_choke_mute[g] = 0.0f;
+  P->prev_perf_tape = 0.0f;
+  P->prev_perf_break = 0.0f;
+  P->prev_perf_repeat = 0.0f;
+  P->prev_perf_16lvl = 0.0f;
   P->core.seq.metro_mode = EP_METRO_OFF;
   P->core.seq.countin_en = 0;
   P->core.seq.countin_rem = 0;

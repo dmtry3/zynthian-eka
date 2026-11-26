@@ -71,7 +71,9 @@ LEN_PRESETS = (4, 8, 12, 16, 24, 32)
 QUANT_NAMES = ("Off", "1/16", "1/8", "1/4")
 
 TABS = ["Play", "Pads", "Mod", "Seq", "Kit"]
-TAB_GROUPS = ["g_seq", "g_sound", "g_mod", "g_seq", "g_mix"]
+PLAY_GROUPS = ("g_play_fx", "g_play_mutes", "g_play_perf")
+PLAY_GROUP_LABELS = ("FX", "Mute", "Perf")
+TAB_GROUPS = ["g_play_fx", "g_sound", "g_mod", "g_seq", "g_mix"]
 SCENE_NAMES = ["A", "B", "C", "D", "E", "F", "G", "H"]
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
@@ -1217,6 +1219,18 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             ("pad_note3", 38),
             ("pad_note4", 39),
             ("bus_glue", 0.0),
+            ("perf_filter", 0.0),
+            ("perf_reso", 20.0),
+            ("perf_stutter", 0),
+            ("perf_throw", 0),
+            ("choke_mute1", 0),
+            ("choke_mute2", 0),
+            ("choke_mute3", 0),
+            ("choke_mute4", 0),
+            ("perf_tape", 0),
+            ("perf_break", 0),
+            ("perf_repeat", 0),
+            ("perf_16lvl", 0),
         )
         for sym, val in defaults:
             self._zset(sym, val)
@@ -1274,6 +1288,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             for i, row in enumerate(self.zyngui_control.list_data):
                 if len(row) >= 5 and row[0] == target and row[3] is self.processor:
                     self.zyngui_control.select(i)
+                    self.last_group = target
                     return
         except Exception:
             pass
@@ -1290,7 +1305,9 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         if group == self.last_group:
             return
         self.last_group = group
-        if group == "g_mod" and self.tab != 2:
+        if group in PLAY_GROUPS and self.tab != 0:
+            self.tab = 0
+        elif group == "g_mod" and self.tab != 2:
             self.tab = 2
         elif group == "g_seq" and self.tab in (1, 2):
             self.tab = 3
@@ -1402,11 +1419,25 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
             self.hit_boxes.append((x, 2, x + bw, top_h - 3, "tab", i))
             x += bw + 4
 
-        # Compact performance pills on non-Play tabs: 16 Levels/Chromatic + Note Repeat
+        # Compact performance pills: on Play tab -> knob page switcher (FX / Mute / Perf);
+        # on other tabs -> 16 Levels/Chromatic + Note Repeat
         play_mode = int(self.shm_hdr[18]) if (self.shm_hdr and len(self.shm_hdr) >= 30) else 0
         rpt_div = int(self.shm_hdr[19]) if (self.shm_hdr and len(self.shm_hdr) >= 30) else 0
         fsmall = max(7, fs - 1)
-        if self.tab != 0:
+        if self.tab == 0:
+            cur_pg = self.last_group if self.last_group is not None else PLAY_GROUPS[0]
+            pw_k = max(30, min(46, int(w * 0.052)))
+            x += 2
+            for gi, gid in enumerate(PLAY_GROUPS):
+                sel_g = (cur_pg == gid)
+                self._add_btn(c, x, 3, x + pw_k, top_h - 4,
+                              PLAY_GROUP_LABELS[gi],
+                              "#1f3d2b" if sel_g else COL_PANEL,
+                              "#69db7c" if sel_g else "#a0a4b8", fam, fsmall,
+                              "play_group", gid,
+                              outline="#40c057" if sel_g else "#3e3e4c")
+                x += pw_k + 3
+        else:
             pw_p = max(40, int(w * 0.068))
             x += 2
             pm_on = (play_mode > 0)
@@ -1473,7 +1504,12 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         if mute_mask is not None:
             m = int(mute_mask) & 0xF
             self.choke_mute_override = (m, now + 0.30)
-            self._send_cmd(CMD_SET_MOD_AMT, a=6, c=11, val=m)
+            ok = True
+            for g in range(4):
+                if not self._zset("choke_mute%d" % (g + 1), 1 if (m & (1 << g)) else 0):
+                    ok = False
+            if not ok:
+                self._send_cmd(CMD_SET_MOD_AMT, a=6, c=11, val=m)
         if solo_mask is not None:
             s = int(solo_mask) & 0xF
             self.choke_solo_override = (s, now + 0.30)
@@ -1495,8 +1531,10 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         rv = max(0, min(100, int(round(reso))))
         until = None if persistent else (time.monotonic() + 0.30)
         self.perf_xy_override = (float(fv), float(rv), until)
-        self._send_cmd(CMD_SET_MOD_AMT, a=6, c=13, val=fv + 100)
-        self._send_cmd(CMD_SET_MOD_AMT, a=6, c=14, val=rv)
+        if not self._zset("perf_filter", float(fv)):
+            self._send_cmd(CMD_SET_MOD_AMT, a=6, c=13, val=fv + 100)
+        if not self._zset("perf_reso", float(rv)):
+            self._send_cmd(CMD_SET_MOD_AMT, a=6, c=14, val=rv)
         return fv, rv
 
     def _apply_perf_xy(self, x0, y0, x1, y1, x, y):
@@ -1512,14 +1550,53 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         val = (1 if self.perf_break_local else 0) | (2 if self.perf_throw_local else 0)
         self._send_cmd(CMD_SET_MOD_AMT, a=6, c=16, val=val)
 
+    def _set_perf_fx_ctl(self, fx_val, prev_fx=0):
+        if fx_val == 4:
+            if not self._zset("perf_tape", 1):
+                self._send_cmd(CMD_SET_MOD_AMT, a=6, c=15, val=4)
+        elif fx_val in (1, 2, 3):
+            if not self._zset("perf_stutter", fx_val):
+                self._send_cmd(CMD_SET_MOD_AMT, a=6, c=15, val=fx_val)
+        else:
+            ok = True
+            if prev_fx == 4:
+                ok = self._zset("perf_tape", 0)
+            elif prev_fx in (1, 2, 3):
+                ok = self._zset("perf_stutter", 0)
+            else:
+                ok = self._zset("perf_stutter", 0) and self._zset("perf_tape", 0)
+            if not ok:
+                self._send_cmd(CMD_SET_MOD_AMT, a=6, c=15, val=0)
+
+    def _set_perf_break_ctl(self, on):
+        self.perf_break_local = bool(on)
+        if not self._zset("perf_break", 1 if on else 0):
+            self._send_perf_flags()
+
+    def _set_perf_throw_ctl(self, on):
+        self.perf_throw_local = bool(on)
+        if not self._zset("perf_throw", 1 if on else 0):
+            self._send_perf_flags()
+
+    def _set_repeat_div_ctl(self, div):
+        d = int(div) % len(REPEAT_DIV_NAMES)
+        if not self._zset("perf_repeat", d):
+            self._send_cmd(CMD_SET_MOD_AMT, a=6, c=1, val=d)
+
+    def _set_play_mode_ctl(self, mode):
+        m = int(mode) % len(PLAY_MODE_NAMES)
+        if not self._zset("perf_16lvl", m):
+            self._send_cmd(CMD_SET_MOD_AMT, a=6, c=0, val=m)
+
     def _release_momentary_fx(self):
         if self.perf_fx_local != 0:
+            prev = self.perf_fx_local
             self.perf_fx_local = 0
-            self._send_cmd(CMD_SET_MOD_AMT, a=6, c=15, val=0)
-        if self.perf_break_local or self.perf_throw_local:
-            self.perf_break_local = False
-            self.perf_throw_local = False
-            self._send_perf_flags()
+            self._set_perf_fx_ctl(0, prev_fx=prev)
+        if self.perf_break_local:
+            self._set_perf_break_ctl(False)
+        if self.perf_throw_local:
+            self._set_perf_throw_ctl(False)
 
     def _cancel_choke_hold(self):
         if self._choke_hold_after is not None:
@@ -3384,6 +3461,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 continue
 
             if action == "tab":
+                prev_tab = self.tab
                 self._release_momentary_fx()
                 self._cancel_choke_hold()
                 self.tab = arg
@@ -3400,7 +3478,17 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.sample_popup_vals = None
                 self._close_notes_popup(restore_group=False)
                 self.reset_confirm_until = 0.0
-                self._select_page(arg)
+                if arg == 0 and prev_tab == 0:
+                    cur_g = self.last_group if self.last_group is not None else PLAY_GROUPS[0]
+                    nxt = (PLAY_GROUPS.index(cur_g) + 1) % len(PLAY_GROUPS) if cur_g in PLAY_GROUPS else 0
+                    self._select_group(PLAY_GROUPS[nxt])
+                else:
+                    self._select_page(arg)
+                self.refresh_gui()
+                return
+
+            if action == "play_group":
+                self._select_group(arg)
                 self.refresh_gui()
                 return
 
@@ -3421,12 +3509,12 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 return
 
             if action == "set_repeat_div":
-                self._send_cmd(CMD_SET_MOD_AMT, a=6, c=1, val=arg)
+                self._set_repeat_div_ctl(arg)
                 self.refresh_gui()
                 return
 
             if action == "set_play_mode":
-                self._send_cmd(CMD_SET_MOD_AMT, a=6, c=0, val=arg)
+                self._set_play_mode_ctl(arg)
                 self.refresh_gui()
                 return
 
@@ -3452,27 +3540,25 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
 
             if action == "perf_fx_hold":
                 self.perf_fx_local = arg
-                self._send_cmd(CMD_SET_MOD_AMT, a=6, c=15, val=arg)
+                self._set_perf_fx_ctl(arg)
                 self.drag_info = ("perf_fx_hold", arg, now, 0)
                 self.refresh_gui()
                 return
 
             if action == "perf_break_hold":
-                self.perf_break_local = True
-                self._send_perf_flags()
+                self._set_perf_break_ctl(True)
                 self.drag_info = ("perf_break_hold", None, now, 0)
                 self.refresh_gui()
                 return
 
             if action == "perf_throw_hold":
-                self.perf_throw_local = True
-                self._send_perf_flags()
+                self._set_perf_throw_ctl(True)
                 self.drag_info = ("perf_throw_hold", None, now, 0)
                 self.refresh_gui()
                 return
 
             if action == "cycle_play_mode":
-                self._send_cmd(CMD_SET_MOD_AMT, a=6, c=0, val=arg)
+                self._set_play_mode_ctl(arg)
                 nm = ("Normal Pads", "Chromatic (P%d)" % (self.sel_pad + 1),
                       "16 Levels: Velocity", "16 Levels: Filter")[arg % 4]
                 self._toast(nm, secs=1.8)
@@ -3480,7 +3566,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 return
 
             if action == "cycle_repeat_div":
-                self._send_cmd(CMD_SET_MOD_AMT, a=6, c=1, val=arg)
+                self._set_repeat_div_ctl(arg)
                 nm = ("Note Repeat Off", "Repeat 1/8", "Repeat 1/16", "Repeat 1/16T", "Repeat 1/32")[arg % 5]
                 self._toast(nm, secs=1.8)
                 self.refresh_gui()
@@ -4647,21 +4733,20 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 self.refresh_gui()
                 return
             if kind == "perf_fx_hold":
+                prev = self.drag_info[1]
                 self.drag_info = None
                 self.perf_fx_local = 0
-                self._send_cmd(CMD_SET_MOD_AMT, a=6, c=15, val=0)
+                self._set_perf_fx_ctl(0, prev_fx=prev)
                 self.refresh_gui()
                 return
             if kind == "perf_break_hold":
                 self.drag_info = None
-                self.perf_break_local = False
-                self._send_perf_flags()
+                self._set_perf_break_ctl(False)
                 self.refresh_gui()
                 return
             if kind == "perf_throw_hold":
                 self.drag_info = None
-                self.perf_throw_local = False
-                self._send_perf_flags()
+                self._set_perf_throw_ctl(False)
                 self.refresh_gui()
                 return
             if kind == "notes_pad_drag":

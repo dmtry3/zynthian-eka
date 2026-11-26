@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2 (2026-11-26)
+
+- **MIDI-Mappable `Play` Encoder Pages (`Play FX`, `Play Mutes`, `Play Perf`):** exposed 12 dedicated LV2 ControlPorts across 3 top-priority Zynthian encoder pages shown automatically when the `Play` tab is active (with 1-tap `FX | Mute | Perf` page pills in the top bar):
+  - **`Play FX`:** `Mst Filter`, `Mst Reso`, `Stutter` (`Off / 1/4 / 1/8 / 1/16`), `Aux1 Throw`.
+  - **`Play Mutes`:** `Mute G1`, `Mute G2`, `Mute G3`, `Mute G4`.
+  - **`Play Perf`:** `Tape Stop`, `Break`, `Note Rpt` (`Off..1/32`), `16 Levels` (`Normal / Chrom / 16 Vel / 16 Flt`).
+  - Full two-way sync between the touchscreen `Play` UI, Zynthian's physical encoders, and Zynthian MIDI Learn.
+
 ## 0.3.1 (2026-11-26)
 
 - **Dedicated `Play` Performance Tab (first tab):** live stage view (`Play | Pads | Mod | Seq | Kit`) with large touch targets:
