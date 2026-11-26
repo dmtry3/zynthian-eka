@@ -188,10 +188,7 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
         return tuple(vals)
 
     def update(self):
-        if not getattr(self, "shown", True) or self.processor is None:
-            return
-        zyngui = getattr(self, "zyngui", None)
-        if zyngui is not None and getattr(zyngui, "current_screen", "control") != "control":
+        if self.processor is None:
             return
 
         now = time.monotonic()
@@ -211,7 +208,7 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
                 super().update()
             finally:
                 self._pending_trace_step = False
-        elif params_changed:
+        elif params_changed and self._layout_size is not None:
             # Fast incremental redraw without blocking on Jalv monitor IPC
             self._pending_trace_step = False
             self.refresh_gui()
@@ -224,6 +221,7 @@ class zynthian_widget_eka_press(zynthian_widget_base.zynthian_widget_base):
     def on_size(self, event):
         if not super().on_size(event):
             return
+        self.widget_canvas.grid(row=0, column=0, sticky="news")
         self._layout_size = None
         self.refresh_gui()
 

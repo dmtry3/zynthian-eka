@@ -1,5 +1,9 @@
 # Changelog — Eka Press
 
+## 0.1.3 — 2026-11-26
+
+- Fixed missing live visualization on Zynthian: removed the erroneous `zyngui.current_screen != "control"` and `self.shown` guards from `update()` (Zynthian's control screen is named `chain_control`, so `update()` was returning early before polling monitors or redrawing).
+
 ## 0.1.2 — 2026-11-26
 
 - Fixed UI lag when turning knobs: replaced full `canvas.delete("all")` redraws in `zynthian_widget_eka_press.py` with persistent retained canvas items, fine-grained dirty-checking, knob-active monitor IPC backoff, and throttled touch drag.
