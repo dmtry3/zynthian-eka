@@ -878,8 +878,23 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
     def _font(self, size=None):
         return (zynthian_gui_config.font_family, size or self._font_size())
 
+    def _btn_h(self):
+        """Height of a row of touch buttons or sliders, sized for fingers."""
+        fs = self._font_size()
+        h = max(int(self.height), 60)
+        return max(2 * fs + 6, min(60, int(h * 0.135)))
+
+    def _btn_font_size(self):
+        fs = self._font_size()
+        return min(15, fs + 2) if self._btn_h() >= 46 else fs
+
+    def _line_h(self):
+        """Height reserved for a single-line status caption at the bottom."""
+        fs = self._font_size()
+        return max(20, fs + 12)
+
     def _header_h(self):
-        """Height of the page name line, from the real font metrics (Tk sizes are points, not pixels)."""
+        """Height of the tab bar, sized for fingers."""
         fs = self._font_size()
         if fs not in self.header_h:
             try:
@@ -887,7 +902,8 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                 self.header_h[fs] = f.metrics("linespace") + 4
             except Exception:
                 self.header_h[fs] = 2 * fs
-        return self.header_h[fs]
+        h = max(int(self.height), 60)
+        return max(self.header_h[fs], min(54, int(h * 0.12)))
 
     # ---------- tab <-> knob page ----------
     def _page_rows(self):
@@ -930,6 +946,10 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             self.tab = TAB_GROUPS.index(group)
             self._clear()
 
+    @staticmethod
+    def _hit(x0, y0, x1, y1, x, y, pad=2):
+        return x0 - pad <= x <= x1 + pad and y0 - pad <= y <= y1 + pad
+
     # ---------- touch ----------
     def _on_press(self, event):
         if event.y < self._header_h():                              # tab bar
@@ -945,7 +965,7 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             return
         if self.tab == 1:
             for x0, y0, x1, y1, sym in self.route_boxes:
-                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                if self._hit(x0, y0, x1, y1, event.x, event.y):
                     self._zset(sym, 1 - self._route(sym))
                     self.mod_view = None
                     self.mod_drawn = 0.0                    # a tap shows at once
@@ -953,7 +973,7 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                     return
         if self.tab == 3:
             for x0, y0, x1, y1, value in self.gate_buttons:
-                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                if self._hit(x0, y0, x1, y1, event.x, event.y):
                     self._zset("gate_mode", value)
                     self.gate_view = None
                     self.gate_drawn = 0.0
@@ -961,14 +981,14 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                     return
         if self.tab == 4:
             for x0, y0, x1, y1, sym, value in self.env_buttons:
-                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                if self._hit(x0, y0, x1, y1, event.x, event.y):
                     self._zset(sym, value)
                     self.env_view = None
                     self.env_drawn = 0.0
                     self.refresh_gui()
                     return
             b = self.depth_box
-            if b and b[0] <= event.x <= b[2] and b[1] <= event.y <= b[3]:
+            if b and self._hit(b[0], b[1], b[2], b[3], event.x, event.y):
                 now = time.monotonic()
                 sym = "m_fg2_timbre"
                 if self.last_tap[0] == sym and now - self.last_tap[1] < DOUBLE_TAP:
@@ -983,14 +1003,14 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                 self.drag = (sym, int(round(self._zval(sym, 0))), event.y, -100, 100, DRAG_PX)
         if self.tab == DELAY_TAB:
             for x0, y0, x1, y1, value in self.dl_buttons:
-                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                if self._hit(x0, y0, x1, y1, event.x, event.y):
                     self._zset("delay_mode", value)
                     self.dl_view = None
                     self.dl_drawn = 0.0
                     self.refresh_gui()
                     return
             for x0, y0, x1, y1, sym, lo, hi, px in self.dl_boxes:
-                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                if self._hit(x0, y0, x1, y1, event.x, event.y):
                     now = time.monotonic()
                     if self.last_tap[0] == sym and now - self.last_tap[1] < DOUBLE_TAP:
                         self._zset(sym, DL_DEFAULTS[sym])  # double tap: reset
@@ -1005,14 +1025,14 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                     return
         if self.tab == PLAY_TAB:
             for x0, y0, x1, y1, value in self.play_buttons:
-                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                if self._hit(x0, y0, x1, y1, event.x, event.y):
                     self._zset("play_mode", value)
                     self.play_view = self.play_slots = None
                     self.play_drawn = 0.0
                     self.refresh_gui()
                     return
             for x0, y0, x1, y1, n in self.slot_boxes:
-                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                if self._hit(x0, y0, x1, y1, event.x, event.y):
                     self._zset("voices", n)
                     self.play_view = self.play_slots = None
                     self.play_drawn = 0.0
@@ -1036,14 +1056,14 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             return
         if self.tab == 0:
             for x0, y0, x1, y1, i in self.tile_boxes:
-                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                if self._hit(x0, y0, x1, y1, event.x, event.y):
                     self._zset("source", i)
                     self.tiles_view = self.wave_view = self.info_view = None
                     self.wave_drawn = 0.0
                     self.refresh_gui()
                     return
             for x0, y0, x1, y1, sym, lo, hi, px in self.value_boxes:
-                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                if self._hit(x0, y0, x1, y1, event.x, event.y):
                     now = time.monotonic()
                     if self.last_tap[0] == sym and now - self.last_tap[1] < DOUBLE_TAP:
                         self._zset(sym, 0)                  # double tap: reset
@@ -1104,10 +1124,29 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         elif self.tab == MATRIX_TAB:
             self._draw_matrix()
 
+    @staticmethod
+    def _stretch_tabs(widths, target):
+        """Grow the narrowest tabs first until the row fills target, giving every tab a wide touch target."""
+        extra = target - sum(widths)
+        if extra <= 0:
+            return widths
+        ws = [float(x) for x in widths]
+        while extra > 0.5:
+            lo = min(ws)
+            lows = [i for i, x in enumerate(ws) if x <= lo + 0.5]
+            higher = [x for x in ws if x > lo + 0.5]
+            step = min(extra / len(lows), (min(higher) - lo) if higher else extra / len(lows))
+            for i in lows:
+                ws[i] += step
+            extra -= step * len(lows)
+        return [int(x) for x in ws]
+
     def _tab_metrics(self, title):
-        """(font size, padding, widths, title shown): the tabs and the page title share the top line. The padding
-        shrinks first, then the font; if the tabs still do not fit beside the title, the title goes."""
+        """(font size, padding, widths, title shown): the tabs and the page title share the top line. Narrow tabs
+        grow to fill all available width so every tab stays wide and in a fixed place across pages."""
         fam, fs = zynthian_gui_config.font_family, self._font_size()
+        title_fs = max(7, fs - 2)
+        gap = 3
 
         fonts = self.__dict__.setdefault("fit_fonts", {})
         known = self.__dict__.setdefault("tab_widths", {})    # (size, text) -> px: the tab names do not change
@@ -1126,15 +1165,17 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             known[(size, text)] = px
             return px
         w = max(self.width, 80)
+        title_w = max(measure(title_fs, "Timbre"), measure(title_fs, title)) if title else 0
         for show in ((True, False) if title else (False,)):
-            avail = w - 4 - (measure(fs, title) + 14 if show else 0)
+            avail = w - 4 - (title_w + 12 if show else 0)
+            target = avail - gap * len(TABS)
             for size in range(fs, max(7, fs - 4) - 1, -1):
-                for pad in (2 * size, size, size // 2):
+                for pad in (size, size // 2, 4):
                     widths = [measure(size, t) + pad for t in TABS]
-                    if sum(widths) + 4 * len(TABS) <= avail:
-                        return size, pad, widths, show
+                    if sum(widths) <= target:
+                        return size, pad, self._stretch_tabs(widths, target), show
         size = max(7, fs - 4)
-        return size, size // 2, [measure(size, t) + size // 2 for t in TABS], False
+        return size, 4, [measure(size, t) + 4 for t in TABS], False
 
     def _draw_tabs(self):
         title = self._page_title()
@@ -1155,8 +1196,8 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             c.create_rectangle(x, 1, x + tw, hh - 2, outline=TAB_COLOR, fill=(TAB_COLOR if sel else ""), tags="tabs")
             c.create_text(x + tw / 2, hh / 2, text=t, font=self._font(size), tags="tabs",
                           fill=("#000000" if sel else TAB_COLOR))
-            self.tab_boxes.append((x, x + tw + 2))
-            x += tw + 4
+            self.tab_boxes.append((max(0, x - 2), x + tw + 1))
+            x += tw + 3
 
     def _draw_title(self):
         title = self._page_title()
@@ -1167,19 +1208,18 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         self.title = title
         c = self.widget_canvas
         c.delete("title")
-        c.create_text(max(self.width, 20) - 6, 2, anchor="ne", text=title, tags="title",
-                      fill=zynthian_gui_config.color_tx_off, font=self._font())
+        c.create_text(max(self.width, 20) - 6, self._header_h() / 2, anchor="e", text=title, tags="title",
+                      fill=zynthian_gui_config.color_tx_off, font=self._font(max(7, self._font_size() - 2)))
 
     # ---------- Osc tab ----------
     def _osc_layout(self):
         """Boxes: the top row (Source tiles, then Pitch and Fine), the waveform, the meter at its right, the line
         of what the knobs do, the notes line."""
         w, h = max(int(self.width), 60), max(int(self.height), 60)
-        hh, fs = self._header_h(), self._font_size()
-        row = 2 * fs + 6
-        tiles = (4, hh + 4, w - 4, hh + 4 + row)
+        hh, fs, bh, lh = self._header_h(), self._font_size(), self._btn_h(), self._line_h()
+        tiles = (4, hh + 4, w - 4, hh + 4 + bh)
         meter_w = max(6, fs // 2 + 2)
-        notes_y = h - row // 2 - 2
+        notes_y = h - lh // 2 - 2
         info_y = notes_y - fs - 6
         wave = (4, tiles[3] + 6, w - meter_w - 12, info_y - fs // 2 - 4)
         meter = (w - meter_w - 4, wave[1], w - 4, wave[3])
@@ -1215,14 +1255,15 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         # boxes say only P and F
         fonts = self.__dict__.setdefault("fit_fonts", {})
         fam = zynthian_gui_config.font_family
-        key = (x1 - x0, self._font_size())
+        top_fs = self._font_size()
+        key = (x1 - x0, top_fs)
         fit = self.__dict__.setdefault("tile_fit", {}).get(key)
         for short in (() if fit else (False, True)):
-            for fs in range(self._font_size(), 6, -1):
+            for fs in range(top_fs, 6, -1):
                 try:
                     if fs not in fonts:
                         fonts[fs] = tkinter.font.Font(family=fam, size=fs)
-                    bw = fonts[fs].measure("F +100" if short else "Fine +100") + fs
+                    bw = fonts[fs].measure("F +100" if short else "Fine +100") + 8
                     need = max(fonts[fs].measure(n) for n in SOURCES) + 4
                 except Exception:
                     bw, need = 9 * fs, 5 * fs
@@ -1332,7 +1373,7 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         hh, fs = self._header_h(), self._font_size()
         bottom = 2 * fs + 10                            # the Index is drawn larger than the rest
         y0, y1 = hh + 4, h - bottom - 4
-        xa, xb = int(w * 0.36), int(w * 0.64)
+        xa, xb = int(w * 0.34), int(w * 0.66)
         left = (4, y0, xa - 4, y1)
         mid = (xa + 4, y0, xb - 4, y1)
         right = (xb + 4, y0, w - 4, y1)
@@ -1393,7 +1434,8 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             by1 = by0 + bh
             col = ROUTE_ON if on else ROUTE_OFF
             c.create_rectangle(mx0, by0, mx1, by1, outline=col, fill=(col if on else ""), tags="mod")
-            c.create_text((mx0 + mx1) / 2, (by0 + by1) / 2, text=name + " \u2192", font=self._font(),
+            c.create_text((mx0 + mx1) / 2, (by0 + by1) / 2, text=name + " \u2192",
+                          font=self._fit_font(name + " \u2192", mx1 - mx0 - 8, self._btn_font_size()),
                           fill=("#000000" if on else zynthian_gui_config.color_tx), tags="mod")
             self.route_boxes.append((mx0, by0, mx1, by1, sym))
         # Principal block: the result
@@ -1548,14 +1590,13 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
 
     # ---------- Gate tab ----------
     def _gate_layout(self):
-        """Buttons row (left), the response box, the vactrol bar at its right, the bottom line."""
+        """Buttons row (full width), the response box, the vactrol bar at its right, the bottom line."""
         w, h = max(int(self.width), 60), max(int(self.height), 60)
-        hh, fs = self._header_h(), self._font_size()
-        row = 2 * fs + 6
-        buttons = (4, hh + 4, min(w - 4, int(w * 0.6)), hh + 4 + row)
+        hh, fs, bh, lh = self._header_h(), self._font_size(), self._btn_h(), self._line_h()
+        buttons = (4, hh + 4, w - 4, hh + 4 + bh)
         bar_w = max(8, fs)
-        bottom = h - row // 2 - 2
-        plot = (4, buttons[3] + 6, w - bar_w - 14, h - row - 6)
+        bottom = h - lh // 2 - 2
+        plot = (4, buttons[3] + 6, w - bar_w - 14, h - lh - 4)
         bar = (w - bar_w - 4, plot[1], w - 4, plot[3])
         return buttons, plot, bar, bottom
 
@@ -1599,7 +1640,8 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             x0 = bx0 + i * bw
             c.create_rectangle(x0, by0, x0 + bw - 4, by1, outline=ROUTE_ON if on else ROUTE_OFF,
                                fill=(ROUTE_ON if on else ""), tags="gate")
-            c.create_text(x0 + (bw - 4) / 2, (by0 + by1) / 2, text=name, font=self._font(),
+            c.create_text(x0 + (bw - 4) / 2, (by0 + by1) / 2, text=name,
+                          font=self._fit_font(name, bw - 10, self._btn_font_size()),
                           fill=("#000000" if on else zynthian_gui_config.color_tx), tags="gate")
             self.gate_buttons.append((x0, by0, x0 + bw - 4, by1, i))
         # response for a few vactrol states, brightest = open
@@ -1655,8 +1697,8 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         hh, fs = self._header_h(), self._font_size()
         top = hh + 4
         rh = (h - top - 4) / 2.0
-        label_w = int(w * 0.24)
-        btn_w = max(int(w * 0.16), 5 * fs)
+        label_w = max(int(w * 0.27), 8 * fs)
+        btn_w = max(int(w * 0.24), 6 * fs)
         rows = []
         for i in range(2):
             y0 = top + i * rh
@@ -1704,7 +1746,7 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             if i == 1:
                 depth = vals[6]
                 fg2_other = vals[7]
-                bh = 2 * fs + 6
+                bh = min(self._btn_h(), max(2 * fs + 6, int((lab[3] - lab[1]) * 0.38)))
                 box = (lab[0] + 2, lab[3] - bh, lab[2] - 4, lab[3])
                 if fg2_other:
                     extra = "+ " + ", ".join(fg2_other[:2]) + (" +%d" % (len(fg2_other) - 2) if len(fg2_other) > 2 else "")
@@ -1714,8 +1756,10 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                                       font=self._fit_font(extra, lab[2] - lab[0] - 6, max(7, fs - 2)), tags="env")
                 col = ROUTE_ON if depth else ROUTE_OFF
                 c.create_rectangle(*box, outline=col, tags="env")
-                c.create_text((box[0] + box[2]) / 2, (box[1] + box[3]) / 2, text="Timbre %+d%%" % depth,
-                              fill=(NOTE_COLOR if depth else LABEL_COLOR), font=small, tags="env")
+                dtext = "Timbre %+d%%" % depth
+                c.create_text((box[0] + box[2]) / 2, (box[1] + box[3]) / 2, text=dtext,
+                              fill=(NOTE_COLOR if depth else LABEL_COLOR),
+                              font=self._fit_font(dtext, box[2] - box[0] - 8, self._btn_font_size()), tags="env")
                 self.depth_box = box
             # curve
             c.create_rectangle(*curve, outline=AXIS_COLOR, tags="env")
@@ -1732,12 +1776,13 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             # mode buttons, stacked
             bx0, by0, bx1, by1 = btns
             bh = (by1 - by0 - 8) / 3.0
+            bfont = self._fit_font(max(FG_MODES, key=len), bx1 - bx0 - 8, self._btn_font_size())
             for k, name in enumerate(FG_MODES):
                 on = k == mode
                 yy = by0 + k * (bh + 4)
                 c.create_rectangle(bx0, yy, bx1, yy + bh, outline=ROUTE_ON if on else ROUTE_OFF,
                                    fill=(ROUTE_ON if on else ""), tags="env")
-                c.create_text((bx0 + bx1) / 2, yy + bh / 2, text=name, font=small,
+                c.create_text((bx0 + bx1) / 2, yy + bh / 2, text=name, font=bfont,
                               fill=("#000000" if on else zynthian_gui_config.color_tx), tags="env")
                 self.env_buttons.append((bx0, yy, bx1, yy + bh, "fg%d_mode" % (i + 1), k))
 
@@ -1769,12 +1814,11 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         """Buttons row, the shaper box (left), the EQ box, the level bar at its right, the value boxes, the bottom
         line."""
         w, h = max(int(self.width), 60), max(int(self.height), 60)
-        hh, fs = self._header_h(), self._font_size()
-        row = 2 * fs + 6
-        buttons = (4, hh + 4, w - 4, hh + 4 + row)                     # five modes: the whole width
-        bottom = h - row // 2 - 2
-        vy1 = h - row - 4
-        vy0 = vy1 - row
+        hh, fs, bh, lh = self._header_h(), self._font_size(), self._btn_h(), self._line_h()
+        buttons = (4, hh + 4, w - 4, hh + 4 + bh)                     # five modes: the whole width
+        bottom = h - lh // 2 - 2
+        vy1 = h - lh - 4
+        vy0 = vy1 - bh
         bar_w = max(8, fs)
         py0, py1 = buttons[3] + 6, vy0 - 6
         shaper = (4, py0, 4 + max(30, min(int(w * 0.3), py1 - py0)), py1)
@@ -1824,7 +1868,7 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         self.dl_buttons = []
         bx0, by0, bx1, by1 = buttons
         bw = (bx1 - bx0) / float(len(DL_MODES))
-        bfont = self._fit_font(max(DL_MODES, key=len), bw - 10)
+        bfont = self._fit_font(max(DL_MODES, key=len), bw - 10, self._btn_font_size())
         for i, name in enumerate(DL_MODES):
             on = i == mode
             x0 = bx0 + i * bw
@@ -1949,8 +1993,8 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                 c.create_rectangle(min(xa, xv), vy0 + 1, max(xa, xv), vy1 - 1, outline="", fill=SLIDER_COLOR,
                                    tags="delay")
             c.create_line(xv, vy0 + 1, xv, vy1 - 1, fill=MARK_COLOR, width=2, tags="delay")   # the knob of the slider
-            c.create_text((sx0 + sx1) / 2, (vy0 + vy1) / 2, text=text, font=self._fit_font(text, bw - 10), fill=tx,
-                          tags="delay")
+            c.create_text((sx0 + sx1) / 2, (vy0 + vy1) / 2, text=text,
+                          font=self._fit_font(text, bw - 10, self._btn_font_size()), fill=tx, tags="delay")
             # px per step: the whole range over the slider's width (EQ Gain, 360 tenths, at least 1 px each)
             px = max(1.0, (sx1 - sx0) / float(hi - lo))
             self.dl_boxes.append((sx0, vy0, sx1, vy1, sym, lo, hi, px))
@@ -1976,12 +2020,11 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
     def _play_layout(self):
         """Buttons row, the voice slots row, the glide box, the bottom line."""
         w, h = max(int(self.width), 60), max(int(self.height), 60)
-        hh, fs = self._header_h(), self._font_size()
-        row = 2 * fs + 6
-        buttons = (4, hh + 4, min(w - 4, int(w * 0.6)), hh + 4 + row)
-        slots = (4, buttons[3] + 6, w - 4, buttons[3] + 6 + row)
-        bottom = h - row // 2 - 2
-        glide = (4, slots[3] + 8, w - 4, h - row - 6)
+        hh, bh, lh = self._header_h(), self._btn_h(), self._line_h()
+        buttons = (4, hh + 4, w - 4, hh + 4 + bh)
+        slots = (4, buttons[3] + 6, w - 4, buttons[3] + 6 + bh)
+        bottom = h - lh // 2 - 2
+        glide = (4, slots[3] + 8, w - 4, h - lh - 4)
         return buttons, slots, glide, bottom
 
     def _play_values(self):
@@ -2015,7 +2058,8 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
             x0 = bx0 + i * bw
             c.create_rectangle(x0, by0, x0 + bw - 4, by1, outline=ROUTE_ON if on else ROUTE_OFF,
                                fill=(ROUTE_ON if on else ""), tags="play")
-            c.create_text(x0 + (bw - 4) / 2, (by0 + by1) / 2, text=name, font=self._font(),
+            c.create_text(x0 + (bw - 4) / 2, (by0 + by1) / 2, text=name,
+                          font=self._fit_font(name, bw - 10, self._btn_font_size()),
                           fill=("#000000" if on else tx), tags="play")
             self.play_buttons.append((x0, by0, x0 + bw - 4, by1, i))
         # Glide: one note to the next, a fifth up, over the Glide time (the box spans 2 s or the time, the larger)
@@ -2063,7 +2107,8 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
                                tags="playslots")
             text = note_name(notes[i]) if on else str(i + 1)
             c.create_text(sx + (sw - 4) / 2, (y0 + y1) / 2, text=text, tags="playslots",
-                          font=self._fit_font(text, sw - 8), fill=("#000000" if on else tx_or_dim(inside)))
+                          font=self._fit_font(text, sw - 8, self._btn_font_size()),
+                          fill=("#000000" if on else tx_or_dim(inside)))
             self.slot_boxes.append((sx, y0, sx + sw - 4, y1, i + 1))
 
     # ---------- Matrix tab ----------
@@ -2071,14 +2116,14 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         """(gx0, gy0, gx1, gy1, cw, ch, info_y, small font, column names): the grid under the column names, the
         source names at its left, a line under it."""
         w, h = max(self.width, 80), max(self.height, 60)
-        pad = 6
+        pad = 4
         fam, fs = zynthian_gui_config.font_family, self._font_size()
         small = max(6, fs - 3)
         key = (w, h, small)
         if getattr(self, "mx_metrics", (None,))[0] != key:
             try:
                 f = tkinter.font.Font(family=fam, size=small)
-                label_w = max(f.measure(n) for _, n, _ in MATRIX_SRCS) + 8
+                label_w = max(f.measure(n) for _, n, _ in MATRIX_SRCS) + 5
                 line = f.metrics("linespace")
                 cw = (w - pad - pad - label_w) / float(len(MATRIX_DSTS))
                 names = [d[1] for d in MATRIX_DSTS]
@@ -2092,7 +2137,7 @@ class zynthian_widget_eka_fold(zynthian_widget_base.zynthian_widget_base):
         gx0, gx1 = pad + label_w, w - pad
         gy0 = top + line + 2
         info_y = h - pad - line / 2.0
-        gy1 = info_y - line / 2.0 - 4
+        gy1 = info_y - line / 2.0 - 2
         cw = (gx1 - gx0) / float(len(MATRIX_DSTS))
         ch = (gy1 - gy0) / float(len(MATRIX_SRCS))
         return gx0, gy0, gx1, gy1, cw, ch, info_y, small, names
