@@ -70,18 +70,19 @@ CONTROL_PORTS = [
     dict(idx=29, sym="fx_zero",     name="FX Zero",   grp="g_fx",     default=0,      min=0,      max=1,
          props=["lv2:integer", "lv2:toggled", "lv2:enumeration"],
          points=[("Off", 0), ("Zero", 1)]),
+    dict(idx=30, sym="time_smooth", name="Time Smooth", grp="g_fx",   default=50.0,   min=0.0,    max=100.0,  unit="units:pc"),
 ]
 
-# Output telemetry ports (indices 30..37)
+# Output telemetry ports (indices 31..38)
 OUTPUT_PORTS = [
-    (30, "in_peak",     "Input Peak",   -60.0, 12.0,   "units:db"),
-    (31, "out_peak",    "Output Peak",  -60.0, 12.0,   "units:db"),
-    (32, "wet_l_db",    "Wet L",        -60.0, 12.0,   "units:db"),
-    (33, "wet_r_db",    "Wet R",        -60.0, 12.0,   "units:db"),
-    (34, "duck_db",     "Duck GR",        0.0, 24.0,   "units:db"),
-    (35, "actual_ms_l", "Actual L",       5.0, 2500.0, "units:ms"),
-    (36, "actual_ms_r", "Actual R",       5.0, 2500.0, "units:ms"),
-    (37, "host_bpm",    "Host BPM",      20.0, 400.0,  "units:bpm"),
+    (31, "in_peak",     "Input Peak",   -60.0, 12.0,   "units:db"),
+    (32, "out_peak",    "Output Peak",  -60.0, 12.0,   "units:db"),
+    (33, "wet_l_db",    "Wet L",        -60.0, 12.0,   "units:db"),
+    (34, "wet_r_db",    "Wet R",        -60.0, 12.0,   "units:db"),
+    (35, "duck_db",     "Duck GR",        0.0, 24.0,   "units:db"),
+    (36, "actual_ms_l", "Actual L",       5.0, 2500.0, "units:ms"),
+    (37, "actual_ms_r", "Actual R",       5.0, 2500.0, "units:ms"),
+    (38, "host_bpm",    "Host BPM",      20.0, 400.0,  "units:bpm"),
 ]
 
 DEFAULTS = {p["sym"]: p["default"] for p in CONTROL_PORTS}
@@ -184,7 +185,7 @@ def gen_plugin_ttl():
         '    doap:name "Eka Echo" ;',
         "    doap:license <https://spdx.org/licenses/GPL-3.0-or-later.html> ;",
         "    lv2:minorVersion 0 ;",
-        "    lv2:microVersion 3 ;",
+        "    lv2:microVersion 4 ;",
         "    lv2:optionalFeature lv2:hardRTCapable, urid:map ;",
         "    lv2:port",
         '    [ a lv2:InputPort,  lv2:AudioPort ; lv2:index 0 ; lv2:symbol "in_l"  ; lv2:name "Input Left" ] ,',

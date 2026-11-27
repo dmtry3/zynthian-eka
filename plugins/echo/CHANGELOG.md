@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 (2026-11-27)
+
+- Reordered the bottom touch bar: **FX** is now first (swapped with **Mode**) and **Freeze** is last on both screens (`FX | ROUTE | SYNC | MODE | TRAILS | FREEZE` and `MAIN | LINK | SNAP 0 | ZERO 0 | TRAILS | FREEZE`).
+- Added soft, elastic, musical spring-return physics on the **FX** play screen (`SNAP 0` release and `ZERO 0` / `0` reset, with instant zero on second tap) plus DSP block-smoothing for `Filter FX` and `Wash FX`.
+- Added adjustable **Time FX** modulation smoothing (**Time Smooth**, `0..100%`, default `50%`) using a 2-pole S-curve smoother in DSP and a dedicated `SMOOTH` touch slider on the **FX** screen.
+
 ## 0.1.3 (2026-11-22)
 
 - Redesigned the dedicated **FX** touch screen with a large `Time FX` / `Filter FX` X-Y pad, horizontal `Wash FX` slider with `0` reset, and `HOLD / SNAP 0` spring-return mode.

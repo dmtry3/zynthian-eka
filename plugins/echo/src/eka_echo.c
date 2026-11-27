@@ -58,6 +58,7 @@ enum {
     PORT_FILTER_FX,
     PORT_WASH_FX,
     PORT_FX_ZERO,
+    PORT_TIME_SMOOTH,
 
     /* Telemetry outputs */
     PORT_IN_PEAK,
@@ -247,6 +248,7 @@ static void run(LV2_Handle instance, uint32_t nframes) {
     p->filter_fx_pct = read_port(self->ctrl[PORT_FILTER_FX],     0.0f);
     p->wash_fx_pct   = read_port(self->ctrl[PORT_WASH_FX],       0.0f);
     p->fx_zero       = read_port(self->ctrl[PORT_FX_ZERO],       0.0f) >= 0.5f ? 1 : 0;
+    p->time_smooth_pct = read_port(self->ctrl[PORT_TIME_SMOOTH], 50.0f);
     p->host_bpm      = (float)self->host_bpm;
 
     echo_core_process(&self->core, p, self->in_l, self->in_r, self->out_l, self->out_r, nframes);

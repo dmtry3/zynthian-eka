@@ -53,6 +53,7 @@ typedef struct {
     float filter_fx_pct;  /* -100..+100 %, default 0 % */
     float wash_fx_pct;    /* 0..100 %, default 0 % */
     int   fx_zero;        /* 0=Off, 1=Zero FX (MIDI-mappable reset) */
+    float time_smooth_pct;/* 0..100 %, default 50 % (Time FX modulation smoothing) */
 
     float host_bpm;       /* 20..400 BPM */
 } EchoParams;
@@ -119,6 +120,12 @@ typedef struct {
     double fx_latch_time;
     double fx_latch_filter;
     double fx_latch_wash;
+
+    double tfx_s1;
+    double tfx_s2;
+    double smooth_link;
+    double smooth_ffx;
+    double smooth_wfx;
 
     double peak_rel;
     double in_pk_lin;

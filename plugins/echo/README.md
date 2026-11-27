@@ -64,7 +64,7 @@ Six pages of 4 encoders:
 | Page | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|---|
 | **1. Time** | `Time L` (`5..2500 ms`) | `Time R` (`5..2500 ms`) | `Feedback` (`0..110%`) | `Mix` (`0..100%`) |
-| **2. Effects** | `Time FX` (`-100..+100%`, 0 = original) | `Time Link` (`Off / On`) | `Filter FX` (`-100..+100%`) | `Wash FX` (`0..100%`) + `FX Zero` (MIDI reset) |
+| **2. Effects** | `Time FX` (`-100..+100%`, 0 = original) | `Time Link` (`Off / On`) | `Filter FX` (`-100..+100%`) | `Wash FX` (`0..100%`) + `FX Zero` (MIDI reset), `Time Smooth` (`0..100%`) |
 | **3. Mode & Sync** | `Mode` (`Clean/Tape/BBD/Diff`) | `Routing` (`Stereo/PingPong/Cross`) | `Sync` (`Free / Sync`) | `Width` (`0..100%`) |
 | **4. Tone** | `HPF` (`20..1000 Hz`) | `LPF` (`500..20000 Hz`) | `Drive` (`0..100%`) | `Diffuse` (`0..100%`) |
 | **5. Motion** | `Mod Rate` (`0.05..8 Hz`) | `Mod Depth` (`0..100%`) | `Duck` (`0..100%`) | `Duck Rel` (`50..1000 ms`) |
@@ -74,8 +74,8 @@ Six pages of 4 encoders:
 
 - **Tap Map (top):** drag `L` (upper half) or `R` (lower half) left/right to set delay time (moves both channels proportionally when `LINK` is on; snaps to note divisions when `Sync` is on) and up/down to set `Feedback`; switches encoders to `Time`.
 - **Loop Filter bar (middle):** drag left/right edges to adjust `HPF` / `LPF`; switches encoders to `Tone`.
-- **Dedicated `FX` screen:** tap `FX` on the bottom bar to open the live **Effects** touch screen (and switch encoders to `Effects`) with a large **X-Y pad** (`X = TIME FX`, `-100..0..+100%`; `Y = FILTER FX`, down LPF / up HPF), bottom `WASH FX` slider with `0` reset, `HOLD / SNAP 0` toggle (spring-return to zero on release), `LINK / L ONLY`, and `ZERO 0` (reset all without losing original `Time L`/`Time R`).
-- **Bottom 6 buttons:** tap `MODE`, `ROUTE`, `SYNC`, `FX`, `FREEZE`, `TRAILS` (Mute In); **long press `TRAILS`** toggles full `Bypass` and grays out the UI.
+- **Dedicated `FX` screen:** tap `FX` on the bottom bar to open the live **Effects** touch screen (and switch encoders to `Effects`) with a large **X-Y pad** (`X = TIME FX`, `-100..0..+100%`; `Y = FILTER FX`, down LPF / up HPF), bottom `WASH FX` slider with `0` reset and `SMOOTH` slider (`Time Smooth`, adjustable 2-pole `Time FX` modulation glide), `HOLD / SNAP 0` toggle (soft elastic spring-return to zero on release), `LINK / L ONLY`, and `ZERO 0` (soft reset to zero without losing original `Time L`/`Time R`; tap again while returning for instant zero).
+- **Bottom 6 buttons:** tap `FX`, `ROUTE`, `SYNC`, `MODE`, `TRAILS` (Mute In), `FREEZE`; **long press `TRAILS`** toggles full `Bypass` and grays out the UI.
 
 ## Building & Testing on Linux / WSL
 

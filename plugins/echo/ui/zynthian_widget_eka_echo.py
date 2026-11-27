@@ -19,6 +19,11 @@ F_MIN = 20.0
 F_MAX = 20000.0
 FLOOR_DB = -60.0
 LONG_PRESS_SEC = 0.45
+SPRING_DT_MS = 33
+SPRING_XY_OMEGA = 8.2
+SPRING_XY_ZETA = 0.74
+SPRING_WASH_OMEGA = 6.5
+SPRING_WASH_ZETA = 1.0
 
 DIVISIONS = (
     ("1/64",   1.0 / 16.0),
@@ -127,7 +132,10 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         self.xy_box = (0.0, 0.0, 1.0, 1.0)
         self.fx_sliders = {}   # sym -> (x0, y0, x1, y1, bipolar)
         self.fx_view = False   # False = Tap Map, True = dedicated Live Effects screen
-        self.fx_snap = False   # False = HOLD, True = SNAP 0 (spring-return on release)
+        self.fx_snap = False   # False = HOLD, True = SNAP 0 (elastic spring-return on release)
+        self._spring = {}      # sym -> {"pos", "vel", "last_sent", "omega", "zeta", "bipolar"}
+        self._spring_job = None
+        self._spring_last_t = None
         self.handle_pos = {}
         self.hit_rects = {}
         self._last_ctrl_titles = {}
@@ -143,6 +151,119 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         self.widget_canvas.bind("<ButtonPress-1>", self._on_press)
         self.widget_canvas.bind("<B1-Motion>", self._on_motion)
         self.widget_canvas.bind("<ButtonRelease-1>", self._on_release)
+        self.widget_canvas.bind("<Destroy>", self._on_destroy)
+
+    def _on_destroy(self, _event=None):
+        self._cancel_spring()
+
+    def _cancel_spring(self, syms=None):
+        if syms is None:
+            self._spring.clear()
+        else:
+            for s in syms:
+                self._spring.pop(s, None)
+        if not self._spring and self._spring_job is not None:
+            try:
+                if hasattr(self.widget_canvas, "after_cancel"):
+                    self.widget_canvas.after_cancel(self._spring_job)
+            except Exception:
+                pass
+            self._spring_job = None
+            self._spring_last_t = None
+
+    def _start_spring(self, syms):
+        started = False
+        for sym in syms:
+            bipolar = sym in ("time_fx", "filter_fx")
+            cur = self._get(sym, 0.0)
+            if abs(cur) < 0.35:
+                self._spring.pop(sym, None)
+                self._set(sym, 0.0)
+                continue
+            self._spring[sym] = {
+                "pos": float(cur),
+                "vel": 0.0,
+                "last_sent": float(cur),
+                "omega": SPRING_XY_OMEGA if bipolar else SPRING_WASH_OMEGA,
+                "zeta": SPRING_XY_ZETA if bipolar else SPRING_WASH_ZETA,
+                "bipolar": bipolar,
+            }
+            started = True
+        if started:
+            self._spring_last_t = time.monotonic()
+            self._schedule_spring()
+        elif not self._spring:
+            self._cancel_spring()
+
+    def _schedule_spring(self):
+        if self._spring_job is not None or not self._spring:
+            return
+        if not hasattr(self.widget_canvas, "after"):
+            return
+        try:
+            self._spring_job = self.widget_canvas.after(SPRING_DT_MS, self._on_spring_tick)
+        except Exception:
+            self._spring_job = None
+
+    def _step_spring(self, dt):
+        if not self._spring:
+            return False
+        dt = _clamp(float(dt), 0.005, 0.08)
+        sub_dt = dt / 4.0
+        done = []
+        changed = False
+        for sym, st in list(self._spring.items()):
+            cur = self._get(sym, st["last_sent"])
+            if abs(cur - st["last_sent"]) > 2.0:
+                # External encoder / MIDI change takes ownership
+                done.append(sym)
+                continue
+            pos = st["pos"]
+            vel = st["vel"]
+            omega = st["omega"]
+            zeta = st["zeta"]
+            bipolar = st["bipolar"]
+            for _ in range(4):
+                acc = -(omega * omega) * pos - 2.0 * zeta * omega * vel
+                vel += acc * sub_dt
+                pos += vel * sub_dt
+                if not bipolar and pos < 0.0:
+                    pos = 0.0
+                    vel = 0.0
+                    break
+            if abs(pos) < 0.35 and abs(vel) < 1.5:
+                self._set(sym, 0.0)
+                done.append(sym)
+                changed = True
+            else:
+                lo = -100.0 if bipolar else 0.0
+                val = round(_clamp(pos, lo, 100.0), 1)
+                st["pos"] = pos
+                st["vel"] = vel
+                st["last_sent"] = val
+                self._set(sym, val)
+                changed = True
+        for sym in done:
+            self._spring.pop(sym, None)
+        if not self._spring:
+            self._spring_last_t = None
+        return changed
+
+    def _on_spring_tick(self):
+        self._spring_job = None
+        if not self._spring:
+            return
+        now = time.monotonic()
+        dt = (now - self._spring_last_t) if self._spring_last_t is not None else (SPRING_DT_MS * 0.001)
+        self._spring_last_t = now
+        self._step_spring(dt)
+        try:
+            self.refresh_gui()
+        except Exception:
+            self._cancel_spring()
+            return
+        if self._spring:
+            self._schedule_spring()
 
     def update(self):
         now = time.monotonic()
@@ -243,6 +364,7 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
             "filter_fx":   self._get("filter_fx", 0.0),
             "wash_fx":     self._get("wash_fx", 0.0),
             "fx_zero":     self._get("fx_zero", 0.0) >= 0.5,
+            "time_smooth": self._get("time_smooth", 50.0),
         }
 
     def _ms_to_x(self, ms, x0, x1):
@@ -287,6 +409,7 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         h = max(180, int(self.height or cv.winfo_height() or 380))
         st = self._read_state()
         if st["fx_zero"]:
+            self._cancel_spring()
             self._set("time_fx", 0.0)
             self._set("filter_fx", 0.0)
             self._set("wash_fx", 0.0)
@@ -333,9 +456,9 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
                 ("snap",   "SNAP 0" if self.fx_snap else "HOLD",
                            BYP_MID if byp else SYNC_COL,      self.fx_snap and not byp),
                 ("zero",   "ZERO 0",                          BYP_MID if byp else TRAILS_COL, fx_nonzero and not byp),
-                ("freeze", "FREEZE",                          BYP_MID if byp else FREEZE_COL, st["freeze"] and not byp),
                 ("trails", "BYPASS" if byp else ("MUTE IN" if st["trails"] else "TRAILS"),
                            BYP_HI if byp else TRAILS_COL,     byp or st["trails"]),
+                ("freeze", "FREEZE",                          BYP_MID if byp else FREEZE_COL, st["freeze"] and not byp),
             )
             self._draw_buttons(cv, buttons, w, pad, by0, by1)
             return
@@ -511,18 +634,18 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
         # 3. Vertical Meters on the right: IN | DK | OUT
         self._draw_meters(cv, byp, in_db, out_db, dk_db, gx1, gy0, ty1, w, pad)
 
-        # 4. Bottom 6 touch buttons: MODE | ROUTE | SYNC | FX | FREEZE | TRAILS (long press = BYPASS)
+        # 4. Bottom 6 touch buttons: FX | ROUTE | SYNC | MODE | TRAILS (long press = BYPASS) | FREEZE
         by0 = ty1 + 6
         by1 = h - pad
         fx_nonzero = (abs(st["time_fx"]) >= 0.75 or abs(st["filter_fx"]) >= 0.75 or st["wash_fx"] >= 0.75)
         buttons = (
-            ("mode",   mode_name,                          BYP_MID if byp else mode_col,   False),
+            ("fx",     "FX" if not fx_nonzero else "FX *", BYP_MID if byp else LINK_COL,   fx_nonzero and not byp),
             ("route",  route_name,                         BYP_MID if byp else route_col,  False),
             ("sync",   "SYNC" if st["sync"] else "FREE",   BYP_MID if byp else SYNC_COL,   st["sync"] and not byp),
-            ("fx",     "FX" if not fx_nonzero else "FX *", BYP_MID if byp else LINK_COL,   fx_nonzero and not byp),
-            ("freeze", "FREEZE",                           BYP_MID if byp else FREEZE_COL, st["freeze"] and not byp),
+            ("mode",   mode_name,                          BYP_MID if byp else mode_col,   False),
             ("trails", "BYPASS" if byp else ("MUTE IN" if st["trails"] else "TRAILS"),
                        BYP_HI if byp else TRAILS_COL,      byp or st["trails"]),
+            ("freeze", "FREEZE",                           BYP_MID if byp else FREEZE_COL, st["freeze"] and not byp),
         )
         self._draw_buttons(cv, buttons, w, pad, by0, by1)
 
@@ -672,11 +795,15 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
             cv.create_text(inner_x1 - 6, pad_y0 + 4, text="SPRING", anchor="ne",
                            fill=BYP_MID if byp else SYNC_COL, font=("TkDefaultFont", 7, "bold"))
 
-        # 2. Bottom horizontal slider: WASH FX (0..100%) + individual "0" button
+        # 2. Bottom row: WASH FX slider + "0" button (left) & Time FX SMOOTH slider (right)
         wy0 = pad_y1 + 6
         wy1 = y1 - 8
-        z_btn_w = 42
-        bar_x1 = inner_x1 - z_btn_w - 6
+        z_btn_w = 36
+        smooth_w = max(92.0, min(176.0, pw * 0.32))
+        sm_x0 = inner_x1 - smooth_w
+        zx1 = sm_x0 - 8
+        zx0 = zx1 - z_btn_w
+        bar_x1 = zx0 - 6
         wfx = st["wash_fx"]
         self.fx_sliders["wash_fx"] = (inner_x0, wy0, bar_x1, wy1, False)
         c_act = BYP_MID if byp else LINK_COL
@@ -692,8 +819,6 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
                        text=f"WASH FX  {wfx:.0f}%",
                        fill=LABEL_HI, font=("TkDefaultFont", 9, "bold"))
 
-        zx0 = bar_x1 + 6
-        zx1 = inner_x1
         self.hit_rects["z_wash_fx"] = (zx0, wy0, zx1, wy1)
         active_z = (wfx >= 0.75) and not byp
         cv.create_rectangle(zx0, wy0, zx1, wy1,
@@ -701,6 +826,20 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
                             outline=c_act, width=1.4)
         cv.create_text((zx0 + zx1) * 0.5, (wy0 + wy1) * 0.5, text="0",
                        fill="#101318" if active_z else LABEL_HI, font=("TkDefaultFont", 10, "bold"))
+
+        tsm = _clamp(st["time_smooth"], 0.0, 100.0)
+        self.fx_sliders["time_smooth"] = (sm_x0, wy0, inner_x1, wy1, False)
+        sm_col = BYP_MID if byp else LEFT_COL
+        cv.create_rectangle(sm_x0, wy0, inner_x1, wy1, fill=BUTTON_BG, outline=LINE_DIM, width=1.2)
+        snorm = tsm / 100.0
+        svx = sm_x0 + snorm * (inner_x1 - sm_x0)
+        if snorm > 0.005:
+            cv.create_rectangle(sm_x0 + 1, wy0 + 2, svx, wy1 - 2,
+                                fill=BYP_FILL if byp else "#203b54", outline="")
+        cv.create_line(svx, wy0 + 2, svx, wy1 - 2, fill=sm_col, width=2.4)
+        cv.create_text((sm_x0 + inner_x1) * 0.5, (wy0 + wy1) * 0.5,
+                       text=f"SMOOTH {tsm:.0f}%",
+                       fill=BYP_HI if byp else LABEL_HI, font=("TkDefaultFont", 8, "bold"))
 
     def _apply_tap_drag(self, which, x, y, link_ratio=None):
         gx0, gy0, gx1, gy1 = self.tap_box
@@ -781,14 +920,23 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
                     self.refresh_gui()
                     return
                 if key == "zero":
-                    self._set("time_fx", 0.0)
-                    self._set("filter_fx", 0.0)
-                    self._set("wash_fx", 0.0)
+                    if any(s in self._spring for s in ("time_fx", "filter_fx", "wash_fx")):
+                        self._cancel_spring(("time_fx", "filter_fx", "wash_fx"))
+                        self._set("time_fx", 0.0)
+                        self._set("filter_fx", 0.0)
+                        self._set("wash_fx", 0.0)
+                    else:
+                        self._start_spring(("time_fx", "filter_fx", "wash_fx"))
                     self._select_group("g_fx", "Effects")
                     self.refresh_gui()
                     return
                 if key.startswith("z_"):
-                    self._set(key[2:], 0.0)
+                    sym = key[2:]
+                    if sym in self._spring:
+                        self._cancel_spring((sym,))
+                        self._set(sym, 0.0)
+                    else:
+                        self._start_spring((sym,))
                     self._select_group("g_fx", "Effects")
                     self.refresh_gui()
                     return
@@ -832,10 +980,11 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
                     self._select_group("g_perf", "Perform")
                     return
 
-        # 2. Dedicated FX screen (X-Y pad + bottom Wash slider)
+        # 2. Dedicated FX screen (X-Y pad + bottom Wash & Time Smooth sliders)
         if self.fx_view:
             px0, py0, px1, py1 = self.xy_box
             if px0 <= x <= px1 and py0 <= y <= py1:
+                self._cancel_spring(("time_fx", "filter_fx"))
                 self.drag_mode = ("xy",)
                 self._select_group("g_fx", "Effects")
                 self._apply_xy_drag(x, y)
@@ -843,6 +992,7 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
                 return
             for sym, (sx0, sy0, sx1, sy1, _bip) in self.fx_sliders.items():
                 if sx0 <= x <= sx1 and sy0 <= y <= sy1:
+                    self._cancel_spring((sym,))
                     self.drag_mode = ("fx", sym)
                     self._select_group("g_fx", "Effects")
                     self._apply_fx_drag(sym, x)
@@ -905,10 +1055,9 @@ class zynthian_widget_eka_echo(zynthian_widget_base.zynthian_widget_base):
                     self._set("trails", 0 if cur_tr >= 0.5 else 1)
                 self.refresh_gui()
             elif kind == "xy" and self.fx_snap:
-                self._set("time_fx", 0.0)
-                self._set("filter_fx", 0.0)
+                self._start_spring(("time_fx", "filter_fx"))
                 self.refresh_gui()
-            elif kind == "fx" and self.fx_snap:
-                self._set(self.drag_mode[1], 0.0)
+            elif kind == "fx" and self.fx_snap and self.drag_mode[1] != "time_smooth":
+                self._start_spring((self.drag_mode[1],))
                 self.refresh_gui()
         self.drag_mode = None
