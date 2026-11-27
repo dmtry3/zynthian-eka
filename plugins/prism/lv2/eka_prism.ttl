@@ -13,11 +13,12 @@
 @prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
 
 <http://dmtry3.github.io/zynthian-eka/prism#g_flt_a> a pg:Group ; lv2:symbol "g_flt_a" ; lv2:name "Filter A" ; lv2:index 0 ; lv2:displayPriority 60 .
-<http://dmtry3.github.io/zynthian-eka/prism#g_flt_b> a pg:Group ; lv2:symbol "g_flt_b" ; lv2:name "Filter B" ; lv2:index 1 ; lv2:displayPriority 50 .
-<http://dmtry3.github.io/zynthian-eka/prism#g_route> a pg:Group ; lv2:symbol "g_route" ; lv2:name "Routing" ; lv2:index 2 ; lv2:displayPriority 40 .
-<http://dmtry3.github.io/zynthian-eka/prism#g_lfo> a pg:Group ; lv2:symbol "g_lfo" ; lv2:name "LFO" ; lv2:index 3 ; lv2:displayPriority 30 .
-<http://dmtry3.github.io/zynthian-eka/prism#g_mod> a pg:Group ; lv2:symbol "g_mod" ; lv2:name "Mod Depth" ; lv2:index 4 ; lv2:displayPriority 20 .
-<http://dmtry3.github.io/zynthian-eka/prism#g_master> a pg:Group ; lv2:symbol "g_master" ; lv2:name "Master" ; lv2:index 5 ; lv2:displayPriority 10 .
+<http://dmtry3.github.io/zynthian-eka/prism#g_flt_b> a pg:Group ; lv2:symbol "g_flt_b" ; lv2:name "Filter B" ; lv2:index 1 ; lv2:displayPriority 55 .
+<http://dmtry3.github.io/zynthian-eka/prism#g_fx> a pg:Group ; lv2:symbol "g_fx" ; lv2:name "Effects" ; lv2:index 2 ; lv2:displayPriority 50 .
+<http://dmtry3.github.io/zynthian-eka/prism#g_route> a pg:Group ; lv2:symbol "g_route" ; lv2:name "Routing" ; lv2:index 3 ; lv2:displayPriority 40 .
+<http://dmtry3.github.io/zynthian-eka/prism#g_lfo> a pg:Group ; lv2:symbol "g_lfo" ; lv2:name "LFO" ; lv2:index 4 ; lv2:displayPriority 30 .
+<http://dmtry3.github.io/zynthian-eka/prism#g_mod> a pg:Group ; lv2:symbol "g_mod" ; lv2:name "Mod Depth" ; lv2:index 5 ; lv2:displayPriority 20 .
+<http://dmtry3.github.io/zynthian-eka/prism#g_master> a pg:Group ; lv2:symbol "g_master" ; lv2:name "Master" ; lv2:index 6 ; lv2:displayPriority 10 .
 
 <http://dmtry3.github.io/zynthian-eka/prism>
     a lv2:Plugin, lv2:FilterPlugin ;
@@ -56,13 +57,19 @@
     [ a lv2:InputPort, lv2:ControlPort ; lv2:index 26 ; lv2:symbol "mix" ; lv2:name "Mix" ; pg:group <http://dmtry3.github.io/zynthian-eka/prism#g_master> ; lv2:default 100 ; lv2:minimum 0 ; lv2:maximum 100 ; units:unit units:pc ] ,
     [ a lv2:InputPort, lv2:ControlPort ; lv2:index 27 ; lv2:symbol "output_db" ; lv2:name "Output" ; pg:group <http://dmtry3.github.io/zynthian-eka/prism#g_master> ; lv2:default 0 ; lv2:minimum -18 ; lv2:maximum 12 ; units:unit units:db ] ,
     [ a lv2:InputPort, lv2:ControlPort ; lv2:index 28 ; lv2:symbol "bypass" ; lv2:name "Bypass" ; pg:group <http://dmtry3.github.io/zynthian-eka/prism#g_master> ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:integer, lv2:toggled, lv2:enumeration ; lv2:scalePoint [ rdfs:label "Off" ; rdf:value 0 ], [ rdfs:label "On" ; rdf:value 1 ] ] ,
-    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 29 ; lv2:symbol "in_peak" ; lv2:name "Input Peak" ; lv2:minimum -60 ; lv2:maximum 12 ; units:unit units:db ] ,
-    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 30 ; lv2:symbol "out_peak" ; lv2:name "Output Peak" ; lv2:minimum -60 ; lv2:maximum 12 ; units:unit units:db ] ,
-    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 31 ; lv2:symbol "eff_cut_a" ; lv2:name "Eff Cutoff A" ; lv2:minimum 20 ; lv2:maximum 18000 ; units:unit units:hz ] ,
-    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 32 ; lv2:symbol "eff_cut_b" ; lv2:name "Eff Cutoff B" ; lv2:minimum 20 ; lv2:maximum 18000 ; units:unit units:hz ] ,
-    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 33 ; lv2:symbol "eff_morph_a" ; lv2:name "Eff Morph A" ; lv2:minimum 0 ; lv2:maximum 100 ; units:unit units:pc ] ,
-    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 34 ; lv2:symbol "eff_morph_b" ; lv2:name "Eff Morph B" ; lv2:minimum 0 ; lv2:maximum 100 ; units:unit units:pc ] ,
-    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 35 ; lv2:symbol "lfo_a" ; lv2:name "LFO A" ; lv2:minimum -1 ; lv2:maximum 1 ; units:unit units:coef ] ,
-    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 36 ; lv2:symbol "lfo_b" ; lv2:name "LFO B" ; lv2:minimum -1 ; lv2:maximum 1 ; units:unit units:coef ] ,
-    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 37 ; lv2:symbol "env_lvl" ; lv2:name "Env Level" ; lv2:minimum 0 ; lv2:maximum 1 ; units:unit units:coef ] ,
-    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 38 ; lv2:symbol "host_bpm" ; lv2:name "Host BPM" ; lv2:minimum 20 ; lv2:maximum 400 ; units:unit units:bpm ] .
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 29 ; lv2:symbol "sweep_fx" ; lv2:name "Sweep FX" ; pg:group <http://dmtry3.github.io/zynthian-eka/prism#g_fx> ; lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ; units:unit units:pc ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 30 ; lv2:symbol "fx_link" ; lv2:name "FX Link" ; pg:group <http://dmtry3.github.io/zynthian-eka/prism#g_fx> ; lv2:default 1 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:integer, lv2:toggled, lv2:enumeration ; lv2:scalePoint [ rdfs:label "A Only" ; rdf:value 0 ], [ rdfs:label "Linked" ; rdf:value 1 ] ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 31 ; lv2:symbol "morph_fx" ; lv2:name "Morph FX" ; pg:group <http://dmtry3.github.io/zynthian-eka/prism#g_fx> ; lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ; units:unit units:pc ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 32 ; lv2:symbol "scream_fx" ; lv2:name "Scream FX" ; pg:group <http://dmtry3.github.io/zynthian-eka/prism#g_fx> ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 100 ; units:unit units:pc ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 33 ; lv2:symbol "fx_zero" ; lv2:name "FX Zero" ; pg:group <http://dmtry3.github.io/zynthian-eka/prism#g_fx> ; lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:integer, lv2:toggled, lv2:enumeration ; lv2:scalePoint [ rdfs:label "Off" ; rdf:value 0 ], [ rdfs:label "Zero" ; rdf:value 1 ] ] ,
+    [ a lv2:InputPort, lv2:ControlPort ; lv2:index 34 ; lv2:symbol "fx_smooth" ; lv2:name "FX Smooth" ; pg:group <http://dmtry3.github.io/zynthian-eka/prism#g_fx> ; lv2:default 50 ; lv2:minimum 0 ; lv2:maximum 100 ; units:unit units:pc ] ,
+    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 35 ; lv2:symbol "in_peak" ; lv2:name "Input Peak" ; lv2:minimum -60 ; lv2:maximum 12 ; units:unit units:db ] ,
+    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 36 ; lv2:symbol "out_peak" ; lv2:name "Output Peak" ; lv2:minimum -60 ; lv2:maximum 12 ; units:unit units:db ] ,
+    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 37 ; lv2:symbol "eff_cut_a" ; lv2:name "Eff Cutoff A" ; lv2:minimum 20 ; lv2:maximum 18000 ; units:unit units:hz ] ,
+    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 38 ; lv2:symbol "eff_cut_b" ; lv2:name "Eff Cutoff B" ; lv2:minimum 20 ; lv2:maximum 18000 ; units:unit units:hz ] ,
+    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 39 ; lv2:symbol "eff_morph_a" ; lv2:name "Eff Morph A" ; lv2:minimum 0 ; lv2:maximum 100 ; units:unit units:pc ] ,
+    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 40 ; lv2:symbol "eff_morph_b" ; lv2:name "Eff Morph B" ; lv2:minimum 0 ; lv2:maximum 100 ; units:unit units:pc ] ,
+    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 41 ; lv2:symbol "lfo_a" ; lv2:name "LFO A" ; lv2:minimum -1 ; lv2:maximum 1 ; units:unit units:coef ] ,
+    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 42 ; lv2:symbol "lfo_b" ; lv2:name "LFO B" ; lv2:minimum -1 ; lv2:maximum 1 ; units:unit units:coef ] ,
+    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 43 ; lv2:symbol "env_lvl" ; lv2:name "Env Level" ; lv2:minimum 0 ; lv2:maximum 1 ; units:unit units:coef ] ,
+    [ a lv2:OutputPort, lv2:ControlPort ; lv2:index 44 ; lv2:symbol "host_bpm" ; lv2:name "Host BPM" ; lv2:minimum 20 ; lv2:maximum 400 ; units:unit units:bpm ] .

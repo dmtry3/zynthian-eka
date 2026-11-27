@@ -59,7 +59,15 @@ enum {
     PORT_OUTPUT_DB,
     PORT_BYPASS,
 
-    /* Telemetry outputs (indices 29..38) */
+    /* Page 2 (Live Play): Effects (matching Eka Echo structure) */
+    PORT_SWEEP_FX,
+    PORT_FX_LINK,
+    PORT_MORPH_FX,
+    PORT_SCREAM_FX,
+    PORT_FX_ZERO,
+    PORT_FX_SMOOTH,
+
+    /* Telemetry outputs (indices 35..44) */
     PORT_IN_PEAK,
     PORT_OUT_PEAK,
     PORT_EFF_CUT_A,
@@ -266,6 +274,13 @@ static void run(LV2_Handle instance, uint32_t nframes) {
     p->mix_pct        = read_port(self->ctrl[PORT_MIX],                    100.0f);
     p->output_db      = read_port(self->ctrl[PORT_OUTPUT_DB],                0.0f);
     p->bypass         = read_port(self->ctrl[PORT_BYPASS],                   0.0f) >= 0.5f ? 1 : 0;
+
+    p->sweep_fx_pct   = read_port(self->ctrl[PORT_SWEEP_FX],                 0.0f);
+    p->fx_link        = read_port(self->ctrl[PORT_FX_LINK],                  1.0f) >= 0.5f ? 1 : 0;
+    p->morph_fx_pct   = read_port(self->ctrl[PORT_MORPH_FX],                 0.0f);
+    p->scream_fx_pct  = read_port(self->ctrl[PORT_SCREAM_FX],                0.0f);
+    p->fx_zero        = read_port(self->ctrl[PORT_FX_ZERO],                  0.0f) >= 0.5f ? 1 : 0;
+    p->fx_smooth_pct  = read_port(self->ctrl[PORT_FX_SMOOTH],               50.0f);
 
     p->host_bpm       = (float)self->host_bpm;
     p->midi_note      = self->active_note;

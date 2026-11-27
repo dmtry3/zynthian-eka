@@ -50,16 +50,17 @@ cd /root/zynthian-eka && git pull && sudo make install-prism && systemctl restar
 
 ## Controls
 
-Six pages of 4 encoders:
+Seven pages of encoders (including a dedicated non-destructive **Effects / Play** page modeled after *Eka Echo*):
 
 | Page | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|---|
 | **1. Filter A** | `Model A` (`SVF / Ladder / MS-20 / Comb / Formant / Phaser`) | `Cutoff A` (`20..18000 Hz`) | `Res A` (`0..100%`) | `Morph A` (`0..100%`) |
 | **2. Filter B** | `Model B` (`SVF / Ladder / MS-20 / Comb / Formant / Phaser`) | `Cutoff B` (`20..18000 Hz`) | `Res B` (`0..100%`) | `Morph B` (`0..100%`) |
-| **3. Routing** | `Routing` (`Serial A>B / Parallel A+B / Stereo L/R`) | `Link B` (`Free / Offset / Mirror`) | `Balance` (`-100..+100%`) | `Phase B` (`Norm / Invert`) |
-| **4. LFO** | `Shape` (`Sine / Tri / Saw / Square / S&H / Chaos / Step 8`) | `Rate` (`0.05..40 Hz` / Sync) | `Sync` (`Free / Sync`) | `B Phase` (`0..180°`) |
-| **5. Mod Depth** | `LFO > Cut` (`-100..+100%`) | `Mod > Morph` (`-100..+100%`) | `Env > Cut` (`-100..+100%`) | `Env Speed` (`0..100%`) |
-| **6. Master** | `Drive` (`0..100%`) | `Mix` (`0..100%`) | `Output` (`-18..+12 dB`) | `Bypass` (`Off / On`) |
+| **3. Effects (Play)** | `Sweep FX` (`-100..+100%`, `±3.5 oct` around base cutoffs) | `FX Link` (`A Only / Linked`) | `Morph FX` (`-100..+100%`) | `Scream FX` (`0..100%`) + `FX Zero` (MIDI reset), `FX Smooth` (`0..100%`) |
+| **4. Routing** | `Routing` (`Serial A>B / Parallel A+B / Stereo L/R`) | `Link B` (`Free / Offset / Mirror`) | `Balance` (`-100..+100%`) | `Phase B` (`Norm / Invert`) |
+| **5. LFO** | `Shape` (`Sine / Tri / Saw / Square / S&H / Chaos / Step 8`) | `Rate` (`0.05..40 Hz` / Sync) | `Sync` (`Free / Sync`) | `B Phase` (`0..180°`) |
+| **6. Mod Depth** | `LFO > Cut` (`-100..+100%`) | `Mod > Morph` (`-100..+100%`) | `Env > Cut` (`-100..+100%`) | `Env Speed` (`0..100%`) |
+| **7. Master** | `Drive` (`0..100%`) | `Mix` (`0..100%`) | `Output` (`-18..+12 dB`) | `Bypass` (`Off / On`) |
 
 ## Build & Tests on Linux / WSL
 

@@ -99,13 +99,11 @@ static const float kVowelGains[3] = { 1.00f, 0.72f, 0.48f };
 
 /* Model 0: Cytomic SVF with continuous LP -> BP -> HP -> Notch morph */
 static float tick_svf(PrismFilterChan *ch, float x, float g, float res_norm, float morph_norm) {
-    /* Q from 0.55 up to self-oscillation ~28 */
     float k = 1.85f * (1.0f - 0.965f * powf(res_norm, 0.75f));
     float a1 = 1.0f / (1.0f + g * (g + k));
     float a2 = g * a1;
     float a3 = g * a2;
 
-    /* Nonlinear saturation inside feedback state for analog warmth at high resonance */
     float s1 = ch->ic1eq;
     float s2 = ch->ic2eq;
     if (res_norm > 0.65f) {
@@ -123,13 +121,11 @@ static float tick_svf(PrismFilterChan *ch, float x, float g, float res_norm, flo
     float hp = x - k * v1 - v2;
     float notch = lp + hp;
 
-    /* Continuous 4-zone morph: 0.0=LP, 0.33=BP, 0.67=HP, 1.0=Notch */
     float m3 = morph_norm * 3.0f;
     if (m3 <= 1.0f) {
         return lp * (1.0f - m3) + bp * m3;
     } else if (m3 <= 2.0f) {
         float t = m3 - 1.0f;
-        /* Boost BP slightly to match perceived loudness */
         return (bp * 1.25f) * (1.0f - t) + hp * t;
     } else {
         float t = m3 - 2.0f;
@@ -139,11 +135,9 @@ static float tick_svf(PrismFilterChan *ch, float x, float g, float res_norm, flo
 
 /* Model 1: 4-Pole Transistor Ladder (24 dB/oct) with bass compensation and pole morphing */
 static float tick_ladder(PrismFilterChan *ch, float x, float g, float res_norm, float morph_norm) {
-    /* Map g = tan(pi*fc/sr) to one-pole coefficient alpha = g / (1 + g) */
     float alpha = g / (1.0f + g);
     float k = 4.15f * res_norm * res_norm * (0.45f + 0.55f * res_norm);
 
-    /* Bass compensation: mix a portion of input back into feedback so low end stays fat */
     float fb = ch->lad_s[3] - 0.32f * res_norm * x;
     float u = fast_tanh(x - k * fast_tanh(fb * 0.9f));
 
@@ -151,17 +145,11 @@ static float tick_ladder(PrismFilterChan *ch, float x, float g, float res_norm, 
     for (int p = 0; p < 4; ++p) {
         float s = ch->lad_s[p];
         float y = s + alpha * (v0 - s);
-        /* Gentle per-stage transistor saturation */
         y = fast_tanh(y * 1.05f) * 0.952f;
         ch->lad_s[p] = flush_denorm(y);
         v0 = y;
     }
 
-    /* Multimode pole combination via morph_norm:
-       0.00 = 24 dB Lowpass (s3)
-       0.33 = 12 dB Lowpass (s1)
-       0.67 = 4-pole Bandpass (2*(s1 - s2))
-       1.00 = 2-pole Highpass (u - 2*s0 + s1) */
     float lp24 = ch->lad_s[3] * (1.0f + 0.45f * res_norm);
     float lp12 = ch->lad_s[1] * (1.0f + 0.30f * res_norm);
     float bp   = (ch->lad_s[1] - ch->lad_s[3]) * 2.1f;
@@ -181,21 +169,17 @@ static float tick_ladder(PrismFilterChan *ch, float x, float g, float res_norm, 
 
 /* Model 2: MS-20 / Steiner Sallen-Key Screamer with diode feedback clipping */
 static float tick_scream(PrismFilterChan *ch, float x, float g, float res_norm, float morph_norm) {
-    /* Morph controls input topology (LP -> BP -> HP) plus asymmetric diode bite */
     float m2 = morph_norm * 2.0f;
     float in_lp = clampf(1.0f - m2, 0.0f, 1.0f);
     float in_bp = 1.0f - fabsf(m2 - 1.0f);
     float in_hp = clampf(m2 - 1.0f, 0.0f, 1.0f);
 
-    /* Resonance up to K ~ 2.0 triggers aggressive self-oscillation */
     float k = 1.98f * powf(res_norm, 0.65f);
     float g1 = 1.0f / (1.0f + g);
 
-    /* Asymmetric diode clipper in the feedback path */
     float bp_est = g1 * (ch->sk_s1 - ch->sk_s2);
     float fb_clip = asym_sat(k * bp_est * 1.65f, 0.45f + 0.4f * morph_norm) * 0.72f;
 
-    /* Drive input slightly harder as resonance increases for signature MS-20 scream */
     float xin = asym_sat(x * (1.1f + 0.8f * res_norm), 0.35f);
 
     float u0 = xin * in_lp + fb_clip;
@@ -217,14 +201,12 @@ static float tick_scream(PrismFilterChan *ch, float x, float g, float res_norm, 
 static float tick_comb(PrismFilterChan *ch, float x, float cutoff_hz, float sr, float res_norm, float morph_norm) {
     if (!ch->comb_buf || ch->comb_len < 8) return x;
 
-    /* Delay length in samples from cutoff_hz (20 Hz .. 8000 Hz) */
     float fc = clampf(cutoff_hz, 20.0f, 8000.0f);
     float delay_samp = clampf(sr / fc, 2.0f, (float)(ch->comb_len - 4));
 
     uint32_t w = ch->comb_wpos;
     uint32_t mask = ch->comb_mask;
 
-    /* Hermite 4-point fractional delay read */
     float rpos = (float)w - delay_samp;
     while (rpos < 0.0f) rpos += (float)ch->comb_len;
     uint32_t ri = (uint32_t)rpos;
@@ -241,10 +223,7 @@ static float tick_comb(PrismFilterChan *ch, float x, float cutoff_hz, float sr, 
     float c3 = 0.5f * (y2 - ym1) + 1.5f * (y0 - y1);
     float d_out = ((c3 * frac + c2) * frac + c1) * frac + c0;
 
-    /* Morph controls polarity & damping:
-       morph < 0.5: negative comb (hollow square/clarinet odd harmonics)
-       morph > 0.5: positive comb (bright string/flange all harmonics) */
-    float polarity = (morph_norm - 0.5f) * 2.0f; /* -1..+1 */
+    float polarity = (morph_norm - 0.5f) * 2.0f;
     float sign = (polarity >= 0.0f) ? 1.0f : -1.0f;
     float damp = 0.15f + 0.65f * (1.0f - fabsf(polarity));
 
@@ -260,18 +239,15 @@ static float tick_comb(PrismFilterChan *ch, float x, float cutoff_hz, float sr, 
 
 /* Model 4: Formant Vowel Filter (3 parallel resonant formant bands A-E-I-O-U) */
 static float tick_formant(PrismFilterChan *ch, float x, float cutoff_hz, float sr, float res_norm, float morph_norm) {
-    /* Morph selects vowel A -> E -> I -> O -> U (0..4) */
     float vpos = clampf(morph_norm, 0.0f, 1.0f) * 4.0f;
     int v0 = (int)vpos;
     if (v0 > 3) v0 = 3;
     int v1 = v0 + 1;
     float vf = vpos - (float)v0;
 
-    /* Cutoff shifts overall formant pitch (1000 Hz = 1.0x reference vocal tract) */
     float shift = powf(clampf(cutoff_hz, 80.0f, 12000.0f) / 1000.0f, 0.55f);
     shift = clampf(shift, 0.35f, 2.8f);
 
-    /* Resonance sharpens formant Q (from Q=3.5 to Q=24) */
     float q = 3.5f + 20.5f * res_norm * res_norm;
     float k = 1.0f / q;
 
@@ -294,7 +270,6 @@ static float tick_formant(PrismFilterChan *ch, float x, float cutoff_hz, float s
 
         sum += bp * kVowelGains[b];
     }
-    /* Normalize output gain across Q settings */
     float norm = 1.15f + 0.55f * (1.0f - res_norm);
     return fast_tanh(sum * norm);
 }
@@ -304,7 +279,6 @@ static float tick_phaser(PrismFilterChan *ch, float x, float cutoff_hz, float sr
     float fb_gain = 0.90f * res_norm * ((morph_norm >= 0.5f) ? 1.0f : -1.0f);
     float u = fast_tanh(x + fb_gain * ch->ph_fb);
 
-    /* Morph also spreads the 6 allpass poles around cutoff_hz */
     float spread = 0.65f + 0.75f * fabsf(morph_norm - 0.5f) * 2.0f;
     float base_f = clampf(cutoff_hz, 40.0f, sr * 0.42f);
 
@@ -372,7 +346,6 @@ static float eval_lfo_wave(int shape,
             int idx = (int)s & 7;
             int nxt = (idx + 1) & 7;
             float frac = (float)(s - (int)s);
-            /* Smooth edges in final 18% of step so rhythmic gating never clicks */
             float t = (frac > 0.82f) ? ((frac - 0.82f) / 0.18f) : 0.0f;
             return kStep8Pattern[idx] * (1.0f - t) + kStep8Pattern[nxt] * t;
         }
@@ -408,6 +381,15 @@ void prism_params_default(PrismParams *p) {
     p->env_mod_pct    = 0.0f;
     p->env_speed_pct  = 50.0f;
 
+    /* Page 6: Live Play Effects */
+    p->sweep_fx_pct   = 0.0f;
+    p->fx_link        = 1;
+    p->morph_fx_pct   = 0.0f;
+    p->scream_fx_pct  = 0.0f;
+    p->fx_zero        = 0;
+    p->fx_smooth_pct  = 50.0f;
+
+    /* Page 7: Master */
     p->drive_pct      = 15.0f;
     p->mix_pct        = 100.0f;
     p->output_db      = 0.0f;
@@ -424,7 +406,6 @@ int prism_core_init(PrismCore *c, double sample_rate) {
     c->sample_rate = sample_rate;
     c->sr_f = (float)sample_rate;
 
-    /* Comb buffer for 20 Hz fundamental (~60 ms) */
     uint32_t comb_len = next_pow2((uint32_t)(sample_rate * 0.065) + 16u);
     for (int ch = 0; ch < 2; ++ch) {
         c->chain_a[ch].comb_buf = (float *)calloc(comb_len, sizeof(float));
@@ -504,6 +485,16 @@ void prism_core_reset(PrismCore *c) {
     c->sm_out_gain  = 1.0f;
     c->sm_bypass    = 0.0f;
 
+    c->fx_zero_mask    = 0;
+    c->fx_latch_sweep  = 0.0f;
+    c->fx_latch_morph  = 0.0f;
+    c->fx_latch_scream = 0.0f;
+    c->sm_sweep_fx     = 0.0f;
+    c->sm_sweep_fx2    = 0.0f;
+    c->sm_morph_fx     = 0.0f;
+    c->sm_scream_fx    = 0.0f;
+    c->sm_fx_link      = 1.0f;
+
     c->meter_in  = 0.0f;
     c->meter_out = 0.0f;
     c->meters.in_peak_db  = -60.0f;
@@ -572,6 +563,34 @@ void prism_core_process(PrismCore *c,
     float tgt_out_gain  = powf(10.0f, clampf(p->output_db, -18.0f, 12.0f) / 20.0f);
     float tgt_bypass    = p->bypass ? 1.0f : 0.0f;
 
+    /* Live Play Effects (Sweep FX, Morph FX, Scream FX, FX Link, FX Zero, FX Smooth) — same latch logic as Eka Echo */
+    float raw_sweep  = clampf(p->sweep_fx_pct, -100.0f, 100.0f);
+    float raw_morph  = clampf(p->morph_fx_pct, -100.0f, 100.0f);
+    float raw_scream = clampf(p->scream_fx_pct, 0.0f, 100.0f);
+    if (p->fx_zero) {
+        c->fx_zero_mask = 7;
+        c->fx_latch_sweep  = raw_sweep;
+        c->fx_latch_morph  = raw_morph;
+        c->fx_latch_scream = raw_scream;
+    } else if (c->fx_zero_mask) {
+        if ((c->fx_zero_mask & 1) && (fabsf(raw_sweep)  < 0.5f || fabsf(raw_sweep  - c->fx_latch_sweep)  > 1.5f)) c->fx_zero_mask &= ~1;
+        if ((c->fx_zero_mask & 2) && (fabsf(raw_morph)  < 0.5f || fabsf(raw_morph  - c->fx_latch_morph)  > 1.5f)) c->fx_zero_mask &= ~2;
+        if ((c->fx_zero_mask & 4) && (raw_scream        < 0.5f || fabsf(raw_scream - c->fx_latch_scream) > 1.5f)) c->fx_zero_mask &= ~4;
+    }
+    float eff_sweep_pct  = (c->fx_zero_mask & 1) ? 0.0f : raw_sweep;
+    float eff_morph_pct  = (c->fx_zero_mask & 2) ? 0.0f : raw_morph;
+    float eff_scream_pct = (c->fx_zero_mask & 4) ? 0.0f : raw_scream;
+
+    float tgt_sweep_fx  = (fabsf(eff_sweep_pct) < 0.75f) ? 0.0f : (eff_sweep_pct * 0.01f);
+    float tgt_morph_fx  = (fabsf(eff_morph_pct) < 0.75f) ? 0.0f : (eff_morph_pct * 0.01f);
+    float tgt_scream_fx = (eff_scream_pct < 0.75f)       ? 0.0f : (eff_scream_pct * 0.01f);
+    float tgt_fx_link   = p->fx_link ? 1.0f : 0.0f;
+
+    /* 2-pole critically damped Play FX smoothing controlled by fx_smooth_pct (4 ms .. 220 ms) */
+    float sm_norm = clampf(p->fx_smooth_pct, 0.0f, 100.0f) * 0.01f;
+    float tau_fx = 0.004f + (sm_norm * sm_norm) * 0.216f;
+    float fx_a = 1.0f - expf(-1.0f / (tau_fx * sr));
+
     float host_bpm = clampf(p->host_bpm, 20.0f, 400.0f);
     float rate_hz  = clampf(p->lfo_rate_hz, 0.05f, 40.0f);
     if (p->lfo_sync) {
@@ -580,14 +599,12 @@ void prism_core_process(PrismCore *c,
     double lfo_inc = (double)rate_hz / (double)sr;
     double phase_off_b = (double)clampf(p->lfo_phase_deg, 0.0f, 180.0f) / 360.0;
 
-    /* Envelope Follower attack/release from env_speed_pct (0=slow groove, 100=snappy transient) */
     float spd = clampf(p->env_speed_pct, 0.0f, 100.0f) * 0.01f;
-    float att_ms = 35.0f * powf(0.06f, spd);  /* 35 ms .. 2.1 ms */
-    float rel_ms = 420.0f * powf(0.07f, spd); /* 420 ms .. 29 ms */
+    float att_ms = 35.0f * powf(0.06f, spd);
+    float rel_ms = 420.0f * powf(0.07f, spd);
     float env_att = 1.0f - expf(-1000.0f / (att_ms * sr));
     float env_rel = 1.0f - expf(-1000.0f / (rel_ms * sr));
 
-    /* Parameter smoothing coefficient (~6 ms) */
     float sm_a = 1.0f - expf(-1.0f / (0.006f * sr));
     float sh_slew = 1.0f - expf(-1.0f / (0.004f * sr));
 
@@ -600,7 +617,6 @@ void prism_core_process(PrismCore *c,
     float last_lfo_a = 0.0f;
     float last_lfo_b = 0.0f;
 
-    /* Cached tanf coefficients updated every 8 samples (or per sample if audio-rate LFO > 15 Hz) */
     int coeff_step = (rate_hz > 15.0f) ? 1 : 8;
     float g_a = tanf((float)M_PI * tgt_cut_a / sr);
     float g_b = tanf((float)M_PI * tgt_cut_b / sr);
@@ -630,17 +646,24 @@ void prism_core_process(PrismCore *c,
         c->sm_out_gain  += sm_a * (tgt_out_gain  - c->sm_out_gain);
         c->sm_bypass    += sm_a * (tgt_bypass    - c->sm_bypass);
 
-        /* Input Envelope Follower with gentle transient focus */
+        /* Play FX 2-pole smoothers */
+        c->sm_sweep_fx  += fx_a * (tgt_sweep_fx  - c->sm_sweep_fx);
+        c->sm_sweep_fx2 += fx_a * (c->sm_sweep_fx - c->sm_sweep_fx2);
+        c->sm_morph_fx  += fx_a * (tgt_morph_fx  - c->sm_morph_fx);
+        c->sm_scream_fx += fx_a * (tgt_scream_fx - c->sm_scream_fx);
+        c->sm_fx_link   += sm_a * (tgt_fx_link   - c->sm_fx_link);
+
+        /* Input Envelope Follower */
         float det = clampf(abs_in * 1.85f, 0.0f, 1.0f);
         float ec = (det > c->env_lvl) ? env_att : env_rel;
         c->env_lvl = flush_denorm(c->env_lvl + ec * (det - c->env_lvl));
 
-        /* Advance LFO phase */
+        /* Advance LFO phase (Scream FX slightly accelerates LFO & adds bite) */
+        double eff_lfo_inc = lfo_inc * (1.0 + 0.65 * (double)c->sm_scream_fx);
         double ph_a = c->lfo_phase;
         double ph_b = ph_a + phase_off_b;
         if (ph_b >= 1.0) ph_b -= 1.0;
 
-        /* Trigger S&H / Chaos updates on wrap or sub-cycle */
         if (ph_a < c->prev_ph_a) {
             c->sh_target_a = rng_bipolar(&c->rng_state);
         }
@@ -653,14 +676,13 @@ void prism_core_process(PrismCore *c,
         c->sh_cur_a += sh_slew * (c->sh_target_a - c->sh_cur_a);
         c->sh_cur_b += sh_slew * (c->sh_target_b - c->sh_cur_b);
 
-        /* Smooth Lorenz/coupled random walk for Chaos LFO */
-        float dt = (float)lfo_inc * 3.8f;
+        float dt = (float)eff_lfo_inc * 3.8f;
         c->chaos_x_a = clampf(c->chaos_x_a + dt * (c->sh_target_a - c->chaos_x_a * 0.45f), -1.0f, 1.0f);
         c->chaos_y_a = clampf(c->chaos_y_a + dt * (c->chaos_x_a - c->chaos_y_a), -1.0f, 1.0f);
         c->chaos_x_b = clampf(c->chaos_x_b + dt * (c->sh_target_b - c->chaos_x_b * 0.45f), -1.0f, 1.0f);
         c->chaos_y_b = clampf(c->chaos_y_b + dt * (c->chaos_x_b - c->chaos_y_b), -1.0f, 1.0f);
 
-        c->lfo_phase += lfo_inc;
+        c->lfo_phase += eff_lfo_inc;
         while (c->lfo_phase >= 1.0) c->lfo_phase -= 1.0;
 
         float lfo_a = eval_lfo_wave(lfo_shape, ph_a, c->sh_cur_a, c->chaos_y_a * 1.35f);
@@ -674,19 +696,21 @@ void prism_core_process(PrismCore *c,
         float base_a_oct = c->sm_cut_a_oct;
         float base_b_oct = c->sm_cut_b_oct;
         if (link_mode == PRISM_LINK_OFFSET) {
-            /* Filter B knob acts as relative offset around 1000 Hz (log2(1000) = 9.96578) */
             base_b_oct = base_a_oct + (c->sm_cut_b_oct - 9.965784f);
         } else if (link_mode == PRISM_LINK_MIRROR) {
-            /* Filter B moves in opposite direction around 1000 Hz pivot */
             base_b_oct = 2.0f * 9.965784f - base_a_oct + (c->sm_cut_b_oct - 9.965784f) * 0.5f;
         }
 
-        /* Pitch modulation in octaves (up to +/- 4.0 octaves for LFO, +/- 4.5 octaves for Env) */
+        /* Live Play Sweep FX (+/- 3.5 octaves; if fx_link is on, B sweeps with A or mirrored when Link B = Mirror) */
+        float sweep_oct_a = c->sm_sweep_fx2 * 3.5f;
+        float sweep_oct_b = sweep_oct_a * c->sm_fx_link * ((link_mode == PRISM_LINK_MIRROR) ? -1.0f : 1.0f);
+
+        /* Pitch modulation in octaves */
         float env_oct_a = c->sm_env_mod * c->env_lvl * 4.5f;
         float env_oct_b = (link_mode == PRISM_LINK_MIRROR) ? -env_oct_a : env_oct_a;
 
-        float mod_oct_a = base_a_oct + c->sm_lfo_mod * lfo_a * 3.8f + env_oct_a;
-        float mod_oct_b = base_b_oct + c->sm_lfo_mod * lfo_b * 3.8f + env_oct_b;
+        float mod_oct_a = base_a_oct + sweep_oct_a + c->sm_lfo_mod * lfo_a * 3.8f + env_oct_a;
+        float mod_oct_b = base_b_oct + sweep_oct_b + c->sm_lfo_mod * lfo_b * 3.8f + env_oct_b;
 
         if ((i & (uint32_t)(coeff_step - 1)) == 0) {
             cur_cut_a = clampf(exp2f(mod_oct_a), 20.0f, nyq_limit);
@@ -697,20 +721,27 @@ void prism_core_process(PrismCore *c,
             last_cut_b = cur_cut_b;
         }
 
-        /* Morph modulation from LFO + Envelope */
-        float eff_morph_a = clampf(c->sm_morph_a + c->sm_morph_mod * (0.65f * lfo_a + 0.55f * (c->env_lvl - 0.3f)), 0.0f, 1.0f);
-        float eff_morph_b = clampf(c->sm_morph_b + c->sm_morph_mod * (0.65f * lfo_b + 0.55f * (c->env_lvl - 0.3f)), 0.0f, 1.0f);
+        /* Morph modulation from LFO + Envelope + Play Morph FX */
+        float mfx_a = c->sm_morph_fx * 0.75f;
+        float mfx_b = mfx_a * (0.25f + 0.75f * c->sm_fx_link);
+        float eff_morph_a = clampf(c->sm_morph_a + mfx_a + c->sm_morph_mod * (0.65f * lfo_a + 0.55f * (c->env_lvl - 0.3f)), 0.0f, 1.0f);
+        float eff_morph_b = clampf(c->sm_morph_b + mfx_b + c->sm_morph_mod * (0.65f * lfo_b + 0.55f * (c->env_lvl - 0.3f)), 0.0f, 1.0f);
         last_morph_a = eff_morph_a;
         last_morph_b = eff_morph_b;
 
-        /* Analog Pre-Drive saturation stage (compensated for gain so driving adds harmonics, not just volume) */
-        float drv = c->sm_drive;
+        /* Play Scream FX boosts resonance up toward self-oscillation + adds pre-drive */
+        float scr = c->sm_scream_fx;
+        float eff_res_a = clampf(c->sm_res_a + scr * (0.93f - c->sm_res_a) * 0.85f, 0.0f, 1.0f);
+        float eff_res_b = clampf(c->sm_res_b + scr * (0.93f - c->sm_res_b) * (0.35f + 0.50f * c->sm_fx_link), 0.0f, 1.0f);
+
+        /* Analog Pre-Drive saturation stage (boosted by Scream FX) */
+        float drv = clampf(c->sm_drive + scr * 0.55f, 0.0f, 1.0f);
         float drv_gain = 1.0f + drv * 4.5f;
         float drv_comp = 1.0f / (1.0f + drv * 1.55f);
         float dl = (drv > 0.001f) ? (asym_sat(xl * drv_gain, 0.25f * drv) * drv_comp) : xl;
         float dr = (drv > 0.001f) ? (asym_sat(xr * drv_gain, 0.25f * drv) * drv_comp) : xr;
 
-        /* Balance gains for A and B (-1..+1): equal-power crossfade / blend */
+        /* Balance gains for A and B (-1..+1) */
         float bal = c->sm_ab_bal;
         float gain_a = clampf(1.0f - fmaxf(0.0f, bal), 0.0f, 1.0f);
         float gain_b = clampf(1.0f + fminf(0.0f, bal), 0.0f, 1.0f);
@@ -719,42 +750,36 @@ void prism_core_process(PrismCore *c,
         float wet_r = 0.0f;
 
         if (routing == PRISM_ROUTE_SERIAL) {
-            /* Serial: Input -> Filter A -> (crossfade by A/B Balance) -> Filter B */
-            float al = process_filter_model(&c->chain_a[0], model_a, dl, cur_cut_a, g_a, sr, c->sm_res_a, eff_morph_a);
-            float ar = process_filter_model(&c->chain_a[1], model_a, dr, cur_cut_a, g_a, sr, c->sm_res_a, eff_morph_a);
+            float al = process_filter_model(&c->chain_a[0], model_a, dl, cur_cut_a, g_a, sr, eff_res_a, eff_morph_a);
+            float ar = process_filter_model(&c->chain_a[1], model_a, dr, cur_cut_a, g_a, sr, eff_res_a, eff_morph_a);
 
-            /* Feed Filter B with blend of A and dry-driven input according to gain_a */
             float in_bl = al * gain_a + dl * (1.0f - gain_a);
             float in_br = ar * gain_a + dr * (1.0f - gain_a);
 
-            float bl = process_filter_model(&c->chain_b[0], model_b, in_bl, cur_cut_b, g_b, sr, c->sm_res_b, eff_morph_b) * sign_b;
-            float br = process_filter_model(&c->chain_b[1], model_b, in_br, cur_cut_b, g_b, sr, c->sm_res_b, eff_morph_b) * sign_b;
+            float bl = process_filter_model(&c->chain_b[0], model_b, in_bl, cur_cut_b, g_b, sr, eff_res_b, eff_morph_b) * sign_b;
+            float br = process_filter_model(&c->chain_b[1], model_b, in_br, cur_cut_b, g_b, sr, eff_res_b, eff_morph_b) * sign_b;
 
             wet_l = al * (1.0f - gain_b) + bl * gain_b;
             wet_r = ar * (1.0f - gain_b) + br * gain_b;
         } else if (routing == PRISM_ROUTE_PARALLEL) {
-            /* Parallel: Filter A + Filter B summed (with phase invert B option for deep notch cancellation) */
-            float al = process_filter_model(&c->chain_a[0], model_a, dl, cur_cut_a, g_a, sr, c->sm_res_a, eff_morph_a);
-            float ar = process_filter_model(&c->chain_a[1], model_a, dr, cur_cut_a, g_a, sr, c->sm_res_a, eff_morph_a);
-            float bl = process_filter_model(&c->chain_b[0], model_b, dl, cur_cut_b, g_b, sr, c->sm_res_b, eff_morph_b) * sign_b;
-            float br = process_filter_model(&c->chain_b[1], model_b, dr, cur_cut_b, g_b, sr, c->sm_res_b, eff_morph_b) * sign_b;
+            float al = process_filter_model(&c->chain_a[0], model_a, dl, cur_cut_a, g_a, sr, eff_res_a, eff_morph_a);
+            float ar = process_filter_model(&c->chain_a[1], model_a, dr, cur_cut_a, g_a, sr, eff_res_a, eff_morph_a);
+            float bl = process_filter_model(&c->chain_b[0], model_b, dl, cur_cut_b, g_b, sr, eff_res_b, eff_morph_b) * sign_b;
+            float br = process_filter_model(&c->chain_b[1], model_b, dr, cur_cut_b, g_b, sr, eff_res_b, eff_morph_b) * sign_b;
 
             float norm = 0.72f;
             wet_l = (al * gain_a + bl * gain_b) * norm;
             wet_r = (ar * gain_a + br * gain_b) * norm;
         } else {
-            /* Stereo Split: Left -> Filter A, Right -> Filter B */
-            float al = process_filter_model(&c->chain_a[0], model_a, dl, cur_cut_a, g_a, sr, c->sm_res_a, eff_morph_a);
-            float br = process_filter_model(&c->chain_b[1], model_b, dr, cur_cut_b, g_b, sr, c->sm_res_b, eff_morph_b) * sign_b;
+            float al = process_filter_model(&c->chain_a[0], model_a, dl, cur_cut_a, g_a, sr, eff_res_a, eff_morph_a);
+            float br = process_filter_model(&c->chain_b[1], model_b, dr, cur_cut_b, g_b, sr, eff_res_b, eff_morph_b) * sign_b;
             wet_l = al * gain_a;
             wet_r = br * gain_b;
         }
 
-        /* DC blocking and soft post-limiting */
         wet_l = fast_tanh(dc_block_tick(&c->dc_l, sanitizef(wet_l)) * 0.92f) * 1.08f;
         wet_r = fast_tanh(dc_block_tick(&c->dc_r, sanitizef(wet_r)) * 0.92f) * 1.08f;
 
-        /* Dry/Wet Mix + Output Gain + Click-free Bypass */
         float mix = c->sm_mix;
         float proc_l = (xl * (1.0f - mix) + wet_l * mix) * c->sm_out_gain;
         float proc_r = (xr * (1.0f - mix) + wet_r * mix) * c->sm_out_gain;
@@ -770,7 +795,6 @@ void prism_core_process(PrismCore *c,
         if (abs_out > peak_out) peak_out = abs_out;
     }
 
-    /* Update peak hold meters */
     c->meter_in  = fmaxf(peak_in,  c->meter_in  * 0.85f);
     c->meter_out = fmaxf(peak_out, c->meter_out * 0.85f);
 

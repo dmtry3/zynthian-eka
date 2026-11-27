@@ -32,7 +32,13 @@
         [ lv2:symbol "drive" ; pset:value 15 ] ,
         [ lv2:symbol "mix" ; pset:value 100 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "sweep_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_link" ; pset:value 1 ] ,
+        [ lv2:symbol "morph_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "scream_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_zero" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_smooth" ; pset:value 50 ] .
 
 <http://dmtry3.github.io/zynthian-eka/prism#preset_blades_parallel_notch>
     a pset:Preset ;
@@ -63,7 +69,13 @@
         [ lv2:symbol "drive" ; pset:value 28 ] ,
         [ lv2:symbol "mix" ; pset:value 100 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "sweep_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_link" ; pset:value 1 ] ,
+        [ lv2:symbol "morph_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "scream_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_zero" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_smooth" ; pset:value 50 ] .
 
 <http://dmtry3.github.io/zynthian-eka/prism#preset_moog_ladder_bass_punch>
     a pset:Preset ;
@@ -94,7 +106,13 @@
         [ lv2:symbol "drive" ; pset:value 38 ] ,
         [ lv2:symbol "mix" ; pset:value 100 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "sweep_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_link" ; pset:value 1 ] ,
+        [ lv2:symbol "morph_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "scream_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_zero" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_smooth" ; pset:value 50 ] .
 
 <http://dmtry3.github.io/zynthian-eka/prism#preset_ms20_acid_screamer>
     a pset:Preset ;
@@ -125,7 +143,13 @@
         [ lv2:symbol "drive" ; pset:value 65 ] ,
         [ lv2:symbol "mix" ; pset:value 100 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "sweep_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_link" ; pset:value 1 ] ,
+        [ lv2:symbol "morph_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "scream_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_zero" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_smooth" ; pset:value 50 ] .
 
 <http://dmtry3.github.io/zynthian-eka/prism#preset_talking_formant_choir>
     a pset:Preset ;
@@ -156,7 +180,13 @@
         [ lv2:symbol "drive" ; pset:value 22 ] ,
         [ lv2:symbol "mix" ; pset:value 100 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "sweep_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_link" ; pset:value 1 ] ,
+        [ lv2:symbol "morph_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "scream_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_zero" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_smooth" ; pset:value 50 ] .
 
 <http://dmtry3.github.io/zynthian-eka/prism#preset_stereo_mirror_horizon>
     a pset:Preset ;
@@ -187,7 +217,13 @@
         [ lv2:symbol "drive" ; pset:value 20 ] ,
         [ lv2:symbol "mix" ; pset:value 100 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "sweep_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_link" ; pset:value 1 ] ,
+        [ lv2:symbol "morph_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "scream_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_zero" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_smooth" ; pset:value 50 ] .
 
 <http://dmtry3.github.io/zynthian-eka/prism#preset_funk_autowah_phaser>
     a pset:Preset ;
@@ -218,7 +254,13 @@
         [ lv2:symbol "drive" ; pset:value 32 ] ,
         [ lv2:symbol "mix" ; pset:value 100 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "sweep_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_link" ; pset:value 1 ] ,
+        [ lv2:symbol "morph_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "scream_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_zero" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_smooth" ; pset:value 50 ] .
 
 <http://dmtry3.github.io/zynthian-eka/prism#preset_rhythmic_step8_gate>
     a pset:Preset ;
@@ -249,7 +291,13 @@
         [ lv2:symbol "drive" ; pset:value 35 ] ,
         [ lv2:symbol "mix" ; pset:value 100 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "sweep_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_link" ; pset:value 1 ] ,
+        [ lv2:symbol "morph_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "scream_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_zero" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_smooth" ; pset:value 50 ] .
 
 <http://dmtry3.github.io/zynthian-eka/prism#preset_tuned_comb_resonator>
     a pset:Preset ;
@@ -280,7 +328,13 @@
         [ lv2:symbol "drive" ; pset:value 25 ] ,
         [ lv2:symbol "mix" ; pset:value 75 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "sweep_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_link" ; pset:value 1 ] ,
+        [ lv2:symbol "morph_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "scream_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_zero" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_smooth" ; pset:value 50 ] .
 
 <http://dmtry3.github.io/zynthian-eka/prism#preset_buchla_chaos_drift>
     a pset:Preset ;
@@ -311,7 +365,13 @@
         [ lv2:symbol "drive" ; pset:value 30 ] ,
         [ lv2:symbol "mix" ; pset:value 100 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "sweep_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_link" ; pset:value 1 ] ,
+        [ lv2:symbol "morph_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "scream_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_zero" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_smooth" ; pset:value 50 ] .
 
 <http://dmtry3.github.io/zynthian-eka/prism#preset_sample_hold_robot_step>
     a pset:Preset ;
@@ -342,7 +402,13 @@
         [ lv2:symbol "drive" ; pset:value 42 ] ,
         [ lv2:symbol "mix" ; pset:value 100 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "sweep_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_link" ; pset:value 1 ] ,
+        [ lv2:symbol "morph_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "scream_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_zero" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_smooth" ; pset:value 50 ] .
 
 <http://dmtry3.github.io/zynthian-eka/prism#preset_audio_rate_fm_growl>
     a pset:Preset ;
@@ -373,4 +439,10 @@
         [ lv2:symbol "drive" ; pset:value 58 ] ,
         [ lv2:symbol "mix" ; pset:value 100 ] ,
         [ lv2:symbol "output_db" ; pset:value 0 ] ,
-        [ lv2:symbol "bypass" ; pset:value 0 ] .
+        [ lv2:symbol "bypass" ; pset:value 0 ] ,
+        [ lv2:symbol "sweep_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_link" ; pset:value 1 ] ,
+        [ lv2:symbol "morph_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "scream_fx" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_zero" ; pset:value 0 ] ,
+        [ lv2:symbol "fx_smooth" ; pset:value 50 ] .

@@ -78,7 +78,15 @@ typedef struct {
     float env_mod_pct;    /* -100..+100 */
     float env_speed_pct;  /* 0..100 */
 
-    /* Page 6: Master & FX */
+    /* Page 6: Effects (Live Play mode, non-destructive macros like Eka Echo) */
+    float sweep_fx_pct;   /* -100..+100 %: bipolar cutoff sweep (+/- 3.5 octaves) */
+    int   fx_link;        /* 0=A Only, 1=Linked A+B (respects Link B Offset/Mirror) */
+    float morph_fx_pct;   /* -100..+100 %: bipolar morph + resonance scream boost */
+    float scream_fx_pct;  /* 0..100 %: live resonance + pre-drive + mod blast */
+    int   fx_zero;        /* 0=Off, 1=Zero FX (MIDI-mappable reset) */
+    float fx_smooth_pct;  /* 0..100 %: inertia/smoothing of Play FX movements */
+
+    /* Page 7: Master */
     float drive_pct;      /* 0..100 */
     float mix_pct;        /* 0..100 */
     float output_db;      /* -18..+12 */
@@ -179,6 +187,17 @@ typedef struct {
     float sm_mix;
     float sm_out_gain;
     float sm_bypass;
+
+    /* Live Play FX smoothed states & fx_zero latch (like Eka Echo) */
+    int   fx_zero_mask;
+    float fx_latch_sweep;
+    float fx_latch_morph;
+    float fx_latch_scream;
+    float sm_sweep_fx;
+    float sm_sweep_fx2;
+    float sm_morph_fx;
+    float sm_scream_fx;
+    float sm_fx_link;
 
     /* Telemetry meters */
     float       meter_in;

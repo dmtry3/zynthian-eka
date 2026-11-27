@@ -9,11 +9,12 @@ URI = "http://dmtry3.github.io/zynthian-eka/prism"
 
 GROUPS = [
     ("g_flt_a",  "Filter A", 0, 60),
-    ("g_flt_b",  "Filter B", 1, 50),
-    ("g_route",  "Routing",  2, 40),
-    ("g_lfo",    "LFO",      3, 30),
-    ("g_mod",    "Mod Depth",4, 20),
-    ("g_master", "Master",   5, 10),
+    ("g_flt_b",  "Filter B", 1, 55),
+    ("g_fx",     "Effects",  2, 50),
+    ("g_route",  "Routing",  3, 40),
+    ("g_lfo",    "LFO",      4, 30),
+    ("g_mod",    "Mod Depth",5, 20),
+    ("g_master", "Master",   6, 10),
 ]
 
 FILTER_MODELS = [
@@ -25,7 +26,7 @@ FILTER_MODELS = [
     ("Phaser 6", 5),
 ]
 
-# Input control ports matching enum in src/eka_prism.c (indices 5..28)
+# Input control ports matching enum in src/eka_prism.c (indices 5..34)
 CONTROL_PORTS = [
     # Page 1: Filter A
     dict(idx=5,  sym="model_a",     name="Model A",    grp="g_flt_a",  default=0,       min=0,      max=5,
@@ -76,20 +77,32 @@ CONTROL_PORTS = [
     dict(idx=28, sym="bypass",      name="Bypass",     grp="g_master", default=0,       min=0,      max=1,
          props=["lv2:integer", "lv2:toggled", "lv2:enumeration"],
          points=[("Off", 0), ("On", 1)]),
+
+    # Live Play Page: Effects (same non-destructive macro structure as Eka Echo)
+    dict(idx=29, sym="sweep_fx",    name="Sweep FX",   grp="g_fx",     default=0.0,     min=-100.0, max=100.0,   unit="units:pc"),
+    dict(idx=30, sym="fx_link",     name="FX Link",    grp="g_fx",     default=1,       min=0,      max=1,
+         props=["lv2:integer", "lv2:toggled", "lv2:enumeration"],
+         points=[("A Only", 0), ("Linked", 1)]),
+    dict(idx=31, sym="morph_fx",    name="Morph FX",   grp="g_fx",     default=0.0,     min=-100.0, max=100.0,   unit="units:pc"),
+    dict(idx=32, sym="scream_fx",   name="Scream FX",  grp="g_fx",     default=0.0,     min=0.0,    max=100.0,   unit="units:pc"),
+    dict(idx=33, sym="fx_zero",     name="FX Zero",    grp="g_fx",     default=0,       min=0,      max=1,
+         props=["lv2:integer", "lv2:toggled", "lv2:enumeration"],
+         points=[("Off", 0), ("Zero", 1)]),
+    dict(idx=34, sym="fx_smooth",   name="FX Smooth",  grp="g_fx",     default=50.0,    min=0.0,    max=100.0,   unit="units:pc"),
 ]
 
-# Output telemetry ports (indices 29..38)
+# Output telemetry ports (indices 35..44)
 OUTPUT_PORTS = [
-    (29, "in_peak",     "Input Peak",   -60.0, 12.0,    "units:db"),
-    (30, "out_peak",    "Output Peak",  -60.0, 12.0,    "units:db"),
-    (31, "eff_cut_a",   "Eff Cutoff A",  20.0, 18000.0, "units:hz"),
-    (32, "eff_cut_b",   "Eff Cutoff B",  20.0, 18000.0, "units:hz"),
-    (33, "eff_morph_a", "Eff Morph A",    0.0, 100.0,   "units:pc"),
-    (34, "eff_morph_b", "Eff Morph B",    0.0, 100.0,   "units:pc"),
-    (35, "lfo_a",       "LFO A",         -1.0, 1.0,     "units:coef"),
-    (36, "lfo_b",       "LFO B",         -1.0, 1.0,     "units:coef"),
-    (37, "env_lvl",     "Env Level",      0.0, 1.0,     "units:coef"),
-    (38, "host_bpm",    "Host BPM",      20.0, 400.0,   "units:bpm"),
+    (35, "in_peak",     "Input Peak",   -60.0, 12.0,    "units:db"),
+    (36, "out_peak",    "Output Peak",  -60.0, 12.0,    "units:db"),
+    (37, "eff_cut_a",   "Eff Cutoff A",  20.0, 18000.0, "units:hz"),
+    (38, "eff_cut_b",   "Eff Cutoff B",  20.0, 18000.0, "units:hz"),
+    (39, "eff_morph_a", "Eff Morph A",    0.0, 100.0,   "units:pc"),
+    (40, "eff_morph_b", "Eff Morph B",    0.0, 100.0,   "units:pc"),
+    (41, "lfo_a",       "LFO A",         -1.0, 1.0,     "units:coef"),
+    (42, "lfo_b",       "LFO B",         -1.0, 1.0,     "units:coef"),
+    (43, "env_lvl",     "Env Level",      0.0, 1.0,     "units:coef"),
+    (44, "host_bpm",    "Host BPM",      20.0, 400.0,   "units:bpm"),
 ]
 
 DEFAULTS = {p["sym"]: p["default"] for p in CONTROL_PORTS}
