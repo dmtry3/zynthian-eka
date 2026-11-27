@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3 (2026-11-27)
+
+- **Headless & Background Aux Send Routing Fix:** fixed Aux 1..4 sends staying silent after loading a preset or snapshot until the Eka Pads widget screen is opened:
+  - Added a lock-free background JACK auto-connector in `eka_pads.so` (`dlopen("libjack.so.0")`, zero new build dependencies) that restores and maintains `aux1..4_{l,r}` JACK connections directly on LV2 `state_restore` / `patch:Set` even before the Zynthian widget is opened.
+  - Embedded resolved JACK port pairs inside `aux_routes` (`chain:N@port_l,port_r`, 100% backward-compatible with existing presets) and added a 500 ms background timer in `zynthian_widget_eka_pads.py` so hidden widgets also immediately apply/upgrade legacy presets, disconnect cleared routes, and recover from `zynautoconnect` resets without audio clicks.
+
 ## 0.3.2 (2026-11-26)
 
 - **MIDI-Mappable `Play` Encoder Pages (`Play FX`, `Play Mutes`, `Play Perf`):** exposed 12 dedicated LV2 ControlPorts across 3 top-priority Zynthian encoder pages shown automatically when the `Play` tab is active (with 1-tap `FX | Mute | Perf` page pills in the top bar):

@@ -220,6 +220,7 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.aux_targets = [None, None, None, None]  # [(target_id, label, (port_l, port_r)) or None, ...]
         self.last_aux_routes_str = None
         self.next_aux_check = 0.0
+        self._aux_bg_after = None
         self._own_jclient = None
         self.toast = ""
         self.toast_until = 0.0
@@ -242,6 +243,59 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         self.widget_canvas.bind("<ButtonPress-1>", self._on_press)
         self.widget_canvas.bind("<B1-Motion>", self._on_motion)
         self.widget_canvas.bind("<ButtonRelease-1>", self._on_release)
+        self._schedule_aux_bg()
+
+    def set_processor(self, processor):
+        prev = getattr(self, "processor", None)
+        if hasattr(super(), "set_processor"):
+            super().set_processor(processor)
+        else:
+            self.processor = processor
+        if processor is not prev:
+            self.aux_targets = [None, None, None, None]
+            self.last_aux_routes_str = None
+            self.next_aux_check = 0.0
+        if self.processor:
+            self._ensure_aux_routes()
+
+    def show(self):
+        if hasattr(super(), "show"):
+            super().show()
+        self.next_aux_check = 0.0
+        if self.processor:
+            self._ensure_aux_routes()
+
+    def destroy(self):
+        if self._aux_bg_after is not None:
+            try:
+                self.after_cancel(self._aux_bg_after)
+            except Exception:
+                pass
+            self._aux_bg_after = None
+        if hasattr(super(), "destroy"):
+            super().destroy()
+
+    def _schedule_aux_bg(self):
+        if self._aux_bg_after is not None:
+            return
+        try:
+            self._aux_bg_after = self.after(500, self._aux_bg_tick)
+        except Exception:
+            self._aux_bg_after = None
+
+    def _aux_bg_tick(self):
+        self._aux_bg_after = None
+        try:
+            if hasattr(self, "winfo_exists") and not self.winfo_exists():
+                return
+        except Exception:
+            return
+        try:
+            if self.processor:
+                self._ensure_aux_routes()
+        except Exception as e:
+            logging.debug("Eka Pads widget: aux bg tick error => %s", e)
+        self._schedule_aux_bg()
 
     def update(self):
         now = time.monotonic()
@@ -668,11 +722,52 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
 
         return targets
 
+    @staticmethod
+    def _aux_escape(s):
+        out = []
+        for ch in str(s):
+            if ch in ("%"," ", ";", "@", ",", "="):
+                out.append("%%%02X" % ord(ch))
+            else:
+                out.append(ch)
+        return "".join(out)
+
+    @staticmethod
+    def _aux_unescape(s):
+        s = str(s)
+        out = []
+        i = 0
+        n = len(s)
+        while i < n:
+            if s[i] == "%" and i + 2 < n:
+                try:
+                    out.append(chr(int(s[i + 1:i + 3], 16)))
+                    i += 3
+                    continue
+                except ValueError:
+                    pass
+            out.append(s[i])
+            i += 1
+        return "".join(out)
+
+    def _format_aux_routes(self):
+        parts = []
+        for t in self.aux_targets:
+            if t and t[0] and t[2]:
+                pl, pr = t[2]
+                parts.append("%s@%s,%s" % (
+                    self._aux_escape(t[0]),
+                    self._aux_escape(pl),
+                    self._aux_escape(pr),
+                ))
+            else:
+                parts.append("")
+        return ";".join(parts) if any(parts) else "_"
+
     def _apply_aux_route(self, aux_idx, target, persist=True):
         self.aux_targets[aux_idx] = target if (target and target[2]) else None
         if persist:
-            parts = [t[0].replace(" ", "%20").replace("=", "") if t else "" for t in self.aux_targets]
-            rstr = ";".join(parts) if any(parts) else "_"
+            rstr = self._format_aux_routes()
             self.last_aux_routes_str = rstr
             self._zset("aux_routes", rstr)
         jclient = self._get_jclient()
@@ -682,18 +777,29 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         if not outs:
             logging.warning("Eka Pads widget: aux%d output ports not found in JACK", aux_idx + 1)
             return
-        for p in outs:
+        want = target[2] if (target and target[2]) else (None, None)
+        already = [False, False]
+        for ch in (0, 1):
+            p = outs[ch]
+            w = want[ch]
             try:
                 for dst in jclient.get_all_connections(p):
-                    jclient.disconnect(p, dst)
+                    dname = getattr(dst, "name", str(dst))
+                    if w and dname == w:
+                        already[ch] = True
+                    else:
+                        jclient.disconnect(p, dst)
             except Exception:
                 pass
         if target and target[2]:
             dst_l, dst_r = target[2]
             try:
-                jclient.connect(outs[0], dst_l)
-                jclient.connect(outs[1], dst_r)
-                logging.info("Eka Pads widget: Aux %d -> %s (%s, %s)", aux_idx + 1, target[1], dst_l, dst_r)
+                if not already[0]:
+                    jclient.connect(outs[0], dst_l)
+                if not already[1]:
+                    jclient.connect(outs[1], dst_r)
+                if not (already[0] and already[1]):
+                    logging.info("Eka Pads widget: Aux %d -> %s (%s, %s)", aux_idx + 1, target[1], dst_l, dst_r)
             except Exception as e:
                 logging.warning("Eka Pads widget: aux%d connect failed => %s", aux_idx + 1, e)
 
@@ -718,29 +824,73 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
         if val == self.last_aux_routes_str:
             return
         if not val or val == "_":
+            for ai in range(4):
+                if self.aux_targets[ai] is not None:
+                    self._apply_aux_route(ai, None, persist=False)
             self.last_aux_routes_str = val
             return
-        parts = val.split(";")
+        raw = val
+        # Guard against legacy atom:Path values where lilv prepended a bundle directory
+        if raw.startswith("/"):
+            for marker in ("/chain:", "/jack:"):
+                idx = raw.find(marker)
+                if idx >= 0:
+                    raw = raw[idx + 1:]
+                    break
+        parts = raw.split(";")
         targets = self._list_mixbus_targets()
         by_id = {t[0]: t for t in targets}
+        jclient = self._get_jclient()
+        in_names = None
         all_matched = True
         for ai in range(4):
-            tid = parts[ai].replace("%20", " ") if ai < len(parts) else ""
-            if tid:
-                if tid in by_id:
-                    self._apply_aux_route(ai, by_id[tid], persist=False)
+            seg = parts[ai] if ai < len(parts) else ""
+            if not seg:
+                if self.aux_targets[ai] is not None:
+                    self._apply_aux_route(ai, None, persist=False)
+                continue
+            if "@" in seg:
+                tid_enc, p_enc = seg.split("@", 1)
+                tid = self._aux_unescape(tid_enc)
+                if "," in p_enc:
+                    pl_enc, pr_enc = p_enc.split(",", 1)
+                    fb_pair = (self._aux_unescape(pl_enc), self._aux_unescape(pr_enc))
+                else:
+                    p0 = self._aux_unescape(p_enc)
+                    fb_pair = (p0, p0)
+            else:
+                tid = self._aux_unescape(seg)
+                fb_pair = None
+            if tid in by_id:
+                self._apply_aux_route(ai, by_id[tid], persist=False)
+            elif fb_pair and fb_pair[0] and fb_pair[1] and jclient:
+                if in_names is None:
+                    try:
+                        in_names = {p.name for p in jclient.get_ports(is_audio=True, is_input=True)}
+                    except Exception:
+                        in_names = set()
+                if fb_pair[0] in in_names and fb_pair[1] in in_names:
+                    label = fb_pair[0].split(":", 1)[0][:18]
+                    self._apply_aux_route(ai, (tid or ("jack:" + label), label, fb_pair), persist=False)
                 else:
                     all_matched = False
+            else:
+                all_matched = False
         # Only mark as synced once all saved Mixbus targets exist in JACK (retry if chains still loading)
         if all_matched:
-            self.last_aux_routes_str = val
+            canon = self._format_aux_routes()
+            if canon != val and canon != "_":
+                self.last_aux_routes_str = canon
+                self._zset("aux_routes", canon)
+            else:
+                self.last_aux_routes_str = val
 
     def _ensure_aux_routes(self):
         self._sync_saved_aux_routes()
         now = time.monotonic()
         if now < self.next_aux_check:
             return
-        self.next_aux_check = now + 2.0
+        self.next_aux_check = now + 0.5
         if not any(self.aux_targets):
             return
         jclient = self._get_jclient()
@@ -754,9 +904,11 @@ class zynthian_widget_eka_pads(zynthian_widget_base.zynthian_widget_base):
                 continue
             dst_l, dst_r = target[2]
             try:
-                conns_l = [c.name for c in jclient.get_all_connections(outs[0])]
+                conns_l = [getattr(c, "name", str(c)) for c in jclient.get_all_connections(outs[0])]
+                conns_r = [getattr(c, "name", str(c)) for c in jclient.get_all_connections(outs[1])]
                 if dst_l not in conns_l:
                     jclient.connect(outs[0], dst_l)
+                if dst_r not in conns_r:
                     jclient.connect(outs[1], dst_r)
             except Exception:
                 pass

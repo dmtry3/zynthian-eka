@@ -21,6 +21,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#include "aux_jack.h"
 #include "pads_core.h"
 #include "sample.h"
 
@@ -241,7 +242,8 @@ typedef struct {
   int seq_notify_dirty;
   uint32_t seq_notify_cd;
   char seq_buf[8192];
-  char aux_routes[256];
+  char aux_routes[EP_AUX_ROUTES_MAX];
+  EpAuxJack* aux_jack;
 
   float prev_ctl[N_CTL];
   int have_prev_ctl;
@@ -874,6 +876,7 @@ static void handle_seq_cmd(EkaPads* P, int cmd) {
         P->follow = 1;
         P->learn = 0;
         P->aux_routes[0] = '\0';
+        ep_aux_jack_publish(P->aux_jack, P->aux_routes);
         P->have_prev_ctl = 0;
         P->have_prev_steps = 0;
         P->shm_dirty = 1;
@@ -1193,7 +1196,14 @@ static void handle_patch_set(EkaPads* P, const LV2_Atom_Object* obj) {
   }
   if (u == P->p_aux_routes && (val->type == P->atom_String || val->type == P->atom_Path)) {
     const char* s = (const char*)LV2_ATOM_BODY_CONST(val);
-    snprintf(P->aux_routes, sizeof P->aux_routes, "%s", s ? s : "");
+    size_t n = val->size < sizeof(P->aux_routes) - 1 ? val->size : sizeof(P->aux_routes) - 1;
+    if (s && n > 0) {
+      memcpy(P->aux_routes, s, n);
+      P->aux_routes[n] = '\0';
+    } else {
+      P->aux_routes[0] = '\0';
+    }
+    ep_aux_jack_publish(P->aux_jack, P->aux_routes);
     return;
   }
 
@@ -1438,6 +1448,7 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double sr, const char* bu
     }
   }
 
+  P->aux_jack = ep_aux_jack_create();
   return (LV2_Handle)P;
 }
 
@@ -1987,6 +1998,7 @@ static void run(LV2_Handle h, uint32_t nframes) {
 
 static void cleanup(LV2_Handle h) {
   EkaPads* P = (EkaPads*)h;
+  ep_aux_jack_destroy(P->aux_jack);
   if (P->shm) munmap(P->shm, sizeof(EpShm));
   if (P->shm_fd >= 0) close(P->shm_fd);
   if (P->shm_path[0]) unlink(P->shm_path);
@@ -2259,6 +2271,7 @@ static LV2_State_Status state_restore(LV2_Handle h, LV2_State_Retrieve_Function 
   } else {
     P->aux_routes[0] = '\0';
   }
+  ep_aux_jack_publish(P->aux_jack, P->aux_routes);
 
   for (int i = 0; i < EP_PADS; i++) {
     const void* pv = retrieve(handle, P->p_sample[i], &sz, &type, &fl);
