@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5 (2026-11-27)
+
+- Added musical analog-style resonance to **Filter FX** using a per-sample Cytomic ZDF state-variable filter on the wet path (bell-shaped resonance curve, subtle analog state saturation, seamless bypass at `0%`) complemented by feedback-safe loop resonance.
+
 ## 0.1.4 (2026-11-27)
 
 - Reordered the bottom touch bar: **FX** is now first (swapped with **Mode**) and **Freeze** is last on both screens (`FX | ROUTE | SYNC | MODE | TRAILS | FREEZE` and `MAIN | LINK | SNAP 0 | ZERO 0 | TRAILS | FREEZE`).

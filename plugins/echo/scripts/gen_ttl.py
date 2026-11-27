@@ -185,7 +185,7 @@ def gen_plugin_ttl():
         '    doap:name "Eka Echo" ;',
         "    doap:license <https://spdx.org/licenses/GPL-3.0-or-later.html> ;",
         "    lv2:minorVersion 0 ;",
-        "    lv2:microVersion 4 ;",
+        "    lv2:microVersion 5 ;",
         "    lv2:optionalFeature lv2:hardRTCapable, urid:map ;",
         "    lv2:port",
         '    [ a lv2:InputPort,  lv2:AudioPort ; lv2:index 0 ; lv2:symbol "in_l"  ; lv2:name "Input Left" ] ,',

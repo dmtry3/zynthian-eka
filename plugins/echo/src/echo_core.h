@@ -65,6 +65,11 @@ typedef struct {
 } EchoBiquad;
 
 typedef struct {
+    double ic1_l, ic2_l;
+    double ic1_r, ic2_r;
+} EchoSVF;
+
+typedef struct {
     float   *buf;
     uint32_t len;
     uint32_t idx;
@@ -95,6 +100,7 @@ typedef struct {
     EchoBiquad hpf;
     EchoBiquad lpf;
     EchoBiquad bbd_lpf;
+    EchoSVF    fx_svf;
 
     double dc_x_l, dc_y_l;
     double dc_x_r, dc_y_r;

@@ -42,15 +42,16 @@ static void biquad_set_identity(EchoBiquad *b) {
     b->b0 = 1.0; b->b1 = 0.0; b->b2 = 0.0; b->a1 = 0.0; b->a2 = 0.0;
 }
 
-static void biquad_set_hpf(EchoBiquad *b, double sr, double f) {
+static void biquad_set_hpf(EchoBiquad *b, double sr, double f, double q) {
     if (f <= 20.5) {
         biquad_set_identity(b);
         return;
     }
     f = clampd(f, 20.0, sr * 0.45);
+    q = clampd(q, 0.5, 4.0);
     double w0 = 2.0 * M_PI * f / sr;
     double cw = cos(w0), sw = sin(w0);
-    double alpha = sw / (2.0 * 0.70710678);
+    double alpha = sw / (2.0 * q);
     double inv = 1.0 / (1.0 + alpha);
     b->b0 = ((1.0 + cw) * 0.5) * inv;
     b->b1 = (-(1.0 + cw)) * inv;
@@ -59,21 +60,50 @@ static void biquad_set_hpf(EchoBiquad *b, double sr, double f) {
     b->a2 = (1.0 - alpha) * inv;
 }
 
-static void biquad_set_lpf(EchoBiquad *b, double sr, double f) {
+static void biquad_set_lpf(EchoBiquad *b, double sr, double f, double q) {
     if (f >= 19800.0) {
         biquad_set_identity(b);
         return;
     }
     f = clampd(f, 100.0, sr * 0.45);
+    q = clampd(q, 0.5, 4.0);
     double w0 = 2.0 * M_PI * f / sr;
     double cw = cos(w0), sw = sin(w0);
-    double alpha = sw / (2.0 * 0.70710678);
+    double alpha = sw / (2.0 * q);
     double inv = 1.0 / (1.0 + alpha);
     b->b0 = ((1.0 - cw) * 0.5) * inv;
     b->b1 = (1.0 - cw) * inv;
     b->b2 = ((1.0 - cw) * 0.5) * inv;
     b->a1 = (-2.0 * cw) * inv;
     b->a2 = (1.0 - alpha) * inv;
+}
+
+/* Musical bell-shaped resonance envelope for Filter FX (0 at center, rich in mid sweep, tamed at extremes). */
+static inline double filter_fx_res_env(double amt) {
+    if (amt <= 1e-4) return 0.0;
+    double t = clampd(amt / 0.18, 0.0, 1.0);
+    double rise = t * t * (3.0 - 2.0 * t);
+    return rise * (1.0 - 0.36 * amt * amt);
+}
+
+/* Cytomic trapezoidal ZDF SVF with passive analog saturation on the resonant state. */
+static inline void svf_process(EchoSVF *s, double a1, double a2, double a3, double k,
+                               int is_hpf, double *l, double *r) {
+    double xl = *l;
+    double v3l = xl - s->ic2_l;
+    double v1l = a1 * s->ic1_l + a2 * v3l;
+    double v2l = s->ic2_l + a2 * s->ic1_l + a3 * v3l;
+    s->ic1_l = tanh((2.0 * v1l - s->ic1_l) * 0.45) * (1.0 / 0.45);
+    s->ic2_l = 2.0 * v2l - s->ic2_l;
+    *l = is_hpf ? (xl - k * v1l - v2l) : v2l;
+
+    double xr = *r;
+    double v3r = xr - s->ic2_r;
+    double v1r = a1 * s->ic1_r + a2 * v3r;
+    double v2r = s->ic2_r + a2 * s->ic1_r + a3 * v3r;
+    s->ic1_r = tanh((2.0 * v1r - s->ic1_r) * 0.45) * (1.0 / 0.45);
+    s->ic2_r = 2.0 * v2r - s->ic2_r;
+    *r = is_hpf ? (xr - k * v1r - v2r) : v2r;
 }
 
 static inline void biquad_process(EchoBiquad *b, double *l, double *r) {
@@ -228,7 +258,7 @@ int echo_core_init(EchoCore *c, double sr) {
 
     biquad_set_identity(&c->hpf);
     biquad_set_identity(&c->lpf);
-    biquad_set_lpf(&c->bbd_lpf, c->sr, 3600.0);
+    biquad_set_lpf(&c->bbd_lpf, c->sr, 3600.0, 0.70710678);
 
     c->smooth_ms_l = 375.0;
     c->smooth_ms_r = 500.0;
@@ -277,6 +307,7 @@ void echo_core_reset(EchoCore *c) {
     c->hpf.z1_l = c->hpf.z2_l = c->hpf.z1_r = c->hpf.z2_r = 0.0;
     c->lpf.z1_l = c->lpf.z2_l = c->lpf.z1_r = c->lpf.z2_r = 0.0;
     c->bbd_lpf.z1_l = c->bbd_lpf.z2_l = c->bbd_lpf.z1_r = c->bbd_lpf.z2_r = 0.0;
+    c->fx_svf.ic1_l = c->fx_svf.ic2_l = c->fx_svf.ic1_r = c->fx_svf.ic2_r = 0.0;
     c->dc_x_l = c->dc_y_l = c->dc_x_r = c->dc_y_r = 0.0;
     c->vel_ms_l = 0.0;
     c->vel_ms_r = 0.0;
@@ -338,14 +369,11 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
     double target_ms_l = clampd(base_ms_l * time_mult, ECHO_MIN_MS, ECHO_MAX_MS);
     double target_ms_r = p->time_link ? clampd(base_ms_r * time_mult, ECHO_MIN_MS, ECHO_MAX_MS) : base_ms_r;
 
-    /* Smooth Filter FX and Wash FX across blocks for soft, musical transitions & returns */
+    /* Smooth Wash FX across blocks; Filter FX is smoothed per-sample for zipper-free resonant sweeps */
     double blk_dt = (double)nframes / c->sr;
-    double ffx_alpha = 1.0 - exp(-blk_dt / 0.035);
     double wfx_tau   = (raw_wfx < c->smooth_wfx) ? 0.065 : 0.035;
     double wfx_alpha = 1.0 - exp(-blk_dt / wfx_tau);
-    c->smooth_ffx += ffx_alpha * (raw_ffx - c->smooth_ffx);
     c->smooth_wfx += wfx_alpha * (raw_wfx - c->smooth_wfx);
-    if (fabs(raw_ffx) < 0.5 && fabs(c->smooth_ffx) < 0.05) c->smooth_ffx = 0.0;
     if (raw_wfx < 0.5 && c->smooth_wfx < 0.05) c->smooth_wfx = 0.0;
 
     int freeze = p->freeze ? 1 : 0;
@@ -371,19 +399,27 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
 
     double eff_hpf = clampd(p->hpf_hz, 20.0, 1000.0);
     double eff_lpf = clampd(p->lpf_hz, 500.0, 20000.0);
-    double ffx = c->smooth_ffx * 0.01;
-    if (ffx < -0.005) {
-        double fx_lpf = 20000.0 * pow(280.0 / 20000.0, -ffx);
+    double ffx_blk = c->smooth_ffx * 0.01;
+    double loop_hpf_q = 0.70710678;
+    double loop_lpf_q = 0.70710678;
+    /* Subtle, feedback-safe loop resonance complements the resonant wet SVF */
+    double loop_res_gain = 0.52 * (1.0 - 0.65 * clampd(target_fb, 0.0, 1.0));
+    if (ffx_blk < -0.005) {
+        double amt = -ffx_blk;
+        double fx_lpf = 20000.0 * pow(280.0 / 20000.0, amt);
         eff_lpf = fmin(eff_lpf, fx_lpf);
-    } else if (ffx > 0.005) {
-        double fx_hpf = 20.0 * pow(3200.0 / 20.0, ffx);
+        loop_lpf_q += loop_res_gain * filter_fx_res_env(amt);
+    } else if (ffx_blk > 0.005) {
+        double amt = ffx_blk;
+        double fx_hpf = 20.0 * pow(3200.0 / 20.0, amt);
         eff_hpf = fmax(eff_hpf, fx_hpf);
+        loop_hpf_q += loop_res_gain * filter_fx_res_env(amt);
     }
     if (eff_hpf > eff_lpf * 0.85) {
         eff_hpf = eff_lpf * 0.85;
     }
-    biquad_set_hpf(&c->hpf, c->sr, eff_hpf);
-    biquad_set_lpf(&c->lpf, c->sr, eff_lpf);
+    biquad_set_hpf(&c->hpf, c->sr, eff_hpf, loop_hpf_q);
+    biquad_set_lpf(&c->lpf, c->sr, eff_lpf, loop_lpf_q);
 
     double drive = clampd(p->drive_pct, 0.0, 100.0) * 0.01;
     if (mode == ECHO_MODE_TAPE) drive = fmax(drive, 0.20);
@@ -413,8 +449,14 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
     const double tsm = clampd(p->time_smooth_pct, 0.0, 100.0) * 0.01;
     const double tfx_tau = 0.004 * pow(100.0, tsm); /* 4 ms (0%) .. 40 ms (50%) .. 400 ms (100%) */
     const double tfx_alpha = 1.0 - exp(-1.0 / (c->sr * tfx_tau));
+    const double ffx_smp_alpha = 1.0 - exp(-1.0 / (c->sr * 0.025)); /* 25 ms per-sample Filter FX glide */
+    const double target_ffx = (fabs(raw_ffx) < 0.5) ? 0.0 : raw_ffx;
     const double target_link = p->time_link ? 1.0 : 0.0;
     const double dc_r = 0.9985;
+
+    double svf_a1 = 0.0, svf_a2 = 0.0, svf_a3 = 0.0, svf_k = 1.41421356;
+    double svf_wet = 0.0, svf_comp = 1.0;
+    int svf_is_hpf = 0;
 
     double max_samps = (double)(c->buf_size - 8u);
     double in_pk = c->in_pk_lin;
@@ -576,6 +618,40 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
         double wet_l = (mid + side) * c->duck_gain;
         double wet_r = (mid - side) * c->duck_gain;
 
+        /* Musical resonant ZDF SVF for Filter FX on wet path (refresh coeffs every 8 samples) */
+        c->smooth_ffx += ffx_smp_alpha * (target_ffx - c->smooth_ffx);
+        if ((i & 7u) == 0u) {
+            double ffx_cur = c->smooth_ffx * 0.01;
+            double amt = fabs(ffx_cur);
+            if (amt < 0.002) {
+                svf_wet = 0.0;
+                c->fx_svf.ic1_l = c->fx_svf.ic2_l = 0.0;
+                c->fx_svf.ic1_r = c->fx_svf.ic2_r = 0.0;
+            } else {
+                svf_wet = clampd(amt / 0.04, 0.0, 1.0);
+                svf_is_hpf = (ffx_cur > 0.0) ? 1 : 0;
+                double f_cut = svf_is_hpf
+                    ? (20.0 * pow(3200.0 / 20.0, amt))
+                    : (20000.0 * pow(280.0 / 20000.0, amt));
+                f_cut = clampd(f_cut, 20.0, c->sr * 0.42);
+                double q = 0.70710678 + 2.9 * filter_fx_res_env(amt);
+                double g = tan(M_PI * f_cut / c->sr);
+                svf_k = 1.0 / q;
+                svf_a1 = 1.0 / (1.0 + g * (g + svf_k));
+                svf_a2 = g * svf_a1;
+                svf_a3 = g * svf_a2;
+                svf_comp = 1.0 / (1.0 + 0.12 * (q - 0.70710678));
+            }
+        }
+        if (svf_wet > 1e-4) {
+            double fl = wet_l, fr = wet_r;
+            svf_process(&c->fx_svf, svf_a1, svf_a2, svf_a3, svf_k, svf_is_hpf, &fl, &fr);
+            fl *= svf_comp;
+            fr *= svf_comp;
+            wet_l += svf_wet * (fl - wet_l);
+            wet_r += svf_wet * (fr - wet_r);
+        }
+
         wl_pk = (fabs(wet_l) > wl_pk) ? fabs(wet_l) : wl_pk * c->peak_rel;
         wr_pk = (fabs(wet_r) > wr_pk) ? fabs(wet_r) : wr_pk * c->peak_rel;
 
@@ -607,6 +683,8 @@ void echo_core_process(EchoCore *c, const EchoParams *p,
     c->lpf.z1_r = flush_denorm(c->lpf.z1_r); c->lpf.z2_r = flush_denorm(c->lpf.z2_r);
     c->bbd_lpf.z1_l = flush_denorm(c->bbd_lpf.z1_l); c->bbd_lpf.z2_l = flush_denorm(c->bbd_lpf.z2_l);
     c->bbd_lpf.z1_r = flush_denorm(c->bbd_lpf.z1_r); c->bbd_lpf.z2_r = flush_denorm(c->bbd_lpf.z2_r);
+    c->fx_svf.ic1_l = flush_denorm(c->fx_svf.ic1_l); c->fx_svf.ic2_l = flush_denorm(c->fx_svf.ic2_l);
+    c->fx_svf.ic1_r = flush_denorm(c->fx_svf.ic1_r); c->fx_svf.ic2_r = flush_denorm(c->fx_svf.ic2_r);
     c->dc_x_l = flush_denorm(c->dc_x_l); c->dc_y_l = flush_denorm(c->dc_y_l);
     c->dc_x_r = flush_denorm(c->dc_x_r); c->dc_y_r = flush_denorm(c->dc_y_r);
     c->vel_ms_l = flush_denorm(c->vel_ms_l);
