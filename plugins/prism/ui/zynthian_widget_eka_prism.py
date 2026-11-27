@@ -2,9 +2,14 @@
 # -*- coding: utf-8 -*-
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Zynthian widget for Eka Prism (class and file name: zynthian_widget_eka_prism).
-# Retained-mode Tkinter Canvas with dedicated Play / Live Effects screen (like Eka Echo):
-# non-destructive X-Y pad (Sweep FX x Morph FX), Scream FX + Smooth sliders,
-# elastic 2nd-order spring return (HOLD / SNAP 0), FX Link (A+B / A ONLY), and ZERO 0.
+# Unified Eka / GEMINI.md Touch-First UX Design:
+#   1. Top interactive Dual-Filter Frequency Response Graph (Filter A, Filter B, Combined curve,
+#      draggable Cutoff x Resonance nodes A & B with double-tap reset, live modulated markers).
+#   2. Middle interactive Morph A & Morph B strip (height 30..38 px, double-tap reset).
+#   3. Right vertical peak-hold LEVEL meters (IN | ENV | OUT) with peak hold bars.
+#   4. Bottom 6 large two-line touch buttons (height 36..44 px, gap 6 px):
+#      Main view: PLAY FX | MODEL A | MODEL B | ROUTE | LFO | LINK* (short tap cycles Link B, long press toggles BYPASS).
+#      Play FX view: MAIN | LINK A+B | HOLD/SNAP 0 | ZERO 0 | ROUTE | PHASE B* (long press toggles BYPASS).
 from collections import deque
 import math
 import time
@@ -15,11 +20,13 @@ from zyngui import zynthian_widget_base
 
 MULTI_INSTANCE = True
 
-REFRESH_SEC = 0.09
+REFRESH_SEC = 0.06
 KNOB_ACTIVE_HOLD_SEC = 0.30
 KNOB_MONITOR_SEC = 0.25
 DRAG_INTERVAL = 0.033
-CURVE_BINS = 56
+DOUBLE_TAP_SEC = 0.35
+LONG_PRESS_SEC = 0.45
+CURVE_BINS = 60
 TRAIL_STEPS = 28
 
 SPRING_DT_MS = 33
@@ -38,13 +45,18 @@ PARAM_KEYS = (
     "sweep_fx", "fx_link", "morph_fx", "scream_fx", "fx_zero", "fx_smooth",
 )
 
+DEFAULTS = {
+    "cutoff_a": 650.0, "res_a": 35.0, "morph_a": 0.0,
+    "cutoff_b": 1800.0, "res_b": 40.0, "morph_b": 25.0,
+    "sweep_fx": 0.0, "morph_fx": 0.0, "scream_fx": 0.0, "fx_smooth": 50.0,
+}
+
 F_MIN = 20.0
 F_MAX = 18000.0
 RATE_MIN = 0.05
 RATE_MAX = 40.0
-DB_SPAN = 26.0
+DB_SPAN = 24.0
 FLOOR_DB = -60.0
-LONG_PRESS_SEC = 0.45
 
 FONT_6B  = ("TkDefaultFont", 6, "bold")
 FONT_7B  = ("TkDefaultFont", 7, "bold")
@@ -71,18 +83,37 @@ RATE_DIVISIONS = (
     ("1/64",   1.0 / 16.0),
 )
 
+# Semantic colors matching GEMINI.md & Eka family
 MODELS = (
-    ("SVF",     "#ffd43b"),
-    ("LADDER",  "#ffa94d"),
+    ("SVF",     "#ff922b"),
+    ("LADDER",  "#ffd43b"),
     ("MS-20",   "#ff6b6b"),
     ("COMB",    "#63e6be"),
-    ("FORMANT", "#da77f2"),
+    ("FORMANT", "#cc5de8"),
     ("PHASER",  "#4dabf7"),
 )
 
-ROUTINGS = ("SERIAL A>B", "PARALLEL A+B", "STEREO L/R")
-LINKS = ("FREE", "OFFSET", "MIRROR")
-LFO_SHAPES = ("SINE", "TRI", "SAW", "SQR", "S&H", "CHAOS", "STEP8")
+ROUTINGS = (
+    ("SERIAL A>B",   "#63e6be"),
+    ("PARALLEL A+B", "#ffd43b"),
+    ("STEREO L/R",   "#4dabf7"),
+)
+
+LINKS = (
+    ("FREE",   "#8b949e"),
+    ("OFFSET", "#ff922b"),
+    ("MIRROR", "#cc5de8"),
+)
+
+LFO_SHAPES = (
+    ("SINE",  "#ffd43b"),
+    ("TRI",   "#63e6be"),
+    ("SAW",   "#ff922b"),
+    ("SQR",   "#4dabf7"),
+    ("S&H",   "#ff8787"),
+    ("CHAOS", "#cc5de8"),
+    ("STEP8", "#51cf66"),
+)
 
 VOWEL_FREQS = (
     (730.0, 1090.0, 2440.0),
@@ -92,21 +123,26 @@ VOWEL_FREQS = (
     (300.0,  870.0, 2240.0),
 )
 
+# Unified Zynthian / Eka dark palette
 PANEL_BG   = "#16191e"
 BUTTON_BG  = "#1f242c"
-LINE_DIM   = "#2f3640"
-GRID_COL   = "#252b34"
+TRACK_BG   = "#111419"
+LINE_DIM   = "#333644"
+GRID_COL   = "#262833"
 ZERO_COL   = "#3a4352"
 LABEL_DIM  = "#8b949e"
 LABEL_HI   = "#e6edf3"
-COL_A      = "#ffd43b"
-COL_B      = "#4dabf7"
-COL_SUM    = "#f0f6fc"
-COL_ENV    = "#63e6be"
-COL_MOD    = "#da77f2"
-COL_DRV    = "#ffa94d"
-HOT_RED    = "#ff6b6b"
-FILL_SUM   = "#1e2938"
+
+COL_A      = "#ff922b"   # Filter A orange accent (GEMINI.md Filter section)
+COL_B      = "#4dabf7"   # Filter B blue accent (GEMINI.md Macro/Morph section)
+COL_SUM    = "#f0f6fc"   # Combined response curve
+COL_ENV    = "#51cf66"   # Env green accent (GEMINI.md Env section)
+COL_LFO    = "#ffd43b"   # LFO yellow accent (GEMINI.md LFO section)
+COL_FX     = "#cc5de8"   # Play FX purple accent
+HOT_RED    = "#ff6b6b"   # FX / clip / invert coral accent
+FILL_SUM   = "#1c2d3d"
+FILL_A     = "#362516"
+FILL_B     = "#1b2e42"
 
 BYP_DIM    = "#49505a"
 BYP_MID    = "#68707c"
@@ -114,7 +150,6 @@ BYP_HI     = "#9aa2ae"
 BYP_FILL   = "#23272e"
 
 _LOG_F_SPAN = math.log(F_MAX / F_MIN)
-_LOG_R_SPAN = math.log(RATE_MAX / RATE_MIN)
 _CURVE_US = tuple(i / float(CURVE_BINS) for i in range(CURVE_BINS + 1))
 _CURVE_FREQS = tuple(F_MIN * math.exp(u * _LOG_F_SPAN) for u in _CURVE_US)
 
@@ -152,8 +187,33 @@ def nearest_rate_division(hz, bpm):
     return best_lbl, best_hz
 
 
+def _morph_mode_label(model, morph_pct):
+    m = _clamp(morph_pct, 0.0, 100.0)
+    if model == 0:  # SVF
+        if m < 18.0: return "LP"
+        if m < 48.0: return "BP"
+        if m < 82.0: return "HP"
+        return "NOTCH"
+    if model == 1:  # Ladder
+        if m < 20.0: return "LP24"
+        if m < 50.0: return "LP12"
+        if m < 82.0: return "BP4"
+        return "HP2"
+    if model == 2:  # MS-20
+        if m < 25.0: return "LP"
+        if m < 75.0: return "BP"
+        return "HP"
+    if model == 3:  # Comb
+        return f"COMB- {m:.0f}%" if m < 50.0 else f"COMB+ {m:.0f}%"
+    if model == 4:  # Formant
+        vowels = ("A", "E", "I", "O", "U")
+        idx = min(4, int(round((m / 100.0) * 4.0)))
+        return f"VOWEL {vowels[idx]}"
+    return "PHASER-" if m < 50.0 else "PHASER+"
+
+
 def _eval_model_db(model, f_arr, fc, res_pct, morph_pct):
-    """Fast analytic frequency response magnitude in dB for each of the 6 filter models."""
+    """Analytic frequency response magnitude in dB for each of the 6 filter models."""
     fc = _clamp(fc, F_MIN, F_MAX)
     res = _clamp(res_pct, 0.0, 100.0) * 0.01
     morph = _clamp(morph_pct, 0.0, 100.0) * 0.01
@@ -181,7 +241,7 @@ def _eval_model_db(model, f_arr, fc, res_pct, morph_pct):
             out.append(_clamp(20.0 * math.log10(max(mag, 0.025)), -DB_SPAN, DB_SPAN))
         return out
 
-    if model == 1:  # Ladder 24 dB (LP24 -> LP12 -> BP4 -> HP2)
+    if model == 1:  # Ladder 24 dB
         m3 = morph * 3.0
         peak_q = 0.6 + 16.0 * (res ** 1.5)
         for f in f_arr:
@@ -280,18 +340,22 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
         self.trail = deque(maxlen=TRAIL_STEPS)
         self._last_trail_pt = None
 
+        self.selected_chain = "a"  # "a" or "b", synced with Zynthian page selection
+        self.last_group = None
+        self.last_tap = (None, 0.0)
+
         self.hold_in = FLOOR_DB
         self.hold_out = FLOOR_DB
+        self.hold_env = 0.0
         self._telemetry = (FLOOR_DB, FLOOR_DB, 650.0, 1800.0, 0.0, 25.0, 0.0, 0.0, 0.0, 120.0)
 
         self.graph_box = (0.0, 0.0, 1.0, 1.0)
         self.morph_a_box = (0.0, 0.0, 1.0, 1.0)
         self.morph_b_box = (0.0, 0.0, 1.0, 1.0)
-        self.mod_bars = {}
         self.xy_box = (0.0, 0.0, 1.0, 1.0)
         self.fx_sliders = {}   # sym -> (x0, y0, x1, y1, bipolar)
-        self.fx_view = False   # False = Dual Filter Graph, True = Play / Live Effects screen (like Eka Echo)
-        self.fx_snap = False   # False = HOLD, True = SNAP 0 (elastic spring-return on release)
+        self.fx_view = False   # False = Dual Filter Graph, True = Play / Live Effects screen
+        self.fx_snap = False   # False = HOLD, True = SNAP 0 (elastic 2nd-order spring-return)
         self._spring = {}      # sym -> {"pos", "vel", "last_sent", "omega", "zeta", "bipolar"}
         self._spring_job = None
         self._spring_last_t = None
@@ -473,10 +537,22 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
         self._scene_key = None
         self.refresh_gui(sample_telemetry=False)
 
-    def _get(self, sym, fallback):
+    def _get_zctrl(self, sym):
         if not self.processor:
-            return fallback
-        zctrl = self.processor.controllers_dict.get(sym)
+            return None
+        ctrls = getattr(self.processor, "controllers_dict", None)
+        if not ctrls:
+            return None
+        if sym in ctrls:
+            return ctrls[sym]
+        # Fallback suffix/name match per GEMINI.md rule 6
+        for k, zc in ctrls.items():
+            if k.endswith("_" + sym) or getattr(zc, "symbol", "") == sym:
+                return zc
+        return None
+
+    def _get(self, sym, fallback):
+        zctrl = self._get_zctrl(sym)
         if zctrl is None or zctrl.value is None:
             return fallback
         try:
@@ -497,17 +573,23 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
             return fallback
 
     def _set(self, sym, val):
-        if not self.processor:
-            return
-        zctrl = self.processor.controllers_dict.get(sym)
+        zctrl = self._get_zctrl(sym)
         if zctrl is None:
-            return
-        if hasattr(zctrl, "set_value"):
-            zctrl.set_value(val)
-        else:
-            zctrl.value = val
+            return False
+        if zctrl.value != val:
+            if hasattr(zctrl, "set_value"):
+                zctrl.set_value(val)
+            else:
+                zctrl.value = val
+            return True
+        return False
 
-    def _select_group(self, group_sym):
+    def _select_group(self, group_sym, group_name=None):
+        self.last_group = group_sym
+        if group_sym == "g_flt_a":
+            self.selected_chain = "a"
+        elif group_sym == "g_flt_b":
+            self.selected_chain = "b"
         ctrl_screen = getattr(self, "zyngui_control", None)
         if ctrl_screen is None:
             return
@@ -515,10 +597,35 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
         if not list_data:
             return
         for idx, row in enumerate(list_data):
-            if row and row[0] == group_sym:
+            if not row:
+                continue
+            if len(row) >= 4 and row[3] not in (None, self.processor):
+                continue
+            if row[0] == group_sym or (group_name and len(row) >= 3 and row[2] == group_name):
                 if getattr(ctrl_screen, "selected_index", -1) != idx and hasattr(ctrl_screen, "select"):
-                    ctrl_screen.select(idx)
+                    try:
+                        ctrl_screen.select(idx)
+                    except Exception:
+                        pass
                 return
+
+    def _follow_page(self):
+        """Two-way sync with Zynthian page selector per GEMINI.md rule 3."""
+        ctrl_screen = getattr(self, "zyngui_control", None)
+        if ctrl_screen is None:
+            return
+        try:
+            info = getattr(ctrl_screen, "screen_info", None)
+            if info and len(info) >= 4 and info[3] is self.processor:
+                grp = info[0]
+                if grp != self.last_group:
+                    self.last_group = grp
+                    if grp == "g_flt_a":
+                        self.selected_chain = "a"
+                    elif grp == "g_flt_b":
+                        self.selected_chain = "b"
+        except Exception:
+            pass
 
     def _sync_encoder_titles(self, sync_on, div_lbl):
         ctrl_screen = getattr(self, "zyngui_control", None)
@@ -528,11 +635,10 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
         if not zctrls:
             return
         target = f"Rate {div_lbl}" if sync_on else "Rate"
+        rate_zc = self._get_zctrl("lfo_rate")
         for zgui in zctrls:
             zc = getattr(zgui, "zctrl", None)
-            if zc is not None and getattr(zc, "short_name", "") in ("Rate", "lfo_rate") or (
-                self.processor and zc is self.processor.controllers_dict.get("lfo_rate")
-            ):
+            if zc is not None and (zc is rate_zc or getattr(zc, "short_name", "") in ("Rate", "lfo_rate")):
                 if self._last_ctrl_titles.get("lfo_rate") != target and hasattr(zgui, "set_title"):
                     zgui.set_title(target)
                     self._last_ctrl_titles["lfo_rate"] = target
@@ -576,291 +682,297 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
 
     def _res_to_y(self, res_pct, gy0, gy1):
         u = 1.0 - _clamp(res_pct, 0.0, 100.0) * 0.01
-        return gy0 + (0.10 + 0.80 * u) * (gy1 - gy0)
+        return gy0 + (0.12 + 0.76 * u) * (gy1 - gy0)
 
     def _y_to_res(self, y, gy0, gy1):
         u = (y - gy0) / max(1.0, gy1 - gy0)
-        norm = 1.0 - _clamp((u - 0.10) / 0.80, 0.0, 1.0)
+        norm = 1.0 - _clamp((u - 0.12) / 0.76, 0.0, 1.0)
         return norm * 100.0
 
-    def _build_main_scene(self, w, h):
-        c = self.widget_canvas
-        c.delete("all")
-        self._ui.clear()
-        self._cache.clear()
-        self.hit_rects.clear()
-        self.mod_bars.clear()
+    # ---------- static scene builders (canonical Eka layout + GEMINI.md dimensions) ----------
 
-        pad = max(6, int(w * 0.012))
-        top_h = max(28, int(h * 0.088))
-        bot_h = max(46, int(h * 0.145))
-        meter_w = max(42, int(w * 0.078))
-
-        btns = [
-            ("fx",      0.115),
-            ("model_a", 0.145),
-            ("model_b", 0.145),
-            ("routing", 0.145),
-            ("link",    0.115),
-            ("inv_b",   0.090),
-            ("shape",   0.130),
-            ("sync",    0.115),
-        ]
-        avail_w = w - 2 * pad - (len(btns) - 1) * 4
-        bx = pad
-        by0, by1 = pad, pad + top_h
-        for idx, (key, frac) in enumerate(btns):
-            bw = int(avail_w * frac)
-            bx1 = bx + bw if idx < len(btns) - 1 else (w - pad)
-            self.hit_rects[key] = (bx, by0, bx1, by1)
-            self._ui[f"btn_{key}"] = c.create_rectangle(bx, by0, bx1, by1, fill=BUTTON_BG, outline=LINE_DIM, width=1)
-            self._ui[f"txt_{key}"] = c.create_text((bx + bx1) * 0.5, (by0 + by1) * 0.5, text="", fill=LABEL_HI, font=FONT_7B)
-            bx = bx1 + 4
-
-        gx0 = pad
-        gy0 = by1 + 6
-        gx1 = w - pad - meter_w - 6
-        gy1 = h - pad - bot_h - 6
-        self.graph_box = (gx0, gy0, gx1, gy1)
-
-        c.create_rectangle(gx0, gy0, gx1, gy1, fill=PANEL_BG, outline=LINE_DIM, width=1)
-
-        for gf, glbl in ((50.0, "50"), (100.0, "100"), (250.0, "250"), (500.0, "500"),
-                         (1000.0, "1k"), (2500.0, "2.5k"), (5000.0, "5k"), (10000.0, "10k")):
-            xg = self._freq_to_x(gf, gx0, gx1)
-            c.create_line(xg, gy0 + 1, xg, gy1 - 1, fill=GRID_COL, width=1)
-            c.create_text(xg, gy1 - 8, text=glbl, fill=LABEL_DIM, font=FONT_6B)
-
-        for gdb in (-12.0, 0.0, 12.0):
-            yg = self._db_to_y(gdb, gy0, gy1)
-            col = ZERO_COL if gdb == 0.0 else GRID_COL
-            c.create_line(gx0 + 1, yg, gx1 - 1, yg, fill=col, width=1)
-            c.create_text(gx0 + 16, yg - 6, text=f"{gdb:+.0f}dB", fill=LABEL_DIM, font=FONT_6B)
-
-        flat_poly = [gx0, gy1, gx0, (gy0 + gy1) * 0.5, gx1, (gy0 + gy1) * 0.5, gx1, gy1]
-        self._ui["poly_sum"] = c.create_polygon(*flat_poly, fill=FILL_SUM, outline="")
-        flat_line = [gx0, (gy0 + gy1) * 0.5, gx1, (gy0 + gy1) * 0.5]
-        self._ui["curve_a"] = c.create_line(*flat_line, fill=COL_A, width=2)
-        self._ui["curve_b"] = c.create_line(*flat_line, fill=COL_B, width=2)
-        self._ui["curve_sum"] = c.create_line(*flat_line, fill=COL_SUM, width=2)
-
-        self._ui["span_a"] = c.create_line(gx0, gy0, gx0, gy0, fill=COL_A, width=3)
-        self._ui["span_b"] = c.create_line(gx0, gy0, gx0, gy0, fill=COL_B, width=3)
-        self._ui["eff_line_a"] = c.create_line(gx0, gy0 + 2, gx0, gy1 - 2, fill=COL_A, width=1)
-        self._ui["eff_line_b"] = c.create_line(gx0, gy0 + 2, gx0, gy1 - 2, fill=COL_B, width=1)
-        self._ui["eff_dot_a"] = c.create_oval(gx0 - 4, gy0 - 4, gx0 + 4, gy0 + 4, fill=COL_A, outline=PANEL_BG, width=1)
-        self._ui["eff_dot_b"] = c.create_oval(gx0 - 4, gy0 - 4, gx0 + 4, gy0 + 4, fill=COL_B, outline=PANEL_BG, width=1)
-
-        self._ui["node_a_halo"] = c.create_oval(0, 0, 0, 0, fill="", outline=COL_A, width=1)
-        self._ui["node_a"] = c.create_oval(0, 0, 0, 0, fill=COL_A, outline=PANEL_BG, width=2)
-        self._ui["node_a_lbl"] = c.create_text(0, 0, text="A", fill=PANEL_BG, font=FONT_7B)
-
-        self._ui["node_b_halo"] = c.create_oval(0, 0, 0, 0, fill="", outline=COL_B, width=1)
-        self._ui["node_b"] = c.create_oval(0, 0, 0, 0, fill=COL_B, outline=PANEL_BG, width=2)
-        self._ui["node_b_lbl"] = c.create_text(0, 0, text="B", fill=PANEL_BG, font=FONT_7B)
-
-        self._ui["info_a"] = c.create_text(gx0 + 8, gy0 + 12, anchor="w", text="", fill=COL_A, font=FONT_8B)
-        self._ui["info_b"] = c.create_text(gx1 - 8, gy0 + 12, anchor="e", text="", fill=COL_B, font=FONT_8B)
-        self._ui["info_mid"] = c.create_text((gx0 + gx1) * 0.5, gy0 + 12, text="", fill=LABEL_HI, font=FONT_7B)
-
-        mx0 = gx1 + 6
-        mx1 = w - pad
-        my0 = gy0
-        byp_h = 26
-        my1 = gy1 - byp_h - 4
-        c.create_rectangle(mx0, my0, mx1, my1, fill=PANEL_BG, outline=LINE_DIM, width=1)
-
-        mw = (mx1 - mx0 - 10) // 3
-        m_top = my0 + 16
-        m_bot = my1 - 6
-        self._geom["meter_y"] = (m_top, m_bot)
-        cols = (("in", "IN", COL_B), ("env", "ENV", COL_ENV), ("out", "OUT", COL_A))
-        for idx, (mkey, mlbl, mcol) in enumerate(cols):
-            bx0 = mx0 + 3 + idx * (mw + 2)
-            bx1 = bx0 + mw
-            self._geom[f"m_{mkey}_x"] = (bx0, bx1)
-            c.create_text((bx0 + bx1) * 0.5, my0 + 8, text=mlbl, fill=LABEL_DIM, font=FONT_6B)
-            c.create_rectangle(bx0, m_top, bx1, m_bot, fill="#111418", outline=GRID_COL, width=1)
-            self._ui[f"bar_{mkey}"] = c.create_rectangle(bx0 + 1, m_bot, bx1 - 1, m_bot, fill=mcol, outline="")
-
-        by_y0 = my1 + 4
-        by_y1 = gy1
-        self.hit_rects["drive_byp"] = (mx0, by_y0, mx1, by_y1)
-        self._ui["btn_drive_byp"] = c.create_rectangle(mx0, by_y0, mx1, by_y1, fill=BUTTON_BG, outline=LINE_DIM, width=1)
-        self._ui["txt_drive_byp"] = c.create_text((mx0 + mx1) * 0.5, (by_y0 + by_y1) * 0.5, text="", fill=COL_DRV, font=FONT_7B)
-
-        dy0 = gy1 + 6
-        dy1 = h - pad
-        row1_h = int((dy1 - dy0 - 4) * 0.48)
-        r1_y0 = dy0
-        r1_y1 = dy0 + row1_h
-        r2_y0 = r1_y1 + 4
-        r2_y1 = dy1
-
-        half_w = (w - 2 * pad - 6) // 2
-        ma_x0, ma_x1 = pad, pad + half_w
-        mb_x0, mb_x1 = ma_x1 + 6, w - pad
-        self.morph_a_box = (ma_x0, r1_y0, ma_x1, r1_y1)
-        self.morph_b_box = (mb_x0, r1_y0, mb_x1, r1_y1)
-
-        for key, box, col in (("morph_a", self.morph_a_box, COL_A), ("morph_b", self.morph_b_box, COL_B)):
-            x0, y0, x1, y1 = box
-            c.create_rectangle(x0, y0, x1, y1, fill=PANEL_BG, outline=LINE_DIM, width=1)
-            self._ui[f"fill_{key}"] = c.create_rectangle(x0 + 1, y0 + 1, x0 + 1, y1 - 1, fill="#2c2614" if key == "morph_a" else "#16283a", outline="")
-            self._ui[f"eff_{key}"] = c.create_line(x0, y0 + 2, x0, y1 - 2, fill=col, width=2)
-            self._ui[f"txt_{key}"] = c.create_text((x0 + x1) * 0.5, (y0 + y1) * 0.5, text="", fill=LABEL_HI, font=FONT_7B)
-
-        bars = (
-            ("lfo_mod",    "LFO>CUT",   COL_MOD, True, "g_mod"),
-            ("morph_mod",  "MOD>MORPH", COL_A,   True, "g_mod"),
-            ("env_mod",    "ENV>CUT",   COL_ENV, True, "g_mod"),
-            ("ab_balance", "A/B BAL",   COL_B,   True, "g_route"),
-        )
-        bw = (w - 2 * pad - 3 * 4) // 4
-        bx = pad
-        for idx, (sym, lbl, col, bipolar, grp) in enumerate(bars):
-            bx1 = bx + bw if idx < 3 else (w - pad)
-            self.mod_bars[sym] = (bx, r2_y0, bx1, r2_y1, bipolar, grp)
-            c.create_rectangle(bx, r2_y0, bx1, r2_y1, fill=PANEL_BG, outline=LINE_DIM, width=1)
-            if bipolar:
-                xm = (bx + bx1) * 0.5
-                c.create_line(xm, r2_y0 + 1, xm, r2_y1 - 1, fill=ZERO_COL, width=1)
-            self._ui[f"fill_{sym}"] = c.create_rectangle(bx + 1, r2_y0 + 1, bx + 1, r2_y1 - 1, fill="#252c38", outline="")
-            self._ui[f"txt_{sym}"] = c.create_text((bx + bx1) * 0.5, (r2_y0 + r2_y1) * 0.5, text=lbl, fill=LABEL_HI, font=FONT_7B)
-            bx = bx1 + 4
-
-        self._geom["w"] = w
-        self._geom["h"] = h
-
-    def _build_fx_scene(self, w, h):
-        """Play / Live Effects screen modeled directly after Eka Echo's FX screen."""
-        c = self.widget_canvas
-        c.delete("all")
+    def _ensure_scene(self, w, h):
+        key = (int(w), int(h), bool(self.fx_view))
+        if self._scene_key == key:
+            return
+        self._scene_key = key
+        cv = self.widget_canvas
+        cv.delete("all")
         self._ui.clear()
         self._cache.clear()
         self.hit_rects.clear()
         self.fx_sliders.clear()
 
-        pad = max(6, int(w * 0.012))
-        btn_h = max(34, min(42, int(h * 0.115)))
-        meter_w = max(42, int(w * 0.078))
+        pad = 6
+        btn_h = max(36, min(44, int(h * 0.12)))
+        strip_h = max(32, min(40, int(h * 0.10)))
+        meter_w = 68
 
-        x0 = pad
-        y0 = pad
-        x1 = w - pad - meter_w - 6
-        y1 = h - pad - btn_h - 6
+        gx0 = pad
+        gy0 = pad
+        gx1 = w - pad - meter_w - 6
+        gy1 = h - pad - btn_h - strip_h - 12
+        fy1 = gy1 + 6 + strip_h
+        self.graph_box = (gx0, gy0, gx1, gy1)
 
-        c.create_rectangle(x0, y0, x1, y1, fill=PANEL_BG, outline=LINE_DIM, width=1)
-        self._ui["fx_hdr_l"] = c.create_text(x0 + 8, y0 + 5, text="", anchor="nw", fill=LABEL_HI, font=FONT_8B)
-        self._ui["fx_hdr_r"] = c.create_text(x1 - 8, y0 + 5, text="", anchor="ne", fill=COL_A, font=FONT_8B)
+        self._geom = {
+            "w": w, "h": h, "pad": pad,
+            "gx0": gx0, "gy0": gy0, "gx1": gx1, "gy1": gy1, "fy1": fy1,
+        }
 
-        inner_x0 = x0 + 8
-        inner_x1 = x1 - 8
-        sl_h = max(30, min(38, int((y1 - y0) * 0.17)))
-        pad_y0 = y0 + 22
+        if self.fx_view:
+            self._build_fx_screen(cv, gx0, gy0, gx1, fy1)
+            self._build_meters(cv, gx1, gy0, fy1, w, pad)
+            self._build_buttons(cv, pad, fy1 + 6, w - pad, h - pad,
+                                ("fx", "fx_link", "snap", "zero", "routing", "inv_byp"))
+        else:
+            self._build_graph(cv, gx0, gy0, gx1, gy1)
+            self._build_morph_strip(cv, gx0, gy1 + 6, gx1, fy1)
+            self._build_meters(cv, gx1, gy0, fy1, w, pad)
+            self._build_buttons(cv, pad, fy1 + 6, w - pad, h - pad,
+                                ("fx", "model_a", "model_b", "routing", "shape", "link"))
+
+    def _build_graph(self, cv, gx0, gy0, gx1, gy1):
+        cv.create_rectangle(gx0, gy0, gx1, gy1, fill=PANEL_BG, outline=LINE_DIM, width=1)
+
+        # Log frequency grid lines with physical Hz / kHz units
+        for gf, glbl in ((50.0, "50"), (100.0, "100"), (200.0, "200"), (500.0, "500"),
+                         (1000.0, "1k"), (2000.0, "2k"), (5000.0, "5k"), (10000.0, "10k")):
+            xg = self._freq_to_x(gf, gx0, gx1)
+            cv.create_line(xg, gy0 + 20, xg, gy1 - 16, fill=GRID_COL, width=1)
+            cv.create_text(xg, gy1 - 3, text=glbl, anchor="s", fill=LABEL_DIM, font=FONT_7B)
+
+        # Horizontal dB grid lines
+        for gdb in (-12.0, 0.0, 12.0):
+            yg = self._db_to_y(gdb, gy0, gy1)
+            col = ZERO_COL if gdb == 0.0 else GRID_COL
+            cv.create_line(gx0 + 1, yg, gx1 - 1, yg, fill=col, width=1.4 if gdb == 0.0 else 1.0)
+            cv.create_text(gx0 + 6, yg - 2, text=f"{gdb:+.0f}dB" if gdb else "0dB",
+                           anchor="sw", fill=LABEL_DIM, font=FONT_6B)
+
+        ui = self._ui
+        ymid = (gy0 + gy1) * 0.5
+        flat_poly = (gx0, gy1, gx0, ymid, gx1, ymid, gx1, gy1)
+        flat_line = (gx0, ymid, gx1, ymid)
+
+        ui["poly_sum"]  = cv.create_polygon(*flat_poly, fill=FILL_SUM, outline="")
+        ui["curve_a"]   = cv.create_line(*flat_line, fill=COL_A, width=2)
+        ui["curve_b"]   = cv.create_line(*flat_line, fill=COL_B, width=2)
+        ui["curve_sum"] = cv.create_line(*flat_line, fill=COL_SUM, width=2.4)
+
+        # Modulation spans & live modulated cutoff lines/dots
+        ui["span_a"]     = cv.create_line(gx0, ymid, gx0, ymid, fill=COL_A, width=3)
+        ui["span_b"]     = cv.create_line(gx0, ymid, gx0, ymid, fill=COL_B, width=3)
+        ui["eff_line_a"] = cv.create_line(gx0, gy0 + 20, gx0, gy1 - 16, fill=COL_A, width=1, dash=(3, 3))
+        ui["eff_line_b"] = cv.create_line(gx0, gy0 + 20, gx0, gy1 - 16, fill=COL_B, width=1, dash=(3, 3))
+        ui["eff_dot_a"]  = cv.create_oval(0, 0, 0, 0, fill=COL_A, outline=PANEL_BG, width=1)
+        ui["eff_dot_b"]  = cv.create_oval(0, 0, 0, 0, fill=COL_B, outline=PANEL_BG, width=1)
+
+        # Interactive 2D nodes for Filter A and Filter B (large touch target, selection halo)
+        ui["node_a_halo"] = cv.create_oval(0, 0, 0, 0, fill="", outline=COL_A, width=2)
+        ui["node_a"]      = cv.create_oval(0, 0, 0, 0, fill=COL_A, outline=LABEL_HI, width=2)
+        ui["node_a_lbl"]  = cv.create_text(0, 0, text="A", fill="#101318", font=FONT_9B)
+
+        ui["node_b_halo"] = cv.create_oval(0, 0, 0, 0, fill="", outline=COL_B, width=2)
+        ui["node_b"]      = cv.create_oval(0, 0, 0, 0, fill=COL_B, outline=LABEL_HI, width=2)
+        ui["node_b_lbl"]  = cv.create_text(0, 0, text="B", fill="#101318", font=FONT_9B)
+
+        # Top-left & top-right header readouts inside graph (like Eka Echo / Modls / Q-4)
+        ui["hdr_l"]    = cv.create_text(gx0 + 10, gy0 + 5, anchor="nw", text="", fill=LABEL_HI, font=FONT_8B)
+        ui["hdr_r"]    = cv.create_text(gx1 - 10, gy0 + 5, anchor="ne", text="", fill=COL_A, font=FONT_8B)
+        ui["foot_mod"] = cv.create_text(gx0 + 10, gy1 - 16, anchor="sw", text="", fill=LABEL_DIM, font=FONT_7B)
+
+    def _build_morph_strip(self, cv, x0, y0, x1, y1):
+        """Middle interactive strip: Morph A bar (left) & Morph B bar (right), 6 px gap."""
+        gap = 6
+        mid = (x0 + x1) * 0.5
+        ma_x0, ma_x1 = x0, mid - gap * 0.5
+        mb_x0, mb_x1 = mid + gap * 0.5, x1
+        self.morph_a_box = (ma_x0, y0, ma_x1, y1)
+        self.morph_b_box = (mb_x0, y0, mb_x1, y1)
+
+        ui = self._ui
+        for key, box, fill_c, line_c in (
+            ("morph_a", self.morph_a_box, FILL_A, COL_A),
+            ("morph_b", self.morph_b_box, FILL_B, COL_B),
+        ):
+            bx0, by0, bx1, by1 = box
+            cv.create_rectangle(bx0, by0, bx1, by1, fill=PANEL_BG, outline=LINE_DIM, width=1)
+            ui[f"fill_{key}"] = cv.create_rectangle(bx0 + 2, by0 + 2, bx0 + 2, by1 - 2, fill=fill_c, outline="")
+            ui[f"base_{key}"] = cv.create_line(bx0 + 2, by0 + 2, bx0 + 2, by1 - 2, fill=LABEL_HI, width=2)
+            ui[f"eff_{key}"]  = cv.create_line(bx0 + 2, by0 + 2, bx0 + 2, by1 - 2, fill=line_c, width=2.4)
+            ui[f"txt_{key}"]  = cv.create_text((bx0 + bx1) * 0.5, (by0 + by1) * 0.5, text="", fill=LABEL_HI, font=FONT_8B)
+
+    def _build_meters(self, cv, gx1, y0, y1, w, pad):
+        mx0 = gx1 + 6
+        mx1 = w - pad
+        cv.create_rectangle(mx0, y0, mx1, y1, fill=PANEL_BG, outline=LINE_DIM, width=1)
+
+        top = y0 + 18
+        bot = y1 - 16
+        mh = max(20.0, bot - top)
+        bw = (mx1 - mx0 - 12) / 3.0
+
+        ui = self._ui
+        ui["m_title"] = cv.create_text((mx0 + mx1) * 0.5, y0 + 9, text="LEVELS", fill=LABEL_DIM, font=FONT_6B)
+        labels = ("IN", "ENV", "OUT")
+        colors = (COL_B, COL_ENV, COL_A)
+        m_items = []
+        for i in range(3):
+            bx0 = mx0 + 4 + i * (bw + 2.0)
+            bx1 = bx0 + bw - 1.5
+            cv.create_rectangle(bx0, top, bx1, bot, fill=TRACK_BG, outline=GRID_COL, width=1)
+            bar_id = cv.create_rectangle(bx0 + 1, bot, bx1 - 1, bot, fill=colors[i], outline="")
+            hold_id = cv.create_line(bx0 + 1, bot, bx1 - 1, bot, fill=LABEL_HI, width=2)
+            lbl_id = cv.create_text((bx0 + bx1) * 0.5, y1 - 8, text=labels[i], fill=LABEL_DIM, font=FONT_6B)
+            m_items.append((bx0, bx1, bar_id, hold_id, lbl_id, colors[i]))
+
+        self._geom["m_top"] = top
+        self._geom["m_bot"] = bot
+        self._geom["m_h"] = mh
+        ui["meters"] = tuple(m_items)
+
+    def _build_buttons(self, cv, x0, y0, x1, y1, keys):
+        """6 large two-line touch buttons at the bottom (height 36..44 px, gap 6 px)."""
+        gap = 6
+        bw = (x1 - x0 - gap * (len(keys) - 1)) / float(len(keys))
+        cy = (y0 + y1) * 0.5
+        slots = []
+        for i, key in enumerate(keys):
+            bx0 = x0 + i * (bw + gap)
+            bx1 = bx0 + bw
+            self.hit_rects[key] = (bx0, y0, bx1, y1)
+            cx = (bx0 + bx1) * 0.5
+            r_id = cv.create_rectangle(bx0, y0, bx1, y1, fill=BUTTON_BG, outline=LINE_DIM, width=1.5)
+            t_id = cv.create_text(cx, cy - 7, text="", fill=LABEL_HI, font=FONT_7B)
+            s_id = cv.create_text(cx, cy + 7, text="", fill=COL_A, font=FONT_8B)
+            slots.append((r_id, t_id, s_id))
+        self._ui["btns"] = tuple(slots)
+
+    def _build_fx_screen(self, cv, x0, y0, x1, y1):
+        """Play / Live Effects screen matching Eka Echo & Modls."""
+        cv.create_rectangle(x0, y0, x1, y1, fill=PANEL_BG, outline=LINE_DIM, width=1)
+        ui = self._ui
+        ui["fx_hdr_l"] = cv.create_text(x0 + 10, y0 + 5, text="", anchor="nw", fill=LABEL_HI, font=FONT_8B)
+        ui["fx_hdr_r"] = cv.create_text(x1 - 10, y0 + 5, text="", anchor="ne", fill=COL_A, font=FONT_8B)
+
+        inner_x0 = x0 + 10
+        inner_x1 = x1 - 10
+        sl_h = max(34, min(40, int((y1 - y0) * 0.17)))
+        pad_y0 = y0 + 24
         pad_y1 = y1 - sl_h - 14
         self.xy_box = (inner_x0, pad_y0, inner_x1, pad_y1)
 
-        # 1. Big Play X-Y Pad: X = SWEEP FX (-100..+100%, +/- 3.5 octaves), Y = MORPH FX (-100..+100%)
-        c.create_rectangle(inner_x0, pad_y0, inner_x1, pad_y1, fill=BUTTON_BG, outline=LINE_DIM, width=1)
+        cv.create_rectangle(inner_x0, pad_y0, inner_x1, pad_y1, fill=TRACK_BG, outline=LINE_DIM, width=1.2)
         cx = (inner_x0 + inner_x1) * 0.5
         cy = (pad_y0 + pad_y1) * 0.5
         pw = max(1.0, inner_x1 - inner_x0)
 
         for frac, lbl in ((-0.5, "-1.8 oct"), (0.0, "0 (BASE)"), (0.5, "+1.8 oct")):
             gx = cx + frac * pw * 0.5
-            c.create_line(gx, pad_y0 + 1, gx, pad_y1 - 1,
-                          fill=ZERO_COL if frac == 0.0 else GRID_COL,
-                          width=2 if frac == 0.0 else 1)
-            c.create_text(gx, pad_y1 - 3, text=lbl, anchor="s", fill=LABEL_DIM, font=FONT_7B)
-        c.create_line(inner_x0 + 1, cy, inner_x1 - 1, cy, fill=ZERO_COL, width=2)
+            cv.create_line(gx, pad_y0 + 1, gx, pad_y1 - 1,
+                           fill=ZERO_COL if frac == 0.0 else GRID_COL,
+                           width=1.5 if frac == 0.0 else 1.0)
+            cv.create_text(gx, pad_y1 - 3, text=lbl, anchor="s", fill=LABEL_DIM, font=FONT_7B)
+        cv.create_line(inner_x0 + 1, cy, inner_x1 - 1, cy, fill=ZERO_COL, width=1.5)
 
-        c.create_text(cx, pad_y0 + 4, text="▲ MORPH + (HP / NOTCH / BRIGHT)", anchor="n", fill=COL_B, font=FONT_7B)
-        c.create_text(cx, pad_y1 - 15, text="▼ MORPH - (LP / VOWEL A / SUB)", anchor="s", fill=COL_A, font=FONT_7B)
-        c.create_text(inner_x0 + 5, cy - 4, text="◄ -3.5 oct", anchor="sw", fill=LABEL_DIM, font=FONT_6B)
-        c.create_text(inner_x1 - 5, cy - 4, text="+3.5 oct ►", anchor="se", fill=LABEL_DIM, font=FONT_6B)
+        cv.create_text(cx, pad_y0 + 4, text="▲ MORPH + (HP / NOTCH / BRIGHT)", anchor="n", fill=COL_B, font=FONT_7B)
+        cv.create_text(cx, pad_y1 - 15, text="▼ MORPH - (LP / VOWEL A / SUB)", anchor="s", fill=COL_A, font=FONT_7B)
+        cv.create_text(inner_x0 + 6, cy - 4, text="◄ -3.5 oct", anchor="sw", fill=LABEL_DIM, font=FONT_7B)
+        cv.create_text(inner_x1 - 6, cy - 4, text="+3.5 oct ►", anchor="se", fill=LABEL_DIM, font=FONT_7B)
 
-        self._ui["xy_cross_v"] = c.create_line(cx, pad_y0 + 2, cx, pad_y1 - 2, fill=GRID_COL, width=1)
-        self._ui["xy_cross_h"] = c.create_line(inner_x0 + 2, cy, inner_x1 - 2, cy, fill=GRID_COL, width=1)
-        self._ui["xy_vec"] = c.create_line(cx, cy, cx, cy, fill=COL_MOD, width=2)
-        self._ui["xy_eff_a"] = c.create_oval(cx - 5, cy - 5, cx + 5, cy + 5, fill=COL_A, outline=PANEL_BG, width=1)
-        self._ui["xy_eff_b"] = c.create_oval(cx - 5, cy - 5, cx + 5, cy + 5, fill=COL_B, outline=PANEL_BG, width=1)
-        self._ui["xy_puck"] = c.create_oval(cx - 12, cy - 12, cx + 12, cy + 12, fill=LABEL_HI, outline=LABEL_HI, width=2)
-        self._ui["xy_puck_dot"] = c.create_oval(cx - 3, cy - 3, cx + 3, cy + 3, fill="#101318", outline="")
-        self._ui["xy_readout"] = c.create_text(inner_x0 + 6, pad_y0 + 4, text="", anchor="nw", fill=LABEL_HI, font=FONT_8B)
-        self._ui["xy_spring_tag"] = c.create_text(inner_x1 - 6, pad_y0 + 4, text="", anchor="ne", fill=COL_ENV, font=FONT_7B)
+        ui["xy_cross_v"] = cv.create_line(cx, pad_y0 + 2, cx, pad_y1 - 2, fill=GRID_COL, width=1)
+        ui["xy_cross_h"] = cv.create_line(inner_x0 + 2, cy, inner_x1 - 2, cy, fill=GRID_COL, width=1)
+        ui["xy_vec"]     = cv.create_line(cx, cy, cx, cy, fill=COL_FX, width=2.2)
+        ui["xy_eff_a"]   = cv.create_oval(cx - 5, cy - 5, cx + 5, cy + 5, fill=COL_A, outline=PANEL_BG, width=1)
+        ui["xy_eff_b"]   = cv.create_oval(cx - 5, cy - 5, cx + 5, cy + 5, fill=COL_B, outline=PANEL_BG, width=1)
+        ui["xy_puck"]    = cv.create_oval(cx - 12, cy - 12, cx + 12, cy + 12, fill=LABEL_HI, outline=LABEL_HI, width=2)
+        ui["xy_puck_dot"]= cv.create_oval(cx - 3, cy - 3, cx + 3, cy + 3, fill="#101318", outline="")
+        ui["xy_readout"] = cv.create_text(inner_x0 + 6, pad_y0 + 4, text="", anchor="nw", fill=LABEL_HI, font=FONT_8B)
+        ui["xy_spring_tag"] = cv.create_text(inner_x1 - 6, pad_y0 + 4, text="", anchor="ne", fill=COL_ENV, font=FONT_7B)
 
-        # 2. Bottom row inside Play panel: SCREAM FX slider + "0" button (left) & FX SMOOTH slider (right)
+        # Bottom row inside Play panel: SCREAM FX slider + "0" button (left) & SMOOTH slider (right)
         wy0 = pad_y1 + 6
         wy1 = y1 - 8
-        z_btn_w = 34
-        smooth_w = max(92, min(176, int(pw * 0.32)))
+        z_btn_w = 38
+        smooth_w = max(96, min(180, int(pw * 0.32)))
         sm_x0 = inner_x1 - smooth_w
         zx1 = sm_x0 - 8
         zx0 = zx1 - z_btn_w
         bar_x1 = zx0 - 6
 
         self.fx_sliders["scream_fx"] = (inner_x0, wy0, bar_x1, wy1, False)
-        c.create_rectangle(inner_x0, wy0, bar_x1, wy1, fill=BUTTON_BG, outline=LINE_DIM, width=1)
-        self._ui["fill_scream_fx"] = c.create_rectangle(inner_x0 + 1, wy0 + 2, inner_x0 + 1, wy1 - 2, fill=COL_MOD, outline="")
-        self._ui["line_scream_fx"] = c.create_line(inner_x0, wy0 + 2, inner_x0, wy1 - 2, fill=LABEL_HI, width=2)
-        self._ui["txt_scream_fx"] = c.create_text((inner_x0 + bar_x1) * 0.5, (wy0 + wy1) * 0.5, text="SCREAM FX 0%", fill=LABEL_HI, font=FONT_8B)
+        cv.create_rectangle(inner_x0, wy0, bar_x1, wy1, fill=BUTTON_BG, outline=LINE_DIM, width=1.2)
+        ui["fill_scream_fx"] = cv.create_rectangle(inner_x0 + 1, wy0 + 2, inner_x0 + 1, wy1 - 2, fill=COL_FX, outline="")
+        ui["line_scream_fx"] = cv.create_line(inner_x0, wy0 + 2, inner_x0, wy1 - 2, fill=LABEL_HI, width=2.4)
+        ui["txt_scream_fx"]  = cv.create_text((inner_x0 + bar_x1) * 0.5, (wy0 + wy1) * 0.5, text="SCREAM FX 0%", fill=LABEL_HI, font=FONT_9B)
 
         self.hit_rects["z_scream_fx"] = (zx0, wy0, zx1, wy1)
-        self._ui["btn_z_scream"] = c.create_rectangle(zx0, wy0, zx1, wy1, fill=BUTTON_BG, outline=COL_MOD, width=1)
-        self._ui["txt_z_scream"] = c.create_text((zx0 + zx1) * 0.5, (wy0 + wy1) * 0.5, text="0", fill=LABEL_HI, font=FONT_9B)
+        ui["btn_z_scream"] = cv.create_rectangle(zx0, wy0, zx1, wy1, fill=BUTTON_BG, outline=COL_FX, width=1.4)
+        ui["txt_z_scream"] = cv.create_text((zx0 + zx1) * 0.5, (wy0 + wy1) * 0.5, text="0", fill=LABEL_HI, font=FONT_10B)
 
         self.fx_sliders["fx_smooth"] = (sm_x0, wy0, inner_x1, wy1, False)
-        c.create_rectangle(sm_x0, wy0, inner_x1, wy1, fill=BUTTON_BG, outline=LINE_DIM, width=1)
-        self._ui["fill_fx_smooth"] = c.create_rectangle(sm_x0 + 1, wy0 + 2, sm_x0 + 1, wy1 - 2, fill="#203b54", outline="")
-        self._ui["line_fx_smooth"] = c.create_line(sm_x0, wy0 + 2, sm_x0, wy1 - 2, fill=COL_B, width=2)
-        self._ui["txt_fx_smooth"] = c.create_text((sm_x0 + inner_x1) * 0.5, (wy0 + wy1) * 0.5, text="SMOOTH 50%", fill=LABEL_HI, font=FONT_8B)
+        cv.create_rectangle(sm_x0, wy0, inner_x1, wy1, fill=BUTTON_BG, outline=LINE_DIM, width=1.2)
+        ui["fill_fx_smooth"] = cv.create_rectangle(sm_x0 + 1, wy0 + 2, sm_x0 + 1, wy1 - 2, fill=FILL_B, outline="")
+        ui["line_fx_smooth"] = cv.create_line(sm_x0, wy0 + 2, sm_x0, wy1 - 2, fill=COL_B, width=2.4)
+        ui["txt_fx_smooth"]  = cv.create_text((sm_x0 + inner_x1) * 0.5, (wy0 + wy1) * 0.5, text="SMOOTH 50%", fill=LABEL_HI, font=FONT_8B)
 
-        # 3. Right column meters (IN / ENV / OUT)
-        mx0 = x1 + 6
-        mx1 = w - pad
-        my0 = y0
-        my1 = y1
-        c.create_rectangle(mx0, my0, mx1, my1, fill=PANEL_BG, outline=LINE_DIM, width=1)
-        mw = (mx1 - mx0 - 10) // 3
-        m_top = my0 + 16
-        m_bot = my1 - 6
-        self._geom["meter_y"] = (m_top, m_bot)
-        cols = (("in", "IN", COL_B), ("env", "ENV", COL_ENV), ("out", "OUT", COL_A))
-        for idx, (mkey, mlbl, mcol) in enumerate(cols):
-            bx0 = mx0 + 3 + idx * (mw + 2)
-            bx1 = bx0 + mw
-            self._geom[f"m_{mkey}_x"] = (bx0, bx1)
-            c.create_text((bx0 + bx1) * 0.5, my0 + 8, text=mlbl, fill=LABEL_DIM, font=FONT_6B)
-            c.create_rectangle(bx0, m_top, bx1, m_bot, fill="#111418", outline=GRID_COL, width=1)
-            self._ui[f"bar_{mkey}"] = c.create_rectangle(bx0 + 1, m_bot, bx1 - 1, m_bot, fill=mcol, outline="")
+    # ---------- incremental refresh ----------
 
-        # 4. Bottom 6 touch buttons (matching Eka Echo's Play/FX bottom bar):
-        # MAIN | LINK (A+B / A ONLY) | HOLD / SNAP 0 | ZERO 0 | ROUTE | PHASE B (long-press = BYPASS)
-        by0 = y1 + 6
-        by1 = h - pad
-        bot_btns = ("fx", "fx_link", "snap", "zero", "routing", "inv_byp")
-        gap = 5
-        bw = (w - 2 * pad - gap * (len(bot_btns) - 1)) / float(len(bot_btns))
-        for i, key in enumerate(bot_btns):
-            bx0 = pad + i * (bw + gap)
-            bx1 = bx0 + bw
-            self.hit_rects[key] = (bx0, by0, bx1, by1)
-            self._ui[f"btn_{key}"] = c.create_rectangle(bx0, by0, bx1, by1, fill=BUTTON_BG, outline=LINE_DIM, width=1)
-            self._ui[f"txt_{key}"] = c.create_text((bx0 + bx1) * 0.5, (by0 + by1) * 0.5, text="", fill=LABEL_HI, font=FONT_8B)
+    def _update_buttons(self, specs, byp):
+        prev = self._cache.get("btns")
+        if prev is None or len(prev) != len(specs):
+            prev = [None] * len(specs)
+            self._cache["btns"] = prev
+        slots = self._ui["btns"]
+        cv = self.widget_canvas
+        for i, (t, s, act, col) in enumerate(specs):
+            skey = (t, s, act, col, byp)
+            if prev[i] == skey:
+                continue
+            prev[i] = skey
+            r_id, t_id, s_id = slots[i]
+            fill = (BYP_FILL if byp else col) if act else BUTTON_BG
+            out = BYP_MID if byp else (col if act else LINE_DIM)
+            fg_t = (BYP_HI if byp else "#101318") if act else (BYP_HI if byp else LABEL_HI)
+            fg_s = (BYP_MID if byp else "#16191e") if act else (BYP_MID if byp else col)
+            cv.itemconfig(r_id, fill=fill, outline=out)
+            cv.itemconfig(t_id, text=t, fill=fg_t)
+            cv.itemconfig(s_id, text=s, fill=fg_s)
+
+    def _update_meters(self, byp, in_db, env_lv, out_db):
+        self.hold_in  = in_db  if in_db  >= self.hold_in  else max(in_db,  self.hold_in  - 1.2)
+        self.hold_out = out_db if out_db >= self.hold_out else max(out_db, self.hold_out - 1.2)
+        self.hold_env = env_lv if env_lv >= self.hold_env else max(env_lv, self.hold_env - 0.04)
+
+        bot = self._geom["m_bot"]
+        mh = self._geom["m_h"]
+        cv = self.widget_canvas
+        meters = self._ui["meters"]
+
+        vals = (
+            (_clamp((in_db - FLOOR_DB) / (6.0 - FLOOR_DB), 0.0, 1.0),
+             _clamp((self.hold_in - FLOOR_DB) / (6.0 - FLOOR_DB), 0.0, 1.0)),
+            (_clamp(env_lv, 0.0, 1.0), _clamp(self.hold_env, 0.0, 1.0)),
+            (_clamp((out_db - FLOOR_DB) / (6.0 - FLOOR_DB), 0.0, 1.0),
+             _clamp((self.hold_out - FLOOR_DB) / (6.0 - FLOOR_DB), 0.0, 1.0)),
+        )
+        for i, ((val, hold), (bx0, bx1, bar_id, hold_id, lbl_id, col)) in enumerate(zip(vals, meters)):
+            fy = bot - val * mh
+            hy = bot - hold * mh
+            bcol = BYP_MID if byp else (HOT_RED if (i != 1 and val > 0.92) else col)
+            cv.coords(bar_id, bx0 + 1, fy, bx1 - 1, bot - 1)
+            cv.itemconfig(bar_id, fill=bcol)
+            cv.coords(hold_id, bx0 + 1, hy, bx1 - 1, hy)
+            cv.itemconfig(hold_id, fill=BYP_HI if byp else LABEL_HI)
+            cv.itemconfig(lbl_id, fill=BYP_MID if byp else LABEL_DIM)
 
     def refresh_gui(self, sample_telemetry=True):
-        w = self.width or self.widget_canvas.winfo_width() or 640
-        h = self.height or self.widget_canvas.winfo_height() or 380
-        key = (int(w), int(h), bool(self.fx_view))
-        if self._scene_key != key:
-            self._scene_key = key
-            if self.fx_view:
-                self._build_fx_scene(int(w), int(h))
-            else:
-                self._build_main_scene(int(w), int(h))
+        self._follow_page()
+        w = max(240, int(self.width or self.widget_canvas.winfo_width() or 640))
+        h = max(180, int(self.height or self.widget_canvas.winfo_height() or 380))
+        self._ensure_scene(w, h)
 
-        # Handle MIDI-mappable fx_zero trigger like Eka Echo
         if self._get("fx_zero", 0.0) >= 0.5:
             self._cancel_spring()
             self._set("sweep_fx", 0.0)
@@ -934,18 +1046,7 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
 
         div_lbl, _ = nearest_rate_division(rate, bpm)
         self._sync_encoder_titles(sync_on, div_lbl)
-
-        # Update meters (present on both Main and Play/FX views)
-        m_top, m_bot = self._geom["meter_y"]
-        mh = max(1.0, m_bot - m_top)
-        for mkey, val_norm in (
-            ("in",  _clamp((in_pk - FLOOR_DB) / (6.0 - FLOOR_DB), 0.0, 1.0)),
-            ("env", _clamp(env_lv, 0.0, 1.0)),
-            ("out", _clamp((out_pk - FLOOR_DB) / (6.0 - FLOOR_DB), 0.0, 1.0)),
-        ):
-            bx0, bx1 = self._geom[f"m_{mkey}_x"]
-            yt = m_bot - val_norm * mh
-            self._coords(f"bar_{mkey}", bx0 + 1, yt, bx1 - 1, m_bot)
+        self._update_meters(byp, in_pk, env_lv, out_pk)
 
         fx_nonzero = (abs(sweep_fx) >= 0.75 or abs(morph_fx) >= 0.75 or scream_fx >= 0.75)
 
@@ -957,25 +1058,7 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
             )
             return
 
-        # Top buttons update
-        m_a_name, m_a_col = MODELS[model_a]
-        m_b_name, m_b_col = MODELS[model_b]
-        col_a = BYP_MID if byp else COL_A
-        col_b = BYP_MID if byp else COL_B
-        col_sum = BYP_HI if byp else COL_SUM
-
-        self._cfg("btn_fx", fill=COL_MOD if (fx_nonzero and not byp) else BUTTON_BG, outline=COL_MOD if not byp else LINE_DIM)
-        self._cfg("txt_fx", text="PLAY *" if fx_nonzero else "PLAY FX", fill="#101318" if (fx_nonzero and not byp) else (COL_MOD if not byp else LABEL_DIM))
-        self._cfg("txt_model_a", text=f"A: {m_a_name}", fill=BYP_HI if byp else m_a_col)
-        self._cfg("txt_model_b", text=f"B: {m_b_name}", fill=BYP_HI if byp else m_b_col)
-        self._cfg("txt_routing", text=ROUTINGS[routing], fill=LABEL_HI)
-        self._cfg("txt_link", text=f"LNK:{LINKS[link_m]}", fill=COL_A if link_m > 0 and not byp else LABEL_DIM)
-        self._cfg("txt_inv_b", text="ØB:INV" if inv_b else "ØB:NRM", fill=HOT_RED if inv_b and not byp else LABEL_DIM)
-        self._cfg("txt_shape", text=f"LFO:{LFO_SHAPES[shape]}", fill=COL_MOD if not byp else LABEL_DIM)
-        rate_txt = f"SYNC {div_lbl}" if sync_on else _fmt_rate(rate)
-        self._cfg("txt_sync", text=rate_txt, fill=COL_ENV if sync_on and not byp else LABEL_HI)
-
-        # Frequency Response curves calculation at live modulated cutoffs & morphs
+        # 1. Frequency Response Graph
         gx0, gy0, gx1, gy1 = self.graph_box
         scr_norm = scream_fx * 0.01
         eff_res_a = _clamp(res_a + scr_norm * (93.0 - res_a) * 0.85, 0.0, 100.0)
@@ -1011,16 +1094,21 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
             d_sum = _clamp(d_sum * (mix * 0.01), -DB_SPAN, DB_SPAN)
             pts_sum.extend((x, self._db_to_y(d_sum, gy0, gy1)))
 
+        col_a = BYP_MID if byp else COL_A
+        col_b = BYP_MID if byp else COL_B
+        col_sum = BYP_HI if byp else COL_SUM
+
         self._coords("curve_a", *pts_a)
         self._coords("curve_b", *pts_b)
         self._coords("curve_sum", *pts_sum)
         self._coords("poly_sum", gx0, gy1, *pts_sum, gx1, gy1)
 
-        self._cfg("curve_a", fill=col_a)
-        self._cfg("curve_b", fill=col_b)
+        self._cfg("curve_a", fill=col_a, width=2.2 if self.selected_chain == "a" else 1.5)
+        self._cfg("curve_b", fill=col_b, width=2.2 if self.selected_chain == "b" else 1.5)
         self._cfg("curve_sum", fill=col_sum)
         self._cfg("poly_sum", fill=BYP_FILL if byp else FILL_SUM)
 
+        # Base handles & live modulated indicators
         xa_base = self._freq_to_x(cut_a, gx0, gx1)
         ya_base = self._res_to_y(res_a, gy0, gy1)
         xb_base = self._freq_to_x(cut_b, gx0, gx1)
@@ -1033,61 +1121,84 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
 
         self._coords("span_a", xa_base, ya_base, xa_eff, ya_base)
         self._coords("span_b", xb_base, yb_base, xb_eff, yb_base)
-        self._coords("eff_line_a", xa_eff, gy0 + 2, xa_eff, gy1 - 2)
-        self._coords("eff_line_b", xb_eff, gy0 + 2, xb_eff, gy1 - 2)
+        self._coords("eff_line_a", xa_eff, gy0 + 20, xa_eff, gy1 - 16)
+        self._coords("eff_line_b", xb_eff, gy0 + 20, xb_eff, gy1 - 16)
         self._coords("eff_dot_a", xa_eff - 4, ya_base - 4, xa_eff + 4, ya_base + 4)
         self._coords("eff_dot_b", xb_eff - 4, yb_base - 4, xb_eff + 4, yb_base + 4)
 
-        r = 10
-        rh = 14
-        self._coords("node_a_halo", xa_base - rh, ya_base - rh, xa_base + rh, ya_base + rh)
-        self._coords("node_a", xa_base - r, ya_base - r, xa_base + r, ya_base + r)
+        ra = 13 if self.selected_chain == "a" else 10
+        rb = 13 if self.selected_chain == "b" else 10
+        self._coords("node_a_halo", xa_base - ra - 4, ya_base - ra - 4, xa_base + ra + 4, ya_base + ra + 4)
+        self._coords("node_a", xa_base - ra, ya_base - ra, xa_base + ra, ya_base + ra)
         self._coords("node_a_lbl", xa_base, ya_base)
+        self._cfg("node_a", fill=col_a, outline=LABEL_HI if self.selected_chain == "a" else col_a)
 
-        self._coords("node_b_halo", xb_base - rh, yb_base - rh, xb_base + rh, yb_base + rh)
-        self._coords("node_b", xb_base - r, yb_base - r, xb_base + r, yb_base + r)
+        self._coords("node_b_halo", xb_base - rb - 4, yb_base - rb - 4, xb_base + rb + 4, yb_base + rb + 4)
+        self._coords("node_b", xb_base - rb, yb_base - rb, xb_base + rb, yb_base + rb)
         self._coords("node_b_lbl", xb_base, yb_base)
+        self._cfg("node_b", fill=col_b, outline=LABEL_HI if self.selected_chain == "b" else col_b)
 
-        fx_tag = " [PLAY FX]" if fx_nonzero else ""
-        self._cfg("info_a", text=f"A: {_fmt_freq(eff_ca)}  Q:{eff_res_a:.0f}%{fx_tag}", fill=col_a)
-        self._cfg("info_b", text=f"B: {_fmt_freq(eff_cb)}  Q:{eff_res_b:.0f}%", fill=col_b)
-        self._cfg("info_mid", text=f"Δφ:{phase_b:.0f}°  MIX:{mix:.0f}%", fill=BYP_MID if byp else LABEL_DIM)
+        # Header & footer readouts inside graph
+        m_a_name, m_a_col = MODELS[model_a]
+        m_b_name, m_b_col = MODELS[model_b]
+        r_name, r_col = ROUTINGS[routing]
+        fx_tag = " · [PLAY FX]" if fx_nonzero else ""
+        inv_tag = " · ØB INV" if inv_b else ""
+        hdr_l = (
+            f"A {m_a_name} {_fmt_freq(eff_ca)} Q{eff_res_a:.0f}%  ·  "
+            f"B {m_b_name} {_fmt_freq(eff_cb)} Q{eff_res_b:.0f}%{inv_tag}{fx_tag}"
+        )
+        self._cfg("hdr_l", text=hdr_l, fill=BYP_HI if byp else LABEL_HI)
 
         if byp:
-            self._cfg("btn_drive_byp", fill="#352024")
-            self._cfg("txt_drive_byp", text="BYPASS", fill=HOT_RED)
+            badge_txt, badge_col = "BYPASS", BYP_HI
         else:
-            self._cfg("btn_drive_byp", fill=BUTTON_BG)
-            self._cfg("txt_drive_byp", text=f"DRV {drive:.0f}%", fill=COL_DRV)
+            badge_txt, badge_col = f"{r_name} · DRV {drive:.0f}% · MIX {mix:.0f}%", r_col
+        self._cfg("hdr_r", text=badge_txt, fill=badge_col)
 
-        for key, box, val, eff_v, lbl in (
-            ("morph_a", self.morph_a_box, morph_a, eff_ma, "MORPH A"),
-            ("morph_b", self.morph_b_box, morph_b, eff_mb, "MORPH B"),
+        sh_name, _ = LFO_SHAPES[shape]
+        rate_str = f"{div_lbl} ({bpm:.0f})" if sync_on else _fmt_rate(rate)
+        foot_txt = (
+            f"LFO {sh_name} {rate_str} Δφ{phase_b:.0f}° → CUT {lfo_mod:+.0f}%  ·  "
+            f"MOD→MORPH {morph_mod:+.0f}%  ·  ENV→CUT {env_mod:+.0f}%"
+        )
+        self._cfg("foot_mod", text=foot_txt, fill=BYP_MID if byp else LABEL_DIM)
+
+        # 2. Middle Morph A & Morph B strip
+        for key, box, model, val, eff_v, prefix, fcol in (
+            ("morph_a", self.morph_a_box, model_a, morph_a, eff_ma, "MORPH A", FILL_A),
+            ("morph_b", self.morph_b_box, model_b, morph_b, eff_mb, "MORPH B", FILL_B),
         ):
-            x0, y0, x1, y1 = box
-            xf = x0 + 1 + (x1 - x0 - 2) * (val * 0.01)
-            xe = x0 + 1 + (x1 - x0 - 2) * (eff_v * 0.01)
-            self._coords(f"fill_{key}", x0 + 1, y0 + 1, xf, y1 - 1)
-            self._coords(f"eff_{key}", xe, y0 + 2, xe, y1 - 2)
-            self._cfg(f"txt_{key}", text=f"{lbl}: {val:.0f}%")
+            bx0, by0, bx1, by1 = box
+            span = max(1.0, bx1 - bx0 - 4)
+            xb = bx0 + 2 + span * (val * 0.01)
+            xe = bx0 + 2 + span * (eff_v * 0.01)
+            self._coords(f"fill_{key}", bx0 + 2, by0 + 2, xe, by1 - 2)
+            self._cfg(f"fill_{key}", fill=BYP_FILL if byp else fcol)
+            self._coords(f"base_{key}", xb, by0 + 2, xb, by1 - 2)
+            self._coords(f"eff_{key}", xe, by0 + 2, xe, by1 - 2)
+            mlbl = _morph_mode_label(model, eff_v)
+            self._cfg(f"txt_{key}", text=f"{prefix}: {mlbl} ({val:.0f}%)", fill=BYP_HI if byp else LABEL_HI)
 
-        vals = {
-            "lfo_mod":    (lfo_mod,   f"LFO>CUT {lfo_mod:+.0f}%"),
-            "morph_mod":  (morph_mod, f"MOD>MRPH {morph_mod:+.0f}%"),
-            "env_mod":    (env_mod,   f"ENV>CUT {env_mod:+.0f}%"),
-            "ab_balance": (ab_bal,    f"BAL {ab_bal:+.0f}%"),
-        }
-        for sym, (bx0, by0, bx1, by1, bipolar, _) in self.mod_bars.items():
-            v, txt = vals[sym]
-            xm = (bx0 + bx1) * 0.5
-            xv = xm + (v * 0.01) * ((bx1 - bx0) * 0.5 - 1)
-            self._coords(f"fill_{sym}", min(xm, xv), by0 + 1, max(xm, xv), by1 - 1)
-            self._cfg(f"txt_{sym}", text=txt)
+        # 3. Bottom 6 two-line touch buttons (GEMINI.md height 36..44 px, gap 6 px)
+        lnk_name, lnk_col = LINKS[link_m]
+        sh_name, sh_col = LFO_SHAPES[shape]
+        lfo_sub = f"{sh_name} {div_lbl}" if sync_on else f"{sh_name} {_fmt_rate(rate)}"
+        specs = (
+            ("PLAY",    "FX *" if fx_nonzero else "XY PAD", fx_nonzero, COL_FX),
+            ("FLT A",   m_a_name,                           self.selected_chain == "a", m_a_col),
+            ("FLT B",   m_b_name,                           self.selected_chain == "b", m_b_col),
+            ("ROUTE",   r_name.split()[0],                  False, r_col),
+            ("LFO",     lfo_sub,                            sync_on, sh_col),
+            ("LINK B*", "BYPASS" if byp else lnk_name,      byp or (link_m > 0), HOT_RED if byp else lnk_col),
+        )
+        self._update_buttons(specs, byp)
 
     def _refresh_fx_view(self, model_a, model_b, cut_a, cut_b, eff_ca, eff_cb, eff_ma, eff_mb,
                          routing, link_m, inv_b, sweep_fx, fx_link, morph_fx, scream_fx, fx_smooth,
                          fx_nonzero, bpm, byp):
-        link_txt = f"LINK ({LINKS[link_m]})" if fx_link else "A ONLY"
+        lnk_name, _ = LINKS[link_m]
+        link_txt = f"LINK ({lnk_name})" if fx_link else "A ONLY"
         hdr_l = f"PLAY FX · {_fmt_freq(cut_a)}/{_fmt_freq(cut_b)} → {_fmt_freq(eff_ca)}/{_fmt_freq(eff_cb)} · {link_txt}"
         self._cfg("fx_hdr_l", text=hdr_l, fill=BYP_HI if byp else LABEL_HI)
 
@@ -1111,9 +1222,9 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
         if byp:
             p_col = BYP_MID
         elif abs(sweep_fx) >= abs(morph_fx) and abs(sweep_fx) >= 0.75:
-            p_col = COL_B if sweep_fx < 0 else COL_DRV
+            p_col = COL_B if sweep_fx < 0 else COL_A
         elif abs(morph_fx) >= 0.75:
-            p_col = COL_ENV if morph_fx > 0 else COL_A
+            p_col = COL_ENV if morph_fx > 0 else COL_LFO
         else:
             p_col = LABEL_HI
 
@@ -1122,7 +1233,6 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
         self._coords("xy_vec", cx, cy, px, py)
         self._cfg("xy_vec", fill=p_col)
 
-        # Live modulated indicators for A and B on Play pad
         ux_a = math.log(_clamp(eff_ca, F_MIN, F_MAX) / F_MIN) / _LOG_F_SPAN
         ux_b = math.log(_clamp(eff_cb, F_MIN, F_MAX) / F_MIN) / _LOG_F_SPAN
         xa_dot = inner_x0 + ux_a * pw
@@ -1151,7 +1261,7 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
         self._cfg("txt_scream_fx", text=f"SCREAM FX  {scream_fx:.0f}%")
 
         active_z = (scream_fx >= 0.75) and not byp
-        self._cfg("btn_z_scream", fill=COL_MOD if active_z else BUTTON_BG)
+        self._cfg("btn_z_scream", fill=COL_FX if active_z else BUTTON_BG)
         self._cfg("txt_z_scream", fill="#101318" if active_z else LABEL_HI)
 
         # FX Smooth slider
@@ -1162,25 +1272,31 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
         self._coords("line_fx_smooth", svx, wy0 + 2, svx, wy1 - 2)
         self._cfg("txt_fx_smooth", text=f"SMOOTH {fx_smooth:.0f}%")
 
-        # Bottom 6 Play buttons (matching Eka Echo's layout)
-        btns_state = (
-            ("fx",      "MAIN",                           BYP_MID if byp else COL_B,   False),
-            ("fx_link", "LINK A+B" if fx_link else "A ONLY",
-                        BYP_MID if byp else COL_MOD,      fx_link and not byp),
-            ("snap",    "SNAP 0" if self.fx_snap else "HOLD",
-                        BYP_MID if byp else COL_ENV,      self.fx_snap and not byp),
-            ("zero",    "ZERO 0",                         BYP_MID if byp else COL_A,   fx_nonzero and not byp),
-            ("routing", ROUTINGS[routing],                BYP_MID if byp else COL_DRV, False),
-            ("inv_byp", "BYPASS" if byp else ("ØB: INV" if inv_b else "ØB: NORM"),
-                        BYP_HI if byp else HOT_RED,       byp or bool(inv_b)),
+        # Bottom 6 two-line Play buttons
+        r_name, r_col = ROUTINGS[routing]
+        specs = (
+            ("VIEW",     "MAIN",                        True,  COL_B),
+            ("FX LINK",  "A+B" if fx_link else "A ONLY", fx_link, COL_FX),
+            ("SPRING",   "SNAP 0" if self.fx_snap else "HOLD", self.fx_snap, COL_ENV),
+            ("RESET",    "ZERO 0",                      fx_nonzero, COL_LFO),
+            ("ROUTE",    r_name.split()[0],             False, r_col),
+            ("PHASE B*", "BYPASS" if byp else ("INVERT" if inv_b else "NORM"), byp or bool(inv_b), HOT_RED),
         )
-        for key, lbl, col, active in btns_state:
-            self._cfg(f"btn_{key}", fill=col if active else BUTTON_BG, outline=col)
-            self._cfg(f"txt_{key}", text=lbl, fill="#101318" if active else col)
+        self._update_buttons(specs, byp)
+
+    # ---------- touch / drag interaction & double-tap reset ----------
 
     @staticmethod
     def _in_rect(x, y, r):
         return r[0] <= x <= r[2] and r[1] <= y <= r[3]
+
+    def _check_double_tap(self, target_key, now):
+        prev_k, prev_t = self.last_tap
+        self.last_tap = (target_key, now)
+        if prev_k == target_key and (now - prev_t) <= DOUBLE_TAP_SEC:
+            self.last_tap = (None, 0.0)
+            return True
+        return False
 
     def _apply_xy_drag(self, x, y):
         px0, py0, px1, py1 = self.xy_box
@@ -1216,8 +1332,8 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
         if kind == "node":
             which = self.drag_mode[1]
             gx0, gy0, gx1, gy1 = self.graph_box
-            freq = self._x_to_freq(x, gx0, gx1)
-            res = self._y_to_res(y, gy0, gy1)
+            freq = round(self._x_to_freq(x, gx0, gx1), 1)
+            res = round(self._y_to_res(y, gy0, gy1), 1)
             if which == "a":
                 self._set("cutoff_a", freq)
                 self._set("res_a", res)
@@ -1227,17 +1343,11 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
         elif kind == "morph_a":
             x0, _, x1, _ = self.morph_a_box
             u = _clamp((x - x0) / max(1.0, x1 - x0), 0.0, 1.0)
-            self._set("morph_a", u * 100.0)
+            self._set("morph_a", round(u * 100.0, 1))
         elif kind == "morph_b":
             x0, _, x1, _ = self.morph_b_box
             u = _clamp((x - x0) / max(1.0, x1 - x0), 0.0, 1.0)
-            self._set("morph_b", u * 100.0)
-        elif kind == "mod_bar":
-            sym = self.drag_mode[1]
-            bx0, _, bx1, _, bipolar, _ = self.mod_bars[sym]
-            u = _clamp((x - bx0) / max(1.0, bx1 - bx0), 0.0, 1.0)
-            val = (u * 200.0 - 100.0) if bipolar else (u * 100.0)
-            self._set(sym, val)
+            self._set("morph_b", round(u * 100.0, 1))
         elif kind == "xy":
             self._apply_xy_drag(x, y)
         elif kind == "fx_slider":
@@ -1249,61 +1359,97 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
         self.drag_mode = None
         self._pending_drag = None
 
-        if self.fx_view:
-            for key, rect in self.hit_rects.items():
-                if self._in_rect(x, y, rect):
-                    if key == "fx":
-                        self.fx_view = False
-                        self._scene_key = None
-                        self._select_group("g_flt_a")
-                        self.refresh_gui(sample_telemetry=False)
-                        return
-                    if key == "fx_link":
-                        cur = self._get("fx_link", 1.0)
-                        self._set("fx_link", 0 if cur >= 0.5 else 1)
-                        self._select_group("g_fx")
-                        self.refresh_gui(sample_telemetry=False)
-                        return
-                    if key == "snap":
-                        self.fx_snap = not self.fx_snap
-                        self._select_group("g_fx")
-                        self.refresh_gui(sample_telemetry=False)
-                        return
-                    if key == "zero":
-                        if any(s in self._spring for s in ("sweep_fx", "morph_fx", "scream_fx")):
-                            self._cancel_spring(("sweep_fx", "morph_fx", "scream_fx"))
-                            self._set("sweep_fx", 0.0)
-                            self._set("morph_fx", 0.0)
-                            self._set("scream_fx", 0.0)
-                        else:
-                            self._start_spring(("sweep_fx", "morph_fx", "scream_fx"))
-                        self._select_group("g_fx")
-                        self.refresh_gui(sample_telemetry=False)
-                        return
-                    if key.startswith("z_"):
-                        sym = key[2:]
-                        if sym in self._spring:
-                            self._cancel_spring((sym,))
-                            self._set(sym, 0.0)
-                        else:
-                            self._start_spring((sym,))
-                        self._select_group("g_fx")
-                        self.refresh_gui(sample_telemetry=False)
-                        return
-                    if key == "routing":
-                        cur = int(round(self._get("routing", 0)))
-                        self._set("routing", (cur + 1) % 3)
-                        self._select_group("g_route")
-                        self.refresh_gui(sample_telemetry=False)
-                        return
-                    if key == "inv_byp":
-                        self.drag_mode = ("inv_byp", now)
-                        return
+        # 1. Bottom buttons + FX reset buttons
+        for key, rect in self.hit_rects.items():
+            if self._in_rect(x, y, rect):
+                if key == "fx":
+                    self.fx_view = not self.fx_view
+                    self._scene_key = None
+                    if self.fx_view:
+                        self._select_group("g_fx", "Effects")
+                    else:
+                        self._select_group("g_flt_a" if self.selected_chain == "a" else "g_flt_b")
+                    self.refresh_gui(sample_telemetry=False)
+                    return
+                if key == "fx_link":
+                    cur = self._get("fx_link", 1.0)
+                    self._set("fx_link", 0 if cur >= 0.5 else 1)
+                    self._select_group("g_fx", "Effects")
+                    self.refresh_gui(sample_telemetry=False)
+                    return
+                if key == "snap":
+                    self.fx_snap = not self.fx_snap
+                    self._select_group("g_fx", "Effects")
+                    self.refresh_gui(sample_telemetry=False)
+                    return
+                if key == "zero":
+                    if any(s in self._spring for s in ("sweep_fx", "morph_fx", "scream_fx")):
+                        self._cancel_spring(("sweep_fx", "morph_fx", "scream_fx"))
+                        self._set("sweep_fx", 0.0)
+                        self._set("morph_fx", 0.0)
+                        self._set("scream_fx", 0.0)
+                    else:
+                        self._start_spring(("sweep_fx", "morph_fx", "scream_fx"))
+                    self._select_group("g_fx", "Effects")
+                    self.refresh_gui(sample_telemetry=False)
+                    return
+                if key.startswith("z_"):
+                    sym = key[2:]
+                    if sym in self._spring:
+                        self._cancel_spring((sym,))
+                        self._set(sym, 0.0)
+                    else:
+                        self._start_spring((sym,))
+                    self._select_group("g_fx", "Effects")
+                    self.refresh_gui(sample_telemetry=False)
+                    return
+                if key == "model_a":
+                    if self.selected_chain == "a":
+                        cur = int(round(self._get("model_a", 0)))
+                        self._set("model_a", (cur + 1) % len(MODELS))
+                    self.selected_chain = "a"
+                    self._select_group("g_flt_a", "Filter A")
+                    self.refresh_gui(sample_telemetry=False)
+                    return
+                if key == "model_b":
+                    if self.selected_chain == "b":
+                        cur = int(round(self._get("model_b", 1)))
+                        self._set("model_b", (cur + 1) % len(MODELS))
+                    self.selected_chain = "b"
+                    self._select_group("g_flt_b", "Filter B")
+                    self.refresh_gui(sample_telemetry=False)
+                    return
+                if key == "routing":
+                    cur = int(round(self._get("routing", 0)))
+                    self._set("routing", (cur + 1) % len(ROUTINGS))
+                    self._select_group("g_route", "Routing")
+                    self.refresh_gui(sample_telemetry=False)
+                    return
+                if key == "shape":
+                    cur = int(round(self._get("lfo_shape", 0)))
+                    self._set("lfo_shape", (cur + 1) % len(LFO_SHAPES))
+                    self._select_group("g_lfo", "LFO")
+                    self.refresh_gui(sample_telemetry=False)
+                    return
+                if key == "link":
+                    self.drag_mode = ("link_byp", now)
+                    return
+                if key == "inv_byp":
+                    self.drag_mode = ("inv_byp", now)
+                    return
 
+        # 2. Play / Live FX screen interactions
+        if self.fx_view:
             if self._in_rect(x, y, self.xy_box):
                 self._cancel_spring(("sweep_fx", "morph_fx"))
+                if self._check_double_tap("xy_pad", now):
+                    self._set("sweep_fx", 0.0)
+                    self._set("morph_fx", 0.0)
+                    self._select_group("g_fx", "Effects")
+                    self.refresh_gui(sample_telemetry=False)
+                    return
                 self.drag_mode = ("xy",)
-                self._select_group("g_fx")
+                self._select_group("g_fx", "Effects")
                 self._apply_xy_drag(x, y)
                 self._last_drag_ts = now
                 self.refresh_gui(sample_telemetry=False)
@@ -1312,110 +1458,68 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
             for sym, rect in self.fx_sliders.items():
                 if self._in_rect(x, y, rect[:4]):
                     self._cancel_spring((sym,))
+                    if self._check_double_tap(f"fxs_{sym}", now):
+                        self._set(sym, DEFAULTS.get(sym, 0.0))
+                        self._select_group("g_fx", "Effects")
+                        self.refresh_gui(sample_telemetry=False)
+                        return
                     self.drag_mode = ("fx_slider", sym)
-                    self._select_group("g_fx")
+                    self._select_group("g_fx", "Effects")
                     self._apply_fx_slider_drag(sym, x)
                     self._last_drag_ts = now
                     self.refresh_gui(sample_telemetry=False)
                     return
             return
 
-        # Main view header & meter buttons
-        for key, rect in self.hit_rects.items():
-            if self._in_rect(x, y, rect):
-                if key == "fx":
-                    self.fx_view = True
-                    self._scene_key = None
-                    self._select_group("g_fx")
-                    self.refresh_gui(sample_telemetry=False)
-                    return
-                if key == "model_a":
-                    cur = int(round(self._get("model_a", 0)))
-                    self._set("model_a", (cur + 1) % len(MODELS))
-                    self._select_group("g_flt_a")
-                    self.refresh_gui(sample_telemetry=False)
-                    return
-                if key == "model_b":
-                    cur = int(round(self._get("model_b", 1)))
-                    self._set("model_b", (cur + 1) % len(MODELS))
-                    self._select_group("g_flt_b")
-                    self.refresh_gui(sample_telemetry=False)
-                    return
-                if key == "routing":
-                    cur = int(round(self._get("routing", 0)))
-                    self._set("routing", (cur + 1) % 3)
-                    self._select_group("g_route")
-                    self.refresh_gui(sample_telemetry=False)
-                    return
-                if key == "link":
-                    cur = int(round(self._get("link_mode", 0)))
-                    self._set("link_mode", (cur + 1) % 3)
-                    self._select_group("g_route")
-                    self.refresh_gui(sample_telemetry=False)
-                    return
-                if key == "inv_b":
-                    cur = int(round(self._get("invert_b", 0)))
-                    self._set("invert_b", 0 if cur else 1)
-                    self._select_group("g_route")
-                    self.refresh_gui(sample_telemetry=False)
-                    return
-                if key == "shape":
-                    cur = int(round(self._get("lfo_shape", 0)))
-                    self._set("lfo_shape", (cur + 1) % len(LFO_SHAPES))
-                    self._select_group("g_lfo")
-                    self.refresh_gui(sample_telemetry=False)
-                    return
-                if key == "sync":
-                    cur = int(round(self._get("lfo_sync", 0)))
-                    self._set("lfo_sync", 0 if cur else 1)
-                    self._select_group("g_lfo")
-                    self.refresh_gui(sample_telemetry=False)
-                    return
-                if key == "drive_byp":
-                    self.drag_mode = ("drive_byp", now)
-                    return
-
-        # Graph area: pick nearest node A or B
-        if self._in_rect(x, y, self.graph_box):
-            xa, ya = self.node_pos.get("a", (0.0, 0.0))
-            xb, yb = self.node_pos.get("b", (0.0, 0.0))
-            da = (x - xa) ** 2 + (y - ya) ** 2
-            db = (x - xb) ** 2 + (y - yb) ** 2
-            which = "a" if da <= db else "b"
-            self.drag_mode = ("node", which)
-            self._select_group("g_flt_a" if which == "a" else "g_flt_b")
-            self._apply_drag(x, y)
-            self._last_drag_ts = now
-            self.refresh_gui(sample_telemetry=False)
-            return
-
+        # 3. Middle Morph A & Morph B strip (with double-tap reset per GEMINI.md rule 1)
         if self._in_rect(x, y, self.morph_a_box):
+            self.selected_chain = "a"
+            self._select_group("g_flt_a", "Filter A")
+            if self._check_double_tap("morph_a", now):
+                self._set("morph_a", DEFAULTS["morph_a"])
+                self.refresh_gui(sample_telemetry=False)
+                return
             self.drag_mode = ("morph_a",)
-            self._select_group("g_flt_a")
             self._apply_drag(x, y)
             self._last_drag_ts = now
             self.refresh_gui(sample_telemetry=False)
             return
 
         if self._in_rect(x, y, self.morph_b_box):
+            self.selected_chain = "b"
+            self._select_group("g_flt_b", "Filter B")
+            if self._check_double_tap("morph_b", now):
+                self._set("morph_b", DEFAULTS["morph_b"])
+                self.refresh_gui(sample_telemetry=False)
+                return
             self.drag_mode = ("morph_b",)
-            self._select_group("g_flt_b")
             self._apply_drag(x, y)
             self._last_drag_ts = now
             self.refresh_gui(sample_telemetry=False)
             return
 
-        for sym, rect in self.mod_bars.items():
-            if self._in_rect(x, y, rect[:4]):
-                self.drag_mode = ("mod_bar", sym)
-                self._select_group(rect[5])
-                self._apply_drag(x, y)
-                self._last_drag_ts = now
+        # 4. Graph area: pick nearest node A or B (with double-tap reset to default Cutoff & Resonance)
+        if self._in_rect(x, y, self.graph_box):
+            xa, ya = self.node_pos.get("a", (0.0, 0.0))
+            xb, yb = self.node_pos.get("b", (0.0, 0.0))
+            da = (x - xa) ** 2 + (y - ya) ** 2
+            db = (x - xb) ** 2 + (y - yb) ** 2
+            which = "a" if da <= db else "b"
+            self.selected_chain = which
+            self._select_group("g_flt_a" if which == "a" else "g_flt_b")
+            if self._check_double_tap(f"node_{which}", now):
+                self._set(f"cutoff_{which}", DEFAULTS[f"cutoff_{which}"])
+                self._set(f"res_{which}", DEFAULTS[f"res_{which}"])
                 self.refresh_gui(sample_telemetry=False)
                 return
+            self.drag_mode = ("node", which)
+            self._apply_drag(x, y)
+            self._last_drag_ts = now
+            self.refresh_gui(sample_telemetry=False)
+            return
 
     def _on_motion(self, event):
-        if not self.drag_mode or self.drag_mode[0] in ("drive_byp", "inv_byp"):
+        if not self.drag_mode or self.drag_mode[0] in ("link_byp", "inv_byp"):
             return
         x, y = float(event.x), float(event.y)
         now = time.monotonic()
@@ -1431,20 +1535,21 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
         if not self.drag_mode:
             return
         kind = self.drag_mode[0]
-        if kind == "drive_byp":
+        if kind == "link_byp":
             t0 = self.drag_mode[1]
             self.drag_mode = None
             if (time.monotonic() - t0) >= LONG_PRESS_SEC:
                 cur = int(round(self._get("bypass", 0)))
                 self._set("bypass", 0 if cur else 1)
+                self._select_group("g_master", "Master")
             else:
                 if int(round(self._get("bypass", 0))) == 1:
                     self._set("bypass", 0)
+                    self._select_group("g_master", "Master")
                 else:
-                    drv = self._get("drive", 15.0)
-                    nxt = 45.0 if drv < 30.0 else (80.0 if drv < 65.0 else 15.0)
-                    self._set("drive", nxt)
-            self._select_group("g_master")
+                    cur = int(round(self._get("link_mode", 0)))
+                    self._set("link_mode", (cur + 1) % len(LINKS))
+                    self._select_group("g_route", "Routing")
             self.refresh_gui(sample_telemetry=False)
             return
 
@@ -1454,11 +1559,11 @@ class zynthian_widget_eka_prism(zynthian_widget_base.zynthian_widget_base):
             if (time.monotonic() - t0) >= LONG_PRESS_SEC:
                 cur = int(round(self._get("bypass", 0)))
                 self._set("bypass", 0 if cur else 1)
-                self._select_group("g_master")
+                self._select_group("g_master", "Master")
             else:
                 cur = int(round(self._get("invert_b", 0)))
                 self._set("invert_b", 0 if cur else 1)
-                self._select_group("g_route")
+                self._select_group("g_route", "Routing")
             self.refresh_gui(sample_telemetry=False)
             return
 
