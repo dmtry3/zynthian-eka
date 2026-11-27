@@ -2,8 +2,8 @@
 
 **English** · [Русский](README.ru.md)
 
-Fourteen LV2 plugins for [Zynthian](https://zynthian.org), each with its own touch widget: an audio looper, a MIDI
-looper, a generative arpeggiator, a granular sampler, a West Coast synth, a live granular effect, a four-voice pitch harmonizer, a rhythmic multi-effect shaper, a single-band live compressor, a 4-band parametric equalizer, a stereo/polyrhythmic live delay, a 16-pad drum sampler & sequencer, a 3D stereo soundstage & widener, and a 6-engine musical-to-extreme "Über-Mod" modulator. They are made to play live on a
+Fifteen LV2 plugins for [Zynthian](https://zynthian.org), each with its own touch widget: an audio looper, a MIDI
+looper, a generative arpeggiator, a granular sampler, a West Coast synth, a live granular effect, a four-voice pitch harmonizer, a rhythmic multi-effect shaper, a single-band live compressor, a 4-band parametric equalizer, a stereo/polyrhythmic live delay, a 16-pad drum sampler & sequencer, a 3D stereo soundstage & widener, a 6-engine musical-to-extreme "Über-Mod" modulator, and a dual-chain morphing & modulated multi-model filter. They are made to play live on a
 Raspberry Pi 5 and to work together in one setup.
 
 > Tested on: Zynthian **Vangelis** (stable 2610), Raspberry Pi 5, V5 kit, 800x480 touch screen.
@@ -103,6 +103,10 @@ Six distinct modulation engines (`Chorus`, 3-phase `Tri-Mod`, true through-zero 
 
 ![Eka Modls](plugins/modls/docs/1-main.png)
 
+### [Eka Prism](plugins/prism): dual-chain morphing & modulated multi-model filter
+
+Two independent morphing filter chains (**Filter A** & **Filter B**) with 6 filter models (`SVF Morph` LP↔BP↔HP↔Notch, 24 dB `Ladder` with bass compensation, `MS-20 Scream`, tuned `Comb` resonator, `Formant` vowel A-E-I-O-U, and 6-stage `Phaser`), 3 routings (`Serial A>B`, `Parallel A+B` with `Phase Invert B`, `Stereo L/R`), `Link B` (`Free / Offset / Mirror`), a 7-shape tempo-synced LFO (`Sine`, `Tri`, `Saw`, `Square`, `S&H`, `Chaos`, `Step 8`) with `0..180°` A/B phase offset and audio-rate FM up to `40 Hz`, an input `Envelope Follower`, analog pre-`Drive`, MIDI note tracking, a live dual frequency-response graph + X-Y performance pad, and 12 factory presets.
+
 ## A setup
 
 A typical chain: **Pads** drives the beat (with per-pad Aux sends into **Echo** or **Pulse**), **Roll** records the chords, **Bloom** turns them into a moving arpeggio, **Fold** or **Mist** plays it, **Weave-4** adds four-voice harmony to your live instrument (or follows the chords from **Roll**), **Grain Flow** and **Echo** reshape the audio, **Tape** loops the sound together with your instrument, **Q-4** sculpts the tone and clears resonances, and **Press** shapes the live input or glues the mix. Each plugin also works on its own.
@@ -114,7 +118,7 @@ On the Zynthian (SSH as root):
 ```bash
 git clone https://github.com/dmtry3/zynthian-eka.git
 cd zynthian-eka
-sudo make install-bloom          # one plugin: tape, roll, bloom, mist, fold, grainflow, weave4, pulse, press, q4, echo, pads, space or modls
+sudo make install-bloom          # one plugin: tape, roll, bloom, mist, fold, grainflow, weave4, pulse, press, q4, echo, pads, space, modls or prism
 sudo make install                # or all of them
 systemctl restart zynthian
 ```
