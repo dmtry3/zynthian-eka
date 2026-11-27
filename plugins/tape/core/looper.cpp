@@ -2313,7 +2313,7 @@ void Looper::process(const float* in_l, const float* in_r, float* out_l, float* 
     pre_r_[pre_w_] = ir;
     pre_w_ = (pre_w_ + 1) % kPreMax;
     if (pre_n_ < kPreMax) ++pre_n_;
-    // мастер лупов: уровень, мягкий ограничитель, пики; сухой сигнал мимо ограничителя
+    // мастер лупов: уровень и мягкий ограничитель; сухой сигнал мимо ограничителя, но входит в пики мастера
     const float mg = mg0 + mgs * (float)i;
     ol *= mg;
     orr *= mg;
@@ -2328,11 +2328,13 @@ void Looper::process(const float* in_l, const float* in_r, float* out_l, float* 
       ol = soft_clip(ol);
       orr = soft_clip(orr);
     }
-    if (std::fabs(ol) > mbl) mbl = std::fabs(ol);
-    if (std::fabs(orr) > mbr) mbr = std::fabs(orr);
     const float fi = (float)i;
-    if (out_l) out_l[i] = ol + il * (dcur_[0] + dstep_[0] * fi) + ir * (dcur_[1] + dstep_[1] * fi);
-    if (out_r) out_r[i] = orr + il * (dcur_[2] + dstep_[2] * fi) + ir * (dcur_[3] + dstep_[3] * fi);
+    const float tot_l = ol + il * (dcur_[0] + dstep_[0] * fi) + ir * (dcur_[1] + dstep_[1] * fi);
+    const float tot_r = orr + il * (dcur_[2] + dstep_[2] * fi) + ir * (dcur_[3] + dstep_[3] * fi);
+    if (std::fabs(tot_l) > mbl) mbl = std::fabs(tot_l);
+    if (std::fabs(tot_r) > mbr) mbr = std::fabs(tot_r);
+    if (out_l) out_l[i] = tot_l;
+    if (out_r) out_r[i] = tot_r;
     if (!hold_) beats_ += bpf_;
   }
   // конец блока: коэффициенты микшера, пики с плавным спадом
