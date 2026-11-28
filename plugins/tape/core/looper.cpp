@@ -121,7 +121,8 @@ void Looper::command(Cmd c) {
   if (pool_state_ != PS_IDLE && c == Cmd::Rec) return;  // меняется пул: запись подождёт
   // идёт сохранение сессии: всё, что меняет записанный звук, молча игнорируется
   if (frozen_.load(std::memory_order_relaxed) &&
-      (c == Cmd::Rec || c == Cmd::Undo || c == Cmd::Redo || c == Cmd::ResetTrack || c == Cmd::ResetAll))
+      (c == Cmd::Rec || c == Cmd::Undo || c == Cmd::Redo || c == Cmd::ResetTrack || c == Cmd::ResetAll ||
+       c == Cmd::FadeClear || c == Cmd::Multiply))
     return;
   const int a = idx(active_);
   Track& t = tr_[a];
@@ -193,6 +194,9 @@ void Looper::command(Cmd c) {
       break;
     }
     case Cmd::Lock: t.locked = !t.locked; break;
+    case Cmd::Solo: solo_slot(active_); break;
+    case Cmd::FadeClear: fade_clear_slot(active_); break;
+    case Cmd::Multiply: multiply_track(a); break;
   }
 }
 
@@ -421,9 +425,11 @@ void Looper::close_loop(int ti, uint64_t L) {
   clear_redo(t);
   t.sum = base;
   t.len = L;
-  if (t.trim_a != 0.0f || t.trim_b != 1.0f) {
+  if (t.trim_a != 0.0f || t.trim_b != 1.0f || t.trim_fi != 0.0f || t.trim_fo != 0.0f) {
     t.trim_a = 0.0f;
     t.trim_b = 1.0f;
+    t.trim_fi = 0.0f;
+    t.trim_fo = 0.0f;
     ++mix_epoch_;
   }
   push_undo(t, Entry{U_SNAP, -1});
@@ -432,7 +438,10 @@ void Looper::close_loop(int ti, uint64_t L) {
   t.dir = 1;
   t.rate_step = 0.0;
   t.muted = t.mute_pending = false;
+  t.solo = t.solo_pending = false;
+  t.fade_clear = false;
   t.gain = 1.0f;
+  update_part_solo();
   t.seam_t = 0;
   t.synced = t.rec_q;
   t.loop_beats = std::fmax(1.0, std::round((double)L * t.rec_bpf));
@@ -473,6 +482,8 @@ void Looper::start_dub(int ti) {
   t.dub_t = 0;
   t.dub_end = -1;
   t.wfirst = true;
+  t.dub_lpf_l = t.dub_lpf_r = 0.0f;
+  t.fade_clear = false;
   t.undo_after_dub = t.reset_after_dub = false;
   t.st = TState::Dub;
   // сдвинутая дорожка: вход в Stretch с обратным сдвигом, чтобы овердаб звучал как сыгран
@@ -541,7 +552,11 @@ void Looper::finish_dub(int ti) {
 
 void Looper::undo(int ti) {
   Track& t = tr_[ti];
-  if (t.busy) return;
+  if (t.busy || job_pending_ || job_running_) {
+    // быстрый двойной/тройной тап Undo, пока рабочий поток занят: ставим в очередь
+    if ((t.st == TState::Play || t.st == TState::Empty) && t.undo_q > -16) --t.undo_q;
+    return;
+  }
   switch (t.st) {
     case TState::Armed: t.st = TState::Empty; return;
     case TState::Rec:
@@ -567,7 +582,11 @@ void Looper::undo(int ti) {
 
 void Looper::redo(int ti) {
   Track& t = tr_[ti];
-  if (t.busy || (t.st != TState::Play && t.st != TState::Empty) || t.redo_n == 0) return;
+  if (t.busy || job_pending_ || job_running_) {
+    if ((t.st == TState::Play || t.st == TState::Empty) && t.undo_q < 16) ++t.undo_q;
+    return;
+  }
+  if ((t.st != TState::Play && t.st != TState::Empty) || t.redo_n == 0) return;
   Entry e = t.redo[t.redo_n - 1];
   if (e.type == U_SNAP) {
     --t.redo_n;
@@ -575,6 +594,24 @@ void Looper::redo(int ti) {
     swap_to(ti, e.buf, false);
   } else {
     post_job(ti, 2, e.buf);
+  }
+}
+
+void Looper::drain_undo_queue() {
+  if (job_pending_ || job_running_ || frozen_.load(std::memory_order_relaxed)) return;
+  for (int k = 0; k < kTracks; ++k) {
+    Track& t = tr_[k];
+    if (t.busy || t.undo_q == 0) continue;
+    if (t.undo_q < 0) {
+      ++t.undo_q;
+      if (t.undo_n == 0) t.undo_q = 0;
+      else undo(k);
+    } else {
+      --t.undo_q;
+      if (t.redo_n == 0) t.undo_q = 0;
+      else redo(k);
+    }
+    if (job_pending_ || job_running_) return;
   }
 }
 
@@ -679,6 +716,9 @@ void Looper::reset_all_now(bool full) {
     t.len = 0;
     t.st = TState::Empty;
     t.muted = t.mute_pending = false;
+    t.solo = t.solo_pending = false;
+    t.fade_clear = false;
+    t.undo_q = 0;
     t.gain = 1.0f;
     t.dir = 1;
     t.rate = 1.0;
@@ -698,9 +738,11 @@ void Looper::reset_all_now(bool full) {
     t.pw = 0.0f;
     if (full) t.pit = 0.0f;
     t.pcur = t.pit;
-    if (t.trim_a != 0.0f || t.trim_b != 1.0f) {
+    if (t.trim_a != 0.0f || t.trim_b != 1.0f || t.trim_fi != 0.0f || t.trim_fo != 0.0f) {
       t.trim_a = 0.0f;
       t.trim_b = 1.0f;
+      t.trim_fi = 0.0f;
+      t.trim_fo = 0.0f;
       ++mix_epoch_;
     }
     t.phase_reset = t.phase_wait = false;
@@ -713,6 +755,7 @@ void Looper::reset_all_now(bool full) {
   // курсор — на первую дорожку первого парта
   cur_part_ = 0;
   active_ = 0;
+  part_solo_ = false;
 }
 
 void Looper::reset_mixer() {
@@ -761,6 +804,44 @@ void Looper::apply_mute(int ti) {
   Track& t = tr_[ti];
   t.muted = !t.muted;
   t.mute_pending = false;
+  if (!t.muted) t.fade_clear = false;
+}
+
+void Looper::solo_slot(int slot) {
+  if (slot < 0 || slot >= ns_) return;
+  const int k = idx(slot);
+  Track& t = tr_[k];
+  if (t.st != TState::Play && t.st != TState::Dub) return;
+  if (!set_.quantize || set_.mute_q == 0) apply_solo(k);
+  else t.solo_pending = !t.solo_pending;
+}
+
+void Looper::apply_solo(int ti) {
+  Track& t = tr_[ti];
+  t.solo = !t.solo;
+  t.solo_pending = false;
+  if (t.solo) t.fade_clear = false;
+  update_part_solo();
+}
+
+void Looper::update_part_solo() {
+  part_solo_ = false;
+  for (int i = 0; i < ns_; ++i) {
+    const Track& t = tr_[idx(i)];
+    if (t.solo && (t.st == TState::Play || t.st == TState::Dub)) {
+      part_solo_ = true;
+      return;
+    }
+  }
+}
+
+void Looper::fade_clear_slot(int slot) {
+  if (slot < 0 || slot >= ns_) return;
+  const int k = idx(slot);
+  Track& t = tr_[k];
+  if (t.busy || (t.st != TState::Play && t.st != TState::Dub)) return;
+  if (t.st == TState::Dub) end_dub(k);
+  t.fade_clear = !t.fade_clear;
 }
 
 void Looper::leave_track(int ti) {
@@ -841,8 +922,11 @@ void Looper::swap_to(int ti, int32_t new_sum, bool free_old) {
     t.st = TState::Empty;
     t.len = 0;
     t.muted = t.mute_pending = false;
+    t.solo = t.solo_pending = false;
+    t.fade_clear = false;
     t.gain = 1.0f;
     t.seam_t = kNoSeam;
+    update_part_solo();
     return;
   }
   t.len = pool_.buf(new_sum).len;
@@ -856,6 +940,108 @@ void Looper::swap_to(int ti, int32_t new_sum, bool free_old) {
     t.pos = std::fmod(t.pos, (double)t.len);
   }
   t.st = TState::Play;
+  update_part_solo();
+}
+
+bool Looper::crop_track(int k) {
+  if (k < 0 || k >= kTracks || !pool_.ok() || frozen_.load(std::memory_order_relaxed)) return false;
+  if (job_pending_ || job_running_) return false;
+  Track& t = tr_[k];
+  if (t.busy || t.sum < 0 || t.len == 0 || t.st != TState::Play) return false;
+  uint64_t lo, hi;
+  trim_bounds(t, lo, hi);
+  if (lo == 0 && hi == t.len && t.trim_fi <= 0.0f && t.trim_fo <= 0.0f) return false;
+  const uint64_t span = hi - lo;
+  if (span < 2ull * xf_ + 2) return false;
+  const uint32_t need = chunks_for(span) + 1;
+  int32_t dst = -1;
+  bool ok = reserve(need, k) && (dst = pool_.alloc_buf()) >= 0 && pool_.set_len(dst, span);
+  for (uint32_t ci = 0; ok && ci < chunks_for(span); ++ci) ok = pool_.ensure(dst, ci, false) != nullptr;
+  if (!ok) {
+    if (dst >= 0) pool_.free_buf(dst);
+    return false;
+  }
+  job_ = WorkMsg{};
+  job_.op = 6;
+  job_.track = (uint8_t)k;
+  job_.src = t.sum;
+  job_.dst = dst;
+  job_.len = span;
+  job_.lo = lo;
+  job_.hi = hi;
+  job_.src_len = t.len;
+  job_.fi = t.trim_fi;
+  job_.fo = t.trim_fo;
+  job_pending_ = true;
+  t.busy = true;
+  return true;
+}
+
+bool Looper::multiply_track(int k) {
+  if (k < 0 || k >= kTracks || !pool_.ok() || frozen_.load(std::memory_order_relaxed)) return false;
+  if (job_pending_ || job_running_) return false;
+  Track& t = tr_[k];
+  if (t.busy || t.sum < 0 || t.len == 0 || t.st != TState::Play) return false;
+  uint64_t lo, hi;
+  trim_bounds(t, lo, hi);
+  const uint64_t span = hi - lo;
+  const uint64_t new_len = span * 2;
+  if (span < 2ull * xf_ + 2 || chunks_for(new_len) > kMaxBufChunks) return false;
+  const uint32_t need = chunks_for(new_len) + 2;
+  int32_t dst = -1;
+  bool ok = reserve(need, k) && (dst = pool_.alloc_buf()) >= 0 && pool_.set_len(dst, new_len);
+  for (uint32_t ci = 0; ok && ci < chunks_for(new_len); ++ci) ok = pool_.ensure(dst, ci, false) != nullptr;
+  if (!ok) {
+    if (dst >= 0) pool_.free_buf(dst);
+    return false;
+  }
+  job_ = WorkMsg{};
+  job_.op = 7;
+  job_.track = (uint8_t)k;
+  job_.src = t.sum;
+  job_.dst = dst;
+  job_.len = new_len;
+  job_.lo = lo;
+  job_.hi = hi;
+  job_.src_len = t.len;
+  job_.fi = t.trim_fi;
+  job_.fo = t.trim_fo;
+  job_pending_ = true;
+  t.busy = true;
+  return true;
+}
+
+bool Looper::bake_pitch(int k) {
+  if (k < 0 || k >= kTracks || !pool_.ok() || !pb_ || frozen_.load(std::memory_order_relaxed)) return false;
+  if (job_pending_ || job_running_) return false;
+  Track& t = tr_[k];
+  if (t.busy || t.sum < 0 || t.len == 0 || t.st != TState::Play || std::fabs(t.pit) < 1e-3f) return false;
+  const uint64_t L = t.len;
+  const uint32_t need = chunks_for(L) + 1;
+  int32_t dst = -1;
+  bool ok = reserve(need, k) && (dst = pool_.alloc_buf()) >= 0 && pool_.set_len(dst, L);
+  for (uint32_t ci = 0; ok && ci < chunks_for(L); ++ci) ok = pool_.ensure(dst, ci, false) != nullptr;
+  if (!ok) {
+    if (dst >= 0) pool_.free_buf(dst);
+    return false;
+  }
+  uint64_t lo, hi;
+  trim_bounds(t, lo, hi);
+  job_ = WorkMsg{};
+  job_.op = 8;
+  job_.track = (uint8_t)k;
+  job_.src = t.sum;
+  job_.dst = dst;
+  job_.len = L;
+  job_.lo = lo;
+  job_.hi = hi;
+  job_.src_len = L;
+  job_.fi = t.trim_fi;
+  job_.fo = t.trim_fo;
+  job_.pitch = t.pit;
+  job_pending_ = true;
+  t.busy = true;
+  return true;
 }
 
 bool Looper::post_job(int ti, uint8_t op, int32_t layer) {
@@ -958,7 +1144,7 @@ void Looper::cancel_work(const WorkMsg& m) {
   t.busy = false;
   pool_.free_buf(job_.dst);
   if (job_.op == 1) push_undo(t, Entry{U_DELTA, job_.layer});
-  else if (t.redo_n < kMaxUndo) t.redo[t.redo_n++] = Entry{U_DELTA, job_.layer};
+  else if (job_.op == 2 && t.redo_n < kMaxUndo) t.redo[t.redo_n++] = Entry{U_DELTA, job_.layer};
   if (reset_all_pending_) {
     reset_all_pending_ = false;
     reset_all_now();
@@ -1028,6 +1214,58 @@ void Looper::do_work(const WorkMsg& m, WorkResp& r) {
     seq_end(pk);
     return;
   }
+  if (m.op == 6 || m.op == 7) {  // crop (op 6) или multiply ×2 (op 7)
+    const Buf& dst = pool_.buf(m.dst);
+    const uint64_t span = m.hi - m.lo;
+    const uint64_t reps = m.op == 7 ? 2 : 1;
+    for (uint64_t f = 0; f < span; ++f) {
+      float l = 0.0f, r = 0.0f;
+      read_loop_ex(m.src, m.src_len, m.lo, m.hi, m.fi, m.fo, (double)(m.lo + f), l, r);
+      for (uint64_t rep = 0; rep < reps; ++rep) {
+        const uint64_t df = rep * span + f;
+        Chunk* d = pool_.chunk(pool_.entry(dst, (uint32_t)(df >> kChunkShift)));
+        d->l[df & kChunkMask] = l;
+        d->r[df & kChunkMask] = r;
+      }
+    }
+    return;
+  }
+  if (m.op == 8) {  // bake pitch: прогнать буфер через рабочий PitchShifter
+    const Buf& dst = pool_.buf(m.dst);
+    PitchShifter sh;
+    if (sh.init(sr_)) {
+      sh.set_semitones(m.pitch);
+      const int D = sh.latency(), S = sh.seek_len(), W = sh.warm_len();
+      const uint64_t L = m.len;
+      auto read_at = [&](int64_t idx, float& l, float& r) {
+        read_loop_ex(m.src, m.src_len, 0, L, 0.0f, 0.0f, (double)wrap_index(idx, L), l, r);
+      };
+      float sbuf[2][kSeekMax], pbuf[2][kSeekMax], tbuf[2][kSeekMax];
+      const int64_t X = (int64_t)(D - W);
+      for (int j = 0; j < S; ++j) read_at(X - S + j, sbuf[0][j], sbuf[1][j]);
+      for (int j = 0; j < W; ++j) read_at(X + j, pbuf[0][j], pbuf[1][j]);
+      const float* hist[2] = {sbuf[0], sbuf[1]};
+      const float* pre[2] = {pbuf[0], pbuf[1]};
+      float* tmp[2] = {tbuf[0], tbuf[1]};
+      sh.start(hist, pre, tmp);
+      constexpr uint32_t kBlk = 512;
+      float inl[kBlk], inr[kBlk], outl[kBlk], outr[kBlk];
+      const float* in[2] = {inl, inr};
+      float* out[2] = {outl, outr};
+      for (uint64_t f = 0; f < L; f += kBlk) {
+        const uint32_t n = (uint32_t)std::min<uint64_t>(kBlk, L - f);
+        for (uint32_t j = 0; j < n; ++j) read_at((int64_t)(f + j) + D, inl[j], inr[j]);
+        sh.process(in, out, (int)n);
+        for (uint32_t j = 0; j < n; ++j) {
+          const uint64_t df = f + j;
+          Chunk* d = pool_.chunk(pool_.entry(dst, (uint32_t)(df >> kChunkShift)));
+          d->l[df & kChunkMask] = outl[j];
+          d->r[df & kChunkMask] = outr[j];
+        }
+      }
+    }
+    return;
+  }
   const Buf& src = pool_.buf(m.src);
   const Buf& lay = pool_.buf(m.layer);
   const Buf& dst = pool_.buf(m.dst);
@@ -1089,25 +1327,57 @@ void Looper::work_done(const WorkResp& r) {
   Track& t = tr_[r.track];
   t.busy = false;
   mark_peaks(t);
-  // новая сумма готова: кроссфейд со старой, старая уходит в пул
-  if (t.xf_from >= 0 && t.xf_owned) pool_.free_buf(t.xf_from);
-  t.xf_from = t.sum;
-  t.xf_owned = true;
-  t.xf_pos = 0;
-  t.xpos = t.pos;
-  t.xf_len = xf_;
-  t.sum = job_.dst;
-  if (r.op == 1) {
-    if (t.redo_n < kMaxUndo) t.redo[t.redo_n++] = Entry{U_DELTA, job_.layer};
-    else pool_.free_buf(job_.layer);
+  if (r.op == 6 || r.op == 7 || r.op == 8) {
+    // crop / multiply / bake pitch: старая сумма в Undo, новая подключается кроссфейдом
+    const uint64_t old_len = t.len;
+    clear_redo(t);
+    push_undo(t, Entry{U_SNAP, t.sum});
+    if (t.xf_from >= 0 && t.xf_owned) pool_.free_buf(t.xf_from);
+    t.xf_from = t.sum;
+    t.xf_owned = false;
+    t.xf_pos = 0;
+    t.xpos = t.pos;
+    t.xf_len = xf_;
+    t.sum = job_.dst;
+    t.len = job_.len;
+    if (r.op == 6 || r.op == 7) {
+      const double scale = old_len ? (double)job_.len / (double)old_len : 1.0;
+      if (t.synced && t.loop_beats > 0) t.loop_beats = std::fmax(1.0, t.loop_beats * scale);
+      t.pos = wrap_pos(t.pos - (double)job_.lo, (double)t.len);
+      t.trim_a = 0.0f;
+      t.trim_b = 1.0f;
+      t.trim_fi = 0.0f;
+      t.trim_fo = 0.0f;
+      ++mix_epoch_;
+    } else if (r.op == 8) {
+      t.pit = 0.0f;
+      t.pcur = 0.0;
+      t.pw = 0.0f;
+      pitch_release(t);
+      ++mix_epoch_;
+    }
   } else {
-    push_undo(t, Entry{U_DELTA, job_.layer});
+    // новая сумма готова: кроссфейд со старой, старая уходит в пул
+    if (t.xf_from >= 0 && t.xf_owned) pool_.free_buf(t.xf_from);
+    t.xf_from = t.sum;
+    t.xf_owned = true;
+    t.xf_pos = 0;
+    t.xpos = t.pos;
+    t.xf_len = xf_;
+    t.sum = job_.dst;
+    if (r.op == 1) {
+      if (t.redo_n < kMaxUndo) t.redo[t.redo_n++] = Entry{U_DELTA, job_.layer};
+      else pool_.free_buf(job_.layer);
+    } else {
+      push_undo(t, Entry{U_DELTA, job_.layer});
+    }
   }
   if (reset_all_pending_) {
     reset_all_pending_ = false;
     reset_all_now();
   }
   if (grid_pending_ > 0) apply_grid();
+  drain_undo_queue();
 }
 
 // ---------------------------------------------------------------- звук
@@ -1212,19 +1482,50 @@ void Looper::set_trim(int k, float a, float b) {
   }
 }
 
-// Чтение с мягким кроссфейдом стыка, если луп обрезан (trim_a > 0 или trim_b < 1).
-// Симметричен для воспроизведения вперёд и в Reverse: на стыке hi -> lo (и lo -> hi) скачка нет.
-void Looper::read_loop(const Track& t, int32_t b, double pos, float& l, float& r) const {
-  read_sum(t, b, pos, l, r);
-  if (b < 0 || b != t.sum || t.len == 0) return;
-  uint64_t lo, hi;
-  trim_bounds(t, lo, hi);
-  if (lo == 0 && hi == t.len) return;
+void Looper::set_trim_fade(int k, float fi, float fo) {
+  if (k < 0 || k >= kTracks) return;
+  fi = fi < 0.0f ? 0.0f : (fi > 0.5f ? 0.5f : fi);
+  fo = fo < 0.0f ? 0.0f : (fo > 0.5f ? 0.5f : fo);
+  Track& t = tr_[k];
+  if (std::fabs(fi - t.trim_fi) < 1e-6f && std::fabs(fo - t.trim_fo) < 1e-6f) return;
+  t.trim_fi = fi;
+  t.trim_fo = fo;
+  ++edit_epoch_;
+}
+
+// Чтение с мягким кроссфейдом стыка и/или пользовательскими fade-in / fade-out.
+void Looper::read_loop_ex(int32_t b, uint64_t len, uint64_t lo, uint64_t hi, float fi, float fo, double pos, float& l,
+                          float& r) const {
+  Track dummy;
+  read_sum(dummy, b, pos, l, r);
+  if (b < 0 || len == 0 || hi <= lo) return;
   const uint64_t span = hi - lo;
+  const uint64_t fi_len = fi > 1e-5f ? (uint64_t)std::llround((double)fi * (double)span) : 0;
+  const uint64_t fo_len = fo > 1e-5f ? (uint64_t)std::llround((double)fo * (double)span) : 0;
+  if (fi_len > 0 || fo_len > 0) {
+    // Пользовательский fade-in / fade-out (приподнятый косинус — мягкий и без щелчков)
+    const uint64_t min_edge = (lo > 0 || hi < len) ? std::min<uint64_t>(xf_ / 2, span / 4) : 0;
+    const uint64_t eff_fi = fi_len > 0 ? fi_len : min_edge;
+    const uint64_t eff_fo = fo_len > 0 ? fo_len : min_edge;
+    if (eff_fi >= 2 && pos >= (double)lo && pos < (double)(lo + eff_fi)) {
+      const float g = (float)((pos - (double)lo) / (double)eff_fi);
+      const float env = 0.5f - 0.5f * std::cos(3.14159265f * g);
+      l *= env;
+      r *= env;
+    }
+    if (eff_fo >= 2 && pos >= (double)(hi - eff_fo) && pos < (double)hi) {
+      const float g = (float)(((double)hi - pos) / (double)eff_fo);
+      const float env = 0.5f - 0.5f * std::cos(3.14159265f * g);
+      l *= env;
+      r *= env;
+    }
+    return;
+  }
+  if (lo == 0 && hi == len) return;
   const uint64_t xlen = std::min<uint64_t>(xf_, span / 2);
   if (xlen < 2) return;
   const uint64_t left_avail = std::min<uint64_t>(xlen, lo);
-  const uint64_t right_avail = std::min<uint64_t>(xlen, t.len - hi);
+  const uint64_t right_avail = std::min<uint64_t>(xlen, len - hi);
   const uint64_t half_xf = xlen / 2;
   if (right_avail >= half_xf && right_avail >= left_avail) {
     // post-roll кроссфейд на [lo, lo + right_avail) с хвостом [hi, hi + right_avail)
@@ -1232,7 +1533,7 @@ void Looper::read_loop(const Track& t, int32_t b, double pos, float& l, float& r
       const double d = pos - (double)lo;
       const float g = (float)(d / (double)right_avail);
       float hl, hr;
-      read_sum(t, b, (double)hi + d, hl, hr);
+      read_sum(dummy, b, (double)hi + d, hl, hr);
       l = hl * (1.0f - g) + l * g;
       r = hr * (1.0f - g) + r * g;
     }
@@ -1242,7 +1543,7 @@ void Looper::read_loop(const Track& t, int32_t b, double pos, float& l, float& r
       const double d = (double)hi - pos;
       const float g = (float)(d / (double)left_avail);
       float hl, hr;
-      read_sum(t, b, (double)lo - d, hl, hr);
+      read_sum(dummy, b, (double)lo - d, hl, hr);
       l = l * g + hl * (1.0f - g);
       r = r * g + hr * (1.0f - g);
     }
@@ -1258,6 +1559,16 @@ void Looper::read_loop(const Track& t, int32_t b, double pos, float& l, float& r
       r *= g;
     }
   }
+}
+
+void Looper::read_loop(const Track& t, int32_t b, double pos, float& l, float& r) const {
+  if (b < 0 || b != t.sum || t.len == 0) {
+    read_sum(t, b, pos, l, r);
+    return;
+  }
+  uint64_t lo, hi;
+  trim_bounds(t, lo, hi);
+  read_loop_ex(b, t.len, lo, hi, t.trim_fi, t.trim_fo, pos, l, r);
 }
 
 void Looper::write_add(int32_t b, uint64_t p, float l, float r) {
@@ -1286,15 +1597,25 @@ float Looper::dub_env(Track& t) {
   return env;
 }
 
-// Прибавить к слою и сумме в позиции p. false — кончилась память.
-bool Looper::dub_put(int ti, uint64_t p, float l, float r) {
+// Прибавить к слою и сумме в позиции p. При dub_decay < 1.0 (Frippertronics) старый сигнал
+// в сумме затухает, а в layer пишется точная дельта (sum_new - sum_old), так что Undo остаётся точным.
+bool Looper::dub_put(int ti, uint64_t p, float l, float r, float env) {
   Track& t = tr_[ti];
   Chunk* c = pool_.ensure(t.layer, (uint32_t)(p >> kChunkShift), true);
   if (!c && reserve(1, ti)) c = pool_.ensure(t.layer, (uint32_t)(p >> kChunkShift), true);
   if (!c) return false;
-  c->l[p & kChunkMask] += l;
-  c->r[p & kChunkMask] += r;
-  write_add(t.sum, p, l, r);
+  float dl = l, dr = r;
+  const float dec = set_.dub_decay < 0.5f ? 0.5f : (set_.dub_decay > 1.0f ? 1.0f : set_.dub_decay);
+  if (dec < 0.999f && t.sum >= 0) {
+    float sl = 0.0f, sr = 0.0f;
+    pool_.read(pool_.buf(t.sum), p, sl, sr);
+    const float k = (dec - 1.0f) * env;  // плавно при входе/выходе овердаба
+    dl += sl * k;
+    dr += sr * k;
+  }
+  c->l[p & kChunkMask] += dl;
+  c->r[p & kChunkMask] += dr;
+  write_add(t.sum, p, dl, dr);
   if (peaks_ && in_cur(ti)) live_peaks(ti, p);
   return true;
 }
@@ -1302,7 +1623,7 @@ bool Looper::dub_put(int ti, uint64_t p, float l, float r) {
 void Looper::dub_write(int ti, uint64_t p, float l, float r) {
   Track& t = tr_[ti];
   const float env = dub_env(t);
-  if (!dub_put(ti, p, l * env, r * env)) end_dub_now(ti);  // память кончилась: овердаб закрывается
+  if (!dub_put(ti, p, l * env, r * env, env)) end_dub_now(ti);  // память кончилась: овердаб закрывается
   t.wprev = (double)p;
   t.wl_prev = l;
   t.wr_prev = r;
@@ -1324,6 +1645,18 @@ double Looper::dub_pos(const Track& t, double step, uint32_t extra) const {
 
 void Looper::dub_resampled(int ti, float il, float ir, double step) {
   Track& t = tr_[ti];
+  // антиалиасинг при записи на замедленной скорости (|step| < 0.98): мягкий LPF перед даунсэмплингом
+  const double astep = std::fabs(step);
+  if (astep < 0.98 && astep > 0.05) {
+    const float a = (float)(1.0 - std::exp(-3.14159265 * astep * 0.85));
+    t.dub_lpf_l += (il - t.dub_lpf_l) * a;
+    t.dub_lpf_r += (ir - t.dub_lpf_r) * a;
+    il = t.dub_lpf_l;
+    ir = t.dub_lpf_r;
+  } else {
+    t.dub_lpf_l = il;
+    t.dub_lpf_r = ir;
+  }
   uint64_t lo, hi;
   trim_bounds(t, lo, hi);
   const double w1 = dub_pos(t, step, t.deng >= 0 ? t.dlat : 0);
@@ -1342,13 +1675,13 @@ void Looper::dub_resampled(int ti, float il, float ir, double step) {
     for (int64_t n = (int64_t)std::floor(w0) + 1; n <= (int64_t)std::floor(w1) && ok; ++n) {
       const float a = (float)(((double)n - w0) / d);
       ok = dub_put(ti, wrap_index_range(n, lo, hi), (t.wl_prev + (il - t.wl_prev) * a) * env,
-                   (t.wr_prev + (ir - t.wr_prev) * a) * env);
+                   (t.wr_prev + (ir - t.wr_prev) * a) * env, env);
     }
   } else if (d < 0) {
     for (int64_t n = (int64_t)std::ceil(w1); n < (int64_t)std::ceil(w0) && ok; ++n) {
       const float a = (float)((w0 - (double)n) / -d);
       ok = dub_put(ti, wrap_index_range(n, lo, hi), (t.wl_prev + (il - t.wl_prev) * a) * env,
-                   (t.wr_prev + (ir - t.wr_prev) * a) * env);
+                   (t.wr_prev + (ir - t.wr_prev) * a) * env, env);
     }
   }
   if (!ok) end_dub_now(ti);
@@ -1389,6 +1722,7 @@ void Looper::on_grid(bool beat, bool bar) {
       }
     }
     if (t.mute_pending && ((set_.mute_q == 1 && beat) || (set_.mute_q == 2 && bar))) apply_mute(ti);
+    if (t.solo_pending && ((set_.mute_q == 1 && beat) || (set_.mute_q == 2 && bar))) apply_solo(ti);
     if (t.phase_wait && ((set_.mute_q == 1 && beat) || (set_.mute_q >= 2 && bar))) {
       t.phase_wait = false;
       resync(ti);
@@ -1466,12 +1800,18 @@ void Looper::track_sample(int ti, uint32_t i, float il, float ir, float& ol, flo
     l = l * (1.0f - t.pw) + wl * t.pw;
     r = r * (1.0f - t.pw) + wr * t.pw;
   }
-  // mute: плавно по fade out / fade in
-  const float target = t.muted ? 0.0f : 1.0f;
+  // mute, solo и fade-to-clear: плавно по fade out / fade in
+  const bool eff_muted = t.muted || t.fade_clear || (part_solo_ && in_cur(ti) && !t.solo);
+  const float target = eff_muted ? 0.0f : 1.0f;
   if (t.gain != target) {
-    const float ms = t.muted ? set_.fade_out_ms : set_.fade_in_ms;
+    const float ms = eff_muted ? set_.fade_out_ms : set_.fade_in_ms;
     const float step = 1000.0f / ((ms > 1.0f ? ms : 1.0f) * (float)sr_);
     t.gain = t.gain < target ? std::fmin(target, t.gain + step) : std::fmax(target, t.gain - step);
+  }
+  if (t.fade_clear && t.gain <= 0.0001f && t.st == TState::Play) {
+    t.fade_clear = false;
+    reset_track(ti);
+    return;
   }
   // остановка по транспорту: затухает по fade out, входит обратно по fade in
   const float starget = (t.stopped || t.ustop || away) ? 0.0f : 1.0f;
@@ -1553,6 +1893,7 @@ void Looper::track_sample(int ti, uint32_t i, float il, float ir, float& ol, flo
     wrapped = true;
   }
   if (wrapped && t.mute_pending && set_.mute_q == 3) apply_mute(ti);
+  if (wrapped && t.solo_pending && set_.mute_q == 3) apply_solo(ti);
   if (wrapped && ti == master_ && pend_part_ >= 0 && set_.part_q == 3) part_due_ = true;
 }
 
@@ -2064,6 +2405,8 @@ void Looper::clone_into(int from, int to) {
   n.tspd = o.tspd;
   n.trim_a = o.trim_a;
   n.trim_b = o.trim_b;
+  n.trim_fi = o.trim_fi;
+  n.trim_fo = o.trim_fo;
   // Stretch переходит к копии вместе с позицией: сдвинутый звук без шва
   n.pit = o.pit;
   n.pcur = o.pcur;
@@ -2094,6 +2437,7 @@ void Looper::switch_part(int p) {
     else if (t.st == TState::Rec) request_close(k);
     else if (t.st == TState::Dub) end_dub(k);
     t.mute_pending = false;
+    t.solo_pending = false;
   }
   const bool empty_target = !part_has_content(p);
   cur_part_ = p;
@@ -2139,6 +2483,7 @@ void Looper::switch_part(int p) {
     }
   }
   for (int k = p * ns_; k < (p + 1) * ns_; ++k) mark_peaks(tr_[k]);
+  update_part_solo();
   if (peaks_)
     for (int i = 0; i < ns_; ++i) __atomic_store_n(&peaks_->t[i].dub_active, 0u, __ATOMIC_RELEASE);
   if (rec_after_switch_) {  // запись с границы перехода на активной дорожке нового парта
@@ -2207,6 +2552,7 @@ void Looper::process(const float* in_l, const float* in_r, float* out_l, float* 
       dstep_[j] = n ? (end - dcur_[j]) / (float)n : 0.0f;
     }
   }
+  const float lim_att = 1.0f - (float)std::exp(-1.0 / (0.0005 * sr_));  // мягкая атака 0,5 мс (0 задержки)
   const float lim_rel = (float)std::exp(-1.0 / (kLimRelS * sr_));
   pool_step();
   session_step();
@@ -2319,9 +2665,13 @@ void Looper::process(const float* in_l, const float* in_r, float* out_l, float* 
     orr *= mg;
     if (lim_on_) {
       const float x = std::fmax(std::fabs(ol), std::fabs(orr));
-      lim_env_ = x > lim_env_ ? x : x + (lim_env_ - x) * lim_rel;
-      if (lim_env_ > kLimThr) {
-        const float gr = kLimThr / lim_env_;
+      lim_env_ = x > lim_env_ ? lim_env_ + (x - lim_env_) * lim_att : x + (lim_env_ - x) * lim_rel;
+      // мягкое колено с 0.75 (−2.5 дБ) к 0.891 (−1 дБ): тише 0.75 не трогает, выше — плавно сжимает
+      constexpr float kKnee = 0.75f;
+      if (lim_env_ > kKnee) {
+        const float over = lim_env_ - kKnee;
+        const float target = kKnee + (kLimThr - kKnee) * std::tanh(over / (kLimThr - kKnee));
+        const float gr = target / lim_env_;
         ol *= gr;
         orr *= gr;
       }
@@ -2404,6 +2754,8 @@ void Looper::session_step() {
         s.b0 = t.b0;
         s.trim_a = t.trim_a;
         s.trim_b = t.trim_b;
+        s.trim_fi = t.trim_fi;
+        s.trim_fo = t.trim_fo;
       }
       frozen_epoch_ = edit_epoch_;
       sess_status_.store(SS_SAVING, std::memory_order_relaxed);
@@ -2457,6 +2809,8 @@ void Looper::install_session(const SessionDesc& d) {
     t.len = s.len;
     t.trim_a = s.trim_a;
     t.trim_b = s.trim_b;
+    t.trim_fi = s.trim_fi;
+    t.trim_fo = s.trim_fo;
     t.st = TState::Play;
     t.dir = s.reversed ? -1 : 1;
     t.rate = (double)t.dir;
@@ -2479,6 +2833,7 @@ void Looper::install_session(const SessionDesc& d) {
   }
   cur_part_ = d.part >= 0 && d.part < ns_ ? d.part : 0;
   active_ = d.active >= 0 && d.active < ns_ ? d.active : 0;
+  update_part_solo();
   if (rolling_) {
     entry_pending_ = true;  // на ближайшем такте
   } else {
@@ -2586,6 +2941,9 @@ TrackView Looper::view(int i) const {
   v.espeed = (float)t.spd;
   v.muted = t.muted;
   v.mute_pending = t.mute_pending;
+  v.solo = t.solo;
+  v.solo_pending = t.solo_pending;
+  v.fade_clearing = t.fade_clear;
   v.stopped = t.stopped || t.ustop;
   v.locked = t.locked;
   v.reversed = t.dir < 0;
@@ -2593,6 +2951,8 @@ TrackView Looper::view(int i) const {
   v.can_redo = t.redo_n > 0;
   v.layers = t.undo_n;
   v.pitch = t.pit;
+  v.trim_fi = t.trim_fi;
+  v.trim_fo = t.trim_fo;
   v.count = 0;
   if (t.st == TState::Armed && t.count_n > 0 && t.count_end >= 0) {
     const double left = std::ceil(t.count_end - beats_ - 1e-9);

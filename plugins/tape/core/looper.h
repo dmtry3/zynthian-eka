@@ -23,7 +23,8 @@ inline bool valid_grid(int n) { return n == 2 || n == 4 || n == 6; }
 constexpr uint32_t kMaxUndo = 1024;  // записей undo на дорожку (дальше старые вливаются в основу)
 
 enum class Cmd : uint8_t {
-  Rec, Undo, Redo, ResetTrack, ResetAll, Mute, Reverse, TrackNext, TrackPrev, PlayStop, PartNext, PartPrev, Lock
+  Rec, Undo, Redo, ResetTrack, ResetAll, Mute, Reverse, TrackNext, TrackPrev, PlayStop, PartNext, PartPrev, Lock,
+  Solo, FadeClear, Multiply
 };
 
 // Настройки (виджет настроек). Меняются в любой момент, применяются со следующего блока.
@@ -42,6 +43,7 @@ struct Settings {
   float latency_ms = 0.0f;        // компенсация задержки аудиоинтерфейса (выход + вход), 0..100
   int count_in = 0;               // счёт перед записью основы, тактов: 0 выкл, 1, 2 (этап 8)
   int rec_thresh_db = 0;          // старт записи основы по порогу входа (только Free): 0 выкл, −60..−12 дБ
+  float dub_decay = 1.0f;         // затухание старых слоёв при овердабе (Frippertronics): 0.5..1.0
 };
 
 constexpr float kMinSpeed = 0.25f, kMaxSpeed = 2.0f;  // ручная скорость дорожки, как у ленты
@@ -71,6 +73,7 @@ enum class TState : uint8_t { Empty, Armed, Rec, Closing, Play, Dub };
 struct TrackView {
   uint8_t state;     // 0 пусто, 1 ждёт такта, 2 запись, 3 играет, 4 овердаб
   bool muted, mute_pending, reversed, can_undo, can_redo, stopped, locked;
+  bool solo, solo_pending, fade_clearing;
   float pos;         // 0..1 доля цикла
   float speed;       // ручная скорость сейчас (с плавным ходом)
   float espeed;      // итоговая: ручная × следование темпу × автоподстройка
@@ -78,18 +81,23 @@ struct TrackView {
   uint32_t layers;   // слоёв в undo
   uint8_t count;     // счёт перед записью: долей до начала (0 — счёта нет или ждёт черты)
   float pitch;       // сдвиг высоты, полутонов (цель)
+  float trim_fi;     // fade-in лупа (0..0.5)
+  float trim_fo;     // fade-out лупа (0..0.5)
 };
 
 // Задание рабочему потоку: dst = src ± layer (подготовка undo/redo).
-// Или (op 3) пересчитать пики дорожки для волн виджета, (op 4) заменить пул памяти: старый
-// освободить, выделить новый размером len байт, (op 5) загрузить звук сессии в пул.
+// Или (op 3) пики, (op 4) новый пул, (op 5) загрузка сессии,
+// (op 6) crop (запечь trim + fades), (op 7) multiply ×2, (op 8) bake pitch.
 struct WorkMsg {
-  uint8_t op;  // 1 вычесть слой (undo), 2 прибавить (redo), 3 пики, 4 новый пул, 5 сессия
+  uint8_t op;  // 1 undo, 2 redo, 3 пики, 4 новый пул, 5 сессия, 6 crop, 7 multiply x2, 8 bake pitch
   uint8_t track;
   uint8_t nl;  // op 3: слоёв в lay[]
   uint8_t slot;  // op 3: место дорожки в парте (куда в общей памяти писать пики)
   int32_t src, layer, dst;
   uint64_t len;
+  uint64_t lo, hi;       // op 6, 7, 8: границы [lo, hi) в src
+  uint64_t src_len;      // op 6, 7, 8: полная длина src
+  float fi, fo, pitch;   // op 6, 7: trim fades; op 8: pitch (полутонов)
   uint32_t gen;
   int32_t lay[kPeakLayers];
   uint32_t lno[kPeakLayers];
@@ -154,6 +162,8 @@ class Looper {
   // (сброс удержанием Reset, Lock-копия) — обёртка сообщает новые значения хосту
   void set_mix(int k, const Mix& m) { mix_[k] = m; }
   void mute_slot(int slot);  // mute дорожки текущего парта (кнопка M в виджете Mixer)
+  void solo_slot(int slot);  // solo дорожки текущего парта (кнопка S в виджете Mixer или педаль)
+  void fade_clear_slot(int slot);  // плавное затухание и авто-очистка дорожки (откатывается Undo)
   // Касание на экране (этап 7б): те же правила, что у педалей «Следующая дорожка» и «Следующий парт».
   void select_slot(int slot);  // активной становится дорожка slot текущего парта
   void select_part(int p);     // переход в парт p по PART AT; пока ждёт границы: тот же парт или
@@ -168,10 +178,17 @@ class Looper {
   // сдвигается обратно и ложится на своё место (закрытие овердаба на эту задержку позже).
   void set_pitch(int k, float st);
   float pitch(int k) const { return tr_[k].pit; }
-  // Неразрушающие границы лупа дорожки k (доли 0..1 от полной длины буфера).
+  // Неразрушающие границы лупа и fade in/out дорожки k (доли 0..1 и 0..0.5 от обрезанной длины).
   void set_trim(int k, float a, float b);
+  void set_trim_fade(int k, float fi, float fo);
   float trim_start(int k) const { return tr_[k].trim_a; }
   float trim_end(int k) const { return tr_[k].trim_b; }
+  float trim_fi(int k) const { return tr_[k].trim_fi; }
+  float trim_fo(int k) const { return tr_[k].trim_fo; }
+  // Операции в рабочем потоке (все откатываются Undo): запечь trim+fades, удвоить длину ×2, запечь pitch.
+  bool crop_track(int k);
+  bool multiply_track(int k);
+  bool bake_pitch(int k);
   // Процессор не успевает: сдвиг высоты отключён (дорожки звучат без него), пока его не поменяют.
   bool pitch_overload() const { return pitch_over_; }
   int pitch_latency() const;  // задержка Stretch, кадров (0 — Stretch недоступен)
@@ -283,13 +300,18 @@ class Looper {
     int64_t dub_end = -1;    // >= 0: идёт затухание конца овердаба
     bool undo_after_dub = false;
     bool reset_after_dub = false;
-    // mute
+    // mute, solo, fade-to-clear
     bool muted = false, mute_pending = false;
+    bool solo = false, solo_pending = false;
+    bool fade_clear = false;
     bool stopped = false;    // транспорт Zynthian остановлен: дорожка затихла и ждёт пуска
     bool ustop = false;      // остановлена педалью Play/Stop: ждёт повторного нажатия
     float sgain = 1.0f;      // огибающая остановки по транспорту
     float gain = 1.0f;
     bool busy = false;       // рабочий поток считает undo/redo этой дорожки
+    int8_t undo_q = 0;       // очередь быстрых нажатий undo (<0) / redo (>0)
+    // антиалиасинг-фильтр для овердаба на замедленной скорости
+    float dub_lpf_l = 0.0f, dub_lpf_r = 0.0f;
     // пики для волн: поколение суммы, нужен пересчёт, пересчёт идёт, аудиопоток дорисовал
     uint32_t pgen = 0;
     bool pdirty = false, pinflight = false, plive = false;
@@ -311,9 +333,11 @@ class Looper {
     bool ddrain = false;      // овердаб закрыт: дописываем то, что ещё в Stretch
     uint32_t ddrain_n = 0;
     float dgate = 1.0f;       // вход в Stretch овердаба (после закрытия плавно в 0)
-    // неразрушающие границы цикла (доли 0..1 от len)
+    // неразрушающие границы цикла (доли 0..1 от len) и fade-in / fade-out (0..0.5 от обрезанной длины)
     float trim_a = 0.0f;
     float trim_b = 1.0f;
+    float trim_fi = 0.0f;
+    float trim_fo = 0.0f;
   };
 
   // команды
@@ -334,6 +358,9 @@ class Looper {
   void end_dub_now(int ti);  // без дописывания хвоста Stretch (кончилась память)
   void finish_dub(int ti);
   void apply_mute(int ti);
+  void apply_solo(int ti);
+  void update_part_solo();
+  void drain_undo_queue();
   void start_reverse(Track& t, double n);
   void resync(int ti);
   void mark_peaks(Track& t) {
@@ -374,12 +401,14 @@ class Looper {
   static void mix_matrix(const Mix& m, float out[4]);
   void read_sum(const Track& t, int32_t b, double pos, float& l, float& r) const;
   void read_loop(const Track& t, int32_t b, double pos, float& l, float& r) const;
+  void read_loop_ex(int32_t b, uint64_t len, uint64_t lo, uint64_t hi, float fi, float fo, double pos, float& l,
+                    float& r) const;
   void trim_bounds(const Track& t, uint64_t& lo, uint64_t& hi) const;
   void write_add(int32_t b, uint64_t p, float l, float r);
   void seam_write(Track& t, float l, float r);
   void dub_write(int ti, uint64_t p, float l, float r);
   float dub_env(Track& t);
-  bool dub_put(int ti, uint64_t p, float l, float r);
+  bool dub_put(int ti, uint64_t p, float l, float r, float env);
   void dub_resampled(int ti, float il, float ir, double step);
   double dub_pos(const Track& t, double step, uint32_t extra) const;
   void update_speeds(uint32_t n);
@@ -424,6 +453,7 @@ class Looper {
   bool hold_ = false;       // транспорт стоит, всё затихло и ждать нечего: счёт тактов и курсоры в 0
   int cur_part_ = 0;
   int pend_part_ = -1;      // парт, ждущий границы (-1 нет)
+  bool part_solo_ = false;  // в текущем парте есть хотя бы одна дорожка с Solo
   bool clones_pending_ = false;
   bool rec_after_switch_ = false;
   bool part_due_ = false;     // конец цикла: переход в начале следующего кадра

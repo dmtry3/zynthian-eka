@@ -311,22 +311,100 @@
         <http://dmtry3.github.io/zynthian-eka/tape#trmb33> ,
         <http://dmtry3.github.io/zynthian-eka/tape#trmb34> ,
         <http://dmtry3.github.io/zynthian-eka/tape#trmb35> ,
-        <http://dmtry3.github.io/zynthian-eka/tape#trmb36> ;
+        <http://dmtry3.github.io/zynthian-eka/tape#trmb36> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#dub_decay> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tsolo> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfclear> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tcrop> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tmul> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tpbake> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi1> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi2> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi3> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi4> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi5> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi6> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi7> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi8> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi9> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi10> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi11> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi12> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi13> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi14> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi15> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi16> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi17> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi18> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi19> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi20> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi21> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi22> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi23> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi24> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi25> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi26> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi27> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi28> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi29> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi30> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi31> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi32> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi33> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi34> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi35> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfi36> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo1> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo2> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo3> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo4> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo5> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo6> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo7> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo8> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo9> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo10> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo11> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo12> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo13> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo14> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo15> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo16> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo17> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo18> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo19> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo20> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo21> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo22> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo23> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo24> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo25> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo26> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo27> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo28> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo29> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo30> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo31> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo32> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo33> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo34> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo35> ,
+        <http://dmtry3.github.io/zynthian-eka/tape#tfo36> ;
     lv2:port
     [
-        a lv2:InputPort , lv2:AudioPort ; lv2:index 18 ; lv2:symbol "in_l" ; lv2:name "In L" ;
+        a lv2:InputPort , lv2:AudioPort ; lv2:index 20 ; lv2:symbol "in_l" ; lv2:name "In L" ;
     ] , [
-        a lv2:InputPort , lv2:AudioPort ; lv2:index 19 ; lv2:symbol "in_r" ; lv2:name "In R" ;
+        a lv2:InputPort , lv2:AudioPort ; lv2:index 21 ; lv2:symbol "in_r" ; lv2:name "In R" ;
     ] , [
-        a lv2:OutputPort , lv2:AudioPort ; lv2:index 20 ; lv2:symbol "out_l" ; lv2:name "Out L" ;
+        a lv2:OutputPort , lv2:AudioPort ; lv2:index 22 ; lv2:symbol "out_l" ; lv2:name "Out L" ;
     ] , [
-        a lv2:OutputPort , lv2:AudioPort ; lv2:index 21 ; lv2:symbol "out_r" ; lv2:name "Out R" ;
+        a lv2:OutputPort , lv2:AudioPort ; lv2:index 23 ; lv2:symbol "out_r" ; lv2:name "Out R" ;
     ] , [
         a lv2:InputPort , atom:AtomPort ;
         atom:bufferType atom:Sequence ;
         atom:supports midi:MidiEvent , time:Position , patch:Message ;
         lv2:designation lv2:control ;
-        lv2:index 22 ; lv2:symbol "events_in" ; lv2:name "MIDI In" ;
+        lv2:index 24 ; lv2:symbol "events_in" ; lv2:name "MIDI In" ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
         lv2:index 0 ; lv2:symbol "rec" ; lv2:name "Rec/Dub" ;
@@ -399,296 +477,310 @@
         lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_screens> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 14 ; lv2:symbol "level" ; lv2:name "Level" ;
+        lv2:index 14 ; lv2:symbol "solo" ; lv2:name "Solo" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_screens> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 15 ; lv2:symbol "fade_clear" ; lv2:name "Fade Clr" ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ; lv2:portProperty lv2:toggled ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_screens> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 16 ; lv2:symbol "level" ; lv2:name "Level" ;
         lv2:default 75 ; lv2:minimum 0 ; lv2:maximum 100 ;
         lv2:displayPriority 40 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_mix> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 15 ; lv2:symbol "pan" ; lv2:name "Pan" ;
+        lv2:index 17 ; lv2:symbol "pan" ; lv2:name "Pan" ;
         lv2:default 0 ; lv2:minimum -100 ; lv2:maximum 100 ;
         lv2:displayPriority 30 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_mix> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 16 ; lv2:symbol "master" ; lv2:name "Master" ;
+        lv2:index 18 ; lv2:symbol "master" ; lv2:name "Master" ;
         lv2:default 75 ; lv2:minimum 0 ; lv2:maximum 100 ;
         lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_mix> ;
     ] , [
         a lv2:InputPort , lv2:ControlPort ;
-        lv2:index 17 ; lv2:symbol "speed" ; lv2:name "Speed" ;
+        lv2:index 19 ; lv2:symbol "speed" ; lv2:name "Speed" ;
         lv2:default 1 ; lv2:minimum 0.25 ; lv2:maximum 2 ; lv2:portProperty pprops:logarithmic ;
         lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/tape#g_mix> ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 23 ; lv2:symbol "o_track" ; lv2:name "Out: Track" ;
+        lv2:index 25 ; lv2:symbol "o_track" ; lv2:name "Out: Track" ;
         lv2:minimum 0 ; lv2:maximum 3 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 24 ; lv2:symbol "o_part" ; lv2:name "Out: Part" ;
+        lv2:index 26 ; lv2:symbol "o_part" ; lv2:name "Out: Part" ;
         lv2:minimum 0 ; lv2:maximum 3 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 25 ; lv2:symbol "o_pend" ; lv2:name "Out: Pending" ;
+        lv2:index 27 ; lv2:symbol "o_pend" ; lv2:name "Out: Pending" ;
         lv2:minimum -1 ; lv2:maximum 3 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 26 ; lv2:symbol "o_widget" ; lv2:name "Out: Widget" ;
+        lv2:index 28 ; lv2:symbol "o_widget" ; lv2:name "Out: Widget" ;
         lv2:minimum 0 ; lv2:maximum 1 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 27 ; lv2:symbol "o_action" ; lv2:name "Out: Action" ;
-        lv2:minimum 0 ; lv2:maximum 15 ;
+        lv2:index 29 ; lv2:symbol "o_action" ; lv2:name "Out: Action" ;
+        lv2:minimum 0 ; lv2:maximum 17 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 28 ; lv2:symbol "o_act_cnt" ; lv2:name "Out: Act Count" ;
+        lv2:index 30 ; lv2:symbol "o_act_cnt" ; lv2:name "Out: Act Count" ;
         lv2:minimum 0 ; lv2:maximum 1000000 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 29 ; lv2:symbol "o_held" ; lv2:name "Out: Held" ;
+        lv2:index 31 ; lv2:symbol "o_held" ; lv2:name "Out: Held" ;
         lv2:minimum 0 ; lv2:maximum 65535 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 30 ; lv2:symbol "o_bpm" ; lv2:name "Out: BPM" ;
+        lv2:index 32 ; lv2:symbol "o_bpm" ; lv2:name "Out: BPM" ;
         lv2:minimum 0 ; lv2:maximum 400 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 31 ; lv2:symbol "o_bar" ; lv2:name "Out: Bar" ;
+        lv2:index 33 ; lv2:symbol "o_bar" ; lv2:name "Out: Bar" ;
         lv2:minimum 0 ; lv2:maximum 1000000 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 32 ; lv2:symbol "o_beat" ; lv2:name "Out: Beat" ;
+        lv2:index 34 ; lv2:symbol "o_beat" ; lv2:name "Out: Beat" ;
         lv2:minimum 0 ; lv2:maximum 16 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 33 ; lv2:symbol "o_bpb" ; lv2:name "Out: BPB" ;
+        lv2:index 35 ; lv2:symbol "o_bpb" ; lv2:name "Out: BPB" ;
         lv2:minimum 1 ; lv2:maximum 16 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 34 ; lv2:symbol "o_rolling" ; lv2:name "Out: Rolling" ;
+        lv2:index 36 ; lv2:symbol "o_rolling" ; lv2:name "Out: Rolling" ;
         lv2:minimum 0 ; lv2:maximum 1 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 35 ; lv2:symbol "o_tsrc" ; lv2:name "Out: Tempo Src" ;
+        lv2:index 37 ; lv2:symbol "o_tsrc" ; lv2:name "Out: Tempo Src" ;
         lv2:minimum 0 ; lv2:maximum 2 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 36 ; lv2:symbol "o_clk_bpm" ; lv2:name "Out: Clock BPM" ;
+        lv2:index 38 ; lv2:symbol "o_clk_bpm" ; lv2:name "Out: Clock BPM" ;
         lv2:minimum 0 ; lv2:maximum 400 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 37 ; lv2:symbol "o_pos_cnt" ; lv2:name "Out: Pos Msgs" ;
+        lv2:index 39 ; lv2:symbol "o_pos_cnt" ; lv2:name "Out: Pos Msgs" ;
         lv2:minimum 0 ; lv2:maximum 1000000 ;
     ] , [
         a lv2:OutputPort , atom:AtomPort ;
         atom:bufferType atom:Sequence ;
         atom:supports patch:Message ;
-        lv2:index 38 ; lv2:symbol "events_out" ; lv2:name "Events Out" ;
+        lv2:index 40 ; lv2:symbol "events_out" ; lv2:name "Events Out" ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 39 ; lv2:symbol "o_st1" ; lv2:name "Out: State 1" ;
+        lv2:index 41 ; lv2:symbol "o_st1" ; lv2:name "Out: State 1" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 40 ; lv2:symbol "o_st2" ; lv2:name "Out: State 2" ;
+        lv2:index 42 ; lv2:symbol "o_st2" ; lv2:name "Out: State 2" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 41 ; lv2:symbol "o_st3" ; lv2:name "Out: State 3" ;
+        lv2:index 43 ; lv2:symbol "o_st3" ; lv2:name "Out: State 3" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 42 ; lv2:symbol "o_st4" ; lv2:name "Out: State 4" ;
+        lv2:index 44 ; lv2:symbol "o_st4" ; lv2:name "Out: State 4" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 43 ; lv2:symbol "o_pos1" ; lv2:name "Out: Pos 1" ;
+        lv2:index 45 ; lv2:symbol "o_pos1" ; lv2:name "Out: Pos 1" ;
         lv2:minimum 0 ; lv2:maximum 1 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 44 ; lv2:symbol "o_pos2" ; lv2:name "Out: Pos 2" ;
+        lv2:index 46 ; lv2:symbol "o_pos2" ; lv2:name "Out: Pos 2" ;
         lv2:minimum 0 ; lv2:maximum 1 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 45 ; lv2:symbol "o_pos3" ; lv2:name "Out: Pos 3" ;
+        lv2:index 47 ; lv2:symbol "o_pos3" ; lv2:name "Out: Pos 3" ;
         lv2:minimum 0 ; lv2:maximum 1 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 46 ; lv2:symbol "o_pos4" ; lv2:name "Out: Pos 4" ;
+        lv2:index 48 ; lv2:symbol "o_pos4" ; lv2:name "Out: Pos 4" ;
         lv2:minimum 0 ; lv2:maximum 1 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 47 ; lv2:symbol "o_len1" ; lv2:name "Out: Len 1" ;
+        lv2:index 49 ; lv2:symbol "o_len1" ; lv2:name "Out: Len 1" ;
         lv2:minimum 0 ; lv2:maximum 100000 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 48 ; lv2:symbol "o_len2" ; lv2:name "Out: Len 2" ;
+        lv2:index 50 ; lv2:symbol "o_len2" ; lv2:name "Out: Len 2" ;
         lv2:minimum 0 ; lv2:maximum 100000 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 49 ; lv2:symbol "o_len3" ; lv2:name "Out: Len 3" ;
+        lv2:index 51 ; lv2:symbol "o_len3" ; lv2:name "Out: Len 3" ;
         lv2:minimum 0 ; lv2:maximum 100000 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 50 ; lv2:symbol "o_len4" ; lv2:name "Out: Len 4" ;
+        lv2:index 52 ; lv2:symbol "o_len4" ; lv2:name "Out: Len 4" ;
         lv2:minimum 0 ; lv2:maximum 100000 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 51 ; lv2:symbol "o_flags" ; lv2:name "Out: Flags" ;
+        lv2:index 53 ; lv2:symbol "o_flags" ; lv2:name "Out: Flags" ;
         lv2:minimum 0 ; lv2:maximum 33554431 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 52 ; lv2:symbol "o_pool" ; lv2:name "Out: Pool" ;
+        lv2:index 54 ; lv2:symbol "o_pool" ; lv2:name "Out: Pool" ;
         lv2:minimum 0 ; lv2:maximum 1 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 53 ; lv2:symbol "o_parts" ; lv2:name "Out: Parts" ;
+        lv2:index 55 ; lv2:symbol "o_parts" ; lv2:name "Out: Parts" ;
         lv2:minimum 0 ; lv2:maximum 63 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 54 ; lv2:symbol "o_pk1" ; lv2:name "Out: Peak 1" ;
+        lv2:index 56 ; lv2:symbol "o_pk1" ; lv2:name "Out: Peak 1" ;
         lv2:minimum 0 ; lv2:maximum 2 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 55 ; lv2:symbol "o_pk2" ; lv2:name "Out: Peak 2" ;
+        lv2:index 57 ; lv2:symbol "o_pk2" ; lv2:name "Out: Peak 2" ;
         lv2:minimum 0 ; lv2:maximum 2 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 56 ; lv2:symbol "o_pk3" ; lv2:name "Out: Peak 3" ;
+        lv2:index 58 ; lv2:symbol "o_pk3" ; lv2:name "Out: Peak 3" ;
         lv2:minimum 0 ; lv2:maximum 2 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 57 ; lv2:symbol "o_pk4" ; lv2:name "Out: Peak 4" ;
+        lv2:index 59 ; lv2:symbol "o_pk4" ; lv2:name "Out: Peak 4" ;
         lv2:minimum 0 ; lv2:maximum 2 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 58 ; lv2:symbol "o_mpk_l" ; lv2:name "Out: Master Peak L" ;
+        lv2:index 60 ; lv2:symbol "o_mpk_l" ; lv2:name "Out: Master Peak L" ;
         lv2:minimum 0 ; lv2:maximum 2 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 59 ; lv2:symbol "o_mpk_r" ; lv2:name "Out: Master Peak R" ;
+        lv2:index 61 ; lv2:symbol "o_mpk_r" ; lv2:name "Out: Master Peak R" ;
         lv2:minimum 0 ; lv2:maximum 2 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 60 ; lv2:symbol "o_spd1" ; lv2:name "Out: Speed 1" ;
+        lv2:index 62 ; lv2:symbol "o_spd1" ; lv2:name "Out: Speed 1" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 61 ; lv2:symbol "o_spd2" ; lv2:name "Out: Speed 2" ;
+        lv2:index 63 ; lv2:symbol "o_spd2" ; lv2:name "Out: Speed 2" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 62 ; lv2:symbol "o_spd3" ; lv2:name "Out: Speed 3" ;
+        lv2:index 64 ; lv2:symbol "o_spd3" ; lv2:name "Out: Speed 3" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 63 ; lv2:symbol "o_spd4" ; lv2:name "Out: Speed 4" ;
+        lv2:index 65 ; lv2:symbol "o_spd4" ; lv2:name "Out: Speed 4" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 64 ; lv2:symbol "o_espd1" ; lv2:name "Out: Eff Speed 1" ;
+        lv2:index 66 ; lv2:symbol "o_espd1" ; lv2:name "Out: Eff Speed 1" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 65 ; lv2:symbol "o_espd2" ; lv2:name "Out: Eff Speed 2" ;
+        lv2:index 67 ; lv2:symbol "o_espd2" ; lv2:name "Out: Eff Speed 2" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 66 ; lv2:symbol "o_espd3" ; lv2:name "Out: Eff Speed 3" ;
+        lv2:index 68 ; lv2:symbol "o_espd3" ; lv2:name "Out: Eff Speed 3" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 67 ; lv2:symbol "o_espd4" ; lv2:name "Out: Eff Speed 4" ;
+        lv2:index 69 ; lv2:symbol "o_espd4" ; lv2:name "Out: Eff Speed 4" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 68 ; lv2:symbol "o_st5" ; lv2:name "Out: State 5" ;
+        lv2:index 70 ; lv2:symbol "o_st5" ; lv2:name "Out: State 5" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 69 ; lv2:symbol "o_st6" ; lv2:name "Out: State 6" ;
+        lv2:index 71 ; lv2:symbol "o_st6" ; lv2:name "Out: State 6" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 70 ; lv2:symbol "o_pos5" ; lv2:name "Out: Pos 5" ;
+        lv2:index 72 ; lv2:symbol "o_pos5" ; lv2:name "Out: Pos 5" ;
         lv2:minimum 0 ; lv2:maximum 1 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 71 ; lv2:symbol "o_pos6" ; lv2:name "Out: Pos 6" ;
+        lv2:index 73 ; lv2:symbol "o_pos6" ; lv2:name "Out: Pos 6" ;
         lv2:minimum 0 ; lv2:maximum 1 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 72 ; lv2:symbol "o_len5" ; lv2:name "Out: Len 5" ;
+        lv2:index 74 ; lv2:symbol "o_len5" ; lv2:name "Out: Len 5" ;
         lv2:minimum 0 ; lv2:maximum 100000 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 73 ; lv2:symbol "o_len6" ; lv2:name "Out: Len 6" ;
+        lv2:index 75 ; lv2:symbol "o_len6" ; lv2:name "Out: Len 6" ;
         lv2:minimum 0 ; lv2:maximum 100000 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 74 ; lv2:symbol "o_pk5" ; lv2:name "Out: Peak 5" ;
+        lv2:index 76 ; lv2:symbol "o_pk5" ; lv2:name "Out: Peak 5" ;
         lv2:minimum 0 ; lv2:maximum 2 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 75 ; lv2:symbol "o_pk6" ; lv2:name "Out: Peak 6" ;
+        lv2:index 77 ; lv2:symbol "o_pk6" ; lv2:name "Out: Peak 6" ;
         lv2:minimum 0 ; lv2:maximum 2 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 76 ; lv2:symbol "o_spd5" ; lv2:name "Out: Speed 5" ;
+        lv2:index 78 ; lv2:symbol "o_spd5" ; lv2:name "Out: Speed 5" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 77 ; lv2:symbol "o_spd6" ; lv2:name "Out: Speed 6" ;
+        lv2:index 79 ; lv2:symbol "o_spd6" ; lv2:name "Out: Speed 6" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 78 ; lv2:symbol "o_espd5" ; lv2:name "Out: Eff Speed 5" ;
+        lv2:index 80 ; lv2:symbol "o_espd5" ; lv2:name "Out: Eff Speed 5" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 79 ; lv2:symbol "o_espd6" ; lv2:name "Out: Eff Speed 6" ;
+        lv2:index 81 ; lv2:symbol "o_espd6" ; lv2:name "Out: Eff Speed 6" ;
         lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 80 ; lv2:symbol "o_mutes" ; lv2:name "Out: Mute Mask" ;
+        lv2:index 82 ; lv2:symbol "o_mutes" ; lv2:name "Out: Mute Mask" ;
         lv2:minimum 0 ; lv2:maximum 4095 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 81 ; lv2:symbol "o_revs" ; lv2:name "Out: Reverse Mask" ;
+        lv2:index 83 ; lv2:symbol "o_revs" ; lv2:name "Out: Reverse Mask" ;
         lv2:minimum 0 ; lv2:maximum 63 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 82 ; lv2:symbol "o_stops" ; lv2:name "Out: Stopped Mask" ;
+        lv2:index 84 ; lv2:symbol "o_stops" ; lv2:name "Out: Stopped Mask" ;
         lv2:minimum 0 ; lv2:maximum 255 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 83 ; lv2:symbol "o_locks" ; lv2:name "Out: Lock Mask" ;
+        lv2:index 85 ; lv2:symbol "o_locks" ; lv2:name "Out: Lock Mask" ;
         lv2:minimum 0 ; lv2:maximum 63 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 84 ; lv2:symbol "o_grid" ; lv2:name "Out: Grid" ;
+        lv2:index 86 ; lv2:symbol "o_grid" ; lv2:name "Out: Grid" ;
         lv2:minimum 2 ; lv2:maximum 6 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 85 ; lv2:symbol "o_pool_mb" ; lv2:name "Out: Pool MB" ;
+        lv2:index 87 ; lv2:symbol "o_pool_mb" ; lv2:name "Out: Pool MB" ;
         lv2:minimum 0 ; lv2:maximum 4096 ;
     ] ,
     # сессия: 0 нет, 1 Save ждёт закрытия записи, 2 сохраняется, 3 сохранена, 4 грузится, 5 загружена,
     # от 10 — ошибки (core/session.h, SessStatus)
     [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 86 ; lv2:symbol "o_session" ; lv2:name "Out: Session" ;
+        lv2:index 88 ; lv2:symbol "o_session" ; lv2:name "Out: Session" ;
         lv2:minimum 0 ; lv2:maximum 20 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 87 ; lv2:symbol "o_sess_prog" ; lv2:name "Out: Session Progress" ;
+        lv2:index 89 ; lv2:symbol "o_sess_prog" ; lv2:name "Out: Session Progress" ;
         lv2:minimum 0 ; lv2:maximum 1 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 88 ; lv2:symbol "o_count" ; lv2:name "Out: Count In" ;
+        lv2:index 90 ; lv2:symbol "o_count" ; lv2:name "Out: Count In" ;
         lv2:minimum 0 ; lv2:maximum 64 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
-        lv2:index 89 ; lv2:symbol "o_pstat" ; lv2:name "Out: Pitch Status" ;
+        lv2:index 91 ; lv2:symbol "o_pstat" ; lv2:name "Out: Pitch Status" ;
         lv2:minimum 0 ; lv2:maximum 2 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 92 ; lv2:symbol "o_solos" ; lv2:name "Out: Solo Mask" ;
+        lv2:minimum 0 ; lv2:maximum 262143 ;
     ] .
 
 # Настройки: LV2-параметры (patch:Set), скрыты со страниц, меняются на вкладке настроек виджета.
@@ -3245,5 +3337,707 @@
     rdfs:label "Trim End 36" ;
     rdfs:range atom:Float ;
     lv2:default 1.0 ; lv2:minimum 0.0 ; lv2:maximum 1.0 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#dub_decay>
+    a lv2:Parameter ;
+    lv2:symbol "dub_decay" ;
+    rdfs:label "Dub Decay" ;
+    rdfs:range atom:Int ;
+    lv2:default 100 ; lv2:minimum 50 ; lv2:maximum 100 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tsolo>
+    a lv2:Parameter ;
+    lv2:symbol "tsolo" ;
+    rdfs:label "Track Solo" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfclear>
+    a lv2:Parameter ;
+    lv2:symbol "tfclear" ;
+    rdfs:label "Track Fade Clear" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tcrop>
+    a lv2:Parameter ;
+    lv2:symbol "tcrop" ;
+    rdfs:label "Track Crop" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tmul>
+    a lv2:Parameter ;
+    lv2:symbol "tmul" ;
+    rdfs:label "Track Multiply" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tpbake>
+    a lv2:Parameter ;
+    lv2:symbol "tpbake" ;
+    rdfs:label "Track Bake Pitch" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 6 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi1>
+    a lv2:Parameter ;
+    lv2:symbol "tfi1" ;
+    rdfs:label "Trim Fade In 1" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi2>
+    a lv2:Parameter ;
+    lv2:symbol "tfi2" ;
+    rdfs:label "Trim Fade In 2" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi3>
+    a lv2:Parameter ;
+    lv2:symbol "tfi3" ;
+    rdfs:label "Trim Fade In 3" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi4>
+    a lv2:Parameter ;
+    lv2:symbol "tfi4" ;
+    rdfs:label "Trim Fade In 4" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi5>
+    a lv2:Parameter ;
+    lv2:symbol "tfi5" ;
+    rdfs:label "Trim Fade In 5" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi6>
+    a lv2:Parameter ;
+    lv2:symbol "tfi6" ;
+    rdfs:label "Trim Fade In 6" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi7>
+    a lv2:Parameter ;
+    lv2:symbol "tfi7" ;
+    rdfs:label "Trim Fade In 7" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi8>
+    a lv2:Parameter ;
+    lv2:symbol "tfi8" ;
+    rdfs:label "Trim Fade In 8" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi9>
+    a lv2:Parameter ;
+    lv2:symbol "tfi9" ;
+    rdfs:label "Trim Fade In 9" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi10>
+    a lv2:Parameter ;
+    lv2:symbol "tfi10" ;
+    rdfs:label "Trim Fade In 10" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi11>
+    a lv2:Parameter ;
+    lv2:symbol "tfi11" ;
+    rdfs:label "Trim Fade In 11" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi12>
+    a lv2:Parameter ;
+    lv2:symbol "tfi12" ;
+    rdfs:label "Trim Fade In 12" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi13>
+    a lv2:Parameter ;
+    lv2:symbol "tfi13" ;
+    rdfs:label "Trim Fade In 13" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi14>
+    a lv2:Parameter ;
+    lv2:symbol "tfi14" ;
+    rdfs:label "Trim Fade In 14" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi15>
+    a lv2:Parameter ;
+    lv2:symbol "tfi15" ;
+    rdfs:label "Trim Fade In 15" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi16>
+    a lv2:Parameter ;
+    lv2:symbol "tfi16" ;
+    rdfs:label "Trim Fade In 16" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi17>
+    a lv2:Parameter ;
+    lv2:symbol "tfi17" ;
+    rdfs:label "Trim Fade In 17" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi18>
+    a lv2:Parameter ;
+    lv2:symbol "tfi18" ;
+    rdfs:label "Trim Fade In 18" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi19>
+    a lv2:Parameter ;
+    lv2:symbol "tfi19" ;
+    rdfs:label "Trim Fade In 19" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi20>
+    a lv2:Parameter ;
+    lv2:symbol "tfi20" ;
+    rdfs:label "Trim Fade In 20" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi21>
+    a lv2:Parameter ;
+    lv2:symbol "tfi21" ;
+    rdfs:label "Trim Fade In 21" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi22>
+    a lv2:Parameter ;
+    lv2:symbol "tfi22" ;
+    rdfs:label "Trim Fade In 22" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi23>
+    a lv2:Parameter ;
+    lv2:symbol "tfi23" ;
+    rdfs:label "Trim Fade In 23" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi24>
+    a lv2:Parameter ;
+    lv2:symbol "tfi24" ;
+    rdfs:label "Trim Fade In 24" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi25>
+    a lv2:Parameter ;
+    lv2:symbol "tfi25" ;
+    rdfs:label "Trim Fade In 25" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi26>
+    a lv2:Parameter ;
+    lv2:symbol "tfi26" ;
+    rdfs:label "Trim Fade In 26" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi27>
+    a lv2:Parameter ;
+    lv2:symbol "tfi27" ;
+    rdfs:label "Trim Fade In 27" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi28>
+    a lv2:Parameter ;
+    lv2:symbol "tfi28" ;
+    rdfs:label "Trim Fade In 28" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi29>
+    a lv2:Parameter ;
+    lv2:symbol "tfi29" ;
+    rdfs:label "Trim Fade In 29" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi30>
+    a lv2:Parameter ;
+    lv2:symbol "tfi30" ;
+    rdfs:label "Trim Fade In 30" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi31>
+    a lv2:Parameter ;
+    lv2:symbol "tfi31" ;
+    rdfs:label "Trim Fade In 31" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi32>
+    a lv2:Parameter ;
+    lv2:symbol "tfi32" ;
+    rdfs:label "Trim Fade In 32" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi33>
+    a lv2:Parameter ;
+    lv2:symbol "tfi33" ;
+    rdfs:label "Trim Fade In 33" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi34>
+    a lv2:Parameter ;
+    lv2:symbol "tfi34" ;
+    rdfs:label "Trim Fade In 34" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi35>
+    a lv2:Parameter ;
+    lv2:symbol "tfi35" ;
+    rdfs:label "Trim Fade In 35" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfi36>
+    a lv2:Parameter ;
+    lv2:symbol "tfi36" ;
+    rdfs:label "Trim Fade In 36" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo1>
+    a lv2:Parameter ;
+    lv2:symbol "tfo1" ;
+    rdfs:label "Trim Fade Out 1" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo2>
+    a lv2:Parameter ;
+    lv2:symbol "tfo2" ;
+    rdfs:label "Trim Fade Out 2" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo3>
+    a lv2:Parameter ;
+    lv2:symbol "tfo3" ;
+    rdfs:label "Trim Fade Out 3" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo4>
+    a lv2:Parameter ;
+    lv2:symbol "tfo4" ;
+    rdfs:label "Trim Fade Out 4" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo5>
+    a lv2:Parameter ;
+    lv2:symbol "tfo5" ;
+    rdfs:label "Trim Fade Out 5" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo6>
+    a lv2:Parameter ;
+    lv2:symbol "tfo6" ;
+    rdfs:label "Trim Fade Out 6" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo7>
+    a lv2:Parameter ;
+    lv2:symbol "tfo7" ;
+    rdfs:label "Trim Fade Out 7" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo8>
+    a lv2:Parameter ;
+    lv2:symbol "tfo8" ;
+    rdfs:label "Trim Fade Out 8" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo9>
+    a lv2:Parameter ;
+    lv2:symbol "tfo9" ;
+    rdfs:label "Trim Fade Out 9" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo10>
+    a lv2:Parameter ;
+    lv2:symbol "tfo10" ;
+    rdfs:label "Trim Fade Out 10" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo11>
+    a lv2:Parameter ;
+    lv2:symbol "tfo11" ;
+    rdfs:label "Trim Fade Out 11" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo12>
+    a lv2:Parameter ;
+    lv2:symbol "tfo12" ;
+    rdfs:label "Trim Fade Out 12" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo13>
+    a lv2:Parameter ;
+    lv2:symbol "tfo13" ;
+    rdfs:label "Trim Fade Out 13" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo14>
+    a lv2:Parameter ;
+    lv2:symbol "tfo14" ;
+    rdfs:label "Trim Fade Out 14" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo15>
+    a lv2:Parameter ;
+    lv2:symbol "tfo15" ;
+    rdfs:label "Trim Fade Out 15" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo16>
+    a lv2:Parameter ;
+    lv2:symbol "tfo16" ;
+    rdfs:label "Trim Fade Out 16" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo17>
+    a lv2:Parameter ;
+    lv2:symbol "tfo17" ;
+    rdfs:label "Trim Fade Out 17" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo18>
+    a lv2:Parameter ;
+    lv2:symbol "tfo18" ;
+    rdfs:label "Trim Fade Out 18" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo19>
+    a lv2:Parameter ;
+    lv2:symbol "tfo19" ;
+    rdfs:label "Trim Fade Out 19" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo20>
+    a lv2:Parameter ;
+    lv2:symbol "tfo20" ;
+    rdfs:label "Trim Fade Out 20" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo21>
+    a lv2:Parameter ;
+    lv2:symbol "tfo21" ;
+    rdfs:label "Trim Fade Out 21" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo22>
+    a lv2:Parameter ;
+    lv2:symbol "tfo22" ;
+    rdfs:label "Trim Fade Out 22" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo23>
+    a lv2:Parameter ;
+    lv2:symbol "tfo23" ;
+    rdfs:label "Trim Fade Out 23" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo24>
+    a lv2:Parameter ;
+    lv2:symbol "tfo24" ;
+    rdfs:label "Trim Fade Out 24" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo25>
+    a lv2:Parameter ;
+    lv2:symbol "tfo25" ;
+    rdfs:label "Trim Fade Out 25" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo26>
+    a lv2:Parameter ;
+    lv2:symbol "tfo26" ;
+    rdfs:label "Trim Fade Out 26" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo27>
+    a lv2:Parameter ;
+    lv2:symbol "tfo27" ;
+    rdfs:label "Trim Fade Out 27" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo28>
+    a lv2:Parameter ;
+    lv2:symbol "tfo28" ;
+    rdfs:label "Trim Fade Out 28" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo29>
+    a lv2:Parameter ;
+    lv2:symbol "tfo29" ;
+    rdfs:label "Trim Fade Out 29" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo30>
+    a lv2:Parameter ;
+    lv2:symbol "tfo30" ;
+    rdfs:label "Trim Fade Out 30" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo31>
+    a lv2:Parameter ;
+    lv2:symbol "tfo31" ;
+    rdfs:label "Trim Fade Out 31" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo32>
+    a lv2:Parameter ;
+    lv2:symbol "tfo32" ;
+    rdfs:label "Trim Fade Out 32" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo33>
+    a lv2:Parameter ;
+    lv2:symbol "tfo33" ;
+    rdfs:label "Trim Fade Out 33" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo34>
+    a lv2:Parameter ;
+    lv2:symbol "tfo34" ;
+    rdfs:label "Trim Fade Out 34" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo35>
+    a lv2:Parameter ;
+    lv2:symbol "tfo35" ;
+    rdfs:label "Trim Fade Out 35" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
+    pprops:notOnGUI true ;
+    lv2:portProperty pprops:notOnGUI .
+
+<http://dmtry3.github.io/zynthian-eka/tape#tfo36>
+    a lv2:Parameter ;
+    lv2:symbol "tfo36" ;
+    rdfs:label "Trim Fade Out 36" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.0 ; lv2:minimum 0.0 ; lv2:maximum 0.5 ;
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .

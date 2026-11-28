@@ -82,9 +82,10 @@ std::string session_to_text(const SessionDesc& d) {
   const int n = d.grid * d.grid;
   for (int k = 0; k < n && k < kSessionTracks; ++k) {
     const SessionTrack& t = d.t[k];
-    std::snprintf(line, sizeof line, "t %d %d %d %d %d %d %llu %.9g %.17g %.17g %.17g %.9g %.9g |%s\n", k, t.used,
-                  t.locked, t.muted, t.reversed, t.synced, (unsigned long long)t.len, (double)t.gain, t.loop_beats,
-                  t.rec_bpm, t.b0, (double)t.trim_a, (double)t.trim_b, t.used ? t.file : "");
+    std::snprintf(line, sizeof line, "t %d %d %d %d %d %d %llu %.9g %.17g %.17g %.17g %.9g %.9g %.9g %.9g |%s\n", k,
+                  t.used, t.locked, t.muted, t.reversed, t.synced, (unsigned long long)t.len, (double)t.gain,
+                  t.loop_beats, t.rec_bpm, t.b0, (double)t.trim_a, (double)t.trim_b, (double)t.trim_fi,
+                  (double)t.trim_fo, t.used ? t.file : "");
     s += line;
   }
   return s;
@@ -119,9 +120,9 @@ bool session_from_text(const char* txt, size_t n, SessionDesc& d) {
     if (ln[0] == 't') {
       int k, used, locked, muted, rev, synced;
       unsigned long long len;
-      double gain, lb, bpm, b0, ta = 0.0, tb = 1.0;
-      const int got = std::sscanf(ln.c_str(), "t %d %d %d %d %d %d %llu %lf %lf %lf %lf %lf %lf", &k, &used, &locked,
-                                  &muted, &rev, &synced, &len, &gain, &lb, &bpm, &b0, &ta, &tb);
+      double gain, lb, bpm, b0, ta = 0.0, tb = 1.0, tfi = 0.0, tfo = 0.0;
+      const int got = std::sscanf(ln.c_str(), "t %d %d %d %d %d %d %llu %lf %lf %lf %lf %lf %lf %lf %lf", &k, &used,
+                                  &locked, &muted, &rev, &synced, &len, &gain, &lb, &bpm, &b0, &ta, &tb, &tfi, &tfo);
       if (got < 11) return false;
       if (k < 0 || k >= kSessionTracks) return false;
       SessionTrack& t = d.t[k];
@@ -141,6 +142,13 @@ bool session_from_text(const char* txt, size_t n, SessionDesc& d) {
       } else {
         t.trim_a = 0.0f;
         t.trim_b = 1.0f;
+      }
+      if (got >= 15 && tfi >= 0.0 && tfi <= 0.5 && tfo >= 0.0 && tfo <= 0.5) {
+        t.trim_fi = (float)tfi;
+        t.trim_fo = (float)tfo;
+      } else {
+        t.trim_fi = 0.0f;
+        t.trim_fo = 0.0f;
       }
       const size_t bar = ln.find('|');
       if (bar != std::string::npos) std::snprintf(t.file, sizeof t.file, "%s", ln.c_str() + bar + 1);

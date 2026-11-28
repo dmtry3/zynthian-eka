@@ -56,7 +56,7 @@ enum Port : uint32_t {
   P_REC, P_UNDO, P_REDO, P_RESET,
   P_MUTE, P_REVERSE, P_LOCK, P_TRK_NEXT,
   P_TRK_PREV, P_PART_NEXT, P_PART_PREV, P_PLAY,
-  P_W_LOOP, P_W_MIXER,
+  P_W_LOOP, P_W_MIXER, P_SOLO, P_FCLEAR,
   // страница 5: плавные (уровень, панорама, master, скорость)
   P_LEVEL, P_PAN, P_MASTER, P_SPEED,
   P_IN_L, P_IN_R, P_OUT_L, P_OUT_R, P_EVENTS,
@@ -77,6 +77,7 @@ enum Port : uint32_t {
   O_SESS, O_SESS_PROG,  // сессия: состояние (SessStatus) и доля записанного или прочитанного
   O_COUNT,              // счёт перед записью на активной дорожке: долей до начала (0 — нет)
   O_PSTAT,              // сдвиг высоты: 0 работает, 1 выключен из-за перегрузки, 2 недоступен
+  O_SOLOS,              // маски: биты 0..5 solo, 6..11 solo_pending, 12..17 fade_clearing
   P_COUNT
 };
 
@@ -91,12 +92,12 @@ const uint32_t kOutEspd[kMaxSlots] = {O_ESPD1, O_ESPD2, O_ESPD3, O_ESPD4, O_ESPD
 // Параметр grid: 0 — 2×2, 1 — 4×4, 2 — 6×6
 inline int grid_n(float v) { return v < 0.5f ? 2 : (v < 1.5f ? 4 : 6); }
 
-constexpr uint32_t kButtons = P_W_MIXER - P_REC + 1;
+constexpr uint32_t kButtons = P_FCLEAR - P_REC + 1;
 
 // Коды действий в порту «Out: Action». Те же числа в виджете.
 enum Action : int {
   A_NONE, A_REC, A_UNDO, A_REDO, A_RESET_TRACK, A_RESET_ALL, A_MUTE, A_REVERSE, A_LOCK,
-  A_TRK_NEXT, A_TRK_PREV, A_PART_NEXT, A_PART_PREV, A_PLAY, A_W_LOOP, A_W_MIXER
+  A_TRK_NEXT, A_TRK_PREV, A_PART_NEXT, A_PART_PREV, A_PLAY, A_W_LOOP, A_W_MIXER, A_SOLO, A_FCLEAR
 };
 
 // Какое действие даёт тап и какое удержание. Без удержания (A_NONE): срабатывает сразу по нажатию.
@@ -120,6 +121,8 @@ const ButtonDef kDefs[kButtons] = {
     {A_PLAY, A_NONE},
     {A_W_LOOP, A_NONE},
     {A_W_MIXER, A_NONE},
+    {A_SOLO, A_NONE},
+    {A_FCLEAR, A_NONE},
 };
 
 // Настройки и микшер: LV2-параметры (patch:Set), сохраняются в снапшотах. Порядок как в eka_tape.ttl.
@@ -153,7 +156,15 @@ enum Param {
   PR_PRESET = PR_PIT0 + kTracks,  // команда виджета: сдвиг дорожки 1..6 текущего парта в 0
   PR_TRMA0,                       // trma1..trma36: начало лупа (0..1)
   PR_TRMB0 = PR_TRMA0 + kTracks,  // trmb1..trmb36: конец лупа (0..1)
-  PR_COUNT = PR_TRMB0 + kTracks
+  PR_DUB_DECAY = PR_TRMB0 + kTracks,  // затухание старых слоёв при овердабе (50..100%)
+  PR_TSOLO,                       // команда виджета: solo дорожки 1..6 текущего парта
+  PR_TFCLEAR,                     // команда виджета: fade-clear дорожки 1..6 текущего парта
+  PR_TCROP,                       // команда виджета: crop (запечь trim+fades) дорожки 1..6
+  PR_TMUL,                        // команда виджета: multiply ×2 дорожки 1..6
+  PR_TPBAKE,                      // команда виджета: bake pitch дорожки 1..6
+  PR_TFI0,                        // tfi1..tfi36: fade-in лупа (0..0.5)
+  PR_TFO0 = PR_TFI0 + kTracks,    // tfo1..tfo36: fade-out лупа (0..0.5)
+  PR_COUNT = PR_TFO0 + kTracks
 };
 struct ParamDef {
   char sym[16];
@@ -210,6 +221,18 @@ void init_params() {
     std::snprintf(kParams[PR_TRMA0 + t].sym, 16, "trma%d", t + 1);
     kParams[PR_TRMB0 + t] = ParamDef{{}, 1.0f, 0.0f, 1.0f, true};
     std::snprintf(kParams[PR_TRMB0 + t].sym, 16, "trmb%d", t + 1);
+  }
+  kParams[PR_DUB_DECAY] = ParamDef{"dub_decay", 100.0f, 50.0f, 100.0f, false};
+  kParams[PR_TSOLO] = ParamDef{"tsolo", 0.0f, 0.0f, 6.0f, false};
+  kParams[PR_TFCLEAR] = ParamDef{"tfclear", 0.0f, 0.0f, 6.0f, false};
+  kParams[PR_TCROP] = ParamDef{"tcrop", 0.0f, 0.0f, 6.0f, false};
+  kParams[PR_TMUL] = ParamDef{"tmul", 0.0f, 0.0f, 6.0f, false};
+  kParams[PR_TPBAKE] = ParamDef{"tpbake", 0.0f, 0.0f, 6.0f, false};
+  for (int t = 0; t < kTracks; ++t) {
+    kParams[PR_TFI0 + t] = ParamDef{{}, 0.0f, 0.0f, 0.5f, true};
+    std::snprintf(kParams[PR_TFI0 + t].sym, 16, "tfi%d", t + 1);
+    kParams[PR_TFO0 + t] = ParamDef{{}, 0.0f, 0.0f, 0.5f, true};
+    std::snprintf(kParams[PR_TFO0 + t].sym, 16, "tfo%d", t + 1);
   }
 }
 constexpr uint32_t kReportPerRun = 4;  // ответов на patch:Get за один run()
@@ -303,6 +326,7 @@ struct Plugin {
     s.latency_ms = vals[PR_LAT];
     s.count_in = (int)vals[PR_COUNTIN];
     s.rec_thresh_db = (int)vals[PR_RTHRESH];
+    s.dub_decay = vals[PR_DUB_DECAY] / 100.0f;
     looper->set_settings(s);
     configure_buttons();
     // пул — только когда изменился сам параметр: смена стирает лупы
@@ -327,7 +351,8 @@ struct Plugin {
     for (int i = PR_LEV0; i < PR_COUNT; ++i) {
       const bool per_track = i < PR_MASTER || (i >= PR_SPD0 && i < PR_SPD0 + kTracks) ||
                              (i >= PR_PIT0 && i < PR_PIT0 + kTracks) ||
-                             (i >= PR_TRMA0 && i < PR_TRMB0 + kTracks);
+                             (i >= PR_TRMA0 && i < PR_TRMB0 + kTracks) ||
+                             (i >= PR_TFI0 && i < PR_TFO0 + kTracks);
       if (!per_track) continue;  // Master, ограничитель, настройки — общие
       if (vals[i] != kParams[i].def) {
         vals[i] = kParams[i].def;
@@ -357,10 +382,14 @@ struct Plugin {
     } else if (i >= PR_TRMA0 && i < PR_TRMB0 + kTracks) {
       const int t = (i - PR_TRMA0) % kTracks;
       looper->set_trim(t, vals[PR_TRMA0 + t], vals[PR_TRMB0 + t]);
+    } else if (i >= PR_TFI0 && i < PR_TFO0 + kTracks) {
+      const int t = (i - PR_TFI0) % kTracks;
+      looper->set_trim_fade(t, vals[PR_TFI0 + t], vals[PR_TFO0 + t]);
     }
   }
   static bool is_setting(int i) {
-    return i < PR_LEV0 || i == PR_TGLIDE || i == PR_SSNAP || i == PR_SGLIDE || (i >= PR_HOLD && i <= PR_POOL) || i == PR_COUNTIN || i == PR_RTHRESH;
+    return i < PR_LEV0 || i == PR_TGLIDE || i == PR_SSNAP || i == PR_SGLIDE || (i >= PR_HOLD && i <= PR_POOL) ||
+           i == PR_COUNTIN || i == PR_RTHRESH || i == PR_DUB_DECAY;
   }
   void apply_all() {
     apply_settings();
@@ -387,6 +416,8 @@ struct Plugin {
     for (int t = 0; t < kTracks; ++t) {
       upd(PR_TRMA0 + t, looper->trim_start(t));
       upd(PR_TRMB0 + t, looper->trim_end(t));
+      upd(PR_TFI0 + t, looper->trim_fi(t));
+      upd(PR_TFO0 + t, looper->trim_fo(t));
     }
   }
 };
@@ -565,6 +596,20 @@ void on_param(Plugin* pl, int i) {
     pl->dirty[i] = true;
     return;
   }
+  if (i == PR_TSOLO || i == PR_TFCLEAR || i == PR_TCROP || i == PR_TMUL || i == PR_TPBAKE) {
+    const int s = (int)pl->vals[i] - 1;
+    if (s >= 0 && s < pl->looper->grid()) {
+      const int k = pl->looper->part() * pl->looper->grid() + s;
+      if (i == PR_TSOLO) pl->looper->solo_slot(s);
+      else if (i == PR_TFCLEAR) pl->looper->fade_clear_slot(s);
+      else if (i == PR_TCROP) pl->looper->crop_track(k);
+      else if (i == PR_TMUL) pl->looper->multiply_track(k);
+      else if (i == PR_TPBAKE) pl->looper->bake_pitch(k);
+    }
+    pl->vals[i] = 0.0f;
+    pl->dirty[i] = true;
+    return;
+  }
   if (i == PR_GRID && grid_n(pl->vals[i]) != pl->looper->grid()) pl->reset_track_params();
   if (Plugin::is_setting(i)) pl->apply_settings();
   else pl->apply_mix_param(i);
@@ -609,6 +654,8 @@ void do_action(Plugin* pl, Action a) {
     case A_PART_PREV: lp->command(Cmd::PartPrev); break;
     case A_W_LOOP: pl->widget = 0; break;
     case A_W_MIXER: pl->widget = 1; break;
+    case A_SOLO: lp->command(Cmd::Solo); break;
+    case A_FCLEAR: lp->command(Cmd::FadeClear); break;
     default: break;
   }
   pl->last_action = a;
@@ -822,7 +869,7 @@ void run(LV2_Handle h, uint32_t n) {
   pl->out(O_POS_CNT, (float)(pl->clock.messages() % 1000000));
   // дорожки текущего парта; места за краем сетки — пустые
   const int n_grid = lp->grid();
-  uint32_t flags = 0, mutes = 0, revs = 0, stops = 0, locks = 0;
+  uint32_t flags = 0, mutes = 0, revs = 0, stops = 0, locks = 0, solos = 0;
   for (int i = 0; i < kMaxSlots; ++i) {
     TrackView v{};
     v.speed = v.espeed = 1.0f;
@@ -838,6 +885,9 @@ void run(LV2_Handle h, uint32_t n) {
     if (v.reversed) revs |= 1u << i;
     if (v.stopped) stops |= 1u << i;
     if (v.locked) locks |= 1u << i;
+    if (v.solo) solos |= 1u << i;
+    if (v.solo_pending) solos |= 1u << (6 + i);
+    if (v.fade_clearing) solos |= 1u << (12 + i);
     if (i < 4) {  // старый упакованный порт: дорожки 1–4
       if (v.muted) flags |= 1u << i;
       if (v.reversed) flags |= 1u << (4 + i);
@@ -860,6 +910,7 @@ void run(LV2_Handle h, uint32_t n) {
   pl->out(O_SESS_PROG, lp->session_progress());
   pl->out(O_COUNT, (float)lp->view(lp->active()).count);
   pl->out(O_PSTAT, lp->pitch_latency() <= 0 ? 2.0f : (lp->pitch_overload() ? 1.0f : 0.0f));
+  pl->out(O_SOLOS, (float)solos);
   pl->out(O_POOL, lp->pool_fill());
   pl->out(O_MPK_L, lp->master_peak(0));
   pl->out(O_MPK_R, lp->master_peak(1));
