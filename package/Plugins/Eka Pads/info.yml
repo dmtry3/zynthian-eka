@@ -1,0 +1,12 @@
+title: "Eka Pads"
+version: "0.1"
+icon: "Art/eka_pads.png"
+author: "dmtry3"
+license: "GPL-3.0-or-later"
+source_url: "https://github.com/dmtry3/zynthian-eka.git"
+size: "904 KB"
+content: "zynthian-plugins/lv2/eka-pads.lv2"
+description: "16-pad drum sampler & polyrhythmic scene sequencer.<br/>
+
+A 4×4 drum sampler built for pad controllers (like M-VAVE SMC-PAD Pocket): 16 independent pads with async WAV/FLAC loading, anti-aliased sinc pitch, decay, bipolar DJ filter, punch, drive/crush, choke groups, bipolar `Width`, 4 stereo `Aux` sends to Zynthian Mixbuses, a 4-slot per-pad modulation matrix (2 LFOs + Env Follower), Auto-Select syncing Zynthian's 4 encoders to the last hit pad, and a polyrhythmic 32-step scene sequencer with live Overdub, per-step velocity/chance/ratchets, and one-tap export to ZynSeq.
+"

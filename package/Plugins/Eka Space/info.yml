@@ -1,0 +1,12 @@
+title: "Eka Space"
+version: "0.1"
+icon: "Art/eka_space.png"
+author: "dmtry3"
+license: "GPL-3.0-or-later"
+source_url: "https://github.com/dmtry3/zynthian-eka.git"
+size: "172 KB"
+content: "zynthian-plugins/lv2/eka-space.lv2"
+description: "3D stereo soundstage, widener & spatial modulator.<br/>
+
+2D stage positioning (`Pan`, `Width` `0..300%`, `Depth`, spectral `Tilt`), five stereo expansion engines (`M/S`, mono-safe `Comb`, psychoacoustic `Haas`, quadrature `Dimension`, 4-stage all-pass `Vortex`) with 4-tap early reflections (`Room`), tempo-synced spatial LFO trajectories (`Pan`, `Breathe`, `Orbit`, `Figure-8`, `Drift`), `Bass Mono` low-end anchor (`20..500 Hz`), `Side HPF` / `Side Air`, dynamic `Env Width`, `Audition` (`Stereo/Mono/Mid/Side`), `SafePhase` anti-cancellation guard, a dedicated live **FX** X-Y screen (`Pan FX`, `Width FX`, `Spin FX`), and 10 factory presets.
+"

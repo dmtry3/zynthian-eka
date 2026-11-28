@@ -1,0 +1,12 @@
+title: "Eka Pulse"
+version: "0.1"
+icon: "Art/eka_pulse.png"
+author: "dmtry3"
+license: "GPL-3.0-or-later"
+source_url: "https://github.com/dmtry3/zynthian-eka.git"
+size: "388 KB"
+content: "zynthian-plugins/lv2/eka-pulse.lv2"
+description: "Rhythmic multi-effect shaper.<br/>
+
+Four polyrhythmic shaper slots (`TIME`, `DRIVE & CRUSH`, `FILTER`, `GATE & SPACE`) with independent `1..16` step lengths, Linkwitz-Riley `Low Split` crossover with `Low Duck`, Audio/MIDI triggers, `Env → Depth`, a live `Perform` tab (3×3 momentary pads + XY pad + four scenes A–D) and 24 factory presets.
+"

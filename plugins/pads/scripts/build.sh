@@ -9,7 +9,7 @@ fi
 mkdir -p "$B"
 cp "$ROOT/lv2/manifest.ttl" "$ROOT/lv2/eka_pads.ttl" "$B/"
 CPU=""
-[ "$(uname -m)" = "aarch64" ] && CPU="-mcpu=cortex-a76"
+[ "$(uname -m)" = "aarch64" ] && CPU="${EKA_AARCH64_CPU--mcpu=cortex-a76}"  # CI: cortex-a72, runs on Pi 4 and Pi 5
 gcc -O3 $CPU -fPIC -shared -Wall -Wextra $(pkg-config --cflags lv2 sndfile) \
     -o "$B/eka_pads.so" "$ROOT/src/eka_pads.c" "$ROOT/src/pads_core.c" "$ROOT/src/sample.c" "$ROOT/src/aux_jack.c" \
     $(pkg-config --libs sndfile) -lpthread -ldl -lm

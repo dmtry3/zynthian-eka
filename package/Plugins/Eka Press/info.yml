@@ -1,0 +1,12 @@
+title: "Eka Press"
+version: "0.1"
+icon: "Art/eka_press.png"
+author: "dmtry3"
+license: "GPL-3.0-or-later"
+source_url: "https://github.com/dmtry3/zynthian-eka.git"
+size: "159 KB"
+content: "zynthian-plugins/lv2/eka-press.lv2"
+description: "Single-band live compressor.<br/>
+
+Four compressor characters (`Clean`, `Opto`, `Punch`, `Glue`), `SC HPF` (`20..500 Hz`), `Stereo Link`, `Auto Release`, `SC Listen`, analog `Drive`, `Auto Makeup`, parallel `Mix`, `-0.3 dBFS` `Soft Clip`, click-free `Bypass`, an interactive Transfer Curve + scrolling Gain-Reduction timeline widget, and 10 factory presets.
+"

@@ -1,0 +1,12 @@
+title: "Eka Mist"
+version: "0.1"
+icon: "Art/eka_mist.png"
+author: "dmtry3"
+license: "GPL-3.0-or-later"
+source_url: "https://github.com/dmtry3/zynthian-eka.git"
+size: "31.3 MB"
+content: "zynthian-plugins/lv2/eka-mist.lv2"
+description: "Granular sampler.<br/>
+
+Every note grows a cloud of grains from a sample: position and scan, grain size and density, pitch quantized to a scale, a filter per voice, LFOs and envelopes on a modulation grid. 8 voices, a bounded grain pool.
+"

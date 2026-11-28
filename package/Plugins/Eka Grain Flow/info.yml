@@ -1,0 +1,12 @@
+title: "Eka Grain Flow"
+version: "0.1"
+icon: "Art/eka_grainflow.png"
+author: "dmtry3"
+license: "GPL-3.0-or-later"
+source_url: "https://github.com/dmtry3/zynthian-eka.git"
+size: "443 KB"
+content: "zynthian-plugins/lv2/eka-grainflow.lv2"
+description: "Live granular effect.<br/>
+
+Three streams turn live audio into evolving clouds: partial or full Freeze, source scanning, wide stereo grains, quantized pitch, two tempo-aware LFOs and an input envelope on a modulation grid. 25 factory presets.
+"

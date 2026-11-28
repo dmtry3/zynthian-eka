@@ -113,7 +113,11 @@ A typical chain: **Pads** drives the beat (with per-pad Aux sends into **Echo** 
 
 ## Installation
 
-On the Zynthian (SSH as root):
+From the zynthian package store, once the plugins are in it: webconf → Software → Packages, one package per plugin
+(`Eka Bloom`, `Eka Tape`…). They install the bundles built by this repository's GitHub CI, nothing is built on the
+device. See [PACKAGING.md](PACKAGING.md) for how releases get there.
+
+Or build them on the Zynthian (SSH as root):
 
 ```bash
 git clone https://github.com/dmtry3/zynthian-eka.git

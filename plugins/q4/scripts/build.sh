@@ -13,7 +13,7 @@ mkdir -p "$B"
 python3 "$ROOT/scripts/gen_ttl.py" > /dev/null
 cp "$ROOT/lv2/manifest.ttl" "$ROOT/lv2/eka_q4.ttl" "$ROOT/lv2/presets.ttl" "$B/"
 CPU=""
-[ "$(uname -m)" = "aarch64" ] && CPU="-mcpu=cortex-a76"
+[ "$(uname -m)" = "aarch64" ] && CPU="${EKA_AARCH64_CPU--mcpu=cortex-a76}"  # CI: cortex-a72, runs on Pi 4 and Pi 5
 gcc -std=c11 -O3 $CPU -fPIC -shared -Wall -Wextra -Werror $LV2_CFLAGS \
     -o "$B/eka_q4.so" "$ROOT/src/eka_q4.c" "$ROOT/src/q4_core.c" -lm
 echo "Built: $B"

@@ -1,0 +1,93 @@
+# Eka - build the LV2 bundles of all the plugins for x86_64 and arm64 (zynthian), on every change.
+#
+# - Each push / pull request: build on native runners (no cross-compiling), inside Debian trixie (the zynthian OS
+#   base: same glibc and libraries as the device), with tools/package.sh. The archives
+#   eka-<plugin>-lv2-<arch>.tar.gz are kept as workflow artifacts.
+# - Push to the default branch: the archives are published in the rolling "latest" prerelease.
+# - Push of a version tag (0.1, v0.2.0...): the archives are published in a release with that name. The zynthian
+#   package store (zynthian-packages) installs the release set in package/ (see PACKAGING.md).
+#
+# arm64 builds use -mcpu=cortex-a72 (EKA_AARCH64_CPU), so the same binaries run on Raspberry Pi 4 and Pi 5.
+# arm64 runners (ubuntu-24.04-arm) are free for public repositories.
+
+name: build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*", "[0-9]*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    container: debian:trixie
+    env:
+      EKA_AARCH64_CPU: -mcpu=cortex-a72
+    steps:
+      - name: Build dependencies
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends build-essential pkg-config ca-certificates python3 \
+            lv2-dev libsndfile1-dev lilv-utils
+      - uses: actions/checkout@v4
+      - name: The tag matches package/
+        if: github.ref_type == 'tag'
+        run: |
+          bad="$(grep -L "^VERSION=\"$GITHUB_REF_NAME\"$" package/Plugins/*/*.sh)"
+          test -z "$bad" || { echo "VERSION is not $GITHUB_REF_NAME in (run tools/package_version.py $GITHUB_REF_NAME):"; echo "$bad"; exit 1; }
+      - name: Build and package
+        run: tools/package.sh
+      - name: Check the bundles
+        run: |
+          for b in dist/lv2/*.lv2; do
+            uri="$(grep -B1 'a lv2:Plugin' plugins/$(basename "$b" .lv2 | sed 's/^eka-//')/lv2/manifest.ttl | sed -n 's/^<\(.*\)>.*/\1/p' | head -1)"
+            echo "== $b <$uri>"
+            LV2_PATH="$PWD/dist/lv2" lv2info "$uri" > info.txt || { echo "lilv can't load $uri"; exit 1; }
+            grep -q "zyngui#widget" info.txt || { echo "no zyngui:widget for $uri"; exit 1; }
+          done
+          ls -la dist/*.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eka-lv2-${{ matrix.arch }}
+          path: dist/*.tar.gz
+          retention-days: 30
+
+  release:
+    needs: build
+    if: github.event_name == 'push' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Publish
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes *.tar.gz \
+              || gh release upload "$GITHUB_REF_NAME" --clobber *.tar.gz
+          else
+            # Rolling prerelease with the last build of the default branch
+            gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+            gh release create latest --prerelease --target "$GITHUB_SHA" --title "Latest build" \
+              --notes "Last build of ${GITHUB_SHA::7} ($(date -u +%F)). Unpack into the LV2 path: tar -xzf <file> -C /zynthian/zynthian-plugins/lv2" \
+              *.tar.gz
+          fi
