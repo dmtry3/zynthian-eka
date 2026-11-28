@@ -34,7 +34,7 @@
 #define GC_PITCH_MAX   24.0f   /* semitones, both ways */
 #define GC_PSPRAY_MAX  24.0f   /* semitones */
 #define GC_BEND_MAX    24.0f   /* semitones, both ways (the bend range parameter: 0..24) */
-#define GC_NSCALES     12      /* see gc_scale_names in grain_core.c */
+#define GC_NSCALES     14      /* see gc_scale_names in grain_core.c */
 #define GC_CUTOFF_MIN  20.0f   /* Hz */
 #define GC_CUTOFF_MAX  20000.0f
 #define GC_CUTOFF_UNITS 100.0f /* the Cutoff knob: 0..100, hz = 20 * 1000^(u / 100), a tenth of an octave per step */

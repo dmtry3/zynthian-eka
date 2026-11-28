@@ -49,8 +49,8 @@
     lv2:symbol "scale" ;
     rdfs:label "Scale" ;
     rdfs:range atom:Int ;
-    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 11 ;
-    lv2:scalePoint [ rdfs:label "Chromatic" ; rdf:value 0 ] , [ rdfs:label "Major" ; rdf:value 1 ] , [ rdfs:label "Minor" ; rdf:value 2 ] , [ rdfs:label "Dorian" ; rdf:value 3 ] , [ rdfs:label "Phrygian" ; rdf:value 4 ] , [ rdfs:label "Lydian" ; rdf:value 5 ] , [ rdfs:label "Mixolydian" ; rdf:value 6 ] , [ rdfs:label "Harm. minor" ; rdf:value 7 ] , [ rdfs:label "Mel. minor" ; rdf:value 8 ] , [ rdfs:label "Major pent." ; rdf:value 9 ] , [ rdfs:label "Minor pent." ; rdf:value 10 ] , [ rdfs:label "Blues" ; rdf:value 11 ] ;
+    lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 13 ;
+    lv2:scalePoint [ rdfs:label "Chromatic" ; rdf:value 0 ] , [ rdfs:label "Major" ; rdf:value 1 ] , [ rdfs:label "Minor" ; rdf:value 2 ] , [ rdfs:label "Dorian" ; rdf:value 3 ] , [ rdfs:label "Phrygian" ; rdf:value 4 ] , [ rdfs:label "Lydian" ; rdf:value 5 ] , [ rdfs:label "Mixolydian" ; rdf:value 6 ] , [ rdfs:label "Harm. minor" ; rdf:value 7 ] , [ rdfs:label "Mel. minor" ; rdf:value 8 ] , [ rdfs:label "Major pent." ; rdf:value 9 ] , [ rdfs:label "Minor pent." ; rdf:value 10 ] , [ rdfs:label "Blues" ; rdf:value 11 ] , [ rdfs:label "Octaves" ; rdf:value 12 ] , [ rdfs:label "Fifths" ; rdf:value 13 ] ;
     pprops:notOnGUI true ;
     lv2:portProperty pprops:notOnGUI .
 
@@ -1335,7 +1335,7 @@
 <http://dmtry3.github.io/zynthian-eka/mist>
     a lv2:Plugin , lv2:InstrumentPlugin ;
     doap:name "Eka Mist" ;
-    lv2:minorVersion 13 ;
+    lv2:minorVersion 14 ;
     lv2:microVersion 0 ;
     lv2:requiredFeature urid:map , work:schedule ;
     lv2:optionalFeature lv2:hardRTCapable , state:mapPath , state:freePath ;
@@ -1658,4 +1658,12 @@
         a lv2:OutputPort , lv2:ControlPort ;
         lv2:index 56 ; lv2:symbol "peak" ; lv2:name "Sample peak dB" ;
         lv2:default -100 ; lv2:minimum -100 ; lv2:maximum 0 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 57 ; lv2:symbol "last_pitch" ; lv2:name "Last grain pitch" ;
+        lv2:default -1 ; lv2:minimum -1 ; lv2:maximum 127 ;
+    ] , [
+        a lv2:OutputPort , lv2:ControlPort ;
+        lv2:index 58 ; lv2:symbol "filter_fc" ; lv2:name "Voice filter Hz" ;
+        lv2:default -1 ; lv2:minimum -1 ; lv2:maximum 24000 ;
     ] .

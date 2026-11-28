@@ -38,7 +38,9 @@ enum { P_POSITION = 0, P_SCAN, P_SPRAY, P_WINDOW,      /* page Position */
        P_STATUS, P_SECONDS, P_PLAYHEAD, P_GRAIN0,     /* outputs for the widget */
        P_NOTE0 = P_GRAIN0 + 16,                       /* note1..8: MIDI note of each sounding voice */
        P_DETECTED = P_NOTE0 + GC_VOICES,              /* detected pitch of the sample (MIDI), -1 = none */
-       P_PEAK };                                      /* peak of the sample in dBFS (-100 = none or silent) */
+       P_PEAK,                                        /* peak of the sample in dBFS (-100 = none or silent) */
+       P_LAST_PITCH,                                  /* MIDI pitch of the newest grain, -1 = none */
+       P_FILTER_FC };                                 /* live voice filter cutoff Hz, -1 = bypassed/idle */
 #define N_GRAIN_PORTS 16
 #define N_RETIRED 8
 
@@ -95,6 +97,8 @@ typedef struct {
   float* note_out[GC_VOICES];
   float* detected_out;
   float* peak_out;
+  float* last_pitch_out;
+  float* filter_fc_out;
 
   LV2_URID_Map* map;
   LV2_Worker_Schedule* sched;
@@ -118,6 +122,8 @@ typedef struct {
   LV2_URID p_mode_legacy;      /* "mode" of older versions: Mono (1) is restored as legato (0) */
   int ip[N_IPARAMS];
   float bend;                  /* Pitch Bend wheel -1..1 (the range is a parameter) */
+  float modwheel_cc;           /* CC 1, 0..1 */
+  float aftertouch;            /* Channel Pressure (0xD0), 0..1 */
   double sr;
   float level;                 /* last applied level, ramped to the port value over a block */
   GcParams params;
@@ -243,6 +249,8 @@ static void connect_port(LV2_Handle h, uint32_t port, void* data) {
   else if (port >= P_NOTE0 && port < P_NOTE0 + GC_VOICES) S->note_out[port - P_NOTE0] = (float*)data;
   else if (port == P_DETECTED) S->detected_out = (float*)data;
   else if (port == P_PEAK) S->peak_out = (float*)data;
+  else if (port == P_LAST_PITCH) S->last_pitch_out = (float*)data;
+  else if (port == P_FILTER_FC) S->filter_fc_out = (float*)data;
 }
 
 static void activate(LV2_Handle h) { (void)h; }
@@ -450,12 +458,21 @@ static void handle_position(Sampler* S, const LV2_Atom_Object* obj) {
 
 static void handle_midi(Sampler* S, const LV2_Atom_Event* ev) {
   const uint8_t* b = (const uint8_t*)LV2_ATOM_BODY_CONST(&ev->body);
-  if (ev->body.size < 3) return;
+  if (ev->body.size < 2) return;
   const uint8_t type = b[0] & 0xF0;
+  if (type == 0xD0) {                                                              /* Channel Pressure (Aftertouch) */
+    S->aftertouch = (b[1] & 0x7F) / 127.0f;
+    gc_set_modwheel(&S->core, fmaxf(S->modwheel_cc, S->aftertouch));
+    return;
+  }
+  if (ev->body.size < 3) return;
   if (type == 0x90 && b[2] > 0) gc_note_on(&S->core, &S->params, b[1] & 0x7F, b[2]);
   else if (type == 0x80 || type == 0x90) gc_note_off(&S->core, b[1] & 0x7F);
   else if (type == 0xB0 && b[1] == 120) gc_all_off(&S->core);                       /* All Sound Off */
-  else if (type == 0xB0 && b[1] == 1) gc_set_modwheel(&S->core, b[2] / 127.0f);      /* Mod Wheel */
+  else if (type == 0xB0 && b[1] == 1) {                                             /* Mod Wheel */
+    S->modwheel_cc = b[2] / 127.0f;
+    gc_set_modwheel(&S->core, fmaxf(S->modwheel_cc, S->aftertouch));
+  }
   else if (type == 0xB0 && b[1] == 123) gc_all_notes_off(&S->core);               /* All Notes Off */
   else if (type == 0xB0 && b[1] == 64) gc_set_sustain(&S->core, b[2] >= 64);       /* Sustain pedal */
   else if (type == 0xE0) {                                                         /* Pitch Bend, 14 bit */
@@ -490,6 +507,19 @@ static void write_monitors(Sampler* S) {
     if (S->note_out[i])
       *S->note_out[i] = g->voices[i].stage != GC_V_IDLE && g->voices[i].stage != GC_V_STEAL ?
                         (float)g->voices[i].note : -1.0f;
+  if (S->last_pitch_out)
+    *S->last_pitch_out = (g->nactive > 0 && g->born > 0) ? g->last_pitch : -1.0f;
+  if (S->filter_fc_out)
+    *S->filter_fc_out = (v->stage != GC_V_IDLE && v->filter_on) ? v->fc_hz : -1.0f;
+}
+
+/* Smooth-knee soft limiter above 0.9 (-0.9 dBFS) so resonant chords never hard-clip the DAC. */
+static inline float soft_clip(float x) {
+  const float ax = fabsf(x);
+  if (ax <= 0.9f) return x;
+  const float over = ax - 0.9f;
+  const float y = 0.9f + 0.3f * over / (0.3f + over);
+  return x < 0.0f ? -y : y;
 }
 
 static void run(LV2_Handle h, uint32_t n) {
@@ -524,15 +554,15 @@ static void run(LV2_Handle h, uint32_t n) {
   const float step = n ? (target - start) / (float)n : 0.0f;
   for (uint32_t i = 0; i < n; i++) {
     const float a = start + step * (float)(i + 1);
-    S->out_l[i] *= a;
-    S->out_r[i] *= a;
+    S->out_l[i] = soft_clip(S->out_l[i] * a);
+    S->out_r[i] = soft_clip(S->out_r[i] * a);
   }
   S->level = target;
 
   if (S->status_out) *S->status_out = (float)S->status;
   if (S->peak_out)
     *S->peak_out = S->sample && S->sample->peak > 1e-5f ? 20.0f * log10f(S->sample->peak) : -100.0f;
-  if (S->detected_out) *S->detected_out = S->sample ? S->sample->pitch : -1.0f;
+  if (S->detected_out) *S->detected_out = gs_region_pitch(S->sample, S->params.mark_start, S->params.mark_end);
   if (S->seconds_out) *S->seconds_out = S->sample ? (float)(S->sample->frames[0] / S->sample->rate) : 0.0f;
   if (S->nretired) free_retired(S);
   write_monitors(S);

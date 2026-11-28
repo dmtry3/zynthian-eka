@@ -7,15 +7,16 @@
 
 static float clampf(float v, float lo, float hi) { return v < lo ? lo : v > hi ? hi : v; }
 
-/* Scales for Quantize: semitones above the tonic (the same list as in Eka Bloom). */
+/* Scales for Quantize: semitones above the tonic (the same list as in Eka Bloom, plus Octaves and Fifths). */
 const char* const gc_scale_names[GC_NSCALES] = {
   "Chromatic", "Major", "Minor", "Dorian", "Phrygian", "Lydian", "Mixolydian",
-  "Harm. minor", "Mel. minor", "Major pent.", "Minor pent.", "Blues" };
+  "Harm. minor", "Mel. minor", "Major pent.", "Minor pent.", "Blues", "Octaves", "Fifths" };
 static const int8_t scale_steps[GC_NSCALES][13] = {   /* -1 ends the list */
   { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, -1 }, { 0, 2, 4, 5, 7, 9, 11, -1 }, { 0, 2, 3, 5, 7, 8, 10, -1 },
   { 0, 2, 3, 5, 7, 9, 10, -1 }, { 0, 1, 3, 5, 7, 8, 10, -1 }, { 0, 2, 4, 6, 7, 9, 11, -1 },
   { 0, 2, 4, 5, 7, 9, 10, -1 }, { 0, 2, 3, 5, 7, 8, 11, -1 }, { 0, 2, 3, 5, 7, 9, 11, -1 },
-  { 0, 2, 4, 7, 9, -1 }, { 0, 3, 5, 7, 10, -1 }, { 0, 3, 5, 6, 7, 10, -1 } };
+  { 0, 2, 4, 7, 9, -1 }, { 0, 3, 5, 7, 10, -1 }, { 0, 3, 5, 6, 7, 10, -1 },
+  { 0, -1 }, { 0, 7, -1 } };
 
 void gc_set_scale(GrainCore* g, int key, int scale) {
   g->key = ((key % 12) + 12) % 12;
@@ -113,7 +114,7 @@ void gc_init(GrainCore* g, float sr, uint32_t seed) {
     }
   }
   g->nvoices = GC_VOICES;
-  g->interp = GC_INTERP_LINEAR;
+  g->interp = GC_INTERP_HERMITE;
   g->use_levels = 1;
   g->align = 1;
   double rms[GC_SHAPES];
@@ -241,7 +242,7 @@ static float key_value(const GcVoice* v) { return clampf((v->pitch - 60.0f) / GC
 /* Advance the voice's LFOs and envelopes by m samples; source values and continuous destinations. */
 static void voice_mod(GrainCore* g, const GcParams* p, GcVoice* v, int m) {
   v->level_prev = v->level;
-  if (!g->nmod) {
+  if (!g->nmod && !g->nxmod) {
     for (int d = 0; d < GC_NDST; d++) v->mod[d] = 0.0f;
     v->level = 1.0f;
     return;
@@ -286,8 +287,13 @@ static void voice_mod(GrainCore* g, const GcParams* p, GcVoice* v, int m) {
   v->src[GC_SRC_KEY] = key_value(v);
   v->src[GC_SRC_WHEEL] = g->modwheel;
   v->src[GC_SRC_RANDOM] = v->rnd;
-  mod_eval(g, v->src, v->mod);
-  v->level = clampf(1.0f + v->mod[GC_DST_LEVEL], 0.0f, 2.0f);
+  if (g->nmod) {
+    mod_eval(g, v->src, v->mod);
+    v->level = clampf(1.0f + v->mod[GC_DST_LEVEL], 0.0f, 2.0f);
+  } else {
+    for (int d = 0; d < GC_NDST; d++) v->mod[d] = 0.0f;
+    v->level = 1.0f;
+  }
 }
 
 uint32_t gc_set_source(GrainCore* g, const GcSource* s) {
@@ -592,6 +598,9 @@ static void spawn(GrainCore* g, const GcParams* p, int vi, int delay) {
   if (span < m1 - m0 - 2.0) {
     if (!backwards && start > m1 - 2.0 - span) start = m1 - 2.0 - span;
     if (backwards && start < m0 + span) start = m0 + span;
+  } else if (backwards && start < m1 - 2.0) {
+    /* A reverse grain longer than the marked region starts at mark_end so it reads across the region first. */
+    start = m1 - 2.0;
   }
   if (start < 0.0) start = 0.0;
   if (start > (double)frames - 1.0) start = (double)frames - 1.0;

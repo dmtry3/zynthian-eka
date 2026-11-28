@@ -122,6 +122,78 @@ float gs_detect_pitch(const float* data, int64_t frames, double rate) {
   return (float)(sum / agree);
 }
 
+static void detect_pitch_windows(GsSample* s, const float* data, int64_t frames, double rate) {
+  s->npitch_wins = 0;
+  const int maxlag = (int)(rate / PD_FMIN), minlag = (int)(rate / PD_FMAX) > 2 ? (int)(rate / PD_FMAX) : 2;
+  const int n = 2 * maxlag, win = n + maxlag;
+  if (frames < (int64_t)win) return;
+  float* x = (float*)malloc((size_t)win * sizeof(float));
+  double* d = (double*)malloc((size_t)(maxlag + 1) * sizeof(double));
+  if (!x || !d) { free(x); free(d); return; }
+  for (int w = 0; w < GS_PITCH_WINS; w++) {
+    const double frac = GS_PITCH_WINS > 1 ? (double)w / (GS_PITCH_WINS - 1) : 0.5;
+    const int64_t st = (int64_t)((double)(frames - win) * frac);
+    double e = 0.0;
+    for (int i = 0; i < win; i++) {
+      x[i] = 0.5f * (data[2 * (st + i)] + data[2 * (st + i) + 1]);
+      e += (double)x[i] * x[i];
+    }
+    float p = -1.0f;
+    if (e / win >= 1e-8) {
+      const double per = yin_period(x, n, minlag, maxlag, d);
+      if (per > 0.0) p = (float)(69.0 + 12.0 * log2(rate / per / 440.0));
+    }
+    s->pitch_win[w] = p;
+    s->pitch_pos[w] = (float)(((double)st + 0.5 * (double)win) / (double)frames);
+  }
+  s->npitch_wins = GS_PITCH_WINS;
+  free(x);
+  free(d);
+}
+
+float gs_region_pitch(const GsSample* s, float mark_start, float mark_end) {
+  if (!s) return -1.0f;
+  float a = mark_start < 0.0f ? 0.0f : mark_start > 1.0f ? 1.0f : mark_start;
+  float b = mark_end < 0.0f ? 0.0f : mark_end > 1.0f ? 1.0f : mark_end;
+  if (b < a) { const float t = a; a = b; b = t; }
+  if (a <= 0.001f && b >= 0.999f) return s->pitch;
+  if (s->npitch_wins <= 0) return s->pitch;
+  float found[GS_PITCH_WINS];
+  int total = 0, nf = 0;
+  for (int i = 0; i < s->npitch_wins; i++) {
+    if (s->pitch_pos[i] >= a && s->pitch_pos[i] <= b) {
+      total++;
+      if (s->pitch_win[i] >= 0.0f) found[nf++] = s->pitch_win[i];
+    }
+  }
+  if (total == 0) {
+    /* Narrow marker region: fall back to the window closest to its centre. */
+    const float mid = 0.5f * (a + b);
+    int best = 0;
+    float bd = fabsf(s->pitch_pos[0] - mid);
+    for (int i = 1; i < s->npitch_wins; i++) {
+      const float d = fabsf(s->pitch_pos[i] - mid);
+      if (d < bd) { bd = d; best = i; }
+    }
+    return s->pitch_win[best];
+  }
+  if (nf == 0 || nf * 2 < total) return -1.0f;
+  /* Simple insertion sort (at most 16 elements, realtime-safe). */
+  for (int i = 1; i < nf; i++) {
+    const float v = found[i];
+    int j = i - 1;
+    while (j >= 0 && found[j] > v) { found[j + 1] = found[j]; j--; }
+    found[j + 1] = v;
+  }
+  const float med = found[nf / 2];
+  int agree = 0;
+  double sum = 0.0;
+  for (int i = 0; i < nf; i++)
+    if (fabsf(found[i] - med) < 0.5f) { agree++; sum += found[i]; }
+  if (agree * 3 < total * 2) return -1.0f;
+  return (float)(sum / agree);
+}
+
 void gs_sample_free(GsSample* s) {
   if (!s) return;
   for (int k = 0; k < GS_LEVELS; k++) free(s->data[k]);
@@ -181,6 +253,7 @@ GsSample* gs_sample_load(const char* path, double max_seconds, int* err) {
   int pk = 0;
   while (pk + 1 < GS_LEVELS && s->data[pk + 1] && s->rate / (1 << pk) > 60000.0) pk++;
   s->pitch = gs_detect_pitch(s->data[pk], s->frames[pk], s->rate / (1 << pk));
+  detect_pitch_windows(s, s->data[pk], s->frames[pk], s->rate / (1 << pk));
   strcpy(s->path, path);
 
 out:

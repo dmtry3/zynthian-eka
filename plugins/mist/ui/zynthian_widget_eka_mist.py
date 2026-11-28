@@ -109,7 +109,8 @@ SCALES = [("Chromatic", list(range(12))), ("Major", [0, 2, 4, 5, 7, 9, 11]), ("M
           ("Dorian", [0, 2, 3, 5, 7, 9, 10]), ("Phrygian", [0, 1, 3, 5, 7, 8, 10]),
           ("Lydian", [0, 2, 4, 6, 7, 9, 11]), ("Mixolydian", [0, 2, 4, 5, 7, 9, 10]),
           ("Harm. minor", [0, 2, 3, 5, 7, 8, 11]), ("Mel. minor", [0, 2, 3, 5, 7, 9, 11]),
-          ("Major pent.", [0, 2, 4, 7, 9]), ("Minor pent.", [0, 3, 5, 7, 10]), ("Blues", [0, 3, 5, 6, 7, 10])]
+          ("Major pent.", [0, 2, 4, 7, 9]), ("Minor pent.", [0, 3, 5, 7, 10]), ("Blues", [0, 3, 5, 6, 7, 10]),
+          ("Octaves", [0]), ("Fifths", [0, 7])]
 BLACK_KEYS = (1, 3, 6, 8, 10)
 NOTE_COLOR = "#ffd43b"
 TAB_COLOR = "#4dabf7"
@@ -356,6 +357,7 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
         self.buttons = []            # Grain and Pitch tabs: (x0, y0, x1, y1, symbol, value)
         self.pitch_view = None       # values the Pitch tab was drawn for
         self.filter_view = None      # values the Filter tab was drawn for
+        self.filter_live = None      # live filter cutoff marker on the Filter tab
         self.mod_items = None        # Mod tab: {(s, d): (rect, text)} and side controls
         self.mod_vals = {}           # values the cells were drawn with
         self.mod_side = None         # values the side controls were drawn for
@@ -401,6 +403,7 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
         self.pitch_view = None
         self.pitch_notes = None
         self.filter_view = None
+        self.filter_live = None
         self.mod_items = None
         self.mod_vals = {}
         self.mod_side = None
@@ -585,10 +588,21 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
         return min(max(int(round(self._zval("gain", 0))), -GAIN_MAX), GAIN_MAX)
 
     def _norm_gain(self):
-        """Gain (tenths of a dB) that puts the sample peak at NORM_DB, or None."""
-        pk = self._mon("peak", -100.0)
-        if pk <= -99.0:
-            return None
+        """Gain (tenths of a dB) that puts the sample peak (between markers if moved) at NORM_DB, or None."""
+        ma, mb = self._markers()
+        if self.peaks and (ma > 0.0 or mb < 1.0):
+            import math
+            n = len(self.peaks)
+            i0 = min(max(int(ma * n), 0), n - 1)
+            i1 = min(max(int(mb * n), i0 + 1), n)
+            amp = max(max(abs(lo), abs(hi)) for lo, hi in self.peaks[i0:i1])
+            if amp <= 1e-5:
+                return None
+            pk = 20.0 * math.log10(amp)
+        else:
+            pk = self._mon("peak", -100.0)
+            if pk <= -99.0:
+                return None
         return min(max(int(round((NORM_DB - pk) * 10)), -GAIN_MAX), GAIN_MAX)
 
     def _strip(self):
@@ -919,6 +933,10 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
         w = self._wave_w()
         top, bottom = self._area()
         s0, s1 = self._strip()
+        ym = (s0 + s1) // 2
+        secs = self._mon("seconds", 0.0)
+        size_s = self._zval("size", 100.0) / 1000.0
+        span = int(round((size_s / secs) * w)) if secs > 0.0 else 0
         vals = [self._mon("playhead", -1.0)] + [self._mon("grain%d" % (i + 1), -1.0) for i in range(NGRAIN_MARKS)]
         show = bool(self.peaks)
         # Tk redraws one rectangle around everything that changed: grain ticks (thin strip, full width) are
@@ -927,7 +945,8 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
             item, v = self.marks[k], vals[k]
             if k == 0:
                 c.update_idletasks()
-            st = (int(v * w), top, bottom) if show and 0.0 <= v <= 1.0 else None
+            x = int(v * w) if show and 0.0 <= v <= 1.0 else None
+            st = (x, top, bottom, 0 if k == 0 else span) if x is not None else None
             if st == self.mark_state[k]:
                 continue                                  # unchanged: no canvas work at all
             prev = self.mark_state[k]
@@ -935,9 +954,10 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
             if st is None:
                 c.itemconfigure(item, state="hidden")
                 continue
-            x = st[0]
             if k == 0:
                 c.coords(item, x, s0, x, bottom)
+            elif span >= 2:
+                c.coords(item, x, s0, x, s1, x, ym, min(w, x + span), ym)
             else:
                 c.coords(item, x, s0, x, s1)
             if prev is None:
@@ -1352,6 +1372,10 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
             py0, py1 = y0 + fsmall * 2 + 2, y1 - 3
             if py1 - py0 < 4:
                 continue
+            if kind == "shape":                           # zero reference line: middle for +-, bottom for +
+                uni = int(round(self._zval("lfo%d_uni" % (1 if sym == "lfo1_shape" else 2), 0)))
+                zy = py1 if uni else (py0 + py1) / 2.0
+                c.create_line(x0 + 4, zy, x1 - 4, zy, fill="#454545", tags="modside")
             n = 32
             pts = []
             for i in range(n + 1):
@@ -1400,13 +1424,23 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
             self.refresh_gui()
             return
         self.last_tap = (sym, now)
-        self.drag = (sym, int(round(self._zval(sym, 0))), event.y, lo, hi, 1.0 / DRAG_PX)
+        if sym in ("env1_shape", "env2_shape", "mod_depth"):
+            self.drag = (sym, int(round(self._zval(sym, 0))), (event.x, event.y), lo, hi, 1.0 / DRAG_PX, "xy")
+        else:
+            self.drag = (sym, int(round(self._zval(sym, 0))), event.y, lo, hi, 1.0 / DRAG_PX)
 
     def _on_motion(self, event):
         if not self.drag:
             return
         sym, start, p0, lo, hi, per_px = self.drag[:6]
-        d = event.x - p0 if self.drag[6:] == ("x",) else p0 - event.y    # right / up = more
+        mode = self.drag[6:]
+        if mode == ("xy",):
+            dx, dy = event.x - p0[0], p0[1] - event.y
+            d = dx if abs(dx) >= abs(dy) else dy          # either right/left or up/down works
+        elif mode == ("x",):
+            d = event.x - p0
+        else:
+            d = p0 - event.y                              # up = more
         v = int(min(max(start + d * per_px, lo), hi))
         if abs(d) > 6:
             self.last_tap = (None, 0.0)                   # a drag is not a tap
@@ -1453,72 +1487,86 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
         highs = min(max(int(round(self._zval("vowel_highs", 50))), 0), 100)
         view = (round(fc), round(res * 100), ftype, round(kt), mix, lows, highs, self.width, self.height)
         sloped = knob < 3                                 # LP, HP, BP: 12 or 24 dB/oct
-        if view == self.filter_view:
-            return
-        self.filter_view = view
-        c = self.widget_canvas
-        c.delete("filter")
-        x0, y0, x1, y1 = self._filter_layout()
-        fam, fs = zynthian_gui_config.font_family, self._font_size()
-        tx_off = zynthian_gui_config.color_tx_off
-        c.create_rectangle(x0, y0, x1, y1, outline="#303030", tags="filter")
-        for f in (100, 1000, 10000):                      # grid
-            x = self._fx(f, x0, x1)
-            c.create_line(x, y0, x, y1, fill="#262626", tags="filter")
-            c.create_text(x, y1 + 2, anchor="n", text=("%dk" % (f // 1000)) if f >= 1000 else str(f),
-                          fill=tx_off, font=(fam, fs), tags="filter")
-        for db in (24, 12, 0, -12, -24, -36):
-            y = self._dby(db, y0, y1)
-            c.create_line(x0, y, x1, y, fill=("#404040" if db == 0 else "#262626"), tags="filter")
-            c.create_text(x0 - 3, y, anchor="e", text="%+d" % db if db else "0", fill=tx_off,
-                          font=(fam, max(7, fs - 2)), tags="filter")
         open_lp = ftype in (0, 3) and fc >= 20000 * 0.97 and res < 0.01
         open_hp = ftype in (1, 4) and fc <= 21.0 and res < 0.01
-        pts = []
-        n = max(64, int(x1 - x0) // 3)
-        for i in range(n + 1):
-            f = 20.0 * 10 ** (3.0 * i / n)
-            g = 1.0 if (open_lp or open_hp or mix == 0) else filter_gain(f, fc, res, ftype, mix=mix / 100.0,
-                                                                                lows=lows / 100.0, highs=highs / 100.0)
-            pts.extend((self._fx(f, x0, x1), self._dby(20 * math.log10(max(g, 1e-9)), y0, y1)))
-        c.create_line(pts, fill=WAVE_COLOR, width=2, tags="filter")
-        fct = ("%.1f kHz" % (fc / 1000.0)) if fc >= 1000 else ("%d Hz" % round(fc))
-        if ftype == 7:                                    # Vowel: the cutoff picks the vowel, not a frequency
-            pos = vowel_pos(fc)
-            a = int(min(pos, 3.999))
-            t = pos - a
-            fct = "AEIOU"[a + (t >= 0.5)] if abs(t - 0.5) > 0.2 else "%s-%s" % ("AEIOU"[a], "AEIOU"[a + 1])
-        else:
-            xc = self._fx(min(max(fc, 20.0), 20000.0), x0, x1)
-            c.create_line(xc, y0, xc, y1, fill="#5c7a99", dash=(3, 3), tags="filter")
-        name = "%s %d" % (FILTER_TYPES[knob], FILTER_SLOPES[slope]) if sloped else FILTER_TYPES[knob]
-        info = "%s  %s  Res %d %%  Key %d %%%s" % (name, fct, round(res * 100), round(kt),
-                                                 "  (off)" if (open_lp or open_hp or mix == 0) else "")
-        c.create_text(x0, max(self.height, 60) - 1, anchor="sw", text=info, fill=tx_off,
-                      font=(fam, fs), tags="filter")
-        # Mix (dry/wet): a bar in the top right corner of the plot, finger left/right, double tap = 100 %
-        self.mix_box = self._mix_box()
-        self._filter_bar(self.mix_box, mix, ("Mix %d %%" % mix) if mix else "Mix 0 % (dry)")
-        # Vowel: Lows (top left, over the low end) and Highs (under Mix): the input's bottom and top added back
-        self.lows_box = self.highs_box = None
-        if ftype == 7:
-            self.lows_box, self.highs_box = self._vowel_boxes()
-            self._filter_bar(self.lows_box, lows, "Lows " + self._pct_db(lows))
-            self._filter_bar(self.highs_box, highs, "Highs " + self._pct_db(highs))
-        # LP / HP / BP: the slope switch, 12 | 24 dB, in the top left
-        self.slope_boxes = []
-        if sloped:
-            bx0, by0, bx1, by1 = self._vowel_boxes()[0]
-            half = (bx1 - bx0) / 2.0
-            for i, db in enumerate(FILTER_SLOPES):
-                b = (bx0 + i * half, by0, bx0 + (i + 1) * half - (2 if i == 0 else 0), by1)
-                on = i == slope
-                c.create_rectangle(*b, fill=(BUTTON_ON if on else BUTTON_OFF), outline="#505050", tags="filter")
-                stext = "%d dB" % db
-                c.create_text((b[0] + b[2]) / 2, (b[1] + b[3]) / 2, text=stext, tags="filter",
-                              fill=("#000000" if on else zynthian_gui_config.color_tx),
-                              font=self._fit_font(stext, b[2] - b[0] - 6, self._btn_font_size()))
-                self.slope_boxes.append((b, i))
+        if view != self.filter_view:
+            self.filter_view = view
+            self.filter_live = None
+            c = self.widget_canvas
+            c.delete("filter")
+            x0, y0, x1, y1 = self._filter_layout()
+            fam, fs = zynthian_gui_config.font_family, self._font_size()
+            tx_off = zynthian_gui_config.color_tx_off
+            c.create_rectangle(x0, y0, x1, y1, outline="#303030", tags="filter")
+            for f in (100, 1000, 10000):                      # grid
+                x = self._fx(f, x0, x1)
+                c.create_line(x, y0, x, y1, fill="#262626", tags="filter")
+                c.create_text(x, y1 + 2, anchor="n", text=("%dk" % (f // 1000)) if f >= 1000 else str(f),
+                              fill=tx_off, font=(fam, fs), tags="filter")
+            for db in (24, 12, 0, -12, -24, -36):
+                y = self._dby(db, y0, y1)
+                c.create_line(x0, y, x1, y, fill=("#404040" if db == 0 else "#262626"), tags="filter")
+                c.create_text(x0 - 3, y, anchor="e", text="%+d" % db if db else "0", fill=tx_off,
+                              font=(fam, max(7, fs - 2)), tags="filter")
+            pts = []
+            n = max(64, int(x1 - x0) // 3)
+            for i in range(n + 1):
+                f = 20.0 * 10 ** (3.0 * i / n)
+                g = 1.0 if (open_lp or open_hp or mix == 0) else filter_gain(f, fc, res, ftype, mix=mix / 100.0,
+                                                                                    lows=lows / 100.0, highs=highs / 100.0)
+                pts.extend((self._fx(f, x0, x1), self._dby(20 * math.log10(max(g, 1e-9)), y0, y1)))
+            c.create_line(pts, fill=WAVE_COLOR, width=2, tags="filter")
+            fct = ("%.1f kHz" % (fc / 1000.0)) if fc >= 1000 else ("%d Hz" % round(fc))
+            if ftype == 7:                                    # Vowel: the cutoff picks the vowel, not a frequency
+                pos = vowel_pos(fc)
+                a = int(min(pos, 3.999))
+                t = pos - a
+                fct = "AEIOU"[a + (t >= 0.5)] if abs(t - 0.5) > 0.2 else "%s-%s" % ("AEIOU"[a], "AEIOU"[a + 1])
+            else:
+                xc = self._fx(min(max(fc, 20.0), 20000.0), x0, x1)
+                c.create_line(xc, y0, xc, y1, fill="#5c7a99", dash=(3, 3), tags="filter")
+            name = "%s %d" % (FILTER_TYPES[knob], FILTER_SLOPES[slope]) if sloped else FILTER_TYPES[knob]
+            info = "%s  %s  Res %d %%  Key %d %%%s" % (name, fct, round(res * 100), round(kt),
+                                                     "  (off)" if (open_lp or open_hp or mix == 0) else "")
+            c.create_text(x0, max(self.height, 60) - 1, anchor="sw", text=info, fill=tx_off,
+                          font=(fam, fs), tags="filter")
+            # Mix (dry/wet): a bar in the top right corner of the plot, finger left/right, double tap = 100 %
+            self.mix_box = self._mix_box()
+            self._filter_bar(self.mix_box, mix, ("Mix %d %%" % mix) if mix else "Mix 0 % (dry)")
+            # Vowel: Lows (top left, over the low end) and Highs (under Mix): the input's bottom and top added back
+            self.lows_box = self.highs_box = None
+            if ftype == 7:
+                self.lows_box, self.highs_box = self._vowel_boxes()
+                self._filter_bar(self.lows_box, lows, "Lows " + self._pct_db(lows))
+                self._filter_bar(self.highs_box, highs, "Highs " + self._pct_db(highs))
+            # LP / HP / BP: the slope switch, 12 | 24 dB, in the top left
+            self.slope_boxes = []
+            if sloped:
+                bx0, by0, bx1, by1 = self._vowel_boxes()[0]
+                half = (bx1 - bx0) / 2.0
+                for i, db in enumerate(FILTER_SLOPES):
+                    b = (bx0 + i * half, by0, bx0 + (i + 1) * half - (2 if i == 0 else 0), by1)
+                    on = i == slope
+                    c.create_rectangle(*b, fill=(BUTTON_ON if on else BUTTON_OFF), outline="#505050", tags="filter")
+                    stext = "%d dB" % db
+                    c.create_text((b[0] + b[2]) / 2, (b[1] + b[3]) / 2, text=stext, tags="filter",
+                                  fill=("#000000" if on else zynthian_gui_config.color_tx),
+                                  font=self._fit_font(stext, b[2] - b[0] - 6, self._btn_font_size()))
+                    self.slope_boxes.append((b, i))
+        self._draw_filter_live(ftype, open_lp or open_hp or mix == 0)
+
+    def _draw_filter_live(self, ftype, bypassed):
+        """Live modulated / key-tracked cutoff marker for the newest voice (filter_fc monitor)."""
+        x0, y0, x1, y1 = self._filter_layout()
+        live_fc = self._mon("filter_fc", -1.0)
+        xl = int(round(self._fx(min(max(live_fc, 20.0), 20000.0), x0, x1))) if (not bypassed and ftype != 7 and live_fc > 0) else None
+        if xl == self.filter_live:
+            return
+        self.filter_live = xl
+        c = self.widget_canvas
+        c.delete("flive")
+        if xl is not None:
+            c.create_line(xl, y0, xl, y1, fill=GRAIN_COLOR, width=1, tags=("flive", "filter"))
 
     def _slope_press(self, event):
         """Filter tab: a tap on 12 or 24 dB (LP, HP, BP)."""
@@ -1621,16 +1669,16 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
                               fill=("#000000" if deg == 0 else (zynthian_gui_config.color_tx if in_scale else "#606060")),
                               font=(fam, fs))
                 self.buttons.append((x0 + 1, ky0, x0 + kw - 2, ky1, "key", pc))
-            # scale buttons: 3 rows of 4
+            # scale buttons: 3 rows of 5 (14 scales)
             bh = self._pitch_btn_h()
             y = ky1 + fs // 2 + 4
-            cols = 4
+            cols = 5
             bw = (w - 2 * pad) / float(cols)
             for i, (name, _) in enumerate(SCALES):
                 bx = pad + (i % cols) * bw
                 by = y + (i // cols) * (bh + 4)
                 self._button(bx, by, bx + bw - 4, by + bh, name, i == scale, True, "scale", i, tag="pitch")
-            # Pitch Bend range: finger up/down, double tap back to +-2
+            # Pitch Bend range: finger left/right, double tap back to +-2
             rows = (len(SCALES) + cols - 1) // cols
             by = y + rows * (bh + 4)
             bx0, bx1 = pad, pad + 2 * bw - 4
@@ -1652,22 +1700,29 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
                 pass
             c.create_text(bx1 + 8, by + bh / 2, anchor="w", text=info, fill=zynthian_gui_config.color_tx_off,
                           font=(fam, fs), tags="pitch")
-        # sounding notes: dots on their keys, redrawn only when they change
+        # sounding notes (yellow dots) and newest grain pitch (blue ring), redrawn only when they change
         notes = set()
         for i in range(MAX_VOICES):
             v = self._mon("note%d" % (i + 1), -1.0)
             if v >= 0:
                 notes.add(int(round(v)) % 12)
         notes = frozenset(notes)
-        if notes == self.pitch_notes:
+        lp = self._mon("last_pitch", -1.0)
+        gpc = int(round(lp)) % 12 if lp >= 0 else None
+        state = (notes, gpc)
+        if state == self.pitch_notes:
             return
-        self.pitch_notes = notes
+        self.pitch_notes = state
         c.delete("pnotes")
         r = max(3, int(min(kw, ky1 - ky0) * 0.12))
         for pc in notes:
             cx = kx0 + (pc + 0.5) * kw
             cy = ky0 + (ky1 - ky0) * 0.3
             c.create_oval(cx - r, cy - r, cx + r, cy + r, fill=NOTE_COLOR, outline="", tags="pnotes")
+        if gpc is not None:
+            cx = kx0 + (gpc + 0.5) * kw
+            cy = ky0 + (ky1 - ky0) * 0.56
+            c.create_oval(cx - r, cy - r, cx + r, cy + r, fill="", outline=WAVE_COLOR, width=2, tags="pnotes")
 
     def _draw_title(self):
         title = self._page_title()

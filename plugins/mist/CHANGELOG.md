@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.0 (2026-11-28)
+
+- **Audio & engine:** enabled Hermite interpolation by default, added smooth-knee output soft-clipper (`> 0.9`) to prevent harsh DAC clipping on resonant chords, fixed `X-Mod` LFO/Env stepping when the main `Mod` grid is empty, and fixed long reverse grains to start from `mark_end` instead of reading cut-away audio before `mark_start`.
+- **Pitch & expression:** added `Octaves` and `Fifths` scales for shimmer-style quantization, marker-aware pitch detection (`Auto` root) and marker-aware peak normalization, and MIDI Channel Pressure (Aftertouch) routed into `Wheel`.
+- **Touch widget:** added grain length tails (`Size`) on the `Wave` strip, live modulated cutoff marker (`filter_fc`) on `Filter`, live newest grain pitch ring (`last_pitch`) on `Pitch`, LFO polarity zero-line on `Mod`, and two-axis drag (horizontal or vertical) for `Env 1`, `Env 2`, and `Depth`.
+
 ## 0.13.0 (2026-11-13)
 
 Initial release of **Eka Mist** (`http://dmtry3.github.io/zynthian-eka/mist`):

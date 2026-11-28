@@ -6,6 +6,7 @@
 #define GS_PATH_MAX 1024
 #define GS_LEVELS   3       /* level k: the sample at 1/2^k rate, band-limited: grains pitched up read it */
 #define GS_GUARD    4       /* extra frames after each level's end (copies of the start) for interpolation */
+#define GS_PITCH_WINS 16    /* per-window pitch estimates across the file, for marker-aware Auto root */
 
 typedef struct {
   /* Interleaved stereo (L R L R ...): a frame and the next one sit in one cache line.
@@ -16,6 +17,9 @@ typedef struct {
   double rate;            /* sample rate of the file */
   float peak;             /* largest |sample| of the first two channels (0 = silent) */
   float pitch;            /* detected pitch (MIDI, fractional), -1 = none found (drums, noise, a melody) */
+  float pitch_win[GS_PITCH_WINS]; /* pitch in each window across the file (-1 = none) */
+  float pitch_pos[GS_PITCH_WINS]; /* window centre in 0..1 of the file */
+  int npitch_wins;
   char path[GS_PATH_MAX];
 } GsSample;
 
@@ -29,6 +33,9 @@ void gs_sample_free(GsSample* s);
 /* Pitch of interleaved stereo frames (MIDI, fractional) or -1: YIN in several windows, they must agree.
  * Runs in the worker when a sample loads (exported for tests). */
 float gs_detect_pitch(const float* data, int64_t frames, double rate);
+
+/* Pitch of the region [mark_start, mark_end] (0..1) from the precomputed windows (realtime-safe). */
+float gs_region_pitch(const GsSample* s, float mark_start, float mark_end);
 
 /* Halves the rate of an interleaved stereo buffer with a half-band low-pass (exported for tests). */
 void gs_decimate2(const float* in, int64_t n, float* out);
