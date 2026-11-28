@@ -44,18 +44,18 @@ for rel in ("engine_config.json", "jalv/plugins.json"):
     changed = False
     for k, v in data.items():
         if isinstance(v, dict) and (v.get("URL") == uri or k in ("JV/Eka Prism", "Eka Prism")):
-            if v.get("CAT") != "Filter":
-                v["CAT"] = "Filter"
+            if v.get("CAT") != "Filter & EQ":
+                v["CAT"] = "Filter & EQ"
                 changed = True
-            if "CLASS" in v and v["CLASS"] != "Filter":
-                v["CLASS"] = "Filter"
+            if "CLASS" in v and v["CLASS"] != "Filter & EQ":
+                v["CLASS"] = "Filter & EQ"
                 changed = True
     if changed:
         tmp = p.with_name(p.name + ".prism.tmp")
         tmp.write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
         os.chmod(tmp, p.stat().st_mode & 0o777)
         tmp.replace(p)
-        print(f"Updated category to 'Filter' in {p}")
+        print(f"Updated category to 'Filter & EQ' in {p}")
 PYEOF
 echo "Installed. Restart Zynthian: systemctl restart zynthian"
 echo "If Eka Prism is not in the list of audio effects: webconf -> Software -> LV2 Plugins, enable it there."
