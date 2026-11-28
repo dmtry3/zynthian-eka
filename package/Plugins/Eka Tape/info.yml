@@ -1,0 +1,12 @@
+title: "Eka Tape"
+version: "0.1"
+icon: "Art/eka_tape.png"
+author: "dmtry3"
+license: "GPL-3.0-or-later"
+source_url: "https://github.com/dmtry3/zynthian-eka.git"
+size: "504 KB"
+content: "zynthian-plugins/lv2/eka-tape.lv2"
+description: "Live audio looper.<br/>
+
+Parts of stereo tracks, played with the feet: record, overdub without limits, undo / redo, Lock tracks into the next part, non-destructive loop Trim, speed and pitch per track, a mixer, sessions saved with their sound. Follows the Zynthian tempo like tape.
+"

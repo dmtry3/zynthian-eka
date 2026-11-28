@@ -1,0 +1,12 @@
+title: "Eka Modls"
+version: "0.1"
+icon: "Art/eka_modls.png"
+author: "dmtry3"
+license: "GPL-3.0-or-later"
+source_url: "https://github.com/dmtry3/zynthian-eka.git"
+size: "200 KB"
+content: "zynthian-plugins/lv2/eka-modls.lv2"
+description: "6-engine musical-to-extreme \"Über-Mod\" modulator.<br/>
+
+Six distinct modulation engines (`Chorus`, 3-phase `Tri-Mod`, true through-zero tape `Flanger`, 4..12-stage bilinear `Phaser`, infinite Shepard `Barber` pole, and 8-tap diffused `Uber` cloud), 6 LFO shapes (`Sine`, `Tri`, `Exp`, `S&H`, `Chaos`, `Env`) with BPM sync (`4 bars .. 1/64`), `OverMod` (musical → audio-rate FM & chaos), `Diffuse`, analog `Drive`, `Low Cut` / `High Cut`, bipolar `Env Mod`, `LFO Freeze`, a dedicated live **FX** X-Y pad (`Comb FX × Warp FX` + `Rate FX`), and 14 factory presets.
+"

@@ -1,0 +1,11 @@
+title: "Eka Prism"
+version: "0.1"
+author: "dmtry3"
+license: "GPL-3.0-or-later"
+source_url: "https://github.com/dmtry3/zynthian-eka.git"
+size: "209 KB"
+content: "zynthian-plugins/lv2/eka-prism.lv2"
+description: "Dual-chain morphing & modulated multi-model filter.<br/>
+
+Two independent morphing filter chains (**Filter A** & **Filter B**) with 6 filter models (`SVF Morph` LP↔BP↔HP↔Notch, 24 dB `Ladder` with bass compensation, `MS-20 Scream`, tuned `Comb` resonator, `Formant` vowel A-E-I-O-U, and 6-stage `Phaser`), 3 routings (`Serial A>B`, `Parallel A+B` with `Phase Invert B`, `Stereo L/R`), `Link B` (`Free / Offset / Mirror`), a 7-shape tempo-synced LFO (`Sine`, `Tri`, `Saw`, `Square`, `S&H`, `Chaos`, `Step 8`) with `0..180°` A/B phase offset and audio-rate FM up to `40 Hz`, an input `Envelope Follower`, analog pre-`Drive`, MIDI note tracking, a live dual frequency-response graph + X-Y performance pad, and 12 factory presets.
+"

@@ -10,7 +10,7 @@ mkdir -p "$B"
 cp "$ROOT/lv2/manifest.ttl" "$ROOT/lv2/eka_fold.ttl" "$ROOT/lv2/presets.ttl" "$B/"
 # Pi 5 (Cortex-A76): tuned build; elsewhere (WSL) a generic one, only to check that it compiles.
 CPU=""
-[ "$(uname -m)" = "aarch64" ] && CPU="-mcpu=cortex-a76"
+[ "$(uname -m)" = "aarch64" ] && CPU="${EKA_AARCH64_CPU--mcpu=cortex-a76}"  # CI: cortex-a72, runs on Pi 4 and Pi 5
 source "$ROOT/scripts/engines.sh"
 O="$ROOT/build_obj"   # not in build/: lv2ls takes every folder there for a bundle
 # only lv2_descriptor is exported (LV2_SYMBOL_EXPORT): the engine names cannot clash with another plugin

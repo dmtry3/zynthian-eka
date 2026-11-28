@@ -1,0 +1,12 @@
+title: "Eka Roll"
+version: "0.1"
+icon: "Art/eka_roll.png"
+author: "dmtry3"
+license: "GPL-3.0-or-later"
+source_url: "https://github.com/dmtry3/zynthian-eka.git"
+size: "179 KB"
+content: "zynthian-plugins/lv2/eka-roll.lv2"
+description: "MIDI looper.<br/>
+
+Records and overdubs notes and controller moves in layers, locked to the Zynthian transport; quantize, transpose per layer, 16 slots on disk, export to a MIDI file and to a Zynthian sequencer pattern.
+"

@@ -1,0 +1,12 @@
+title: "Eka Echo"
+version: "0.1"
+icon: "Art/eka_echo.png"
+author: "dmtry3"
+license: "GPL-3.0-or-later"
+source_url: "https://github.com/dmtry3/zynthian-eka.git"
+size: "179 KB"
+content: "zynthian-plugins/lv2/eka-echo.lv2"
+description: "Stereo & polyrhythmic live delay.<br/>
+
+Independent L/R Hermite-interpolated delay (`5..2500 ms`) with BPM sync (`1/64..1 bar`), four characters (`Clean`, `Tape` with capstan motor inertia, `BBD`, `Diff`), three stereo routings (`Stereo`, `PingPong`, `Cross`), loop `HPF`/`LPF`, `Drive`, `Diffuse`, LFO modulation, `Duck`, `Freeze`, `Trails`, a dedicated live **FX** X-Y screen (`Time FX`, `Filter FX`, `Wash FX`, `SNAP 0` spring mode, MIDI-mappable `FX Zero`), and 10 factory presets.
+"

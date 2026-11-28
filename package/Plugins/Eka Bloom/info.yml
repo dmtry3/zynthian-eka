@@ -1,0 +1,12 @@
+title: "Eka Bloom"
+version: "0.1"
+icon: "Art/eka_bloom.png"
+author: "dmtry3"
+license: "GPL-3.0-or-later"
+source_url: "https://github.com/dmtry3/zynthian-eka.git"
+size: "253 KB"
+content: "zynthian-plugins/lv2/eka-bloom.lv2"
+description: "Generative arpeggiator.<br/>
+
+A 16-step pattern with probability, pitch, velocity, gate and ratchets, every row with its own length; scales and degrees, a Turing-Machine-style note loop, slow mutation; live effects on pads (roll, fill, drop…) and an XY pad.
+"

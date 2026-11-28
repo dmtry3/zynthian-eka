@@ -1,0 +1,12 @@
+title: "Eka Q-4"
+version: "0.1"
+icon: "Art/eka_q4.png"
+author: "dmtry3"
+license: "GPL-3.0-or-later"
+source_url: "https://github.com/dmtry3/zynthian-eka.git"
+size: "165 KB"
+content: "zynthian-plugins/lv2/eka-q4.lv2"
+description: "4-band live parametric equalizer.<br/>
+
+Four 64-bit parametric bands (`Shelf`, `Bell`, `Pultec`, `Notch`, `Air`, `Off`), Butterworth `HPF`/`LPF` (`12`/`24 dB/oct`), `1 kHz` `Tilt`, global `Scale`, per-band `Solo` audition, perceptual `AutoGain`, click-free `Bypass`, a zero-latency 24-band live spectrum analyzer behind an interactive touch EQ graph, and 10 factory presets.
+"

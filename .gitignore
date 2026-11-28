@@ -7,3 +7,7 @@ DEPLOY.ru.md
 test/
 tests/
 TZ.md
+
+# Packages (tools/package.sh)
+dist/
+plugins/*/build/

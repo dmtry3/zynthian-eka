@@ -1,0 +1,12 @@
+title: "Eka Fold"
+version: "0.1"
+icon: "Art/eka_fold.png"
+author: "dmtry3"
+license: "GPL-3.0-or-later"
+source_url: "https://github.com/dmtry3/zynthian-eka.git"
+size: "659 KB"
+content: "zynthian-plugins/lv2/eka-fold.lv2"
+description: "Polyphonic West Coast synth.<br/>
+
+A complex oscillator pair with FM, AM and Sync, a wavefolder, a lopass gate on a vactrol model, function generators, a mod matrix, and a string / delay / resonator in every voice. Up to 8 voices.
+"

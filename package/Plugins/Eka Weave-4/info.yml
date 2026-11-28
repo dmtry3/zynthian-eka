@@ -1,0 +1,12 @@
+title: "Eka Weave-4"
+version: "0.1"
+icon: "Art/eka_weave4.png"
+author: "dmtry3"
+license: "GPL-3.0-or-later"
+source_url: "https://github.com/dmtry3/zynthian-eka.git"
+size: "699 KB"
+content: "zynthian-plugins/lv2/eka-weave4.lv2"
+description: "Four-voice pitch harmonizer.<br/>
+
+Four harmony voices plus dry signal: independent intervals, 14 chord types with voice leading, diatonic scales, or MIDI-driven target notes with an embedded input pitch tracker; per-voice tempo-synced delay, fine detune / humanize, HPF/LPF filters, four scenes (A–D) and 9 factory presets.
+"
