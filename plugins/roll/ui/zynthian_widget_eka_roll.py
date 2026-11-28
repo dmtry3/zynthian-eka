@@ -25,17 +25,19 @@ MSGS = {1: "Saved", 2: "Loaded", 3: "Slot deleted", 4: "Slot empty", 5: "Save fa
         14: "Grid is OFF", 15: "Busy", 16: "Layer transposed",
         17: "No layers selected", 18: "Nothing to apply", 19: "Exporting...",
         20: "Undo: overdub", 21: "Layer shifted", 22: "Layer shifted + transposed", 23: "Note deleted",
-        24: "Cleared", 25: "Nothing to undo", 26: "Nothing to redo", 27: "Max 8 layers"}
+        24: "Cleared", 25: "Nothing to undo", 26: "Nothing to redo", 27: "Max 8 layers",
+        28: "CC cleared"}
 for _i, _e in enumerate(("Quantize", "Half", "Double", "Transpose", "CC", "Shift", "Note delete",
-                         "Layer delete", "Clear")):
+                         "Layer delete", "Clear", "Clear CC")):
     MSGS[30 + _i] = "Undo: " + _e
     MSGS[40 + _i] = "Redo: " + _e
 for _n in range(1, 9):
     MSGS[50 + _n] = "Undo: layer %d" % _n
     MSGS[60 + _n] = "Redo: layer %d" % _n
-CONFIRMS = {1: "Press again: CLEAR", 2: "Press again: DELETE LAYER", 3: "Press again: DELETE SLOT"}
+CONFIRMS = {1: "Press again: CLEAR", 2: "Press again: DELETE LAYER", 3: "Press again: DELETE SLOT",
+            4: "Press again: DELETE CC"}
 
-HDR = struct.Struct("<8I8I8i2I")    # magic,seq,ver,loop_len,nlayers,bpb,state,mute ; n[8] ; transp[8] ; ncc,pad
+HDR = struct.Struct("<8I8I8i2I8B")    # magic,seq,ver,loop_len,nlayers,bpb,state,mute ; n[8] ; transp[8] ; ncc,pad ; vel[8]
 EV = struct.Struct("<IIBBBB")
 CCENT = struct.Struct("<IBBBB")                        # seq, ch, cc, val, used
 VIZ_CC_OFF = HDR.size + (8 * 4000 + 16384) * EV.size   # table of CC played by the loop
@@ -229,6 +231,9 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         self.edit_sel = 0
         self._last_layer = None
         self._last_elayer = None
+        self.cc_sel = False
+        self._last_lvel = None
+        self._lvel_ver = -1
         self.shift_i = SHIFT_DEFAULT      # slider: step of one Shift knob click
         self.shift_ticks = 0              # pending shift of the Edit layer (sent to the engine, applied by Apply)
         self.shift_last = None            # last Shift knob value seen
@@ -311,7 +316,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                 ml = int(lmute)
                 mc = (mc + 1) & 0xFFFFFFFF
             UIIN.pack_into(mm, UIIN_OFF, UIIN_MAGIC, (cur[1] + 1) & 0xFFFFFFFF, qmask, zb, rcount, *ccm,
-                           int(self.shift_ticks), nl, nt, np_, nc, ml, mc, 0)
+                           int(self.shift_ticks), nl, nt, np_, nc, ml, mc, 1 if self.cc_sel else 0)
             return True
         except Exception as e:
             dbg("ui put: %r", e)
@@ -465,18 +470,33 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                         self._zval("qmask", None))
                 elif kind == "s":
                     self._zset("sslot", i + 1)
+                elif kind == "cc":
+                    if self.cc_sel:
+                        self._ui_put(lmute=8)
+                    else:
+                        self.cc_sel = True
+                        self._ui_put()
                 elif kind == "l":
                     cur_sel = int(round(self._zval("elayer" if self.mode == "roll" else "layer", 1))) - 1
                     nl = int((self.monitors or {}).get("layers", 0))
                     if nl > 0:
                         cur_sel = min(cur_sel, nl - 1)
-                    if i == cur_sel:
+                    if self.cc_sel:
+                        self.cc_sel = False
+                        self._zset("layer", i + 1)
+                        self._zset("elayer", i + 1)
+                        self._last_layer = i + 1
+                        self._last_elayer = i + 1
+                        self._sync_lvel_for(i)
+                        self._ui_put()
+                    elif i == cur_sel:
                         self._ui_put(lmute=i)
                     else:
                         self._zset("layer", i + 1)
                         self._zset("elayer", i + 1)
                         self._last_layer = i + 1
                         self._last_elayer = i + 1
+                        self._sync_lvel_for(i)
                         if self.shift_ticks or self.shift_show:
                             self._shift_reset()
                         if self._zval("transp", 0) != 0:
@@ -651,7 +671,8 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                                           ["%d+%d" % (t, du) for (t, du, p) in lay[:4]])
                     for i, lay in enumerate(layers)))
             self.data = {"loop_len": h[3], "bpb": h[5] or 4, "mute": h[7],
-                         "transp": list(h[16:24]), "layers": layers, "ccs": ccs, "fnotes": fnotes,
+                         "transp": list(h[16:24]), "vel": [v if 25 <= v <= 200 else 100 for v in h[26:34]],
+                         "layers": layers, "ccs": ccs, "fnotes": fnotes,
                          "opens": opens}
             self.cache_ver = ver
             return True
@@ -742,6 +763,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
 
         # CC: each controller in its own colour (step line + semi-transparent hatching)
         if has_cc:
+            cc_muted = bool((d["mute"] >> 8) & 1)
             curves = {}
             for (t, st, p, v) in d["ccs"]:
                 typ = st & 0xF0
@@ -751,7 +773,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                 ev = sorted(curves[key])
                 if len(ev) > 600:
                     ev = ev[::len(ev) // 600 + 1]
-                col = LAYER_COLORS[idx % 8]
+                col = "#505050" if cc_muted else LAYER_COLORS[idx % 8]
                 pts = [x0, cy1 - ev[-1][1] * (cy1 - cy0)]
                 for (t, v) in ev:
                     x = x0 + w * t / L
@@ -955,13 +977,16 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             return
         L, bpb = d["loop_len"], d["bpb"]
         notes = []
+        vels = d.get("vel") or [100] * 8
         for i, lay in enumerate(d["fnotes"]):
             if (d["mute"] >> i) & 1:
                 continue
             tr = d["transp"][i]
+            lv = vels[i] if i < len(vels) else 100
             for (t, du, st, p, v) in lay:
-                notes.append((t, du, st & 0x0F, max(0, min(127, p + tr)), v))
-        ccs = sorted(d["ccs"])
+                nv = max(1, min(127, (v * lv + 50) // 100))
+                notes.append((t, du, st & 0x0F, max(0, min(127, p + tr)), nv))
+        ccs = [] if ((d["mute"] >> 8) & 1) else sorted(d["ccs"])
         try:
             chan = int(self.processor.midi_chan)
         except Exception:
@@ -1128,6 +1153,55 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             logging.debug("Eka Roll CC follower: %s", e)
         self.after(33, self._follow_tick)
 
+    def _sync_lvel_for(self, idx):
+        d = self.data
+        if d and 0 <= idx < len(d.get("vel", [])):
+            v = d["vel"][idx]
+            if int(round(self._zval("lvel", 100))) != v:
+                self._zset("lvel", v)
+            self._last_lvel = v
+
+    def _draw_strip(self, w, h, nl, mask, sel, quant=False, qmask=255):
+        c = self.widget_canvas
+        has_cc = bool((self.data or {}).get("ccs"))
+        ncols = 8 if quant else 9
+        lw = (w - 16 - (ncols - 1) * 4) // ncols
+        ya, yb = int(h * 0.14), int(h * 0.21)
+        for i in range(8):
+            x = 8 + i * (lw + 4)
+            lc = LAYER_COLORS[i]
+            if i < nl:
+                filled = bool((qmask >> i) & 1) if quant else not ((mask >> i) & 1)
+                is_sel = (i == sel) and not self.cc_sel and not quant
+                c.create_rectangle(x, ya, x + lw, yb, tags="dyn",
+                                   outline=("#ffffff" if is_sel else lc),
+                                   width=(3 if is_sel else 1),
+                                   fill=(lc if filled else ""))
+                if lw >= 18 and yb - ya >= 10:
+                    c.create_text(x + lw // 2, (ya + yb) // 2, text=str(i + 1), tags="dyn",
+                                  fill=("#000000" if filled else lc), font=self._font(h, 22, 7))
+                self.hits.append((x, ya - 6, x + lw, yb + 6, "q" if quant else "l", i))
+            else:
+                c.create_rectangle(x, ya, x + lw, yb, outline="#303030", tags="dyn")
+        if not quant:
+            x = 8 + 8 * (lw + 4)
+            cc_col = "#22b8cf"
+            if has_cc:
+                filled = not bool((mask >> 8) & 1)
+                c.create_rectangle(x, ya, x + lw, yb, tags="dyn",
+                                   outline=("#ffffff" if self.cc_sel else cc_col),
+                                   width=(3 if self.cc_sel else 1),
+                                   fill=(cc_col if filled else ""))
+                if lw >= 18 and yb - ya >= 10:
+                    c.create_text(x + lw // 2, (ya + yb) // 2, text="CC", tags="dyn",
+                                  fill=("#000000" if filled else cc_col), font=self._font(h, 22, 7))
+                self.hits.append((x, ya - 6, x + lw, yb + 6, "cc", 0))
+            else:
+                c.create_rectangle(x, ya, x + lw, yb, outline="#303030", tags="dyn")
+                if lw >= 18 and yb - ya >= 10:
+                    c.create_text(x + lw // 2, (ya + yb) // 2, text="CC", tags="dyn",
+                                  fill="#505050", font=self._font(h, 22, 7))
+
     def refresh_gui(self):
         m = self.monitors or {}
         c = self.widget_canvas
@@ -1195,14 +1269,22 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         # Keep layer (Layers page) and elayer (Edit page) in sync; reset pending Edit on layer switch
         cur_l = int(round(self._zval("layer", 1)))
         cur_el = int(round(self._zval("elayer", 1)))
+        layer_switched = False
         if self._last_layer is not None:
             if cur_l != self._last_layer and cur_el == self._last_elayer:
                 self._zset("elayer", cur_l)
                 cur_el = cur_l
+                layer_switched = True
             elif cur_el != self._last_elayer and cur_l == self._last_layer:
                 self._zset("layer", cur_el)
                 cur_l = cur_el
-            if cur_el != self._last_elayer:
+                layer_switched = True
+            elif cur_l != self._last_layer or cur_el != self._last_elayer:
+                layer_switched = True
+            if layer_switched:
+                if self.cc_sel:
+                    self.cc_sel = False
+                    self._ui_put()
                 if self.shift_ticks or self.shift_show:
                     self._shift_reset()
                 if self._zval("transp", 0) != 0:
@@ -1214,6 +1296,18 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
 
         if big:
             ok = self._read()
+            if self.cc_sel and not (self.data or {}).get("ccs"):
+                self.cc_sel = False
+                self._ui_put()
+            cur_lv = int(round(self._zval("lvel", 100)))
+            if layer_switched:
+                self._sync_lvel_for(max(0, min(cur_l - 1, max(nl - 1, 0))))
+            elif self.cache_ver != self._lvel_ver and self._last_lvel == cur_lv:
+                self._sync_lvel_for(max(0, min(cur_l - 1, max(nl - 1, 0))))
+                self._lvel_ver = self.cache_ver
+            else:
+                self._last_lvel = cur_lv
+                self._lvel_ver = self.cache_ver
             bpb = (self.data or {}).get("bpb", 4) or 4
             fh = self._font(h, 11, 9)
             c.create_text(8, 2, anchor="nw", tags="dyn", fill=col, text=STATES[st], font=fh)
@@ -1232,23 +1326,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                     self._draw_shift(w, h, self._font(h, 15, 8))
                     psh = self.shift_ticks
                 else:
-                    lw = (w - 16 - 7 * 4) // 8
-                    ya, yb = int(h * 0.14), int(h * 0.21)
-                    for i in range(8):
-                        x = 8 + i * (lw + 4)
-                        lc = LAYER_COLORS[i]
-                        if i < nl:
-                            filled = not ((mask >> i) & 1)
-                            c.create_rectangle(x, ya, x + lw, yb, tags="dyn",
-                                               outline=("#ffffff" if i == sel else lc),
-                                               width=(3 if i == sel else 1),
-                                               fill=(lc if filled else ""))
-                            if lw >= 18 and yb - ya >= 10:
-                                c.create_text(x + lw // 2, (ya + yb) // 2, text=str(i + 1), tags="dyn",
-                                              fill=("#000000" if filled else lc), font=self._font(h, 22, 7))
-                            self.hits.append((x, ya - 6, x + lw, yb + 6, "l", i))
-                        else:
-                            c.create_rectangle(x, ya, x + lw, yb, outline="#303030", tags="dyn")
+                    self._draw_strip(w, h, nl, mask, sel, quant=False)
                 y0 = int(h * 0.25)
             else:
                 quant = mode == "quant"
@@ -1277,27 +1355,7 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                     c.create_rectangle(x, ma, x + mw, mb, tags="dyn",
                                        outline=zynthian_gui_config.color_tx_off,
                                        fill=("#e0e0e0" if on and i == 0 else ("#808080" if on else "")))
-                # layer strip: tap to select the layer (Quantize: tap to include / exclude it)
-                lw = (w - 16 - 7 * 4) // 8
-                ya, yb = int(h * 0.14), int(h * 0.21)
-                for i in range(8):
-                    x = 8 + i * (lw + 4)
-                    lc = LAYER_COLORS[i]
-                    if i < nl:
-                        if quant:
-                            filled = (qmask >> i) & 1
-                        else:
-                            filled = not ((mask >> i) & 1)
-                        c.create_rectangle(x, ya, x + lw, yb, tags="dyn",
-                                           outline=("#ffffff" if i == sel else lc),
-                                           width=(3 if i == sel else 1),
-                                           fill=(lc if filled else ""))
-                        if lw >= 18 and yb - ya >= 10:
-                            c.create_text(x + lw // 2, (ya + yb) // 2, text=str(i + 1), tags="dyn",
-                                          fill=("#000000" if filled else lc), font=self._font(h, 22, 7))
-                        self.hits.append((x, ya - 6, x + lw, yb + 6, "q" if quant else "l", i))
-                    else:
-                        c.create_rectangle(x, ya, x + lw, yb, outline="#303030", tags="dyn")
+                self._draw_strip(w, h, nl, mask, sel, quant=quant, qmask=qmask)
                 y0 = int(h * 0.25)
             x0, x1, y1 = 8, w - 8, int(h * (0.90 if mode == "roll" else 0.95))
             d = self.data

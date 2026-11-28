@@ -235,11 +235,11 @@
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
         lv2:index 39 ; lv2:symbol "mute" ; lv2:name "Out: Mute" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 255 ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 511 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
         lv2:index 40 ; lv2:symbol "confirm" ; lv2:name "Out: Confirm" ;
-        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 3 ;
+        lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 4 ;
     ] , [
         a lv2:OutputPort , lv2:ControlPort ;
         lv2:index 41 ; lv2:symbol "bpm" ; lv2:name "Out: BPM" ;
@@ -267,6 +267,11 @@
         lv2:index 46 ; lv2:symbol "shift" ; lv2:name "Shift" ;
         lv2:default 0 ; lv2:minimum -64 ; lv2:maximum 64 ; lv2:portProperty lv2:integer ;
         lv2:displayPriority 20 ; pg:group <http://dmtry3.github.io/zynthian-eka/roll#g_edit> ;
+    ] , [
+        a lv2:InputPort , lv2:ControlPort ;
+        lv2:index 47 ; lv2:symbol "lvel" ; lv2:name "L Vel %" ;
+        lv2:default 100 ; lv2:minimum 25 ; lv2:maximum 200 ; lv2:portProperty lv2:integer ;
+        lv2:displayPriority 10 ; pg:group <http://dmtry3.github.io/zynthian-eka/roll#g_layers> ;
     ] .
 
 <http://dmtry3.github.io/zynthian-eka/roll#sslot>

@@ -34,6 +34,7 @@
 #define N_OUT 11
 #define OUT_BASE 35
 #define P_SHIFT 46         /* Shift knob: read by the widget only (it turns the knob into ticks, see UiIn) */
+#define P_LVEL 47          /* Layer velocity scale (25..200 %) for the selected layer */
 /* zbeat (UiIn): zynseq beat written by the widget: -1 unknown, 0 / -2 zynseq stopped, 1..16 beat */
 #define ZS_STOP_FRESH 1.5  /* s: "zynseq stopped" counts only while the widget keeps alternating 0 / -2 */
 #define ZS_START_GRACE 1.0 /* s: after a JACK start, wait for the widget to see zynseq playing */
@@ -53,16 +54,16 @@ enum { C_REC = 0, C_PLAY, C_UNDO, C_CLEAR,
 enum { O_STATE = 0, O_POS, O_BARS, O_LAYERS, O_MUTE, O_CONFIRM, O_BPM, O_BEAT, O_RUN, O_SLOTS, O_MSG };
 
 typedef struct { uint32_t tick, dur; uint8_t st, d1, d2, pad; } Ev;
-typedef struct { Ev* ev; uint32_t n; uint8_t muted; int8_t transp; } Layer;
+typedef struct { Ev* ev; uint32_t n; uint8_t muted; int8_t transp; uint8_t vel; } Layer;
 typedef struct {
   uint32_t len; int nlayers;
-  uint8_t muted[MAX_LAYERS]; int8_t transp[MAX_LAYERS];
+  uint8_t muted[MAX_LAYERS]; int8_t transp[MAX_LAYERS]; uint8_t vel[MAX_LAYERS];
   uint32_t n[MAX_LAYERS]; Ev* ev[MAX_LAYERS];
-  Ev* cc; uint32_t ncc;
+  Ev* cc; uint32_t ncc; uint8_t cc_muted;
 } Snap;
 /* history entry: an overdub layer (undo = hide it) or an edit with a snapshot of the other state */
 enum { H_LAYER = 1, H_EDIT = 2 };
-enum { E_QUANT = 0, E_HALF, E_DOUBLE, E_TRANSP, E_CC, E_SHIFT, E_NDEL, E_LDEL, E_CLEAR };   /* E_CC: an overdub pass with only CC */
+enum { E_QUANT = 0, E_HALF, E_DOUBLE, E_TRANSP, E_CC, E_SHIFT, E_NDEL, E_LDEL, E_CLEAR, E_CC_CLEAR };   /* E_CC: an overdub pass with only CC */
 typedef struct { uint8_t kind, edit; int8_t snap; } HEnt;
 #define HIST 32
 #define NSNAP 8
@@ -72,12 +73,13 @@ typedef struct { uint8_t ch, p, vel, closed; double on_clk, dur; } Pre;
 typedef struct { uint16_t key; uint8_t used, active, rec; uint64_t last_sample; double last_clk; uint32_t last_tick; } Touch;
 typedef struct { uint16_t key; uint8_t val, used; uint64_t t; uint32_t tick; } CcIn;
 typedef struct { LV2_Atom_Event ev; uint8_t msg[3]; } MidiOut;
-/* widget snapshot header (96 bytes), followed by the layer events */
+/* widget snapshot header (112 bytes), followed by the layer events */
 typedef struct {
   uint32_t magic, seq, ver, loop_len, nlayers, bpb, state, mute_mask;
   uint32_t n[MAX_LAYERS];
   int32_t transp[MAX_LAYERS];
   uint32_t ncc, pad;   /* pad: what the engine sees, for the widget's debug log (qmask | zbeat+16 << 8 | flags << 16) */
+  uint8_t vel[MAX_LAYERS];
 } VizHdr;
 /* table of the controller values the loop has just played (read by the widget) */
 typedef struct { uint32_t seq; uint8_t ch, cc, val, used; } VizCcEnt;
@@ -94,9 +96,9 @@ typedef struct {
   int32_t shift;            /* Edit page: pending shift of the layer in ticks (applied with Apply) */
   uint32_t ndel_layer, ndel_tick, ndel_pitch;   /* note tapped on the Edit page: layer 0-7, start tick, pitch */
   uint32_t ndel;            /* counter: +1 = delete that note */
-  uint32_t lmute_layer;     /* layer tapped on the strip to toggle mute (0-7) */
+  uint32_t lmute_layer;     /* layer tapped on the strip to toggle mute (0-7, 8 = CC lane) */
   uint32_t lmute;           /* counter: +1 = toggle mute on lmute_layer */
-  uint32_t pad[1];
+  uint32_t cc_sel;          /* 1 = CC lane selected on strip (L Mute / L Delete act on CC) */
 } UiIn;
 #define UIIN_MAGIC 0x55494E31u
 #define UIIN_OFF (VIZ_CC_OFF + sizeof(VizCc))
@@ -106,6 +108,7 @@ typedef struct {
   LV2_Atom_Sequence* out;
   uint32_t out_cap;
   const float* ctl[N_IN];
+  const float* lvel_p;
   float* outp[N_OUT];
   LV2_URID_Map* map;
   LV2_URID midi_Event, atom_Object, atom_Float, atom_Double, atom_Long, atom_Int;
@@ -142,6 +145,7 @@ typedef struct {
   Pre pre[MAX_PRE];
   int npre;
   Ev* cc; uint32_t ncc;
+  uint8_t cc_muted;
   Touch touch[MAX_TOUCH];
   VizCc* ccout;
   volatile UiIn* uiin;
@@ -157,6 +161,7 @@ typedef struct {
   uint8_t learned[16];
 
   float prev[N_IN];
+  float prev_lvel; int have_lvel;
   uint64_t rise_at[N_IN];
   int have_prev;
   uint64_t settle_until;
@@ -243,11 +248,13 @@ static void viz_export(Looper* L) {
     if (i < L->nlayers) {
       uint32_t n = L->layers[i].n;
       h->n[i] = n; h->transp[i] = L->layers[i].transp;
+      h->vel[i] = L->layers[i].vel ? L->layers[i].vel : 100;
       if (L->layers[i].muted) mask |= (1u << i);
       memcpy(dst + off, L->layers[i].ev, n * sizeof(Ev));
       off += n;
-    } else { h->n[i] = 0; h->transp[i] = 0; }
+    } else { h->n[i] = 0; h->transp[i] = 0; h->vel[i] = 100; }
   }
+  if (L->cc_muted) mask |= (1u << 8);
   h->mute_mask = mask;
   memcpy(dst + off, L->cc, L->ncc * sizeof(Ev));
   h->ncc = L->ncc;
@@ -271,9 +278,11 @@ static void snap_free(Snap* s) {
 
 static void snap_from_layers(const Looper* L, Snap* s) {
   s->len = L->loop_len; s->nlayers = L->nlayers;
-  s->ncc = L->ncc; memcpy(s->cc, L->cc, L->ncc * sizeof(Ev));
+  s->ncc = L->ncc; s->cc_muted = L->cc_muted; memcpy(s->cc, L->cc, L->ncc * sizeof(Ev));
   for (int i = 0; i < L->nlayers; i++) {
-    s->muted[i] = L->layers[i].muted; s->transp[i] = L->layers[i].transp; s->n[i] = L->layers[i].n;
+    s->muted[i] = L->layers[i].muted; s->transp[i] = L->layers[i].transp;
+    s->vel[i] = L->layers[i].vel ? L->layers[i].vel : 100;
+    s->n[i] = L->layers[i].n;
     memcpy(s->ev[i], L->layers[i].ev, L->layers[i].n * sizeof(Ev));
   }
 }
@@ -282,11 +291,13 @@ static void snap_from_layers(const Looper* L, Snap* s) {
 static void snap_to_layers(Looper* L, const Snap* s, int keep_mute) {
   for (int i = 0; i < s->nlayers; i++) {
     L->layers[i].n = s->n[i]; L->layers[i].transp = s->transp[i];
+    L->layers[i].vel = (s->vel[i] >= 25 && s->vel[i] <= 200) ? s->vel[i] : 100;
     if (!keep_mute) L->layers[i].muted = s->muted[i];
     memcpy(L->layers[i].ev, s->ev[i], s->n[i] * sizeof(Ev));
   }
   L->nlayers = s->nlayers; L->loop_len = s->len;
   L->ncc = s->ncc; memcpy(L->cc, s->cc, s->ncc * sizeof(Ev));
+  if (!keep_mute) L->cc_muted = s->cc_muted;
 }
 
 /* ---------- undo / redo history ---------- */
@@ -366,7 +377,10 @@ static int file_save(Looper* L, int slot) {
   uint32_t magic = 0x4D4C5033u, len = s->len, nl = (uint32_t)s->nlayers;
   fwrite(&magic, 4, 1, f); fwrite(&len, 4, 1, f); fwrite(&nl, 4, 1, f);
   for (uint32_t i = 0; i < nl; i++) {
-    uint32_t mu = (s->muted[i] ? 1u : 0u) | ((uint32_t)(uint8_t)s->transp[i] << 8), n = s->n[i];
+    uint8_t lv = (s->vel[i] >= 25 && s->vel[i] <= 200) ? s->vel[i] : 100;
+    uint32_t mu = (s->muted[i] ? 1u : 0u) | ((i == 0 && s->cc_muted) ? 2u : 0u) |
+                  ((uint32_t)(uint8_t)s->transp[i] << 8) | ((uint32_t)lv << 16);
+    uint32_t n = s->n[i];
     fwrite(&mu, 4, 1, f); fwrite(&n, 4, 1, f);
     fwrite(s->ev[i], sizeof(Ev), n, f);
   }
@@ -384,11 +398,15 @@ static int file_load(Looper* L, int slot) {
   uint32_t magic = 0, len = 0, nl = 0;
   int ok = (fread(&magic, 4, 1, f) == 1 && fread(&len, 4, 1, f) == 1 && fread(&nl, 4, 1, f) == 1);
   if (ok && ((magic != 0x4D4C5032u && magic != 0x4D4C5033u) || len < 1 || nl < 1 || nl > MAX_LAYERS)) ok = 0;
+  s->cc_muted = 0;
   for (uint32_t i = 0; ok && i < nl; i++) {
     uint32_t mu = 0, n = 0;
     if (fread(&mu, 4, 1, f) != 1 || fread(&n, 4, 1, f) != 1 || n > MAX_EVENTS) { ok = 0; break; }
     if (fread(s->ev[i], sizeof(Ev), n, f) != n) { ok = 0; break; }
     s->muted[i] = (mu & 1) ? 1 : 0; s->transp[i] = (int8_t)((mu >> 8) & 0xFF); s->n[i] = n;
+    uint8_t lv = (uint8_t)((mu >> 16) & 0xFF);
+    s->vel[i] = (lv >= 25 && lv <= 200) ? lv : 100;
+    if (i == 0) s->cc_muted = (mu & 2) ? 1 : 0;
   }
   s->ncc = 0;
   if (ok && magic == 0x4D4C5033u) {
@@ -588,7 +606,9 @@ static void cc_event(Looper* L, uint8_t st, uint8_t d1, uint8_t d2) {
 
 /* ---------- states ---------- */
 static void reset_layers(Looper* L) {
-  for (int i = 0; i < MAX_LAYERS; i++) { L->layers[i].n = 0; L->layers[i].muted = 0; L->layers[i].transp = 0; }
+  for (int i = 0; i < MAX_LAYERS; i++) {
+    L->layers[i].n = 0; L->layers[i].muted = 0; L->layers[i].transp = 0; L->layers[i].vel = 100;
+  }
 }
 
 static void do_clear_ex(Looper* L, int keep_hist) {
@@ -598,7 +618,7 @@ static void do_clear_ex(Looper* L, int keep_hist) {
   if (!keep_hist) hist_clear(L);
   L->state = ST_EMPTY; L->arm_clk = -1; L->auto_clk = -1;
   L->confirm = 0; L->npre = 0;
-  L->ncc = 0; memset(L->touch, 0, sizeof L->touch);
+  L->ncc = 0; L->cc_muted = 0; memset(L->touch, 0, sizeof L->touch);
   L->pending_load = 0; atomic_store(&L->load_state, 0);
   drop_all_open(L);
   L->viz_dirty = 1;
@@ -609,7 +629,7 @@ static void begin_rec(Looper* L, double at) {
   reset_layers(L);
   L->nlayers = 1; L->loop_len = 0;
   hist_clear(L);
-  L->ncc = 0; memset(L->touch, 0, sizeof L->touch);
+  L->ncc = 0; L->cc_muted = 0; memset(L->touch, 0, sizeof L->touch);
   L->pending_load = 0; atomic_store(&L->load_state, 0);
   L->rec_start = at; L->state = ST_REC; L->arm_clk = -1;
   int li = (int)(*L->ctl[I_LENGTH] + 0.5f);
@@ -649,7 +669,9 @@ static void finish_rec(Looper* L, double at) {
 static void apply_load(Looper* L, double at) {
   silence_loop(L);
   drop_all_open(L);
-  for (int i = L->load_s.nlayers; i < MAX_LAYERS; i++) { L->layers[i].n = 0; L->layers[i].muted = 0; L->layers[i].transp = 0; }
+  for (int i = L->load_s.nlayers; i < MAX_LAYERS; i++) {
+    L->layers[i].n = 0; L->layers[i].muted = 0; L->layers[i].transp = 0; L->layers[i].vel = 100;
+  }
   snap_to_layers(L, &L->load_s, 0);
   hist_clear(L);
   L->loop_anchor = at; L->state = ST_PLAY;
@@ -984,7 +1006,7 @@ static void run_cmd(Looper* L, int cmd) {
         case ST_PLAY:
           if (L->nlayers < MAX_LAYERS) {
             Layer* ly = &L->layers[L->nlayers];
-            ly->n = 0; ly->muted = 0; ly->transp = 0;
+            ly->n = 0; ly->muted = 0; ly->transp = 0; ly->vel = 100;
             L->nlayers++; L->state = ST_OVERDUB;
             red_clear(L);
             const int cs = snap_get(L);                  /* the CC lane before this pass */
@@ -1019,19 +1041,29 @@ static void run_cmd(Looper* L, int cmd) {
       }
       break;
     case C_LMUTE:
-      if (L->nlayers > 0 && L->state != ST_REC && L->state != ST_ARM_STOP) {
+      if (ui_ok(L) && L->uiin->cc_sel) {
+        if (L->ncc > 0 && L->state != ST_REC && L->state != ST_ARM_STOP) L->cc_muted ^= 1;
+      } else if (L->nlayers > 0 && L->state != ST_REC && L->state != ST_ARM_STOP) {
         int s = sel_from(L, I_LAYER);
         L->layers[s].muted ^= 1;
         silence_loop(L);
       }
       break;
     case C_LDEL:
-      if ((L->state == ST_PLAY || L->state == ST_STOP) && L->nlayers > 0 && confirm_cmd(L, 2)) {
+      if (ui_ok(L) && L->uiin->cc_sel) {
+        if (editable(L) && L->ncc > 0 && confirm_cmd(L, 4)) {
+          hist_edit(L, E_CC_CLEAR);
+          L->ncc = 0; L->cc_muted = 0;
+          post_msg(L, 28);
+        } else if (L->ncc == 0) {
+          post_msg(L, 10);
+        }
+      } else if ((L->state == ST_PLAY || L->state == ST_STOP) && L->nlayers > 0 && confirm_cmd(L, 2)) {
         int s = sel_from(L, I_LAYER);
         hist_edit(L, E_LDEL);
         Layer tmp = L->layers[s];
         for (int k = s; k < MAX_LAYERS - 1; k++) L->layers[k] = L->layers[k + 1];
-        tmp.n = 0; tmp.muted = 0; tmp.transp = 0;
+        tmp.n = 0; tmp.muted = 0; tmp.transp = 0; tmp.vel = 100;
         L->layers[MAX_LAYERS - 1] = tmp;
         L->nlayers--;
         drop_all_open(L); silence_loop(L);
@@ -1122,7 +1154,8 @@ static void process_controls(Looper* L) {
     try_autoload(L);
   }
   if (!restore && changed > 0) {
-    if (L->confirm == 2 && (int)(cur[I_LAYER] + 0.5f) != (int)(L->prev[I_LAYER] + 0.5f)) L->confirm = 0;
+    int layer_ch = (int)(cur[I_LAYER] + 0.5f) != (int)(L->prev[I_LAYER] + 0.5f);
+    if ((L->confirm == 2 || L->confirm == 4) && layer_ch) L->confirm = 0;
     static const int cmds[14] = { C_REC, C_PLAY, C_CLEAR, C_LMUTE, C_LDEL, C_REDO,
                                   C_HALF, C_DOUBLE, C_QAPPLY, C_EAPPLY, C_SAVE, C_LOAD, C_SDEL, C_EXPORT };
     for (int k = 0; k < 14; k++) {
@@ -1138,6 +1171,19 @@ static void process_controls(Looper* L) {
     }
   }
   undo_knob(L, L->prev[C_UNDO], cur[C_UNDO], restore);
+  if (L->lvel_p) {
+    float lv = *L->lvel_p;
+    int layer_ch = (int)(cur[I_LAYER] + 0.5f) != (int)(L->prev[I_LAYER] + 0.5f);
+    if (!L->have_lvel) { L->prev_lvel = lv; L->have_lvel = 1; }
+    else if (!restore && !layer_ch && (int)lrint(lv) != (int)lrint(L->prev_lvel)) {
+      if (L->nlayers > 0 && !(ui_ok(L) && L->uiin->cc_sel)) {
+        int s = sel_from(L, I_LAYER);
+        L->layers[s].vel = (uint8_t)clampi((int)lrint(lv), 25, 200);
+        L->viz_dirty = 1;
+      }
+    }
+    L->prev_lvel = lv;
+  }
   memcpy(L->prev, cur, sizeof cur);
 }
 
@@ -1197,9 +1243,13 @@ static void play_segment(Looper* L, uint32_t from, uint32_t to) {
               if (p < 0) p = 0;
               if (p > 127) p = 127;
               if (L->noffs < MAX_OFFS) {
+                int lv = ly->vel ? ly->vel : 100;
+                int vel = ((int)e->d2 * lv + 50) / 100;
+                if (vel < 1) vel = 1;
+                if (vel > 127) vel = 127;
                 if (L->lcnt[c][p]) ADD(fr, 0, 0x80 | c, p, 0);
                 if (L->lcnt[c][p] < 250) L->lcnt[c][p]++;
-                ADD(fr, 1, e->st, p, e->d2);
+                ADD(fr, 1, e->st, p, (uint8_t)vel);
                 L->offs[L->noffs].clk = clk0 + off + (double)(e->dur ? e->dur : 1);
                 L->offs[L->noffs].ch = c; L->offs[L->noffs].p = p;
                 L->noffs++;
@@ -1212,7 +1262,7 @@ static void play_segment(Looper* L, uint32_t from, uint32_t to) {
         }
       }
     }
-    for (uint32_t j = 0; j < L->ncc; j++) {
+    if (!L->cc_muted) for (uint32_t j = 0; j < L->ncc; j++) {
       const Ev* e = &L->cc[j];
       for (int w = 0; w < nw; w++) {
         if ((double)e->tick >= wa[w] && (double)e->tick < wb[w]) {
@@ -1477,6 +1527,7 @@ static void update_outputs(Looper* L) {
   if (pos > 1) pos = 1;
   int mask = 0;
   for (int i = 0; i < L->nlayers && i < 8; i++) if (L->layers[i].muted) mask |= (1 << i);
+  if (L->cc_muted) mask |= (1 << 8);
   *L->outp[O_STATE] = (float)L->state;
   *L->outp[O_POS] = (float)pos;
   *L->outp[O_BARS] = (float)bars;
@@ -1558,6 +1609,7 @@ static LV2_Handle instantiate(const LV2_Descriptor* d, double rate, const char* 
   L->par_sslot      = m->map(m->handle, LOOPER_URI "#sslot");
   L->sr = rate; L->bpm = 120.0; L->bpb = 4; L->zb_prev = ZB_UNSET;
   L->state = ST_EMPTY; L->arm_clk = -1; L->auto_clk = -1;
+  reset_layers(L);
 
   /* shared memory for the widget's piano roll */
   snprintf(L->viz_path, sizeof L->viz_path, "/dev/shm/eka_roll_%d", (int)getpid());
@@ -1590,6 +1642,7 @@ static void connect_port(LV2_Handle h, uint32_t port, void* data) {
   else if (port == 1) L->out = (LV2_Atom_Sequence*)data;
   else if (port >= 2 && port < 2 + N_IN) L->ctl[port - 2] = (const float*)data;
   else if (port >= OUT_BASE && port < OUT_BASE + N_OUT) L->outp[port - OUT_BASE] = (float*)data;
+  else if (port == P_LVEL) L->lvel_p = (const float*)data;
 }
 
 static void activate(LV2_Handle h) { (void)h; }
@@ -1615,7 +1668,10 @@ static void run(LV2_Handle h, uint32_t n) {
     const uint32_t lm = L->uiin->lmute;                  /* tap on selected layer in the strip -> toggle mute */
     if (L->ui_lmute_seen && lm != L->ui_lmute) {
       int s = (int)L->uiin->lmute_layer;
-      if (s >= 0 && s < L->nlayers && L->state != ST_REC && L->state != ST_ARM_STOP) {
+      if (s == 8 && L->ncc > 0 && L->state != ST_REC && L->state != ST_ARM_STOP) {
+        L->cc_muted ^= 1;
+        L->viz_dirty = 1;
+      } else if (s >= 0 && s < L->nlayers && L->state != ST_REC && L->state != ST_ARM_STOP) {
         L->layers[s].muted ^= 1;
         silence_loop(L);
         L->viz_dirty = 1;
