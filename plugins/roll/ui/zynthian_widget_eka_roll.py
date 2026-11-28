@@ -25,8 +25,9 @@ MSGS = {1: "Saved", 2: "Loaded", 3: "Slot deleted", 4: "Slot empty", 5: "Save fa
         14: "Grid is OFF", 15: "Busy", 16: "Layer transposed",
         17: "No layers selected", 18: "Nothing to apply", 19: "Exporting...",
         20: "Undo: overdub", 21: "Layer shifted", 22: "Layer shifted + transposed", 23: "Note deleted",
-        25: "Nothing to undo", 26: "Nothing to redo"}
-for _i, _e in enumerate(("Quantize", "Half", "Double", "Transpose", "CC", "Shift", "Note delete")):
+        24: "Cleared", 25: "Nothing to undo", 26: "Nothing to redo", 27: "Max 8 layers"}
+for _i, _e in enumerate(("Quantize", "Half", "Double", "Transpose", "CC", "Shift", "Note delete",
+                         "Layer delete", "Clear")):
     MSGS[30 + _i] = "Undo: " + _e
     MSGS[40 + _i] = "Redo: " + _e
 for _n in range(1, 9):
@@ -39,9 +40,9 @@ EV = struct.Struct("<IIBBBB")
 CCENT = struct.Struct("<IBBBB")                        # seq, ch, cc, val, used
 VIZ_CC_OFF = HDR.size + (8 * 4000 + 16384) * EV.size   # table of CC played by the loop
 # Values the widget writes for the engine (UiIn in eka_roll.c): magic, seq, qmask, zbeat, redo, ccm[8],
-# shift (ticks), ndel_layer, ndel_tick, ndel_pitch, ndel (counter), pad[3].
+# shift (ticks), ndel_layer, ndel_tick, ndel_pitch, ndel (counter), lmute_layer, lmute (counter), pad[1].
 # Zynthian's jalv ignores commands for notOnGUI ports, so these can't go through the controllers.
-UIIN = struct.Struct("<IIiiI8IiIIII3I")
+UIIN = struct.Struct("<IIiiI8IiIIIIIII")
 UIIN_OFF = VIZ_CC_OFF + 4 + 32 * CCENT.size
 UIIN_MAGIC = 0x55494E31
 MAGIC = 0x4D4C5A31
@@ -226,6 +227,8 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         self._ccm = None
         self.mode = None
         self.edit_sel = 0
+        self._last_layer = None
+        self._last_elayer = None
         self.shift_i = SHIFT_DEFAULT      # slider: step of one Shift knob click
         self.shift_ticks = 0              # pending shift of the Edit layer (sent to the engine, applied by Apply)
         self.shift_last = None            # last Shift knob value seen
@@ -285,8 +288,8 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             self.mmw = None
             return None
 
-    def _ui_put(self, redo=False, ndel=None):
-        """Write qmask / zbeat / ccm / shift (and +1 redo, a note to delete) for the engine.
+    def _ui_put(self, redo=False, ndel=None, lmute=None):
+        """Write qmask / zbeat / ccm / shift (and +1 redo, a note to delete, layer mute) for the engine.
         False if the block isn't there."""
         mm = self._open_mmw()
         if mm is None:
@@ -303,8 +306,12 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
             if ndel is not None:
                 nl, nt, np_ = ndel
                 nc = (nc + 1) & 0xFFFFFFFF
+            ml, mc = cur[18:20]
+            if lmute is not None:
+                ml = int(lmute)
+                mc = (mc + 1) & 0xFFFFFFFF
             UIIN.pack_into(mm, UIIN_OFF, UIIN_MAGIC, (cur[1] + 1) & 0xFFFFFFFF, qmask, zb, rcount, *ccm,
-                           int(self.shift_ticks), nl, nt, np_, nc, 0, 0, 0)
+                           int(self.shift_ticks), nl, nt, np_, nc, ml, mc, 0)
             return True
         except Exception as e:
             dbg("ui put: %r", e)
@@ -459,7 +466,21 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                 elif kind == "s":
                     self._zset("sslot", i + 1)
                 elif kind == "l":
-                    self._zset("layer", i + 1)
+                    cur_sel = int(round(self._zval("elayer" if self.mode == "roll" else "layer", 1))) - 1
+                    nl = int((self.monitors or {}).get("layers", 0))
+                    if nl > 0:
+                        cur_sel = min(cur_sel, nl - 1)
+                    if i == cur_sel:
+                        self._ui_put(lmute=i)
+                    else:
+                        self._zset("layer", i + 1)
+                        self._zset("elayer", i + 1)
+                        self._last_layer = i + 1
+                        self._last_elayer = i + 1
+                        if self.shift_ticks or self.shift_show:
+                            self._shift_reset()
+                        if self._zval("transp", 0) != 0:
+                            self._zset("transp", 0)
                 return
         if self.mode == "roll":
             note = self._note_at(event.x, event.y)
@@ -1171,6 +1192,22 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
         info = f"{bars:.1f} bars" if st in (2, 3) else (f"{bars:g} bars" if bars > 0 else "")
         self.hits = []
         self.mode = mode
+        # Keep layer (Layers page) and elayer (Edit page) in sync; reset pending Edit on layer switch
+        cur_l = int(round(self._zval("layer", 1)))
+        cur_el = int(round(self._zval("elayer", 1)))
+        if self._last_layer is not None:
+            if cur_l != self._last_layer and cur_el == self._last_elayer:
+                self._zset("elayer", cur_l)
+                cur_el = cur_l
+            elif cur_el != self._last_elayer and cur_l == self._last_layer:
+                self._zset("layer", cur_el)
+                cur_l = cur_el
+            if cur_el != self._last_elayer:
+                if self.shift_ticks or self.shift_show:
+                    self._shift_reset()
+                if self._zval("transp", 0) != 0:
+                    self._zset("transp", 0)
+        self._last_layer, self._last_elayer = cur_l, cur_el
         self._shift_follow()
         if nl == 0 and (self.shift_ticks or self.shift_show):   # no loop any more: nothing to shift
             self._shift_reset()
@@ -1194,6 +1231,24 @@ class zynthian_widget_eka_roll(zynthian_widget_base.zynthian_widget_base):
                 if self.shift_show:
                     self._draw_shift(w, h, self._font(h, 15, 8))
                     psh = self.shift_ticks
+                else:
+                    lw = (w - 16 - 7 * 4) // 8
+                    ya, yb = int(h * 0.14), int(h * 0.21)
+                    for i in range(8):
+                        x = 8 + i * (lw + 4)
+                        lc = LAYER_COLORS[i]
+                        if i < nl:
+                            filled = not ((mask >> i) & 1)
+                            c.create_rectangle(x, ya, x + lw, yb, tags="dyn",
+                                               outline=("#ffffff" if i == sel else lc),
+                                               width=(3 if i == sel else 1),
+                                               fill=(lc if filled else ""))
+                            if lw >= 18 and yb - ya >= 10:
+                                c.create_text(x + lw // 2, (ya + yb) // 2, text=str(i + 1), tags="dyn",
+                                              fill=("#000000" if filled else lc), font=self._font(h, 22, 7))
+                            self.hits.append((x, ya - 6, x + lw, yb + 6, "l", i))
+                        else:
+                            c.create_rectangle(x, ya, x + lw, yb, outline="#303030", tags="dyn")
                 y0 = int(h * 0.25)
             else:
                 quant = mode == "quant"
