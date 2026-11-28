@@ -443,6 +443,54 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
         self._bind_pages(title)
         self._flush_pages()
 
+    def _font_size(self):
+        return max(8, min(max(int(self.height), 20) // 14, 13))
+
+    def _btn_h(self):
+        """Height of touch buttons, sized for fingers (matches Eka Fold)."""
+        fs = self._font_size()
+        h = max(int(self.height), 60)
+        return max(2 * fs + 6, min(60, int(h * 0.135)))
+
+    def _btn_font_size(self):
+        fs = self._font_size()
+        return min(15, fs + 2) if self._btn_h() >= 46 else fs
+
+    def _header_h(self):
+        """Height of the top navigation bar, sized for fingers."""
+        fs = self._font_size()
+        h = max(int(self.height), 60)
+        return max(2 * fs + 4, min(54, int(h * 0.12)))
+
+    def _line_h(self):
+        """Height reserved for a single-line summary caption."""
+        fs = self._font_size()
+        return max(20, fs + 12)
+
+    def _fit_font(self, text, room, size=None):
+        fam = zynthian_gui_config.font_family
+        top = size or self._font_size()
+        key = (text, int(room), top)
+        cache = self.__dict__.setdefault("fit_cache", {})
+        if key in cache:
+            return cache[key]
+        if len(cache) > 400:
+            cache.clear()
+        fonts = self.__dict__.setdefault("fit_fonts", {})
+        out = (fam, 7)
+        for fs in range(top, 6, -1):
+            try:
+                if fs not in fonts:
+                    fonts[fs] = tkinter.font.Font(family=fam, size=fs)
+                if fonts[fs].measure(text) <= room:
+                    out = (fam, fs)
+                    break
+            except Exception:
+                out = (fam, fs)
+                break
+        cache[key] = out
+        return out
+
     # Fixed canvas objects are reused between frames; meters use actual DSP peaks.
     def _layout(self):
         canvas = self.widget_canvas
@@ -452,6 +500,10 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
         self.tone_drawn = None
         width, height = max(260, self.width), max(240, self.height)
         self.drawn = (self.width, self.height, self.view, self.time_span)
+        hh = self._header_h()
+        lh = self._line_h()
+        bfs = self._btn_font_size()
+        bot_bh = min(self._btn_h(), max(32, int(height * 0.125)))
         self.font = (zynthian_gui_config.font_family, 11 if width < 430 else 12)
         self.small = (zynthian_gui_config.font_family, 10 if width < 430 else 11)
         self.fg = zynthian_gui_config.color_tx
@@ -459,21 +511,30 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
         bg = zynthian_gui_config.color_bg
         canvas.create_rectangle(0, 0, width, height, fill=bg, outline="")
         def text(key, x, y, **options):
-            self.items[key] = canvas.create_text(x, y, font=self.font, fill=self.fg, **options)
-        def button(key, box, label):
+            options.setdefault("font", self.font)
+            options.setdefault("fill", self.fg)
+            self.items[key] = canvas.create_text(x, y, **options)
+        def button(key, box, label, font=None):
             self.boxes[key] = box
             self.items[key] = canvas.create_rectangle(*box, fill=bg, outline=DIM)
-            text(key + "_label", (box[0] + box[2]) / 2, (box[1] + box[3]) / 2, text=label)
+            use_font = font or self._fit_font(label, box[2] - box[0] - 8, bfs) if label else self.font
+            text(key + "_label", (box[0] + box[2]) / 2, (box[1] + box[3]) / 2, text=label, font=use_font)
         # The host header already identifies the plugin and preset.
         nav_start = 2
         nav_width = (width - nav_start - 4) / len(PAGES)
         for i, title in enumerate(PAGES):
-            box = (nav_start + i * nav_width, 2, nav_start + (i + 1) * nav_width - 2, 29)
-            button(title, box, {"Harmony": "Main", "Character": "Char", "Output": "Out",
-                                "Scenes": "Scn" if width < 360 else "Scene"}.get(title, title))
-        text("summary", 5, 43, text="", anchor="w")
-        text("clip", width - 5, 43, text="", anchor="e")
-        top, bottom = 60, height - 82
+            box = (nav_start + i * nav_width, 2, nav_start + (i + 1) * nav_width - 3, hh - 2)
+            label = {"Harmony": "Main", "Character": "Char", "Output": "Out",
+                     "Scenes": "Scn" if width < 360 else "Scene"}.get(title, title)
+            button(title, box, label)
+        summary_y = hh + lh // 2
+        text("summary", 5, summary_y, text="", anchor="w")
+        text("clip", width - 5, summary_y, text="", anchor="e")
+        act_y1 = height - 2
+        act_y0 = act_y1 - bot_bh
+        scn_y1 = act_y0 - 4
+        scn_y0 = scn_y1 - bot_bh
+        top, bottom = hh + lh + 2, scn_y0 - 6
         card_font = tkinter.font.Font(font=self.small)
         card_width = max(74, card_font.measure("-60 dB TAIL") + 22,
                          card_font.measure("4 -12.5 st") + 22)
@@ -489,20 +550,21 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
                 fill=COLOURS[voice], outline="")
         plot_top = top
         if self.view == "tone":
-            btn_h = 18 if height < 320 else 21
-            btn_gap = 3
+            tone_bh = min(self._btn_h(), max(32, int((bottom - top) * 0.22)))
+            btn_gap = 4
             frame_x0 = card_width + 12
             frame_x1 = width - 6
-            btn_w = min(74, max(54, int((frame_x1 - frame_x0) * 0.25)))
-            for key, box, label in (
-                ("hpf_slope", (frame_x0, top, frame_x0 + btn_w, top + btn_h), "HP 12"),
-                ("hpf_res", (frame_x0, top + btn_h + btn_gap, frame_x0 + btn_w, top + 2 * btn_h + btn_gap), "Res"),
-                ("lpf_slope", (frame_x1 - btn_w, top, frame_x1, top + btn_h), "LP 12"),
-                ("lpf_res", (frame_x1 - btn_w, top + btn_h + btn_gap, frame_x1, top + 2 * btn_h + btn_gap), "Res"),
-            ):
+            btn_w = (frame_x1 - frame_x0 - 3 * btn_gap) / 4.0
+            for idx, (key, label) in enumerate((
+                ("hpf_slope", "HP 12"),
+                ("hpf_res", "HP Res"),
+                ("lpf_slope", "LP 12"),
+                ("lpf_res", "LP Res"),
+            )):
+                bx0 = frame_x0 + idx * (btn_w + btn_gap)
+                box = (bx0, top, bx0 + btn_w, top + tone_bh)
                 button(key, box, label)
-                canvas.itemconfigure(self.items[key + "_label"], font=self.small)
-            plot_top = top + 2 * btn_h + btn_gap + 4
+            plot_top = top + tone_bh + 6
         self.plot = (card_width + 30, plot_top + 20, width - 24, bottom - 20)
         x0, y0, x1, y1 = self.plot
         canvas.create_rectangle(x0 - 18, y0 - 18, x1 + 18, y1 + 18, outline=DIM)
@@ -559,18 +621,20 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
         scene_width = (width - 4) / 5
         for scene, letter in enumerate("ABCD"):
             button("scene%d" % scene,
-                   (2 + scene * scene_width, height - 77, (scene + 1) * scene_width - 2, height - 45), letter)
-        button("store", (2 + 4 * scene_width, height - 77, width - 2, height - 45), "Store")
+                   (2 + scene * scene_width, scn_y0, (scene + 1) * scene_width - 2, scn_y1), letter)
+        button("store", (2 + 4 * scene_width, scn_y0, width - 2, scn_y1), "Store")
         if width < 360:
-            button("on", (2, height - 40, 68, height - 2), "On")
-            button("solo", (72, height - 40, 138, height - 2), "Solo")
-            button("input_profile", (142, height - 40, 214, height - 2), "In: Auto")
+            act_w = 66
+            prof_w = 72
+            gap = 4
         else:
-            button("on", (2, height - 40, 82, height - 2), "On")
-            button("solo", (88, height - 40, 168, height - 2), "Solo")
-            button("input_profile", (174, height - 40, 254, height - 2), "In: Auto")
-        canvas.itemconfigure(self.items["input_profile_label"], font=self.small)
-        text("footer", width - 4, height - 21, text="", anchor="e")
+            act_w = max(84, min(104, int(width * 0.18)))
+            prof_w = max(84, min(104, int(width * 0.18)))
+            gap = 6
+        button("on", (2, act_y0, 2 + act_w, act_y1), "On")
+        button("solo", (2 + act_w + gap, act_y0, 2 + 2 * act_w + gap, act_y1), "Solo")
+        button("input_profile", (2 + 2 * (act_w + gap), act_y0, 2 + 2 * (act_w + gap) + prof_w, act_y1), "In: Auto")
+        text("footer", width - 4, (act_y0 + act_y1) / 2, text="", anchor="e")
 
     def _y(self, pitch):
         _, y0, _, y1 = self.plot
@@ -872,9 +936,9 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
             bg = zynthian_gui_config.color_bg
             for key, active, text_label in (
                 ("hpf_slope", hp24, "HP 24" if hp24 else "HP 12"),
-                ("hpf_res", hp_res, "Res"),
+                ("hpf_res", hp_res, "HP Res"),
                 ("lpf_slope", lp24, "LP 24" if lp24 else "LP 12"),
-                ("lpf_res", lp_res, "Res"),
+                ("lpf_res", lp_res, "LP Res"),
             ):
                 canvas.itemconfigure(self.items[key], outline=vc if active else DIM,
                                      fill=vc if active else bg)
@@ -910,11 +974,12 @@ class zynthian_widget_eka_weave4(zynthian_widget_base.zynthian_widget_base):
         canvas.itemconfigure(self.items["footer"], text=footer)
 
     def _hit(self, x, y):
-        for key, (x0, y0, x1, y1) in self.boxes.items():
-            if key == "input_profile" and not self._tracking_mode():
-                continue
-            if x0 <= x <= x1 and y0 <= y <= y1:
-                return key
+        for pad in (0, 2):
+            for key, (x0, y0, x1, y1) in self.boxes.items():
+                if key == "input_profile" and not self._tracking_mode():
+                    continue
+                if x0 - pad <= x <= x1 + pad and y0 - pad <= y <= y1 + pad:
+                    return key
         # Stable side buttons remain available when marks overlap.
         nearest = None
         distance = 22 * 22

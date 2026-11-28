@@ -204,16 +204,60 @@ class zynthian_widget_eka_grain_flow(zynthian_widget_base.zynthian_widget_base):
     def _font_size(self):
         return max(8, min(max(self.height, 20) // 14, 13))
 
+    def _fit_font(self, text, room, size=None):
+        fam = zynthian_gui_config.font_family
+        top = size or self._font_size()
+        key = (text, int(room), top)
+        cache = self.__dict__.setdefault("fit_cache", {})
+        if key in cache:
+            return cache[key]
+        if len(cache) > 400:
+            cache.clear()
+        fonts = self.__dict__.setdefault("fit_fonts", {})
+        out = (fam, 7)
+        for fs in range(top, 6, -1):
+            try:
+                if fs not in fonts:
+                    fonts[fs] = tkinter.font.Font(family=fam, size=fs)
+                if fonts[fs].measure(text) <= room:
+                    out = (fam, fs)
+                    break
+            except Exception:
+                out = (fam, fs)
+                break
+        cache[key] = out
+        return out
+
+    def _header_h(self):
+        """Height of the top control bar, sized for fingers (matches Eka Fold)."""
+        fs = self._font_size()
+        h = max(int(self.height), 60)
+        return max(2 * fs + 6, min(54, int(h * 0.12)))
+
+    def _btn_h(self):
+        """Height of touch buttons and sliders, sized for fingers (matches Eka Fold)."""
+        fs = self._font_size()
+        h = max(int(self.height), 60)
+        return max(2 * fs + 6, min(60, int(h * 0.135)))
+
+    def _btn_font_size(self):
+        fs = self._font_size()
+        return min(15, fs + 2) if self._btn_h() >= 46 else fs
+
+    def _tab_w(self):
+        """Width of the left vertical stream tabs, sized for fingers."""
+        w = max(int(self.width), 80)
+        return max(44, min(68, int(w * 0.11)))
+
     def _line_h(self):
-        return self._font_size() * 2 + 6
+        return self._header_h()
 
     def _content_x(self):
-        return self._line_h() + 8
+        return self._tab_w() + 8
 
     def _area(self):
         """x0, y0, x1, y1 of the buffer view."""
-        lh = self._line_h()
-        return self._content_x(), lh + 4, max(self.width, 80) - 2, max(self.height, 60) - lh - 4
+        return self._content_x(), self._header_h() + 4, max(self.width, 80) - 2, max(self.height, 60) - self._btn_h() - 6
 
     def _buffer_s(self):
         return min(max(int(round(self._zval("buffer", 4))), BUFFER_MIN), BUFFER_MAX)
@@ -276,9 +320,8 @@ class zynthian_widget_eka_grain_flow(zynthian_widget_base.zynthian_widget_base):
         self.tab_view = view
         c = self.widget_canvas
         c.delete("tabs")
-        fs = self._font_size()
-        font = (zynthian_gui_config.font_family, fs)
-        width = self._line_h()
+        bfs = self._btn_font_size()
+        width = self._tab_w()
         height = (max(self.height, 60) - 12) / 3.0
         self.tab_boxes = []
         for i in range(STREAMS):
@@ -289,8 +332,10 @@ class zynthian_widget_eka_grain_flow(zynthian_widget_base.zynthian_widget_base):
             selected = i + 1 == stream
             c.create_rectangle(x0, y0, x1, y1, outline=col, width=2 if selected else 1,
                                fill=col if selected else "", tags="tabs")
+            label = str(i + 1) if on else "%d\noff" % (i + 1)
+            font = self._fit_font("off" if not on else str(i + 1), width - 8, bfs)
             c.create_text((x0 + x1) / 2, (y0 + y1) / 2,
-                          text=str(i + 1) if on else "%d\noff" % (i + 1), font=font,
+                          text=label, font=font,
                           fill=("#000000" if on else zynthian_gui_config.color_tx) if selected else col, tags="tabs")
             self.tab_boxes.append((x0, y0, x1, y1))
 
@@ -301,32 +346,33 @@ class zynthian_widget_eka_grain_flow(zynthian_widget_base.zynthian_widget_base):
         active = int(self._mon("active", 0))
         title = self._page_title()
         amount = int(round(self._zval("freeze_amount", 0)))
-        view = (self.width, stream, mask, frozen, amount, active, title, self.view)
+        view = (self.width, self.height, stream, mask, frozen, amount, active, title, self.view)
         if view == self.top_view:
             return
         self.top_view = view
         c = self.widget_canvas
         c.delete("top")
         fs = self._font_size()
-        font = (zynthian_gui_config.font_family, fs)
-        lh = self._line_h()
-        tw = lh * 2
+        bfs = self._btn_font_size()
+        hh = self._header_h()
         fx0 = self._content_x()
-        fw = tw * 1.6
+        avail = max(self.width, 80) - fx0 - 4
+        fw = max(84, min(140, int(avail * 0.30)))
+        mw = max(68, min(110, int(avail * 0.22)))
         self.freeze_box = (fx0, fx0 + fw)
-        c.create_rectangle(fx0, 2, fx0 + fw, lh, outline=FREEZE_COLOR, fill=(FREEZE_COLOR if frozen else ""), tags="top")
-        c.create_text(fx0 + fw / 2, lh / 2 + 1, text="Frz %d%%" % amount, font=font,
+        ftext = "Frz %d%%" % amount
+        c.create_rectangle(fx0, 2, fx0 + fw, hh - 2, outline=FREEZE_COLOR, fill=(FREEZE_COLOR if frozen else ""), tags="top")
+        c.create_text(fx0 + fw / 2, hh / 2, text=ftext, font=self._fit_font(ftext, fw - 10, bfs),
                       fill=("#000000" if frozen else FREEZE_COLOR), tags="top")
-        mx0 = fx0 + fw + 8
-        mw = tw * 1.2
+        mx0 = fx0 + fw + 6
         self.mod_box = (mx0, mx0 + mw)
         on = self.view == 1
-        c.create_rectangle(mx0, 2, mx0 + mw, lh, outline=LFO_COLORS[0], fill=(LFO_COLORS[0] if on else ""), tags="top")
-        c.create_text(mx0 + mw / 2, lh / 2 + 1, text="Mod", font=font, fill=("#000000" if on else LFO_COLORS[0]),
-                      tags="top")
+        c.create_rectangle(mx0, 2, mx0 + mw, hh - 2, outline=LFO_COLORS[0], fill=(LFO_COLORS[0] if on else ""), tags="top")
+        c.create_text(mx0 + mw / 2, hh / 2, text="Mod", font=self._fit_font("Mod", mw - 10, bfs),
+                      fill=("#000000" if on else LFO_COLORS[0]), tags="top")
         small = (zynthian_gui_config.font_family, max(7, fs - 2))
         right = "%s · %d/%d" % (title, active, POOL) if title else "%d/%d" % (active, POOL)
-        c.create_text(max(self.width, 80) - 4, lh / 2 + 1, text=right, anchor="e", font=small,
+        c.create_text(max(self.width, 80) - 4, hh / 2, text=right, anchor="e", font=small,
                       fill=zynthian_gui_config.color_tx_off, tags="top")
 
     def _sample_levels(self):
@@ -412,26 +458,39 @@ class zynthian_widget_eka_grain_flow(zynthian_widget_base.zynthian_widget_base):
         c = self.widget_canvas
         c.delete("bottom")
         fs = self._font_size()
-        font = (zynthian_gui_config.font_family, max(7, fs - 1))
-        lh = self._line_h()
+        bfs = self._btn_font_size()
+        bh = self._btn_h()
         y1 = max(self.height, 60) - 2
-        y0 = y1 - lh + 4
-        bw = lh * 2
+        y0 = y1 - bh
         x = self._content_x()
+        avail = max(self.width, 80) - 2 - x
         self.bottom_boxes = {}
 
-        def button(name, text, on, width=bw):
+        def button(name, text, on, width):
             nonlocal x
             col = zynthian_gui_config.color_tx if on else zynthian_gui_config.color_tx_off
-            c.create_rectangle(x, y0, x + width, y1, outline=col, fill=("#404040" if on else ""), tags="bottom")
-            c.create_text(x + width / 2, (y0 + y1) / 2, text=text, font=font, fill=col, tags="bottom")
+            outline = FREEZE_COLOR if on else col
+            fill = FREEZE_COLOR if on else ""
+            tcol = "#000000" if on else col
+            c.create_rectangle(x, y0, x + width, y1, outline=outline, fill=fill, tags="bottom")
+            c.create_text(x + width / 2, (y0 + y1) / 2, text=text, font=self._fit_font(text, width - 8, bfs),
+                          fill=tcol, tags="bottom")
             self.bottom_boxes[name] = (x, y0, x + width, y1)
             x += width + 4
 
-        button("shape", "Shp %d%%" % round(shape * 100), False, int(bw * 1.75))
+        gap_total = 4 * 4 + 4
+        usable = max(avail - gap_total, 180)
+        pm_w = max(36, min(bh, int(usable * 0.13)))
+        buf_lbl_w = max(48, min(80, int(usable * 0.17)))
+        rest = max(usable - 2 * pm_w - buf_lbl_w, 80)
+        shp_w = int(rest * 0.56)
+        sync_w = rest - shp_w
+
+        button("shape", "Shp %d%%" % round(shape * 100), False, shp_w)
         sx0, sy0, sx1, sy1 = self.bottom_boxes["shape"]
         # Separate thumbnail above the control: full button height remains available for its label.
-        pic_bottom, pic_top = sy0 - 5, sy0 - 5 - lh
+        pic_h = max(24, min(36, int(bh * 0.65)))
+        pic_bottom, pic_top = sy0 - 5, sy0 - 5 - pic_h
         c.create_rectangle(sx0, pic_top, sx1, pic_bottom, outline=DIM, fill="#181818", tags="bottom")
         length_ms = max(10, self._zval("length", 500))
         taper = min(1, max(1.0 - 0.98 * shape, 2.0 / length_ms))
@@ -441,15 +500,17 @@ class zynthian_widget_eka_grain_flow(zynthian_widget_base.zynthian_widget_base):
         for ph in phases:
             edge = min(ph, 1.0 - ph)
             amp = 0.5 - 0.5 * math.cos(math.pi * min(2 * edge / taper, 1))
-            pts += [sx0 + 4 + (sx1 - sx0 - 8) * ph, pic_bottom - 3 - amp * (lh - 6)]
+            pts += [sx0 + 4 + (sx1 - sx0 - 8) * ph, pic_bottom - 3 - amp * (pic_h - 6)]
         c.create_line(*pts, fill=zynthian_gui_config.color_tx, width=2, tags="bottom")
-        button("buf-", "-", False, lh)
-        c.create_text(x + bw / 2, (y0 + y1) / 2, text="Buf %d s" % buf, font=font,
+        button("buf-", "-", False, pm_w)
+        btext = "Buf %d s" % buf
+        c.create_text(x + buf_lbl_w / 2, (y0 + y1) / 2, text=btext,
+                      font=self._fit_font(btext, buf_lbl_w - 4, bfs),
                       fill=zynthian_gui_config.color_tx, tags="bottom")
-        x += bw + 4
-        button("buf+", "+", False, lh)
-        x += 8
-        button("sync", "Sync %d" % bpm if sync else "Sync", sync, int(bw * 1.2))
+        x += buf_lbl_w + 4
+        button("buf+", "+", False, pm_w)
+        x += 4
+        button("sync", "Sync %d" % bpm if sync else "Sync", sync, sync_w)
         # over the buffer
         ax0, ay0, ax1, _ = self._area()
         small = (zynthian_gui_config.font_family, max(7, fs - 3))
@@ -485,11 +546,11 @@ class zynthian_widget_eka_grain_flow(zynthian_widget_base.zynthian_widget_base):
 
     def _mod_layout(self):
         """(lfo panels, grid) boxes inside the area below the top line."""
-        lh = self._line_h()
+        hh = self._header_h()
         w, h = max(self.width, 80), max(self.height, 60)
-        y0, y1 = lh + 6, h - 4
+        y0, y1 = hh + 6, h - 4
         left = self._content_x()
-        split = left + int((w - left) * 0.40)
+        split = left + int((w - left) * 0.43)
         return (left + 2, y0, split - 4, y1), (split + 4, y0, w - 2, y1)
 
     def _draw_mod(self):
@@ -513,20 +574,22 @@ class zynthian_widget_eka_grain_flow(zynthian_widget_base.zynthian_widget_base):
         matrix_header = (zynthian_gui_config.font_family, max(6, fs - 5))
         matrix_value = (zynthian_gui_config.font_family, max(6, fs - 4))
         ph_h = (ly1 - ly0) / 2.0
+        bh = min(self._btn_h(), max(28, int(ph_h * 0.28)))
+        bfs = self._btn_font_size()
         if view != self.mod_view:
             self.mod_view = view
             c.delete("mod")
             self.mod_boxes = []
             self.lfo_dots = []
-            bh = self._line_h() - 4
             if self.env_view:
                 c.create_rectangle(lx0, ly0, lx1, ly1, outline=DIM, tags="mod")
                 c.create_text(lx0 + 6, ly0 + bh / 2 + 3, text="Env · Input", anchor="w", font=font,
                               fill=LFO_COLORS[2], tags="mod")
-                back = (lx1 - 58, ly0 + 3, lx1 - 3, ly0 + bh + 3)
+                back_w = max(68, int((lx1 - lx0) * 0.34))
+                back = (lx1 - back_w - 3, ly0 + 3, lx1 - 3, ly0 + bh + 3)
                 c.create_rectangle(*back, outline=LFO_COLORS[0], tags="mod")
                 c.create_text((back[0] + back[2]) / 2, (back[1] + back[3]) / 2,
-                              text="LFO", font=font, fill=LFO_COLORS[0], tags="mod")
+                              text="LFO", font=self._fit_font("LFO", back_w - 8, bfs), fill=LFO_COLORS[0], tags="mod")
                 self.mod_boxes.append((*back, "env_view", None))
                 top = ly0 + bh + 10
                 row_h = (ly1 - top - 8) / 3
@@ -534,45 +597,61 @@ class zynthian_widget_eka_grain_flow(zynthian_widget_base.zynthian_widget_base):
                     box = (lx0 + 5, top + row_h * e, lx1 - 5, top + row_h * (e + 1) - 5)
                     c.create_rectangle(*box, outline=LFO_COLORS[2], fill="#202020", tags="mod")
                     value = ("%+d dB" % round(env_values[e])) if e == 2 else ("%d ms" % round(env_values[e]))
+                    etext = label + "  " + value
                     c.create_text((box[0] + box[2]) / 2, (box[1] + box[3]) / 2,
-                                  text=label + "  " + value, font=font, fill=LFO_COLORS[2], tags="mod")
+                                  text=etext, font=self._fit_font(etext, box[2] - box[0] - 10, bfs),
+                                  fill=LFO_COLORS[2], tags="mod")
                     self.mod_boxes.append((*box, "env_param", e))
             else:
+                panel_w = lx1 - lx0 - 6
                 for l in range(2):
                     py0 = ly0 + l * ph_h
                     py1 = py0 + ph_h - 6
                     col = LFO_COLORS[l]
                     c.create_rectangle(lx0, py0, lx1, py1, outline=DIM, tags="mod")
                     sync_on = bool(lfos[l][5])
-                    sync_box = (lx0 + 3, py0 + 3, lx0 + (lx1 - lx0) * 0.25 - 3, py0 + bh + 3)
-                    c.create_rectangle(*sync_box, outline=col, fill="#303030" if sync_on else "", tags="mod")
+                    gap = 3
+                    uw = max(panel_w - 3 * gap, 80)
+                    w_sync = int(uw * 0.24)
+                    w_pol = int(uw * 0.16)
+                    w_shp = int(uw * 0.28)
+                    w_rate = uw - w_sync - w_pol - w_shp
+                    bx = lx0 + 3
+                    sync_box = (bx, py0 + 3, bx + w_sync, py0 + 3 + bh)
+                    stxt = "Sync" if sync_on else "Free"
+                    c.create_rectangle(*sync_box, outline=col, fill=col if sync_on else "", tags="mod")
                     c.create_text((sync_box[0] + sync_box[2]) / 2, (sync_box[1] + sync_box[3]) / 2,
-                                  text="Sync" if sync_on else "Free", font=small, fill=col,
-                                  tags="mod")
+                                  text=stxt, font=self._fit_font(stxt, w_sync - 4, bfs),
+                                  fill="#000000" if sync_on else col, tags="mod")
                     self.mod_boxes.append((*sync_box, "lsync", l))
-                    onx0, onx1 = lx0 + (lx1 - lx0) * 0.25, lx0 + (lx1 - lx0) * 0.25 + bh * 0.85
+                    bx += w_sync + gap
                     positive = bool(lfos[l][2])
-                    c.create_rectangle(onx0, py0 + 3, onx1, py0 + 3 + bh, outline=col,
-                                       fill=("#303030" if positive else ""), tags="mod")
-                    c.create_text((onx0 + onx1) / 2, py0 + 3 + bh / 2, text="+" if positive else "−+", font=font,
-                                  fill=col, tags="mod")
-                    self.mod_boxes.append((onx0, py0 + 3, onx1, py0 + 3 + bh, "lon", l))
-                    bw = (lx1 - lx0) * 0.3
-                    sx0 = lx0 + (lx1 - lx0) * 0.38
-                    c.create_rectangle(sx0, py0 + 3, sx0 + bw, py0 + 3 + bh, outline=col, tags="mod")
-                    c.create_text(sx0 + bw / 2, py0 + 3 + bh / 2, text=LFO_SHAPES[lfos[l][1]], font=small, fill=col,
-                                  tags="mod")
-                    self.mod_boxes.append((sx0, py0 + 3, sx0 + bw, py0 + 3 + bh, "lshape", l))
-                    rx0 = sx0 + bw + 4
+                    pol_box = (bx, py0 + 3, bx + w_pol, py0 + 3 + bh)
+                    ptxt = "+" if positive else "−+"
+                    c.create_rectangle(*pol_box, outline=col, fill=(col if positive else ""), tags="mod")
+                    c.create_text((pol_box[0] + pol_box[2]) / 2, (pol_box[1] + pol_box[3]) / 2,
+                                  text=ptxt, font=self._fit_font(ptxt, w_pol - 4, bfs),
+                                  fill="#000000" if positive else col, tags="mod")
+                    self.mod_boxes.append((*pol_box, "lon", l))
+                    bx += w_pol + gap
+                    shp_box = (bx, py0 + 3, bx + w_shp, py0 + 3 + bh)
+                    shptxt = LFO_SHAPES[lfos[l][1]]
+                    c.create_rectangle(*shp_box, outline=col, tags="mod")
+                    c.create_text((shp_box[0] + shp_box[2]) / 2, (shp_box[1] + shp_box[3]) / 2,
+                                  text=shptxt, font=self._fit_font(shptxt, w_shp - 4, bfs), fill=col, tags="mod")
+                    self.mod_boxes.append((*shp_box, "lshape", l))
+                    bx += w_shp + gap
                     hz = lfos[l][0]
-                    rate_box = (rx0, py0 + 3, lx1 - 3, py0 + 3 + bh)
+                    rate_box = (bx, py0 + 3, lx1 - 3, py0 + 3 + bh)
+                    rtxt = DIV_NAMES[lfos[l][6]] if sync_on else (("%.2f Hz" % hz) if hz < 10 else ("%.1f Hz" % hz))
                     c.create_rectangle(*rate_box, outline=col, fill="#202020", tags="mod")
-                    c.create_text((rx0 + lx1 - 3) / 2, py0 + 3 + bh / 2, text=DIV_NAMES[lfos[l][6]] if sync_on else (("%.2f Hz" % hz) if hz < 10 else ("%.1f Hz" % hz)),
-                                  font=small, fill=zynthian_gui_config.color_tx, tags="mod")
+                    c.create_text((rate_box[0] + rate_box[2]) / 2, (rate_box[1] + rate_box[3]) / 2,
+                                  text=rtxt, font=self._fit_font(rtxt, w_rate - 4, bfs),
+                                  fill=zynthian_gui_config.color_tx, tags="mod")
                     self.mod_boxes.append((*rate_box, "lrate", l))
                     # the shape
-                    wy0, wy1 = py0 + bh + 10, py1 - bh - 10
-                    mid, amp = (wy0 + wy1) / 2.0, (wy1 - wy0) / 2.0
+                    wy0, wy1 = py0 + bh + 8, py1 - bh - 8
+                    mid, amp = (wy0 + wy1) / 2.0, max((wy1 - wy0) / 2.0, 2.0)
                     pts = []
                     smooth = lfos[l][4] / 100.0
                     follow = 1 - math.exp(-1 / (40 * 0.5 * smooth * smooth)) if smooth > 0 else 1
@@ -592,16 +671,19 @@ class zynthian_widget_eka_grain_flow(zynthian_widget_base.zynthian_widget_base):
                     self.lfo_dots.append(c.create_oval(0, 0, 0, 0, fill=col, outline="", tags="mod"))
                     ry0 = py1 - bh - 3
                     split_x = (lx0 + lx1) / 2
-                    depth_box = (lx0 + 4, ry0, split_x - 2, py1 - 3)
+                    depth_box = (lx0 + 3, ry0, split_x - 2, py1 - 3)
+                    dtxt = "%d→Rate %+d%%" % (2 - l, lfos[l][3])
                     c.create_rectangle(*depth_box, outline=DIM, fill="#202020", tags="mod")
                     c.create_text((depth_box[0] + depth_box[2]) / 2, (ry0 + py1 - 3) / 2,
-                                  text="%d→Rate %+d%%" % (2 - l, lfos[l][3]), font=small,
+                                  text=dtxt, font=self._fit_font(dtxt, depth_box[2] - depth_box[0] - 6, bfs),
                                   fill=col, tags="mod")
                     self.mod_boxes.append((*depth_box, "lrate_mod", l))
-                    smooth_box = (split_x + 2, ry0, lx1 - 4, py1 - 3)
+                    smooth_box = (split_x + 2, ry0, lx1 - 3, py1 - 3)
+                    smtxt = "Smooth %d%%" % lfos[l][4]
                     c.create_rectangle(*smooth_box, outline=DIM, fill="#202020", tags="mod")
                     c.create_text((smooth_box[0] + smooth_box[2]) / 2, (ry0 + py1 - 3) / 2,
-                                  text="Smooth %d%%" % lfos[l][4], font=small, fill=col, tags="mod")
+                                  text=smtxt, font=self._fit_font(smtxt, smooth_box[2] - smooth_box[0] - 6, bfs),
+                                  fill=col, tags="mod")
                     self.mod_boxes.append((*smooth_box, "lsmooth", l))
             # depth grid of the selected stream
             scol = STREAM_COLORS[s - 1]
@@ -641,9 +723,8 @@ class zynthian_widget_eka_grain_flow(zynthian_widget_base.zynthian_widget_base):
         for l, dot in enumerate(self.lfo_dots):
             py0 = ly0 + l * ph_h
             py1 = py0 + ph_h - 6
-            bh = self._line_h() - 4
-            wy0, wy1 = py0 + bh + 10, py1 - bh - 10
-            mid, amp = (wy0 + wy1) / 2.0, (wy1 - wy0) / 2.0
+            wy0, wy1 = py0 + bh + 8, py1 - bh - 8
+            mid, amp = (wy0 + wy1) / 2.0, max((wy1 - wy0) / 2.0, 2.0)
             v = min(max(self._mon("lfo%d" % (l + 1), 0.0), -1.0), 1.0)
             if lfos[l][2]:
                 v = min(max(v, 0.0), 1.0)
@@ -656,24 +737,26 @@ class zynthian_widget_eka_grain_flow(zynthian_widget_base.zynthian_widget_base):
 
     # ---------- touch ----------
     def _hit(self, event):
-        lh = self._line_h()
-        for i, (x0, y0, x1, y1) in enumerate(self.tab_boxes):
-            if x0 <= event.x <= x1 and y0 <= event.y <= y1:
-                return ("tab", i)
-        if event.y <= lh:
-            if self.freeze_box and self.freeze_box[0] <= event.x <= self.freeze_box[1]:
-                return ("freeze", None)
-            if self.mod_box and self.mod_box[0] <= event.x <= self.mod_box[1]:
-                return ("mod", None)
-            return None
-        for name, (x0, y0, x1, y1) in self.bottom_boxes.items():
-            if x0 <= event.x <= x1 and y0 <= event.y <= y1:
-                return (name, None)
-        if self.view == 1:
-            for x0, y0, x1, y1, kind, arg in self.mod_boxes:
-                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
-                    return (kind, arg)
-            return None
+        hh = self._header_h()
+        for pad in (0, 2):
+            for i, (x0, y0, x1, y1) in enumerate(self.tab_boxes):
+                if x0 - pad <= event.x <= x1 + pad and y0 - pad <= event.y <= y1 + pad:
+                    return ("tab", i)
+            if event.y <= hh + pad:
+                if self.freeze_box and self.freeze_box[0] - pad <= event.x <= self.freeze_box[1] + pad:
+                    return ("freeze", None)
+                if self.mod_box and self.mod_box[0] - pad <= event.x <= self.mod_box[1] + pad:
+                    return ("mod", None)
+                if pad == 0:
+                    continue
+                return None
+            for name, (x0, y0, x1, y1) in self.bottom_boxes.items():
+                if x0 - pad <= event.x <= x1 + pad and y0 - pad <= event.y <= y1 + pad:
+                    return (name, None)
+            if self.view == 1:
+                for x0, y0, x1, y1, kind, arg in self.mod_boxes:
+                    if x0 - pad <= event.x <= x1 + pad and y0 - pad <= event.y <= y1 + pad:
+                        return (kind, arg)
         return None
 
     def _drag_target(self, what):

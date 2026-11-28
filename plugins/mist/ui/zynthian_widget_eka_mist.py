@@ -434,8 +434,48 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
         except Exception:
             return ""
 
+    def _fit_font(self, text, room, size=None):
+        """The largest font from `size` (default: the normal one) down to 7 in which text is at most room wide."""
+        fam = zynthian_gui_config.font_family
+        top = size or self._font_size()
+        key = (text, int(room), top)
+        cache = self.__dict__.setdefault("fit_cache", {})
+        if key in cache:
+            return cache[key]
+        if len(cache) > 500:
+            cache.clear()
+        fonts = self.__dict__.setdefault("fit_fonts", {})
+        out = (fam, 7)
+        for fs in range(top, 6, -1):
+            try:
+                if fs not in fonts:
+                    fonts[fs] = tkinter.font.Font(family=fam, size=fs)
+                if fonts[fs].measure(text) <= room:
+                    out = (fam, fs)
+                    break
+            except Exception:
+                out = (fam, fs)
+                break
+        cache[key] = out
+        return out
+
+    def _btn_h(self):
+        """Height of a row of touch buttons or sliders, sized for fingers."""
+        fs = self._font_size()
+        h = max(int(self.height), 60)
+        return max(2 * fs + 6, min(60, int(h * 0.135)))
+
+    def _btn_font_size(self):
+        fs = self._font_size()
+        return min(15, fs + 2) if self._btn_h() >= 46 else fs
+
+    def _line_h(self):
+        """Height reserved for a single-line status caption at the bottom."""
+        fs = self._font_size()
+        return max(20, fs + 12)
+
     def _header_h(self):
-        """Height of the page name line, from the real font metrics (Tk sizes are points, not pixels)."""
+        """Height of the tab bar, sized for fingers."""
         fs = self._font_size()
         if fs not in self.header_h:
             try:
@@ -443,10 +483,32 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
                 self.header_h[fs] = f.metrics("linespace") + 4
             except Exception:
                 self.header_h[fs] = 2 * fs
-        return self.header_h[fs]
+        h = max(int(self.height), 60)
+        return max(self.header_h[fs], min(54, int(h * 0.12)))
 
     def _font_size(self):
         return max(8, min(max(self.height, 20) // 14, 13))
+
+    @staticmethod
+    def _hit(x0, y0, x1, y1, x, y, pad=2):
+        return x0 - pad <= x <= x1 + pad and y0 - pad <= y <= y1 + pad
+
+    @staticmethod
+    def _stretch_tabs(widths, target):
+        """Grow the narrowest tabs first until the row fills target, giving every tab a wide touch target."""
+        extra = target - sum(widths)
+        if extra <= 0:
+            return widths
+        ws = [float(x) for x in widths]
+        while extra > 0.5:
+            lo = min(ws)
+            lows = [i for i, x in enumerate(ws) if x <= lo + 0.5]
+            higher = [x for x in ws if x > lo + 0.5]
+            step = min(extra / len(lows), (min(higher) - lo) if higher else extra / len(lows))
+            for i in lows:
+                ws[i] += step
+            extra -= step * len(lows)
+        return [int(x) for x in ws]
 
     # ---------- tab <-> knob page ----------
     def _page_rows(self):
@@ -513,8 +575,8 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
         return self._header_h() + ZONE_BAND + GRAIN_STRIP + 4, h - self._button_h() - 6
 
     def _gain_w(self):
-        """Width of the gain slider at the right of the waveform."""
-        return max(16, self._font_size() * 2)
+        """Width of the gain slider at the right of the waveform, sized for fingers."""
+        return max(24, min(38, int(max(int(self.width), 80) * 0.065)))
 
     def _wave_w(self):
         return max(int(self.width), 40) - self._gain_w() - 4
@@ -669,7 +731,7 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
             if x1 - x0 >= 1:
                 c.create_rectangle(x0, top, x1, bottom, fill=zynthian_gui_config.color_bg, stipple="gray50",
                                    width=0, tags="markers")
-        tab = max(6, self._font_size() // 2 + 2)
+        tab = max(8, self._font_size() // 2 + 4)
         for x, d in ((a * w, 1), (b * w, -1)):
             x = min(max(x, 1), w - 1)
             c.create_line(x, s0, x, bottom, fill=MARKER_COLOR, width=2, tags="markers")
@@ -686,7 +748,7 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
             return False
         w = self._wave_w()
         a, b = self._markers()
-        grab = max(10, self._font_size())
+        grab = max(16, int(self._btn_h() * 0.45))
         da, db = abs(event.x - a * w), abs(event.x - b * w)
         if min(da, db) > grab:
             return False
@@ -751,24 +813,28 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
         c = self.widget_canvas
         c.delete("wctl")
         w = max(self.width, 80)
-        fam, fs = zynthian_gui_config.font_family, self._font_size()
+        fam, bfs = zynthian_gui_config.font_family, self._btn_font_size()
         tx = zynthian_gui_config.color_tx
         bh = self._button_h()
         y0 = self._area()[1] + 3
         y1 = y0 + bh
         try:
-            f = tkinter.font.Font(family=fam, size=fs)
+            f = tkinter.font.Font(family=fam, size=bfs)
             tw = lambda t: f.measure(t)
         except Exception:
-            tw = lambda t: len(t) * fs * 0.6
+            tw = lambda t: len(t) * bfs * 0.6
         if det >= 0:
             dn = int(round(det))
             auto_t = "Auto %s" % note_name(dn)
         else:
             auto_t = "Auto -"
-        items = [("root", "Root %s" % note_name(root), tw("Root C#4") + 10),
-                 ("tune", "%+dc" % tune, tw("+50c") + 10),
-                 ("auto", auto_t, tw("Auto C#4") + 10)]
+        items = [("root", "Root %s" % note_name(root), max(tw("Root C#4") + 16, int(w * 0.24))),
+                 ("tune", "%+dc" % tune, max(tw("+50c") + 16, int(w * 0.16))),
+                 ("auto", auto_t, max(tw("Auto C#4") + 16, int(w * 0.24)))]
+        total = sum(bw for _, _, bw in items) + 12
+        if total > w - 8:
+            scale = (w - 8 - 12) / float(max(total - 12, 1))
+            items = [(s, t, max(36, int(bw * scale))) for s, t, bw in items]
         x = w - 4
         self.wave_boxes = {}
         for sym, text, bw in reversed(items):
@@ -780,7 +846,8 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
             else:
                 fill, tcol = BUTTON_OFF, tx
             c.create_rectangle(x0, y0, x, y1, fill=fill, outline="#505050", tags="wctl")
-            c.create_text((x0 + x) / 2, (y0 + y1) / 2, text=text, fill=tcol, font=(fam, fs), tags="wctl")
+            c.create_text((x0 + x) / 2, (y0 + y1) / 2, text=text, fill=tcol,
+                          font=self._fit_font(text, bw - 8, bfs), tags="wctl")
             self.wave_boxes[sym] = (x0, y0, x, y1)
             x = x0 - 4
         self.wave_ctl_left = x
@@ -877,25 +944,38 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
                 c.itemconfigure(item, state="normal")
 
     def _tab_metrics(self, title):
-        """(font size, padding, widths, title shown): the tabs and the page title share the top line. The padding
-        shrinks first, then the font; if the tabs still do not fit beside the title, the title goes."""
+        """(font size, padding, widths, title shown): the tabs and the page title share the top line. Narrow tabs
+        grow to fill all available width so every tab stays wide and in a fixed place across pages."""
         fam, fs = zynthian_gui_config.font_family, self._font_size()
+        title_fs = max(7, fs - 2)
+        gap = 3
+        fonts = self.__dict__.setdefault("fit_fonts", {})
+        known = self.__dict__.setdefault("tab_widths", {})
 
         def measure(size, text):
+            px = known.get((size, text))
+            if px is not None:
+                return px
             try:
-                return tkinter.font.Font(family=fam, size=size).measure(text)
+                if size not in fonts:
+                    fonts[size] = tkinter.font.Font(family=fam, size=size)
+                px = fonts[size].measure(text)
             except Exception:
-                return len(text) * size
+                px = len(text) * size
+            known[(size, text)] = px
+            return px
         w = max(self.width, 80)
+        title_w = max(measure(title_fs, "Position"), measure(title_fs, title)) if title else 0
         for show in ((True, False) if title else (False,)):
-            avail = w - 4 - (measure(fs, title) + 14 if show else 0)
+            avail = w - 4 - (title_w + 12 if show else 0)
+            target = avail - gap * len(TABS)
             for size in range(fs, max(7, fs - 4) - 1, -1):
-                for pad in (2 * size, size, size // 2):
+                for pad in (size, size // 2, 4):
                     widths = [measure(size, t) + pad for t in TABS]
-                    if sum(widths) + 4 * len(TABS) <= avail:
-                        return size, pad, widths, show
+                    if sum(widths) <= target:
+                        return size, pad, self._stretch_tabs(widths, target), show
         size = max(7, fs - 4)
-        return size, size // 2, [measure(size, t) + size // 2 for t in TABS], False
+        return size, 4, [measure(size, t) + 4 for t in TABS], False
 
     def _draw_tabs(self):
         title = self._page_title()
@@ -917,15 +997,15 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
             c.create_rectangle(x, 1, x + tw, hh - 2, outline=TAB_COLOR, fill=(TAB_COLOR if sel else ""), tags="tabs")
             c.create_text(x + tw / 2, hh / 2, text=t, font=font, tags="tabs",
                           fill=("#000000" if sel else TAB_COLOR))
-            self.tab_boxes.append((x, x + tw + 2))
-            x += tw + 4
+            self.tab_boxes.append((max(0, x - 2), x + tw + 1))
+            x += tw + 3
 
     # ---------- Grain tab ----------
     def _grain_layout(self):
         w, h = max(self.width, 80), max(self.height, 60)
         top = self._header_h() + 6
         pad = 8
-        plot = (pad, top, int(w * 0.5) - pad, h - pad - self._font_size() * 2)
+        plot = (pad, top, int(w * 0.5) - pad, h - pad - self._line_h())
         right = int(w * 0.5) + pad
         return w, h, top, pad, plot, right
 
@@ -988,13 +1068,15 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
         if mono and frac > 0:
             c.create_rectangle(gx0 + 1, y + 1, gx0 + 1 + frac * (gx1 - gx0 - 2), y + bh - 1, fill="#2d6c99", width=0,
                                tags="grain")
-        c.create_text(gx0 + 6, y + bh / 2, anchor="w", tags="grain", font=(fam, fs),
+        gtext = ("Glide %d ms" % glide) if glide else "Glide off"
+        c.create_text(gx0 + 8, y + bh / 2, anchor="w", tags="grain",
+                      font=self._fit_font(gtext, gx1 - gx0 - 14, self._btn_font_size()),
                       fill=(tx if mono else "#505050"),
-                      text=("Glide %d ms" % glide) if glide else "Glide off")
+                      text=gtext)
 
     def _button_h(self):
-        """Button height from the font: text plus a small margin."""
-        return int(self._header_h() * 1.3)
+        """Height of touch buttons and sliders, sized for fingers."""
+        return self._btn_h()
 
     def _button(self, x0, y0, x1, y1, text, on, enabled, sym, value, tag="grain"):
         c = self.widget_canvas
@@ -1002,7 +1084,7 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
         c.create_rectangle(x0, y0, x1, y1, fill=fill, outline=("#505050" if enabled else "#303030"), tags=tag)
         c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=text, tags=tag,
                       fill=("#000000" if on else (zynthian_gui_config.color_tx if enabled else "#505050")),
-                      font=(zynthian_gui_config.font_family, self._font_size()))
+                      font=self._fit_font(text, x1 - x0 - 6, self._btn_font_size()))
         if enabled:
             self.buttons.append((x0, y0, x1, y1, sym, value))
 
@@ -1027,7 +1109,7 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
                 (bb, "bend_range", 0, BEND_MAX, across(bb, BEND_MAX), BEND_DEFAULT),
                 (wb.get("root"), "root", 0, 127, ROOT_PER_PX, 60),
                 (wb.get("tune"), "tune", -50, 50, TUNE_PER_PX, 0)):
-            if not box or not (box[0] <= event.x <= box[2] and box[1] <= event.y <= box[3]):
+            if not box or not self._hit(box[0], box[1], box[2], box[3], event.x, event.y):
                 continue
             now = time.monotonic()
             if self.last_tap[0] == sym and now - self.last_tap[1] < DOUBLE_TAP:
@@ -1066,7 +1148,7 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
         if self._slider_press(event):
             return True
         b = self.wave_boxes.get("auto")
-        if b and b[0] <= event.x <= b[2] and b[1] <= event.y <= b[3]:
+        if b and self._hit(b[0], b[1], b[2], b[3], event.x, event.y):
             det = self._mon("detected", -1.0)
             if det >= 0:
                 root = int(round(det))
@@ -1078,13 +1160,14 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
         return event.y >= self._area()[1]
 
     def _button_press(self, event):
-        for x0, y0, x1, y1, sym, value in self.buttons:
-            if x0 <= event.x <= x1 and y0 <= event.y <= y1:
-                self._zset(sym, value)
-                self.grain_view = None
-                self.pitch_view = None
-                self.refresh_gui()
-                return
+        for pad in (0, 1, 2):
+            for x0, y0, x1, y1, sym, value in self.buttons:
+                if self._hit(x0, y0, x1, y1, event.x, event.y, pad):
+                    self._zset(sym, value)
+                    self.grain_view = None
+                    self.pitch_view = None
+                    self.refresh_gui()
+                    return
 
     # ---------- Mod tab ----------
     def _mod_label_font(self, cw):
@@ -1212,10 +1295,10 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
             self._draw_mod_side()
 
     def _pol_w(self):
-        """Polarity button: a square as tall as the LFO box allows, at least twice the font"""
+        """Polarity button: a finger-sized square as tall as the LFO box allows."""
         w, h, pad, top = self._mod_layout()[:4]
         rh = (h - pad - top) / 5.0
-        return int(max(14, min(rh - 4, self._font_size() * 2.2)))
+        return int(max(24, min(rh - 6, self._btn_h() * 0.8)))
 
     def _draw_mod_side(self):
         vals = tuple(int(round(self._zval(b[0], 0))) for b in self._side_boxes())
@@ -1292,7 +1375,7 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
             sym, lo, hi = self._cell_sym(si, di), -100, 100
         elif self.tab == 4:
             for bsym, kind, x0, y0, x1, y1, _ in self._side_boxes():
-                if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+                if self._hit(x0, y0, x1, y1, event.x, event.y):
                     if kind == "pol":
                         self._zset(bsym, 1 - int(round(self._zval(bsym, 0))))
                     elif kind == "shape":
@@ -1342,11 +1425,11 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
     DB_TOP, DB_BOTTOM = 30.0, -42.0
 
     def _filter_layout(self):
-        """Plot box; below it one line for the frequency labels and one for the info (real font metrics)."""
+        """Plot box; below it one line for the frequency labels and one for the info."""
         w, h = max(self.width, 80), max(self.height, 60)
         pad = 8
         top = self._header_h() + 6
-        line = self._header_h()
+        line = self._line_h()
         return (pad + 30, top, w - pad, h - 2 * line - 2)
 
     def _fx(self, f, x0, x1):
@@ -1431,14 +1514,16 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
                 b = (bx0 + i * half, by0, bx0 + (i + 1) * half - (2 if i == 0 else 0), by1)
                 on = i == slope
                 c.create_rectangle(*b, fill=(BUTTON_ON if on else BUTTON_OFF), outline="#505050", tags="filter")
-                c.create_text((b[0] + b[2]) / 2, (b[1] + b[3]) / 2, text="%d dB" % db, tags="filter",
-                              fill=("#000000" if on else zynthian_gui_config.color_tx), font=(fam, fs))
+                stext = "%d dB" % db
+                c.create_text((b[0] + b[2]) / 2, (b[1] + b[3]) / 2, text=stext, tags="filter",
+                              fill=("#000000" if on else zynthian_gui_config.color_tx),
+                              font=self._fit_font(stext, b[2] - b[0] - 6, self._btn_font_size()))
                 self.slope_boxes.append((b, i))
 
     def _slope_press(self, event):
         """Filter tab: a tap on 12 or 24 dB (LP, HP, BP)."""
         for (x0, y0, x1, y1), i in self.slope_boxes:
-            if x0 <= event.x <= x1 and y0 <= event.y <= y1:
+            if self._hit(x0, y0, x1, y1, event.x, event.y):
                 self._zset("filter_slope", i)
                 self.refresh_gui()
                 return True
@@ -1458,38 +1543,46 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
         if value > 0:
             c.create_rectangle(x0 + 1, y0 + 1, x0 + 1 + value / 100.0 * (x1 - x0 - 2), y1 - 1, fill="#2d6c99",
                                width=0, tags="filter")
-        c.create_text(x0 + 6, (y0 + y1) / 2, anchor="w", text=text, fill=zynthian_gui_config.color_tx,
-                      font=(zynthian_gui_config.font_family, self._font_size()), tags="filter")
+        c.create_text(x0 + 8, (y0 + y1) / 2, anchor="w", text=text, fill=zynthian_gui_config.color_tx,
+                      font=self._fit_font(text, x1 - x0 - 12, self._btn_font_size()), tags="filter")
 
     def _vowel_boxes(self):
         """Lows: the Mix bar's size in the top left of the plot; Highs: right under Mix."""
         x0, y0 = self._filter_layout()[:2]
         mx0, my0, mx1, my1 = self._mix_box()
         bh = my1 - my0
-        return (x0 + 3, my0, x0 + 3 + (mx1 - mx0), my1), (mx0, my1 + 3, mx1, my1 + 3 + bh)
+        return (x0 + 3, my0, x0 + 3 + (mx1 - mx0), my1), (mx0, my1 + 4, mx1, my1 + 4 + bh)
 
     def _mix_box(self):
-        """Filter Mix bar: top right inside the plot, about 30 % of its width (less than half), a button high."""
+        """Filter Mix bar: top right inside the plot, sized for fingers."""
         x0, y0, x1, y1 = self._filter_layout()
         fs = self._font_size()
+        bfs = self._btn_font_size()
         try:
-            f = tkinter.font.Font(family=zynthian_gui_config.font_family, size=fs)
-            tw = max(f.measure(t) for t in ("Mix 0 % (dry)", "Highs -40 dB", "Lows -40 dB")) + 14
+            f = tkinter.font.Font(family=zynthian_gui_config.font_family, size=bfs)
+            tw = max(f.measure(t) for t in ("Mix 0 % (dry)", "Highs -40 dB", "Lows -40 dB")) + 16
         except Exception:
-            tw = fs * 9
-        bw = min(max(int((x1 - x0) * 0.3), tw), int((x1 - x0) / 2) - 6)   # Lows fits beside it
-        bh = min(self._button_h(), int((y1 - y0) * 0.2))
+            tw = bfs * 9
+        bw = min(max(int((x1 - x0) * 0.36), tw), int((x1 - x0) / 2) - 6)   # Lows fits beside it
+        bh = min(self._button_h(), max(2 * fs + 4, int((y1 - y0) * 0.25)))
         return (x1 - 3 - bw, y0 + 3, x1 - 3, y0 + 3 + bh)
 
     # ---------- Pitch tab ----------
     PITCH_ROWS = 4    # below the keys: 3 rows of scale buttons, then Bend range and the info
+
+    def _pitch_btn_h(self):
+        h = max(self.height, 60)
+        fs = self._font_size()
+        top = self._header_h() + 4
+        max_bh = int((h - top - 4 - 44 - fs // 2) / self.PITCH_ROWS) - 4
+        return max(2 * fs + 4, min(self._button_h(), max_bh))
 
     def _pitch_layout(self):
         """Keys on top; their height is what the button rows below leave (at most 38 %)."""
         w, h = max(self.width, 80), max(self.height, 60)
         pad = 4
         top = self._header_h() + 4
-        rows_h = self.PITCH_ROWS * (self._button_h() + 4) + self._font_size() // 2
+        rows_h = self.PITCH_ROWS * (self._pitch_btn_h() + 4) + self._font_size() // 2
         kh = min(int((h - top) * 0.38), h - pad - top - rows_h)
         kb = (pad, top, w - pad, top + max(kh, 12))
         return w, h, pad, kb
@@ -1529,7 +1622,7 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
                               font=(fam, fs))
                 self.buttons.append((x0 + 1, ky0, x0 + kw - 2, ky1, "key", pc))
             # scale buttons: 3 rows of 4
-            bh = self._button_h()
+            bh = self._pitch_btn_h()
             y = ky1 + fs // 2 + 4
             cols = 4
             bw = (w - 2 * pad) / float(cols)
@@ -1546,9 +1639,11 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
             if bend > 0:
                 c.create_rectangle(bx0 + 1, by + 1, bx0 + 1 + bend / float(BEND_MAX) * (bx1 - bx0 - 2), by + bh - 1,
                                    fill="#2d6c99", width=0, tags="pitch")
-            c.create_text(bx0 + 6, by + bh / 2, anchor="w", tags="pitch", font=(fam, fs),
+            btext = ("Bend \u00b1%d" % bend) if bend else "Bend off"
+            c.create_text(bx0 + 8, by + bh / 2, anchor="w", tags="pitch",
+                          font=self._fit_font(btext, bx1 - bx0 - 14, self._btn_font_size()),
                           fill=zynthian_gui_config.color_tx,
-                          text=("Bend \u00b1%d" % bend) if bend else "Bend off")
+                          text=btext)
             info = "Quantize %d %%   Pitch %+.1f   Spray %.1f" % (round(quant), pitch, spray)
             try:                                       # narrow screen: the short form
                 if tkinter.font.Font(family=fam, size=fs).measure(info) > w - pad - bx1 - 8:
@@ -1583,9 +1678,9 @@ class zynthian_widget_eka_mist(zynthian_widget_base.zynthian_widget_base):
         self.title = title
         c = self.widget_canvas
         c.delete("title")
-        c.create_text(max(self.width, 20) - 6, 2, anchor="ne", text=title, tags="title",
+        c.create_text(max(self.width, 20) - 6, self._header_h() / 2, anchor="e", text=title, tags="title",
                       fill=zynthian_gui_config.color_tx_off,
-                      font=(zynthian_gui_config.font_family, self._font_size()))
+                      font=(zynthian_gui_config.font_family, max(7, self._font_size() - 2)))
 
     def _draw_info(self, path):
         status = int(self._mon("status", 0))
